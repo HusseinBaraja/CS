@@ -2,12 +2,11 @@
 **Goal**: Implement structured logging with Pino.
 
 **Tasks**:
-- [ ] Install `pino` and `pino-pretty`
-- [ ] Create `src/utils/logger.ts`
-- [ ] Configure log levels based on environment (`dev` = debug, `prod` = info)
-- [ ] Add pretty-printing for development
-- [ ] Add log file output for production
-- [ ] Implement sensitive data redaction (phone numbers, API keys)
+- [ ] Create `packages/core/src/logger.ts`
+- [ ] Import log level from `@cs/config`
+- [ ] Configure log levels based on `LOG_LEVEL` env var (fallback: `debug` in dev, `info` in prod)
+- [ ] Add `pino-pretty` transport for development
+- [ ] Add sensitive data redaction (phone numbers, API keys, tokens)
 
 **Verification**:
 - Logs appear in console with proper formatting
