@@ -3,6 +3,7 @@
 A step-by-step guide to building the Customer Service Chatbot from ground zero to a fully-featured multi-tenant production system.
 
 > **Prerequisites:** Read [`docs/SOURCE_OF_TRUTH.md`](docs/SOURCE_OF_TRUTH.md) and [`docs/system_design.md`](docs/system_design.md) before starting.
+> **Monorepo baseline:** Read [`docs/MONOREPO_SETUP.md`](docs/MONOREPO_SETUP.md) for workspace layout and script conventions.
 
 ---
 

@@ -1,1 +1,14 @@
 .idea
+node_modules
+bun.lockb
+.env
+.env.local
+.env.*.local
+logs/
+data/
+auth_sessions/
+.convex/
+dist/
+coverage/
+.turbo/
+.DS_Store

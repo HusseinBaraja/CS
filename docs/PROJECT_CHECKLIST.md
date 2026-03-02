@@ -1,6 +1,7 @@
 # CSCB Project — Checklist
 
 > Mark tasks with `[x]` as you complete them. Refer to [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) for full details, code snippets, and specs.
+> Monorepo baseline and path mapping: [`MONOREPO_SETUP.md`](./MONOREPO_SETUP.md).
 
 ---
 

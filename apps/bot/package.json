@@ -1,0 +1,20 @@
+{
+  "name": "bot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "check": "bun run typecheck && bun run lint",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@cs/ai": "*",
+    "@cs/core": "*",
+    "@cs/rag": "*",
+    "@whiskeysockets/baileys": "latest"
+  }
+}

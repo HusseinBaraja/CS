@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "types": [
+      "bun"
+    ],
+    "paths": {
+      "@cs/config": [
+        "packages/config/src/index.ts"
+      ],
+      "@cs/shared": [
+        "packages/shared/src/index.ts"
+      ],
+      "@cs/core": [
+        "packages/core/src/index.ts"
+      ],
+      "@cs/db": [
+        "packages/db/src/index.ts"
+      ],
+      "@cs/ai": [
+        "packages/ai/src/index.ts"
+      ],
+      "@cs/rag": [
+        "packages/rag/src/index.ts"
+      ]
+    }
+  }
+}
