@@ -1,154 +1,39 @@
-# CSCB Project — Detailed Implementation Plan
-
-A step-by-step guide to building the Customer Service Chatbot from ground zero to a fully-featured multi-tenant production system.
-
-> **Prerequisites:** Read [`docs/SOURCE_OF_TRUTH.md`](docs/SOURCE_OF_TRUTH.md) and [`docs/system_design.md`](docs/system_design.md) before starting.
-> **Monorepo baseline:** Read [`docs/MONOREPO_SETUP.md`](docs/MONOREPO_SETUP.md) for workspace layout and script conventions.
-
----
+# CS Project — Detailed Implementation Plan
 
 ## Overview
 
-This plan breaks down the CSCB project into **12 phases**. Each step builds upon the previous one and includes verification and tests to ensure everything works before moving forward.
-
-```mermaid
-graph LR
-    A[Phase 1: Foundation] --> B[Phase 2: Convex Backend]
-    B --> C[Phase 3: REST API]
-    A --> D[Phase 4: AI Providers]
-    B --> E[Phase 5: RAG Pipeline]
-    D --> E
-    A --> F[Phase 6: WhatsApp]
-    B --> G[Phase 7: Conversation]
-    F --> G
-    D --> G
-    F --> H[Phase 8: Owner Commands]
-    E --> I[Phase 9: Advanced Features]
-    G --> I
-    H --> I
-    I --> J[Phase 10: Hardening]
-    J --> K[Phase 11: Testing]
-    K --> L[Phase 12: Documentation]
-```
+This plan breaks down the CS project into **12 phases**. Each step builds upon the previous one and includes verification and tests to ensure everything works before moving forward.
 
 ---
 
 ## Technology Stack
 
-| Category             | Technology                      | Package                    |
-| -------------------- | ------------------------------- | -------------------------- |
-| **Runtime**          | Bun                             | —                          |
-| **Language**         | TypeScript (strict)             | —                          |
-| **WhatsApp**         | Baileys (multi-device)          | `@whiskeysockets/baileys`  |
-| **AI (Primary)**     | DeepSeek V3                     | `openai`                   |
-| **AI (Backup 1)**    | Google Gemini Flash             | `@google/genai`            |
-| **AI (Backup 2)**    | Groq (Llama 3.1)                | `groq-sdk`                 |
-| **Embeddings**       | Gemini (`gemini-embedding-001`) | `@google/genai`            |
-| **Backend/Database** | Convex                          | `convex`                   |
-| **Web Framework**    | Hono                            | `hono`                     |
-| **Logging**          | Pino                            | `pino` + `pino-pretty`     |
-| **Config**           | t3-env + Zod                    | `@t3-oss/env-core` + `zod` |
-| **Process Manager**  | PM2                             | `pm2`                      |
-| **Image Storage**    | Cloudflare R2                   | `@aws-sdk/client-s3`       |
-| **Testing**          | Vitest                          | `vitest`                   |
-| **Linting**          | Oxlint (type-aware)             | `oxlint`                   |
-| **Formatting**       | Prettier                        | `prettier`                 |
-| **Task Runner**      | Turborepo                       | `turbo`                    |
+| Category               | Technology                      | Package                    |
+| ---------------------- | ------------------------------- | -------------------------- |
+| **Runtime**            | Bun                             | —                          |
+| **Language**           | TypeScript (strict)             | —                          |
+| **WhatsApp**           | Baileys (multi-device)          | `@whiskeysockets/baileys`  |
+| **AI (Primary)**       | DeepSeek V3                     | `openai`                   |
+| **AI (Backup 1)**      | Google Gemini Flash             | `@google/genai`            |
+| **AI (Backup 2)**      | Groq (Llama 3.1)                | `groq-sdk`                 |
+| **Embeddings**         | Gemini (`gemini-embedding-001`) | `@google/genai`            |
+| **Embeddings Backups** | Choose                          |                            |
+| **Backend/Database**   | Convex                          | `convex`                   |
+| **Web Framework**      | Hono                            | `hono`                     |
+| **Logging**            | Pino                            | `pino` + `pino-pretty`     |
+| **Config**             | t3-env + Zod                    | `@t3-oss/env-core` + `zod` |
+| **Process Manager**    | PM2                             | `pm2`                      |
+| **Image Storage**      | Cloudflare R2                   | `@aws-sdk/client-s3`       |
+| **Testing**            | Vitest                          | `vitest`                   |
+| **Linting**            | Oxlint (type-aware)             | `oxlint`                   |
+| **Formatting**         | Prettier                        | `prettier`                 |
+| **Task Runner**        | Turborepo                       | `turbo`                    |
 
 ---
 
 ## Phase 1: Project Foundation & Basic Setup
 
-### Step 1.1: Project Structure Setup
-
-**Goal**: Create the foundational directory structure and configuration files.
-
-**Tasks**:
-
-- [ ] Create folder structure:
-  ```
-  src/
-  ├── config/           # Environment, constants
-  ├── providers/        # AI provider implementations
-  ├── services/
-  │   ├── whatsapp/     # Baileys client, sessions, QR
-  │   ├── ai/           # Chat orchestrator, prompts, actions
-  │   └── rag/          # Embeddings, vector search, context
-  ├── controllers/      # Message + command handlers
-  ├── commands/         # Individual ! commands
-  ├── api/
-  │   ├── middleware/   # Auth, CORS, rate-limit
-  │   └── routes/       # CRUD endpoints
-  └── utils/            # Logger, errors, language, currency
-  convex/               # Convex schema, functions, seed
-  tests/                # Test files mirroring src/
-  docs/                 # Architecture docs
-  ```
-- [ ] Create `src/index.ts` as main entry point
-- [ ] Initialize `package.json` with `bun init`
-- [ ] Configure `tsconfig.json` with strict mode enabled
-- [ ] Create `.gitignore` (node_modules, .env, logs/, data/, auth_sessions/)
-- [ ] Install dev tooling: `bun add -d typescript bun-types vitest oxlint prettier turbo convex`
-- [ ] Configure Oxlint (`oxlintrc.json`) with type-aware rules
-- [ ] Configure Prettier (`.prettierrc` + `.prettierignore`)
-- [ ] Configure Vitest (`vitest.config.ts`) with path aliases
-- [ ] Create `convex/tsconfig.json` for Convex server functions
-- [ ] Configure Turborepo (`turbo.json`) with task definitions, caching, and dependencies
-
-**Turborepo Configuration** (`turbo.json`):
-
-```json
-{
-  "$schema": "https://turbo.build/schema.json",
-  "tasks": {
-    "dev": {
-      "persistent": true,
-      "cache": false
-    },
-    "dev:server": {
-      "persistent": true,
-      "cache": false
-    },
-    "dev:convex": {
-      "persistent": true,
-      "cache": false
-    },
-    "typecheck": {
-      "outputs": []
-    },
-    "lint": {
-      "outputs": []
-    },
-    "test": {
-      "outputs": ["coverage/**"]
-    },
-    "check": {
-      "dependsOn": ["lint"]
-    },
-    "ci": {
-      "dependsOn": ["typecheck", "lint", "test"]
-    },
-    "generate": {
-      "cache": false
-    }
-  }
-}
-```
-
-**Package Scripts** (all run via `bun`):
-
-| Script                                  | Command                                      | Purpose                                     |
-| --------------------------------------- | -------------------------------------------- | ------------------------------------------- |
-| `bun dev`                               | `turbo run dev:server dev:convex --parallel` | Start dev server + Convex (via Turbo)       |
-| `bun lint`                              | `oxlint --tsconfig tsconfig.json .`          | Type-aware linting (also reports TS errors) |
-| `bun lint --fix`                        | `oxlint --tsconfig tsconfig.json --fix .`    | Apply autofixable lint fixes                |
-| `bun check`                             | `turbo run check`                            | Format + lint                               |
-| `bun test`                              | `vitest run`                                 | Run tests with Vitest (excludes evals)      |
-| `bun test:watch`                        | `vitest`                                     | Watch mode for tests                        |
-| `bun x vitest run path/to/test.test.ts` | —                                            | Run single test file                        |
-| `bun generate`                          | `bunx convex codegen`                        | Generate Convex types after schema changes  |
-| `bun run typecheck`                     | `tsc --noEmit`                               | TypeScript type checking                    |
-| `bun run ci`                            | `turbo run ci`                               | Full CI: typecheck + lint + test (cached)   |
+**Done**
 
 **Verification**:
 
@@ -1862,31 +1747,5 @@ analyticsEvents: defineTable({
   }
 }
 ```
-
----
-
-## Phase Dependencies
-
-```mermaid
-graph TD
-    P1[Phase 1: Foundation] --> P2[Phase 2: Convex Backend]
-    P1 --> P4[Phase 4: AI Providers]
-    P1 --> P6[Phase 6: WhatsApp]
-    P2 --> P3[Phase 3: REST API]
-    P2 --> P5[Phase 5: RAG Pipeline]
-    P4 --> P5
-    P2 --> P7[Phase 7: Conversation]
-    P6 --> P7
-    P4 --> P7
-    P6 --> P8[Phase 8: Owner Commands]
-    P5 --> P9[Phase 9: Advanced Features]
-    P7 --> P9
-    P8 --> P9
-    P9 --> P10[Phase 10: Hardening]
-    P10 --> P11[Phase 11: Testing]
-    P11 --> P12[Phase 12: Documentation]
-```
-
-**Parallel tracks**: Phases 3, 4, and 6 can be developed in parallel after Phase 1 is complete.
 
 ---

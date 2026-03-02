@@ -1,4 +1,4 @@
-# CSCB Monorepo Setup
+# CS Monorepo Setup
 
 This repository is now initialized as a Bun + Turborepo monorepo.
 
