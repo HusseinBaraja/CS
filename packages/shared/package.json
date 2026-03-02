@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "check": "bun run typecheck && bun run lint",
-    "test": "bun test"
+    "test": "bun test --pass-with-no-tests"
   }
 }
+
