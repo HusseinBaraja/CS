@@ -2,7 +2,7 @@
 **Goal**: Create centralized error handling utilities.
 
 **Tasks**:
-- [ ] Create `packages/core/src/errors.ts` — custom error classes
+- [ ] Create `errors.ts` — custom error classes in the approriate project place
 - [ ] Create error types:
   - `AppError` — base class with `code`, `message`, `cause`, `toJSON()`
   - `ConfigError` — missing/invalid configuration
