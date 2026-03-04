@@ -1,6 +1,6 @@
 import pino from "pino";
 import type { DestinationStream, Logger, LoggerOptions } from "pino";
-import type { HealthStatus } from "@cs/shared";
+import { formatError, type HealthStatus } from "@cs/shared";
 
 const redactPaths = [
   "password",
@@ -52,6 +52,21 @@ export const createLogger = (
 };
 
 export const logger = createLogger();
+
+export const logError = (
+  log: Logger,
+  error: unknown,
+  message: string,
+  context: Record<string, unknown> = {}
+): void => {
+  log.error(
+    {
+      err: formatError(error),
+      context
+    },
+    message
+  );
+};
 
 export const coreHealth = (): HealthStatus => ({
   service: "api",
