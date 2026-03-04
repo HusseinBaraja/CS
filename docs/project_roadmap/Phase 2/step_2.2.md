@@ -10,7 +10,7 @@ companies: defineTable({
 	name: v.string(),
 	ownerPhone: v.string(),
 	config: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
-	timezone: v.optional(v.string()),  // Default: "Asia/Aden"
+	timezone: v.optional(v.string()), // Default: "Asia/Aden"
 }).index("by_owner_phone", ["ownerPhone"]),
 ```
 
@@ -37,8 +37,8 @@ products: defineTable({
 	descriptionAr: v.optional(v.string()),
 	specifications: v.optional(v.record(v.string(), v.union(v.string(),v.number(), v.boolean()))),
 	basePrice: v.optional(v.number()),
-	baseCurrency: v.optional(v.string()),  // Default: "SAR"
-	imageUrls: v.optional(v.array(v.string())),  // Cloudflare R2 public URLs
+	baseCurrency: v.optional(v.string()), // Default: "SAR"
+	imageUrls: v.optional(v.array(v.string())), // Cloudflare R2 public URLs
 }).index("by_company", ["companyId"])
 .index("by_category", ["companyId", "categoryId"]),
 ```
@@ -49,7 +49,7 @@ products: defineTable({
 productVariants: defineTable({
 productId: v.id("products"),
 variantLabel: v.string(),
-attributes: v.record(v.string(), v.union(v.string(), v.number(), v.boolean())),  // { size: "L", color: "White" }
+attributes: v.record(v.string(), v.union(v.string(), v.number(), v.boolean())), // { size: "L", color: "White" }
 priceOverride: v.optional(v.number()),
 }).index("by_product", ["productId"]),
 ```
