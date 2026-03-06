@@ -334,4 +334,64 @@ describe("logger", () => {
 
     rmSync(logDir, { recursive: true, force: true });
   });
+
+  test("reports cleanup failures without disabling rotation", async () => {
+    const logDir = mkdtempSync(join(tmpdir(), "cs-cleanup-failure-"));
+    let currentDate = new Date("2026-03-06T08:00:00");
+    let streamCreationCount = 0;
+    let rotatedOutput = "";
+    const initialStream = new PassThrough();
+    const rotatedStream = new PassThrough();
+    rotatedStream.on("data", (chunk: Buffer | string) => {
+      rotatedOutput += chunk.toString();
+    });
+
+    const reportedErrors: Error[] = [];
+    const destination = createProductionLogDestination(
+      {
+        LOG_DIR: logDir,
+        LOG_RETENTION_DAYS: 14
+      },
+      {
+        now: () => currentDate,
+        createStream: () => {
+          streamCreationCount += 1;
+          return streamCreationCount === 1 ? initialStream : rotatedStream;
+        },
+        onStreamError: (error) => {
+          reportedErrors.push(error);
+        }
+      }
+    ) as Writable & {
+      cleanupExpiredLogs: () => void;
+      currentDate: string;
+      rotationEnabled: boolean;
+    };
+
+    destination.cleanupExpiredLogs = () => {
+      throw new Error("simulated cleanup failure");
+    };
+    destination.currentDate = "2026-03-05";
+
+    const runtimeConfig = createLoggerRuntimeConfig({
+      NODE_ENV: "production",
+      LOG_LEVEL: "info",
+      LOG_DIR: logDir,
+      LOG_RETENTION_DAYS: 14
+    });
+    const logger = createLogger({}, destination, runtimeConfig);
+
+    logger.info("cleanup-failure-does-not-stop-rotation");
+    await waitForAsyncWork();
+
+    destination.end();
+    await finished(destination);
+
+    const logs = parseLogLines(rotatedOutput);
+    expect(logs.some((entry) => entry.msg === "cleanup-failure-does-not-stop-rotation")).toBe(true);
+    expect(reportedErrors.some((error) => error.message.includes("simulated cleanup failure"))).toBe(true);
+    expect(destination.rotationEnabled).toBe(true);
+
+    rmSync(logDir, { recursive: true, force: true });
+  });
 });

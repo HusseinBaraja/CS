@@ -201,7 +201,11 @@ class DailyRotatingFileStream extends Writable {
 
   private rotate(): void {
     mkdirSync(this.config.LOG_DIR, { recursive: true });
-    this.cleanupExpiredLogs();
+    try {
+      this.cleanupExpiredLogs();
+    } catch (error) {
+      this.onStreamError(this.toError(error));
+    }
 
     const now = this.now();
     const currentDate = formatLogDate(now);
@@ -285,13 +289,9 @@ class DailyRotatingFileStream extends Writable {
             continue;
           }
 
-          try {
-            process.stderr.write(
-              `[logger] Failed to delete expired log file "${entry}": ${this.toError(error).message}\n`
-            );
-          } catch {
-            // Ignore stderr write failures to avoid affecting app flow.
-          }
+          this.onStreamError(
+            new Error(`Failed to delete expired log file "${entry}": ${this.toError(error).message}`)
+          );
         }
       }
     }
