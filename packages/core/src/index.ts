@@ -46,6 +46,7 @@ export interface LoggerRuntimeConfig {
 interface DailyRotatingFileStreamOptions {
   now?: () => Date;
   createStream?: (path: string) => Writable;
+  fallbackStream?: Writable;
   onStreamError?: (error: Error) => void;
 }
 
@@ -80,6 +81,7 @@ class DailyRotatingFileStream extends Writable {
   private stream: Writable | null = null;
   private readonly now: () => Date;
   private readonly createStream: (path: string) => Writable;
+  private readonly fallbackStream: Writable;
   private readonly onStreamError: (error: Error) => void;
 
   constructor(
@@ -89,6 +91,7 @@ class DailyRotatingFileStream extends Writable {
     super();
     this.now = options.now ?? (() => new Date());
     this.createStream = options.createStream ?? ((path) => createWriteStream(path, { flags: "a" }));
+    this.fallbackStream = options.fallbackStream ?? process.stderr;
     this.onStreamError =
       options.onStreamError ??
       ((error) => {
@@ -110,13 +113,13 @@ class DailyRotatingFileStream extends Writable {
       this.rotateIfNeeded();
     } catch (error) {
       this.onStreamError(this.toError(error));
-      callback();
+      this.writeFallback(chunk, encoding, callback);
       return;
     }
 
     const activeStream = this.stream;
     if (!activeStream) {
-      callback();
+      this.writeFallback(chunk, encoding, callback);
       return;
     }
 
@@ -131,24 +134,46 @@ class DailyRotatingFileStream extends Writable {
       callback();
     };
 
-    const onWriteError = (error: Error) => {
+    const failWrite = (error: unknown) => {
+      if (completed) {
+        return;
+      }
+
+      completed = true;
+      activeStream.off("error", onWriteError);
       this.handleStreamError(error);
-      completeWrite();
+      this.writeFallback(chunk, encoding, callback);
+    };
+
+    const onWriteError = (error: Error) => {
+      failWrite(error);
     };
 
     activeStream.once("error", onWriteError);
 
     try {
-      activeStream.write(chunk, encoding, (error) => {
+      if (typeof chunk === "string") {
+        activeStream.write(chunk, encoding, (error) => {
+          if (error) {
+            failWrite(error);
+            return;
+          }
+
+          completeWrite();
+        });
+        return;
+      }
+
+      activeStream.write(chunk, (error) => {
         if (error) {
-          this.handleStreamError(error);
+          failWrite(error);
+          return;
         }
 
         completeWrite();
       });
     } catch (error) {
-      this.handleStreamError(error);
-      completeWrite();
+      failWrite(error);
     }
   }
 
@@ -182,10 +207,6 @@ class DailyRotatingFileStream extends Writable {
   }
 
   private rotateIfNeeded(): void {
-    if (!this.rotationEnabled) {
-      return;
-    }
-
     if (!this.stream || formatLogDate(this.now()) !== this.currentDate) {
       this.rotateSafely();
     }
@@ -195,7 +216,7 @@ class DailyRotatingFileStream extends Writable {
     try {
       this.rotate();
     } catch (error) {
-      this.disableFileRotation(error);
+      this.markRotationFailure(error);
     }
   }
 
@@ -237,7 +258,7 @@ class DailyRotatingFileStream extends Writable {
       nextStream.destroy();
       this.stream = previousStream;
       this.currentDate = previousDate;
-      this.disableFileRotation(error);
+      this.markRotationFailure(error);
     }
   }
 
@@ -248,17 +269,48 @@ class DailyRotatingFileStream extends Writable {
     }
 
     this.onStreamError(this.toError(error));
+    this.rotationEnabled = false;
     activeStream.off("error", this.handleStreamError);
     activeStream.destroy();
     this.stream = null;
   };
 
-  private disableFileRotation(error: unknown): void {
+  private markRotationFailure(error: unknown): void {
     this.onStreamError(this.toError(error));
     this.rotationEnabled = false;
 
     if (!this.stream) {
       this.currentDate = "";
+    }
+  }
+
+  private writeFallback(
+    chunk: Buffer | string,
+    encoding: BufferEncoding,
+    callback: (error?: Error | null) => void
+  ): void {
+    try {
+      if (typeof chunk === "string") {
+        this.fallbackStream.write(chunk, encoding, (error) => {
+          if (error) {
+            this.onStreamError(this.toError(error));
+          }
+
+          callback();
+        });
+        return;
+      }
+
+      this.fallbackStream.write(chunk, (error) => {
+        if (error) {
+          this.onStreamError(this.toError(error));
+        }
+
+        callback();
+      });
+    } catch (error) {
+      this.onStreamError(this.toError(error));
+      callback();
     }
   }
 

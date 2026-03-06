@@ -173,9 +173,14 @@ describe("logger", () => {
 
     const logDir = mkdtempSync(join(tmpdir(), "cs-stream-error-"));
     let recoveredOutput = "";
+    let fallbackOutput = "";
     const recoveredStream = new PassThrough();
+    const fallbackStream = new PassThrough();
     recoveredStream.on("data", (chunk: Buffer | string) => {
       recoveredOutput += chunk.toString();
+    });
+    fallbackStream.on("data", (chunk: Buffer | string) => {
+      fallbackOutput += chunk.toString();
     });
 
     const reportedErrors: Error[] = [];
@@ -194,6 +199,7 @@ describe("logger", () => {
 
           return recoveredStream;
         },
+        fallbackStream,
         onStreamError: (error) => {
           reportedErrors.push(error);
         }
@@ -217,15 +223,27 @@ describe("logger", () => {
     destination.end();
     await finished(destination as Writable);
 
+    const fallbackLogs = parseLogLines(fallbackOutput);
     const logs = parseLogLines(recoveredOutput);
+    expect(fallbackLogs.some((entry) => entry.msg === "first-write-fails")).toBe(true);
     expect(logs.some((entry) => entry.msg === "second-write-recovers")).toBe(true);
     expect(reportedErrors[0]?.message).toContain("simulated stream failure");
 
     rmSync(logDir, { recursive: true, force: true });
   });
 
-  test("does not throw if initial file rotation setup fails", async () => {
+  test("falls back to stderr and retries rotation after initial setup failure", async () => {
     const reportedErrors: Error[] = [];
+    let fallbackOutput = "";
+    let recoveredOutput = "";
+    const fallbackStream = new PassThrough();
+    const recoveredStream = new PassThrough();
+    fallbackStream.on("data", (chunk: Buffer | string) => {
+      fallbackOutput += chunk.toString();
+    });
+    recoveredStream.on("data", (chunk: Buffer | string) => {
+      recoveredOutput += chunk.toString();
+    });
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
       LOG_LEVEL: "info",
@@ -233,23 +251,7 @@ describe("logger", () => {
       LOG_RETENTION_DAYS: 14
     });
 
-    expect(() =>
-      createProductionLogDestination(
-        {
-          LOG_DIR: runtimeConfig.LOG_DIR,
-          LOG_RETENTION_DAYS: runtimeConfig.LOG_RETENTION_DAYS
-        },
-        {
-          createStream: () => {
-            throw new Error("simulated initial rotation failure");
-          },
-          onStreamError: (error) => {
-            reportedErrors.push(error);
-          }
-        }
-      )
-    ).not.toThrow();
-
+    let streamCreationCount = 0;
     const destination = createProductionLogDestination(
       {
         LOG_DIR: runtimeConfig.LOG_DIR,
@@ -257,8 +259,14 @@ describe("logger", () => {
       },
       {
         createStream: () => {
-          throw new Error("simulated initial rotation failure");
+          streamCreationCount += 1;
+          if (streamCreationCount <= 2) {
+            throw new Error("simulated initial rotation failure");
+          }
+
+          return recoveredStream;
         },
+        fallbackStream,
         onStreamError: (error) => {
           reportedErrors.push(error);
         }
@@ -266,12 +274,19 @@ describe("logger", () => {
     );
 
     const logger = createLogger({}, destination, runtimeConfig);
-    expect(() => logger.info("startup-continues")).not.toThrow();
+    expect(() => logger.info("startup-falls-back")).not.toThrow();
+    await waitForAsyncWork();
+
+    expect(() => logger.info("startup-recovers")).not.toThrow();
     await waitForAsyncWork();
 
     destination.end();
     await finished(destination as Writable);
 
+    const fallbackLogs = parseLogLines(fallbackOutput);
+    const recoveredLogs = parseLogLines(recoveredOutput);
+    expect(fallbackLogs.some((entry) => entry.msg === "startup-falls-back")).toBe(true);
+    expect(recoveredLogs.some((entry) => entry.msg === "startup-recovers")).toBe(true);
     expect(reportedErrors.some((error) => error.message.includes("simulated initial rotation failure"))).toBe(
       true
     );
