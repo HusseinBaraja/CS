@@ -9,8 +9,18 @@ const envSchema = {
   LOG_DIR: z.string().min(1).default("logs"),
   LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
   API_PORT: z.coerce.number().int().positive().default(3000),
-  CONVEX_URL: z.string().url().optional()
+  CONVEX_URL: z.string().min(1).url().optional()
 };
+
+const normalizeRuntimeEnv = (
+  runtimeEnv: Record<string, string | number | boolean | undefined>
+) =>
+  Object.fromEntries(
+    Object.entries(runtimeEnv).map(([key, value]) => [
+      key,
+      key === "CONVEX_URL" || value !== "" ? value : undefined
+    ])
+  );
 
 const formatPathSegment = (
   segment: PropertyKey | StandardSchemaV1.PathSegment
@@ -49,8 +59,7 @@ export const createConfig = (
 ) =>
   createEnv({
     server: envSchema,
-    runtimeEnv,
-    emptyStringAsUndefined: true,
+    runtimeEnv: normalizeRuntimeEnv(runtimeEnv),
     onValidationError: (issues) => {
       throw new ConfigError(formatValidationIssues(issues), {
         code: issues.every(isMissingIssue)

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
-import { createConfig, requireConfigValue } from './index';
+import { createConfig, requireConfigValue, requireEnv } from './index';
 
 describe("config", () => {
   test("applies defaults for optional setup values", () => {
@@ -53,5 +53,22 @@ describe("config", () => {
         code: ERROR_CODES.CONFIG_MISSING
       })
     );
+  });
+
+  test("rejects CONVEX_URL as an empty string during schema parsing before requireEnv()", () => {
+    let thrown: unknown;
+
+    try {
+      createConfig({
+        CONVEX_URL: ""
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(requireEnv).toBeFunction();
+    expect(thrown).toBeInstanceOf(ConfigError);
+    expect((thrown as ConfigError).code).toBe(ERROR_CODES.CONFIG_INVALID);
+    expect((thrown as ConfigError).message).toContain("CONVEX_URL:");
   });
 });
