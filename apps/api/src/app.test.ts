@@ -108,6 +108,51 @@ describe("api app", () => {
     expect(JSON.stringify(warnings[0])).not.toContain("https://secret.example/token");
   });
 
+  test("readiness reports DB connection failures as unavailable without leaking secrets", async () => {
+    const warnings: Array<{ payload: Record<string, unknown>; message: string }> = [];
+    const app = createApp({
+      createDbConnection: () => {
+        throw new ConfigError("connect failed for https://secret.example/token", {
+          code: ERROR_CODES.DB_CONNECTION_FAILED
+        });
+      },
+      logger: {
+        warn: (payload, message) => {
+          warnings.push({ payload, message });
+        }
+      }
+    });
+
+    const response = await app.request("/api/ready");
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      ok: false,
+      runtime: "api",
+      dependencies: {
+        db: {
+          provider: "convex",
+          ready: false,
+          status: "unavailable",
+          message: "Database connection failed"
+        }
+      }
+    });
+    expect(JSON.stringify(body)).not.toContain("https://secret.example/token");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toEqual({
+      message: "api readiness check failed",
+      payload: {
+        dependency: "db",
+        provider: "convex",
+        errName: "ConfigError",
+        errMessage: "connect failed for [redacted-url]"
+      }
+    });
+    expect(JSON.stringify(warnings[0])).not.toContain("https://secret.example/token");
+  });
+
   test("readiness reports safe database metadata when configuration is present", async () => {
     const app = createApp({
       createDbConnection: () => ({

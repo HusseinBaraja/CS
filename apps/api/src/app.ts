@@ -23,24 +23,6 @@ const redactErrorMessage = (message: string): string => {
 };
 
 const getReadyErrorResponse = (error: unknown) => {
-  if (error instanceof ConfigError) {
-    return {
-      body: {
-        ok: false,
-        runtime: "api",
-        dependencies: {
-          db: {
-            provider: DB_PROVIDER,
-            ready: false,
-            status: "misconfigured",
-            message: "Database configuration is invalid or missing"
-          }
-        }
-      },
-      status: 503 as const
-    };
-  }
-
   if (
     error instanceof Error &&
     "code" in error &&
@@ -56,6 +38,24 @@ const getReadyErrorResponse = (error: unknown) => {
             ready: false,
             status: "unavailable",
             message: "Database connection failed"
+          }
+        }
+      },
+      status: 503 as const
+    };
+  }
+
+  if (error instanceof ConfigError) {
+    return {
+      body: {
+        ok: false,
+        runtime: "api",
+        dependencies: {
+          db: {
+            provider: DB_PROVIDER,
+            ready: false,
+            status: "misconfigured",
+            message: "Database configuration is invalid or missing"
           }
         }
       },
