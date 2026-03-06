@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { StandardSchemaV1 } from '@t3-oss/env-core';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
-import { createConfig, inferConfigErrorCode, requireConfigValue, requireEnv } from './index';
+import { createConfig, inferConfigErrorCode, requireConfigValue } from './index';
 
 describe("config", () => {
   test("applies defaults for optional setup values", () => {
@@ -89,7 +89,6 @@ describe("config", () => {
       thrown = error;
     }
 
-    expect(requireEnv).toBeFunction();
     expect(thrown).toBeInstanceOf(ConfigError);
     expect((thrown as ConfigError).code).toBe(ERROR_CODES.CONFIG_INVALID);
     expect((thrown as ConfigError).message).toContain("CONVEX_URL:");
