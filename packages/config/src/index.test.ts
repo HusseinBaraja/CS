@@ -78,6 +78,16 @@ describe("config", () => {
     );
   });
 
+  test("preserves non-string falsy config values", () => {
+    const config = {
+      API_PORT: 0,
+      FEATURE_ENABLED: false
+    };
+
+    expect(requireConfigValue(config, "API_PORT")).toBe(0);
+    expect(requireConfigValue(config, "FEATURE_ENABLED")).toBe(false);
+  });
+
   test("rejects CONVEX_URL as an empty string during schema parsing before requireEnv()", () => {
     let thrown: unknown;
 

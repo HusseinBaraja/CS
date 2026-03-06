@@ -103,20 +103,20 @@ export const requireConfigValue = <
 >(
   config: TConfig,
   key: TKey
-): NonNullable<TConfig[TKey]> => {
+): Exclude<TConfig[TKey], null | undefined> => {
   const value = config[key];
 
-  if (value === undefined || value === null || value === "") {
+  if (value === undefined || value === null || (typeof value === "string" && value === "")) {
     throw new ConfigError(`Missing required environment variable: ${String(key)}`, {
       code: ERROR_CODES.CONFIG_MISSING,
       context: { variable: key }
     });
   }
 
-  return value;
+  return value as Exclude<TConfig[TKey], null | undefined>;
 };
 
 export const requireEnv = <TKey extends keyof typeof env>(
   key: TKey
-): NonNullable<(typeof env)[TKey]> =>
+): Exclude<(typeof env)[TKey], null | undefined> =>
   requireConfigValue(env, key);
