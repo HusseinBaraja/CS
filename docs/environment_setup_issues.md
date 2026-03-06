@@ -1,6 +1,7 @@
 # Environment Setup Issues
 
 Date: March 6, 2026
+Status: Resolved on March 6, 2026. This document is a snapshot of the original audit findings before the fixes were applied.
 
 ## Summary
 

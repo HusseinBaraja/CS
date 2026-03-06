@@ -15,7 +15,7 @@
     "@cs/ai": "*",
     "@cs/core": "*",
     "@cs/rag": "*",
-    "@whiskeysockets/baileys": "latest"
+    "@whiskeysockets/baileys": "7.0.0-rc.9"
   }
 }
 

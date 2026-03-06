@@ -1,5 +1,6 @@
 import pino from "pino";
 import type { DestinationStream, Logger, LoggerOptions } from "pino";
+import { env } from "@cs/config";
 import { formatError, type HealthStatus } from "@cs/shared";
 
 const redactPaths = [
@@ -8,15 +9,21 @@ const redactPaths = [
   "authorization",
   "apiKey",
   "secret",
+  "phone",
+  "phoneNumber",
+  "ownerPhone",
   "*.password",
   "*.token",
   "*.authorization",
   "*.apiKey",
-  "*.secret"
+  "*.secret",
+  "*.phone",
+  "*.phoneNumber",
+  "*.ownerPhone"
 ] as const;
 
 const baseLoggerOptions: LoggerOptions = {
-  level: process.env.NODE_ENV === "production" ? "info" : "debug",
+  level: env.LOG_LEVEL,
   redact: {
     paths: [...redactPaths],
     censor: "[REDACTED]"
@@ -32,7 +39,7 @@ export const createLogger = (
     ...options
   };
 
-  if (!destination && process.env.NODE_ENV !== "production") {
+  if (!destination && env.NODE_ENV !== "production") {
     return pino(
       {
         ...finalOptions,

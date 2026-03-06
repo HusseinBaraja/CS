@@ -5,12 +5,13 @@ import { logger } from "@cs/core";
 import { createDbConnection } from "@cs/db";
 
 const app = new Hono();
+const db = createDbConnection();
 
 app.get("/api/health", (c) => {
   return c.json({
     ok: true,
     runtime: "api",
-    db: createDbConnection()
+    db
   });
 });
 

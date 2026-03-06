@@ -5,9 +5,9 @@
     "": {
       "name": "cs",
       "devDependencies": {
-        "@types/bun": "latest",
-        "turbo": "latest",
-        "typescript": "latest",
+        "@types/bun": "1.3.9",
+        "turbo": "2.8.12",
+        "typescript": "5.9.3",
       },
     },
     "apps/api": {
@@ -17,8 +17,8 @@
         "@cs/config": "*",
         "@cs/core": "*",
         "@cs/db": "*",
-        "@hono/node-server": "latest",
-        "hono": "latest",
+        "@hono/node-server": "1.19.9",
+        "hono": "4.12.3",
       },
     },
     "apps/bot": {
@@ -28,7 +28,7 @@
         "@cs/ai": "*",
         "@cs/core": "*",
         "@cs/rag": "*",
-        "@whiskeysockets/baileys": "latest",
+        "@whiskeysockets/baileys": "7.0.0-rc.9",
       },
     },
     "apps/cli": {
@@ -55,33 +55,36 @@
       "version": "0.0.0",
       "dependencies": {
         "@cs/shared": "*",
-        "@google/genai": "latest",
-        "groq-sdk": "latest",
-        "openai": "latest",
+        "@google/genai": "1.43.0",
+        "groq-sdk": "0.37.0",
+        "openai": "6.25.0",
       },
     },
     "packages/config": {
       "name": "@cs/config",
       "version": "0.0.0",
       "dependencies": {
-        "@t3-oss/env-core": "latest",
-        "zod": "latest",
+        "@cs/shared": "*",
+        "@t3-oss/env-core": "0.13.10",
+        "zod": "4.3.6",
       },
     },
     "packages/core": {
       "name": "@cs/core",
       "version": "0.0.0",
       "dependencies": {
+        "@cs/config": "*",
         "@cs/shared": "*",
-        "pino": "latest",
-        "pino-pretty": "latest",
+        "pino": "10.3.1",
+        "pino-pretty": "13.1.3",
       },
     },
     "packages/db": {
       "name": "@cs/db",
       "version": "0.0.0",
       "dependencies": {
-        "convex": "latest",
+        "@cs/config": "*",
+        "convex": "1.32.0",
       },
     },
     "packages/rag": {

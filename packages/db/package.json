@@ -15,7 +15,8 @@
     "generate": "bunx convex codegen"
   },
   "dependencies": {
-    "convex": "latest"
+    "@cs/config": "*",
+    "convex": "1.32.0"
   }
 }
 

@@ -15,9 +15,9 @@
   },
   "dependencies": {
     "@cs/shared": "*",
-    "openai": "latest",
-    "@google/genai": "latest",
-    "groq-sdk": "latest"
+    "@google/genai": "1.43.0",
+    "groq-sdk": "0.37.0",
+    "openai": "6.25.0"
   }
 }
 

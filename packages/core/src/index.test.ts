@@ -36,7 +36,10 @@ describe("logger", () => {
     });
 
     const testLogger = createLogger({ level: "info" }, stream);
-    testLogger.info({ password: "secret-pass", token: "abc123" }, "safe-log");
+    testLogger.info(
+      { password: "secret-pass", token: "abc123", phoneNumber: "+15551234567" },
+      "safe-log"
+    );
 
     await new Promise((resolve) => setImmediate(resolve));
 
@@ -44,6 +47,7 @@ describe("logger", () => {
     expect(logs).toHaveLength(1);
     expect(logs[0]?.password).toBe("[REDACTED]");
     expect(logs[0]?.token).toBe("[REDACTED]");
+    expect(logs[0]?.phoneNumber).toBe("[REDACTED]");
   });
 
   test("logs formatted errors with context", async () => {

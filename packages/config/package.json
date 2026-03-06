@@ -14,8 +14,9 @@
     "test": "bun test --pass-with-no-tests"
   },
   "dependencies": {
-    "@t3-oss/env-core": "latest",
-    "zod": "latest"
+    "@cs/shared": "*",
+    "@t3-oss/env-core": "0.13.10",
+    "zod": "4.3.6"
   }
 }
 
