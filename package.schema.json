@@ -5,7 +5,7 @@
   "properties": {
     "packageManager": {
       "type": "string",
-      "pattern": "(npm|pnpm|yarn|bun)@\\d+\\.\\d+\\.\\d+(-.+)?"
+      "pattern": "^(npm|pnpm|yarn|bun)@\\d+\\.\\d+\\.\\d+(?:-.+)?$"
     }
   },
   "additionalProperties": true
