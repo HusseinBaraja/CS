@@ -111,8 +111,12 @@ describe("api app", () => {
   test("readiness reports DB connection failures as unavailable without leaking secrets", async () => {
     const warnings: Array<{ payload: Record<string, unknown>; message: string }> = [];
     const app = createApp({
-      createDbConnection: () => {
-        throw new ConfigError("connect failed for https://secret.example/token", {
+      createDbConnection: () => ({
+        provider: "convex",
+        url: "https://example.convex.cloud"
+      }),
+      checkDbReady: () => {
+        throw Object.assign(new Error("connect failed for https://secret.example/token"), {
           code: ERROR_CODES.DB_CONNECTION_FAILED
         });
       },
@@ -146,7 +150,7 @@ describe("api app", () => {
       payload: {
         dependency: "db",
         provider: "convex",
-        errName: "ConfigError",
+        errName: "Error",
         errMessage: "connect failed for [redacted-url]"
       }
     });
@@ -158,7 +162,8 @@ describe("api app", () => {
       createDbConnection: () => ({
         provider: "convex",
         url: "https://example.convex.cloud"
-      })
+      }),
+      checkDbReady: () => undefined
     });
 
     const response = await app.request("/api/ready");

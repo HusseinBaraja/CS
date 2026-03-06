@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import { logger } from '@cs/core';
-import { createDbConnection, DB_PROVIDER, type DbConnection, getDbConnectionInfo } from '@cs/db';
+import { checkDbConnection, createDbConnection, DB_PROVIDER, type DbConnection, getDbConnectionInfo } from '@cs/db';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
 
 export interface ApiAppOptions {
   createDbConnection?: () => DbConnection;
+  checkDbReady?: (connection: DbConnection) => Promise<void> | void;
   logger?: {
     warn: (payload: Record<string, unknown>, message: string) => void;
   };
@@ -81,6 +82,7 @@ const getReadyErrorResponse = (error: unknown) => {
 export const createApp = (options: ApiAppOptions = {}) => {
   const app = new Hono();
   const connectToDb = options.createDbConnection ?? createDbConnection;
+  const checkDbReady = options.checkDbReady ?? checkDbConnection;
   const appLogger = options.logger ?? logger;
 
   app.get("/api/health", (c) =>
@@ -90,9 +92,10 @@ export const createApp = (options: ApiAppOptions = {}) => {
     })
   );
 
-  app.get("/api/ready", (c) => {
+  app.get("/api/ready", async (c) => {
     try {
       const db = connectToDb();
+      await checkDbReady(db);
 
       return c.json({
         ok: true,
