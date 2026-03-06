@@ -106,7 +106,7 @@ describe("logger", () => {
     logger.info("file-log");
 
     await waitForAsyncWork();
-    const writableDestination = destination as PassThrough;
+    const writableDestination = destination as Writable;
     writableDestination.end();
     await finished(writableDestination);
 
