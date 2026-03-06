@@ -56,13 +56,15 @@ export const checkDbConnection = async (
     throw createConnectionError(new Error(`Unexpected response status: ${response.status}`));
   }
 
+  let payload: unknown;
   try {
-    const payload = await response.json();
-    if (!payload || typeof payload !== "object" || !("ts" in payload)) {
-      throw new Error("Missing timestamp in readiness response");
-    }
+    payload = await response.json();
   } catch (error) {
     throw createConnectionError(error);
+  }
+
+  if (!payload || typeof payload !== "object" || !("ts" in payload)) {
+    throw createConnectionError(new Error("Missing timestamp in readiness response"));
   }
 };
 

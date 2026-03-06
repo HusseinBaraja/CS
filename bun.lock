@@ -84,6 +84,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@cs/config": "*",
+        "@cs/shared": "*",
         "convex": "1.32.0",
       },
     },
