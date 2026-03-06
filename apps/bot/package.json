@@ -16,6 +16,9 @@
     "@cs/core": "*",
     "@cs/rag": "*",
     "@whiskeysockets/baileys": "7.0.0-rc.9"
+  },
+  "x-dependency-notes": {
+    "@whiskeysockets/baileys": "Pinned to 7.0.0-rc.9 because no stable 7.x release is published as of 2026-03-06. Replace with stable 7.x when available."
   }
 }
 
