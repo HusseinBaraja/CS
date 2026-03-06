@@ -3,6 +3,8 @@ import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
 
+type RuntimeEnv = Record<string, string | number | boolean | undefined>;
+
 const envSchema = {
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("debug"),
@@ -12,9 +14,11 @@ const envSchema = {
   CONVEX_URL: z.string().min(1).url().optional()
 };
 
+type EnvSchemaKey = keyof typeof envSchema;
+
 const normalizeRuntimeEnv = (
-  runtimeEnv: Record<string, string | number | boolean | undefined>
-) =>
+  runtimeEnv: RuntimeEnv
+): RuntimeEnv =>
   Object.fromEntries(
     Object.entries(runtimeEnv).map(([key, value]) => [
       key,
@@ -37,9 +41,29 @@ const formatIssuePath = (
   return path.map(formatPathSegment).join(".");
 };
 
-const isMissingIssue = (issue: StandardSchemaV1.Issue): boolean => {
-  const issueText = issue.message.toLowerCase();
-  return issueText.includes("required") || issueText.includes("received undefined");
+const getIssueEnvKey = (issue: StandardSchemaV1.Issue): EnvSchemaKey | null => {
+  const [firstSegment] = issue.path ?? [];
+  const key = firstSegment ? formatPathSegment(firstSegment) : null;
+
+  if (!key || !(key in envSchema)) {
+    return null;
+  }
+
+  return key as EnvSchemaKey;
+};
+
+export const inferConfigErrorCode = (
+  issues: readonly StandardSchemaV1.Issue[],
+  runtimeEnv: RuntimeEnv
+) => {
+  const normalizedRuntimeEnv = normalizeRuntimeEnv(runtimeEnv);
+
+  return issues.every((issue) => {
+    const envKey = getIssueEnvKey(issue);
+    return envKey !== null && normalizedRuntimeEnv[envKey] === undefined;
+  })
+    ? ERROR_CODES.CONFIG_MISSING
+    : ERROR_CODES.CONFIG_INVALID;
 };
 
 const formatValidationIssues = (issues: readonly StandardSchemaV1.Issue[]): string =>
@@ -55,20 +79,21 @@ const toErrorContext = (issues: readonly StandardSchemaV1.Issue[]) => ({
 });
 
 export const createConfig = (
-  runtimeEnv: Record<string, string | number | boolean | undefined> = process.env
-) =>
-  createEnv({
+  runtimeEnv: RuntimeEnv = process.env
+) => {
+  const normalizedRuntimeEnv = normalizeRuntimeEnv(runtimeEnv);
+
+  return createEnv({
     server: envSchema,
-    runtimeEnv: normalizeRuntimeEnv(runtimeEnv),
+    runtimeEnv: normalizedRuntimeEnv,
     onValidationError: (issues) => {
       throw new ConfigError(formatValidationIssues(issues), {
-        code: issues.every(isMissingIssue)
-          ? ERROR_CODES.CONFIG_MISSING
-          : ERROR_CODES.CONFIG_INVALID,
+        code: inferConfigErrorCode(issues, normalizedRuntimeEnv),
         context: toErrorContext(issues)
       });
     }
   });
+};
 
 export const env = createConfig();
 

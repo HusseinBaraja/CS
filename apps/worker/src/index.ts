@@ -1,4 +1,4 @@
-import { logger } from "@cs/core";
-import { createDbConnection } from "@cs/db";
+import { logger } from '@cs/core';
+import { createDbConnection, getDbConnectionInfo } from '@cs/db';
 
-logger.info({ db: createDbConnection() }, "worker initialized");
+logger.info({ db: getDbConnectionInfo(createDbConnection()) }, "worker initialized");

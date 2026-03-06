@@ -174,7 +174,7 @@ CSCB enables multiple businesses to deploy intelligent WhatsApp chatbots through
 | FR-5.3 | Requests without valid API key rejected with 401/403   | Must     |
 | FR-5.4 | CORS configured with restrictive origin policy         | Must     |
 | FR-5.5 | Request rate limiting via middleware                   | Must     |
-| FR-5.6 | `GET /api/health` returns system status                | Must     |
+| FR-5.6 | `GET /api/health` returns liveness status             | Must     |
 | FR-5.7 | All request bodies validated with Zod schemas          | Must     |
 
 #### 3.5.2 Company Endpoints

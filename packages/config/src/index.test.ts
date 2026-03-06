@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
+import type { StandardSchemaV1 } from '@t3-oss/env-core';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
-import { createConfig, requireConfigValue, requireEnv } from './index';
+import { createConfig, inferConfigErrorCode, requireConfigValue, requireEnv } from './index';
 
 describe("config", () => {
   test("applies defaults for optional setup values", () => {
@@ -43,6 +44,28 @@ describe("config", () => {
 
     expect(thrown).toBeInstanceOf(ConfigError);
     expect((thrown as ConfigError).code).toBe(ERROR_CODES.CONFIG_INVALID);
+  });
+
+  test("classifies missing schema values from runtime input instead of error message text", () => {
+    const issues: StandardSchemaV1.Issue[] = [
+      {
+        message: "anything",
+        path: ["CONVEX_URL"]
+      }
+    ];
+
+    expect(inferConfigErrorCode(issues, {})).toBe(ERROR_CODES.CONFIG_MISSING);
+  });
+
+  test("treats empty CONVEX_URL as invalid instead of missing", () => {
+    const issues: StandardSchemaV1.Issue[] = [
+      {
+        message: "anything",
+        path: ["CONVEX_URL"]
+      }
+    ];
+
+    expect(inferConfigErrorCode(issues, { CONVEX_URL: "" })).toBe(ERROR_CODES.CONFIG_INVALID);
   });
 
   test("throws CONFIG_MISSING when a required runtime value is absent", () => {
