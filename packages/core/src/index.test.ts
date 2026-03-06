@@ -16,6 +16,20 @@ const parseLogLines = (buffer: string): Record<string, unknown>[] =>
 const waitForAsyncWork = async () => {
   await new Promise((resolve) => setImmediate(resolve));
   await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+};
+
+const waitForCondition = async (predicate: () => boolean, message: string): Promise<void> => {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (predicate()) {
+      return;
+    }
+
+    await waitForAsyncWork();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+
+  throw new Error(message);
 };
 
 describe("logger", () => {
@@ -101,8 +115,10 @@ describe("logger", () => {
     const destination = createProductionLogDestination({
       LOG_DIR: logDir,
       LOG_RETENTION_DAYS: 7
-    });
+    }) as Writable & { stream: Writable | null };
     const logger = createLogger({}, destination, runtimeConfig);
+
+    await waitForCondition(() => destination.stream !== null, "expected initial log stream to be ready");
     logger.info("file-log");
 
     await waitForAsyncWork();
@@ -134,7 +150,7 @@ describe("logger", () => {
       {
         now: () => currentDate
       }
-    );
+    ) as Writable & { stream: Writable | null; currentDate: string };
 
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
@@ -144,10 +160,16 @@ describe("logger", () => {
     });
     const logger = createLogger({}, destination, runtimeConfig);
 
+    await waitForCondition(() => destination.stream !== null, "expected day-one log stream to be ready");
     logger.info("day-one");
     await waitForAsyncWork();
 
     currentDate = new Date("2026-03-07T08:00:00");
+    logger.info("day-two-trigger");
+    await waitForCondition(
+      () => destination.currentDate === "2026-03-07",
+      "expected rotation to switch to the next daily log file"
+    );
     logger.info("day-two");
     await waitForAsyncWork();
     const writableDestination = destination as Writable;
@@ -204,7 +226,7 @@ describe("logger", () => {
           reportedErrors.push(error);
         }
       }
-    );
+    ) as Writable & { stream: Writable | null };
 
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
@@ -214,10 +236,14 @@ describe("logger", () => {
     });
     const logger = createLogger({}, destination, runtimeConfig);
 
+    await waitForCondition(() => destination.stream !== null, "expected initial stream to be active");
     expect(() => logger.info("first-write-fails")).not.toThrow();
     await waitForAsyncWork();
 
-    expect(() => logger.info("second-write-recovers")).not.toThrow();
+    expect(() => logger.info("second-write-falls-back")).not.toThrow();
+    await waitForCondition(() => destination.stream === recoveredStream, "expected recovered stream to be active");
+
+    expect(() => logger.info("third-write-recovers")).not.toThrow();
     await waitForAsyncWork();
 
     destination.end();
@@ -226,7 +252,8 @@ describe("logger", () => {
     const fallbackLogs = parseLogLines(fallbackOutput);
     const logs = parseLogLines(recoveredOutput);
     expect(fallbackLogs.some((entry) => entry.msg === "first-write-fails")).toBe(true);
-    expect(logs.some((entry) => entry.msg === "second-write-recovers")).toBe(true);
+    expect(fallbackLogs.some((entry) => entry.msg === "second-write-falls-back")).toBe(true);
+    expect(logs.some((entry) => entry.msg === "third-write-recovers")).toBe(true);
     expect(reportedErrors[0]?.message).toContain("simulated stream failure");
 
     rmSync(logDir, { recursive: true, force: true });
@@ -260,7 +287,7 @@ describe("logger", () => {
       {
         createStream: () => {
           streamCreationCount += 1;
-          if (streamCreationCount <= 2) {
+          if (streamCreationCount === 1) {
             throw new Error("simulated initial rotation failure");
           }
 
@@ -271,11 +298,16 @@ describe("logger", () => {
           reportedErrors.push(error);
         }
       }
-    );
+    ) as Writable & { stream: Writable | null };
 
     const logger = createLogger({}, destination, runtimeConfig);
+    await waitForCondition(
+      () => reportedErrors.some((error) => error.message.includes("simulated initial rotation failure")),
+      "expected initial background rotation failure to be reported"
+    );
+
     expect(() => logger.info("startup-falls-back")).not.toThrow();
-    await waitForAsyncWork();
+    await waitForCondition(() => destination.stream === recoveredStream, "expected retry rotation to recover");
 
     expect(() => logger.info("startup-recovers")).not.toThrow();
     await waitForAsyncWork();
@@ -322,7 +354,7 @@ describe("logger", () => {
           reportedErrors.push(error);
         }
       }
-    );
+    ) as Writable & { stream: Writable | null };
 
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
@@ -332,12 +364,16 @@ describe("logger", () => {
     });
     const logger = createLogger({}, destination, runtimeConfig);
 
+    await waitForCondition(() => destination.stream === activeStream, "expected initial stream to be active");
     logger.info("before-rollover");
     await waitForAsyncWork();
 
     currentDate = new Date("2026-03-07T08:00:00");
     expect(() => logger.info("after-rollover-failure")).not.toThrow();
-    await waitForAsyncWork();
+    await waitForCondition(
+      () => reportedErrors.some((error) => error.message.includes("simulated rollover failure")),
+      "expected rollover failure to be reported"
+    );
 
     destination.end();
     await finished(destination as Writable);
@@ -378,16 +414,15 @@ describe("logger", () => {
         }
       }
     ) as Writable & {
-      cleanupExpiredLogs: () => void;
+      cleanupExpiredLogs: () => Promise<void>;
       currentDate: string;
       rotationEnabled: boolean;
+      stream: Writable | null;
     };
 
-    destination.cleanupExpiredLogs = () => {
+    destination.cleanupExpiredLogs = async () => {
       throw new Error("simulated cleanup failure");
     };
-    destination.currentDate = "2026-03-05";
-
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
       LOG_LEVEL: "info",
@@ -396,6 +431,10 @@ describe("logger", () => {
     });
     const logger = createLogger({}, destination, runtimeConfig);
 
+    await waitForCondition(() => destination.stream === initialStream, "expected initial cleanup test stream");
+    destination.currentDate = "2026-03-05";
+    logger.info("cleanup-failure-trigger");
+    await waitForCondition(() => destination.stream === rotatedStream, "expected rotated stream after trigger");
     logger.info("cleanup-failure-does-not-stop-rotation");
     await waitForAsyncWork();
 

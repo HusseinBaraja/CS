@@ -1,4 +1,5 @@
-import { createWriteStream, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
+import { createWriteStream } from 'node:fs';
+import { mkdir, readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { DestinationStream, Logger, LoggerOptions } from 'pino';
 import pino from 'pino';
@@ -48,6 +49,7 @@ interface DailyRotatingFileStreamOptions {
   createStream?: (path: string) => Writable;
   fallbackStream?: Writable;
   onStreamError?: (error: Error) => void;
+  scheduleTask?: (task: () => void) => void;
 }
 
 const formatLogDate = (date: Date): string => {
@@ -79,10 +81,16 @@ class DailyRotatingFileStream extends Writable {
   private currentDate = "";
   private rotationEnabled = true;
   private stream: Writable | null = null;
+  private rotationScheduled = false;
+  private rotationInProgress = false;
+  private cleanupScheduled = false;
+  private cleanupInProgress = false;
+  private isShuttingDown = false;
   private readonly now: () => Date;
   private readonly createStream: (path: string) => Writable;
   private readonly fallbackStream: Writable;
   private readonly onStreamError: (error: Error) => void;
+  private readonly scheduleTask: (task: () => void) => void;
 
   constructor(
     private readonly config: Pick<LoggerRuntimeConfig, "LOG_DIR" | "LOG_RETENTION_DAYS">,
@@ -92,6 +100,7 @@ class DailyRotatingFileStream extends Writable {
     this.now = options.now ?? (() => new Date());
     this.createStream = options.createStream ?? ((path) => createWriteStream(path, { flags: "a" }));
     this.fallbackStream = options.fallbackStream ?? process.stderr;
+    this.scheduleTask = options.scheduleTask ?? ((task) => setImmediate(task));
     this.onStreamError =
       options.onStreamError ??
       ((error) => {
@@ -101,7 +110,7 @@ class DailyRotatingFileStream extends Writable {
           // Ignore stderr write failures to avoid affecting app flow.
         }
       });
-    this.rotateSafely();
+    this.triggerRotationIfNeeded();
   }
 
   override _write(
@@ -109,13 +118,7 @@ class DailyRotatingFileStream extends Writable {
     encoding: BufferEncoding,
     callback: (error?: Error | null) => void
   ): void {
-    try {
-      this.rotateIfNeeded();
-    } catch (error) {
-      this.onStreamError(this.toError(error));
-      this.writeFallback(chunk, encoding, callback);
-      return;
-    }
+    this.triggerRotationIfNeeded();
 
     const activeStream = this.stream;
     if (!activeStream) {
@@ -178,6 +181,8 @@ class DailyRotatingFileStream extends Writable {
   }
 
   override _final(callback: (error?: Error | null) => void): void {
+    this.isShuttingDown = true;
+
     if (!this.stream) {
       callback();
       return;
@@ -193,6 +198,8 @@ class DailyRotatingFileStream extends Writable {
   }
 
   override _destroy(error: Error | null, callback: (error?: Error | null) => void): void {
+    this.isShuttingDown = true;
+
     if (this.stream) {
       const destroyingStream = this.stream;
       destroyingStream.off("error", this.handleStreamError);
@@ -206,26 +213,48 @@ class DailyRotatingFileStream extends Writable {
     callback(error);
   }
 
-  private rotateIfNeeded(): void {
-    if (!this.stream || formatLogDate(this.now()) !== this.currentDate) {
-      this.rotateSafely();
+  private triggerRotationIfNeeded(): void {
+    if (
+      this.isShuttingDown ||
+      this.rotationScheduled ||
+      this.rotationInProgress ||
+      !this.needsRotation()
+    ) {
+      return;
     }
+
+    this.rotationScheduled = true;
+    this.scheduleTask(() => {
+      this.rotationScheduled = false;
+
+      if (this.isShuttingDown || this.rotationInProgress || !this.needsRotation()) {
+        return;
+      }
+
+      this.rotationInProgress = true;
+      void this.rotateSafely().finally(() => {
+        this.rotationInProgress = false;
+      });
+    });
   }
 
-  private rotateSafely(): void {
+  private needsRotation(): boolean {
+    return !this.stream || formatLogDate(this.now()) !== this.currentDate;
+  }
+
+  private async rotateSafely(): Promise<void> {
     try {
-      this.rotate();
+      await this.rotate();
     } catch (error) {
       this.markRotationFailure(error);
     }
   }
 
-  private rotate(): void {
-    mkdirSync(this.config.LOG_DIR, { recursive: true });
-    try {
-      this.cleanupExpiredLogs();
-    } catch (error) {
-      this.onStreamError(this.toError(error));
+  private async rotate(): Promise<void> {
+    await mkdir(this.config.LOG_DIR, { recursive: true });
+
+    if (this.isShuttingDown) {
+      return;
     }
 
     const now = this.now();
@@ -241,10 +270,16 @@ class DailyRotatingFileStream extends Writable {
     const nextStream = this.createStream(nextPath);
 
     try {
+      if (this.isShuttingDown) {
+        nextStream.destroy();
+        return;
+      }
+
       nextStream.on("error", this.handleStreamError);
       this.stream = nextStream;
       this.currentDate = currentDate;
       this.rotationEnabled = true;
+      this.triggerCleanup();
 
       if (previousStream) {
         previousStream.off("error", this.handleStreamError);
@@ -274,6 +309,30 @@ class DailyRotatingFileStream extends Writable {
     activeStream.destroy();
     this.stream = null;
   };
+
+  private triggerCleanup(): void {
+    if (this.isShuttingDown || this.cleanupScheduled || this.cleanupInProgress) {
+      return;
+    }
+
+    this.cleanupScheduled = true;
+    this.scheduleTask(() => {
+      this.cleanupScheduled = false;
+
+      if (this.isShuttingDown || this.cleanupInProgress) {
+        return;
+      }
+
+      this.cleanupInProgress = true;
+      void this.cleanupExpiredLogs()
+        .catch((error) => {
+          this.onStreamError(this.toError(error));
+        })
+        .finally(() => {
+          this.cleanupInProgress = false;
+        });
+    });
+  }
 
   private markRotationFailure(error: unknown): void {
     this.onStreamError(this.toError(error));
@@ -322,12 +381,12 @@ class DailyRotatingFileStream extends Writable {
     return new Error(String(error));
   }
 
-  private cleanupExpiredLogs(): void {
+  private async cleanupExpiredLogs(): Promise<void> {
     const retentionStart = toStartOfDay(this.now()).getTime();
     const retentionWindow = (this.config.LOG_RETENTION_DAYS - 1) * 24 * 60 * 60 * 1000;
     const oldestAllowed = retentionStart - retentionWindow;
 
-    for (const entry of readdirSync(this.config.LOG_DIR)) {
+    for (const entry of await readdir(this.config.LOG_DIR)) {
       const fileDate = parseLogDate(entry);
       if (!fileDate) {
         continue;
@@ -335,7 +394,7 @@ class DailyRotatingFileStream extends Writable {
 
       if (toStartOfDay(fileDate).getTime() < oldestAllowed) {
         try {
-          unlinkSync(join(this.config.LOG_DIR, entry));
+          await unlink(join(this.config.LOG_DIR, entry));
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code === "ENOENT") {
             continue;
