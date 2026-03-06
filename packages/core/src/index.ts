@@ -278,7 +278,21 @@ class DailyRotatingFileStream extends Writable {
       }
 
       if (toStartOfDay(fileDate).getTime() < oldestAllowed) {
-        unlinkSync(join(this.config.LOG_DIR, entry));
+        try {
+          unlinkSync(join(this.config.LOG_DIR, entry));
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            continue;
+          }
+
+          try {
+            process.stderr.write(
+              `[logger] Failed to delete expired log file "${entry}": ${this.toError(error).message}\n`
+            );
+          } catch {
+            // Ignore stderr write failures to avoid affecting app flow.
+          }
+        }
       }
     }
   }
