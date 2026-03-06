@@ -76,6 +76,7 @@ const getLogFilePath = (logDir: string, date: Date): string =>
 
 class DailyRotatingFileStream extends Writable {
   private currentDate = "";
+  private rotationEnabled = true;
   private stream: Writable | null = null;
   private readonly now: () => Date;
   private readonly createStream: (path: string) => Writable;
@@ -97,7 +98,7 @@ class DailyRotatingFileStream extends Writable {
           // Ignore stderr write failures to avoid affecting app flow.
         }
       });
-    this.rotate();
+    this.rotateSafely();
   }
 
   override _write(
@@ -181,8 +182,20 @@ class DailyRotatingFileStream extends Writable {
   }
 
   private rotateIfNeeded(): void {
+    if (!this.rotationEnabled) {
+      return;
+    }
+
     if (!this.stream || formatLogDate(this.now()) !== this.currentDate) {
+      this.rotateSafely();
+    }
+  }
+
+  private rotateSafely(): void {
+    try {
       this.rotate();
+    } catch (error) {
+      this.disableFileRotation(error);
     }
   }
 
@@ -190,26 +203,38 @@ class DailyRotatingFileStream extends Writable {
     mkdirSync(this.config.LOG_DIR, { recursive: true });
     this.cleanupExpiredLogs();
 
-    const currentDate = formatLogDate(this.now());
-    const nextPath = getLogFilePath(this.config.LOG_DIR, this.now());
+    const now = this.now();
+    const currentDate = formatLogDate(now);
+    const nextPath = getLogFilePath(this.config.LOG_DIR, now);
 
     if (this.currentDate === currentDate && this.stream) {
       return;
     }
 
-    if (this.stream) {
-      const closingStream = this.stream;
-      closingStream.off("error", this.handleStreamError);
-      closingStream.once("error", (streamError) => {
-        this.onStreamError(this.toError(streamError));
-      });
-      closingStream.end();
-    }
-
-    this.currentDate = currentDate;
+    const previousStream = this.stream;
+    const previousDate = this.currentDate;
     const nextStream = this.createStream(nextPath);
-    nextStream.on("error", this.handleStreamError);
-    this.stream = nextStream;
+
+    try {
+      nextStream.on("error", this.handleStreamError);
+      this.stream = nextStream;
+      this.currentDate = currentDate;
+      this.rotationEnabled = true;
+
+      if (previousStream) {
+        previousStream.off("error", this.handleStreamError);
+        previousStream.once("error", (streamError) => {
+          this.onStreamError(this.toError(streamError));
+        });
+        previousStream.end();
+      }
+    } catch (error) {
+      nextStream.off("error", this.handleStreamError);
+      nextStream.destroy();
+      this.stream = previousStream;
+      this.currentDate = previousDate;
+      this.disableFileRotation(error);
+    }
   }
 
   private handleStreamError = (error: unknown): void => {
@@ -223,6 +248,15 @@ class DailyRotatingFileStream extends Writable {
     activeStream.destroy();
     this.stream = null;
   };
+
+  private disableFileRotation(error: unknown): void {
+    this.onStreamError(this.toError(error));
+    this.rotationEnabled = false;
+
+    if (!this.stream) {
+      this.currentDate = "";
+    }
+  }
 
   private toError(error: unknown): Error {
     if (error instanceof Error) {
@@ -262,7 +296,7 @@ export const createLoggerRuntimeConfig = (
 export const createProductionLogDestination = (
   config: Pick<LoggerRuntimeConfig, "LOG_DIR" | "LOG_RETENTION_DAYS">,
   options: DailyRotatingFileStreamOptions = {}
-): DestinationStream =>
+): DestinationStream & Writable =>
   new DailyRotatingFileStream(config, options);
 
 export const createLogger = (

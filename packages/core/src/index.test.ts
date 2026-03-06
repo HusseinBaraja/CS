@@ -223,4 +223,115 @@ describe("logger", () => {
 
     rmSync(logDir, { recursive: true, force: true });
   });
+
+  test("does not throw if initial file rotation setup fails", async () => {
+    const reportedErrors: Error[] = [];
+    const runtimeConfig = createLoggerRuntimeConfig({
+      NODE_ENV: "production",
+      LOG_LEVEL: "info",
+      LOG_DIR: join(tmpdir(), "cs-init-failure"),
+      LOG_RETENTION_DAYS: 14
+    });
+
+    expect(() =>
+      createProductionLogDestination(
+        {
+          LOG_DIR: runtimeConfig.LOG_DIR,
+          LOG_RETENTION_DAYS: runtimeConfig.LOG_RETENTION_DAYS
+        },
+        {
+          createStream: () => {
+            throw new Error("simulated initial rotation failure");
+          },
+          onStreamError: (error) => {
+            reportedErrors.push(error);
+          }
+        }
+      )
+    ).not.toThrow();
+
+    const destination = createProductionLogDestination(
+      {
+        LOG_DIR: runtimeConfig.LOG_DIR,
+        LOG_RETENTION_DAYS: runtimeConfig.LOG_RETENTION_DAYS
+      },
+      {
+        createStream: () => {
+          throw new Error("simulated initial rotation failure");
+        },
+        onStreamError: (error) => {
+          reportedErrors.push(error);
+        }
+      }
+    );
+
+    const logger = createLogger({}, destination, runtimeConfig);
+    expect(() => logger.info("startup-continues")).not.toThrow();
+    await waitForAsyncWork();
+
+    destination.end();
+    await finished(destination as Writable);
+
+    expect(reportedErrors.some((error) => error.message.includes("simulated initial rotation failure"))).toBe(
+      true
+    );
+  });
+
+  test("keeps the previous stream if rotation fails during rollover", async () => {
+    const logDir = mkdtempSync(join(tmpdir(), "cs-rotate-degraded-"));
+    let currentDate = new Date("2026-03-06T08:00:00");
+    let streamCreationCount = 0;
+    let output = "";
+    const activeStream = new PassThrough();
+    activeStream.on("data", (chunk: Buffer | string) => {
+      output += chunk.toString();
+    });
+
+    const reportedErrors: Error[] = [];
+    const destination = createProductionLogDestination(
+      {
+        LOG_DIR: logDir,
+        LOG_RETENTION_DAYS: 14
+      },
+      {
+        now: () => currentDate,
+        createStream: () => {
+          streamCreationCount += 1;
+          if (streamCreationCount === 1) {
+            return activeStream;
+          }
+
+          throw new Error("simulated rollover failure");
+        },
+        onStreamError: (error) => {
+          reportedErrors.push(error);
+        }
+      }
+    );
+
+    const runtimeConfig = createLoggerRuntimeConfig({
+      NODE_ENV: "production",
+      LOG_LEVEL: "info",
+      LOG_DIR: logDir,
+      LOG_RETENTION_DAYS: 14
+    });
+    const logger = createLogger({}, destination, runtimeConfig);
+
+    logger.info("before-rollover");
+    await waitForAsyncWork();
+
+    currentDate = new Date("2026-03-07T08:00:00");
+    expect(() => logger.info("after-rollover-failure")).not.toThrow();
+    await waitForAsyncWork();
+
+    destination.end();
+    await finished(destination as Writable);
+
+    const logs = parseLogLines(output);
+    expect(logs.some((entry) => entry.msg === "before-rollover")).toBe(true);
+    expect(logs.some((entry) => entry.msg === "after-rollover-failure")).toBe(true);
+    expect(reportedErrors.some((error) => error.message.includes("simulated rollover failure"))).toBe(true);
+
+    rmSync(logDir, { recursive: true, force: true });
+  });
 });
