@@ -150,7 +150,7 @@ describe("logger", () => {
     currentDate = new Date("2026-03-07T08:00:00");
     logger.info("day-two");
     await waitForAsyncWork();
-    const writableDestination = destination as PassThrough;
+    const writableDestination = destination as Writable;
     writableDestination.end();
     await finished(writableDestination);
 
