@@ -23,11 +23,61 @@ describe("api app", () => {
   });
 
   test("readiness reports missing database configuration without leaking the url", async () => {
+    const warnings: Array<{ payload: Record<string, unknown>; message: string }> = [];
     const app = createApp({
       createDbConnection: () => {
         throw new ConfigError("Missing required environment variable: CONVEX_URL", {
           code: ERROR_CODES.CONFIG_MISSING
         });
+      },
+      logger: {
+        warn: (payload, message) => {
+          warnings.push({ payload, message });
+        }
+      }
+    });
+
+    const response = await app.request("/api/ready");
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      ok: false,
+      runtime: "api",
+      dependencies: {
+        db: {
+          provider: "convex",
+          ready: false,
+          status: "misconfigured",
+          message: "Database configuration is invalid or missing"
+        }
+      }
+    });
+    expect(JSON.stringify(body)).not.toContain("CONVEX_URL");
+    expect(JSON.stringify(body)).not.toContain("url");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toEqual({
+      message: "api readiness check failed",
+      payload: {
+        dependency: "db",
+        provider: "convex",
+        errName: "ConfigError",
+        errMessage: "Missing required environment variable: [redacted]"
+      }
+    });
+    expect(JSON.stringify(warnings[0])).not.toContain("CONVEX_URL");
+  });
+
+  test("readiness logs a redacted generic error and keeps the fallback 503 payload", async () => {
+    const warnings: Array<{ payload: Record<string, unknown>; message: string }> = [];
+    const app = createApp({
+      createDbConnection: () => {
+        throw new Error("database check failed for https://secret.example/token");
+      },
+      logger: {
+        warn: (payload, message) => {
+          warnings.push({ payload, message });
+        }
       }
     });
 
@@ -45,8 +95,17 @@ describe("api app", () => {
         }
       }
     });
-    expect(JSON.stringify(body)).not.toContain("CONVEX_URL");
-    expect(JSON.stringify(body)).not.toContain("url");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toEqual({
+      message: "api readiness check failed",
+      payload: {
+        dependency: "db",
+        provider: "convex",
+        errName: "Error",
+        errMessage: "database check failed for [redacted-url]"
+      }
+    });
+    expect(JSON.stringify(warnings[0])).not.toContain("https://secret.example/token");
   });
 
   test("readiness reports safe database metadata when configuration is present", async () => {
