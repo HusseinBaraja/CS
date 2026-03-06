@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Local package.json schema override",
+  "type": "object",
+  "properties": {
+    "packageManager": {
+      "type": "string",
+      "pattern": "(npm|pnpm|yarn|bun)@\\d+\\.\\d+\\.\\d+(-.+)?"
+    }
+  },
+  "additionalProperties": true
+}

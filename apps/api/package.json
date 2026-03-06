@@ -16,7 +16,7 @@
     "@cs/core": "*",
     "@cs/db": "*",
     "@hono/node-server": "1.19.9",
-    "hono": "4.12.3"
+    "hono": "4.12.4"
   }
 }
 
