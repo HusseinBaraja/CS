@@ -2,10 +2,6 @@
 
 ## CSCB — Customer Service Chatbot
 
-> **Version:** 1.0  
-> **Date:** 2026-03-05  
-> **Based on:** [Implementation Plan](./IMPLEMENTATION_PLAN.md) · [System Design](../system_design.md)
-
 ---
 
 ## 1. Introduction
@@ -578,18 +574,6 @@ If a variant has `priceOverride`, it replaces the product's `basePrice`. If `nul
 - Terminal: ANSI art display for initial WhatsApp pairing
 - File: saved to `data/qr/{companyId}.png`
 - API: `GET /api/companies/:companyId/qr` returns QR image
-
----
-
-## 7. Documentation Requirements
-
-| ID    | Requirement                                                       | Priority |
-| ----- | ----------------------------------------------------------------- | -------- |
-| DOC-1 | README with: overview, prerequisites, setup instructions, scripts | Must     |
-| DOC-2 | `.env.example` documenting all environment variables              | Must     |
-| DOC-3 | System design document (`system_design.md`)                       | Must     |
-| DOC-4 | Interactive API docs at `/api/docs` (Swagger UI)                  | Should   |
-| DOC-5 | Troubleshooting guide (`troubleshooting.md`)                      | Should   |
 
 ---
 
