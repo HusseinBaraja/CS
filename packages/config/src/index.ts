@@ -1,7 +1,7 @@
-import { createEnv } from "@t3-oss/env-core";
-import type { StandardSchemaV1 } from "@t3-oss/env-core";
-import { z } from "zod";
-import { ConfigError, ERROR_CODES } from "@cs/shared";
+import type { StandardSchemaV1 } from '@t3-oss/env-core';
+import { createEnv } from '@t3-oss/env-core';
+import { z } from 'zod';
+import { ConfigError, ERROR_CODES } from '@cs/shared';
 
 const envSchema = {
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -29,11 +29,7 @@ const formatIssuePath = (
 
 const isMissingIssue = (issue: StandardSchemaV1.Issue): boolean => {
   const issueText = issue.message.toLowerCase();
-  return (
-    issueText.includes("required") ||
-    issueText.includes("expected string") ||
-    issueText.includes("undefined")
-  );
+  return issueText.includes("required") || issueText.includes("received undefined");
 };
 
 const formatValidationIssues = (issues: readonly StandardSchemaV1.Issue[]): string =>

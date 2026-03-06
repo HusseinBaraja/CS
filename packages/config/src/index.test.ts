@@ -1,6 +1,6 @@
-import { describe, expect, test } from "bun:test";
-import { ConfigError, ERROR_CODES } from "@cs/shared";
-import { createConfig, requireConfigValue } from "./index";
+import { describe, expect, test } from 'bun:test';
+import { ConfigError, ERROR_CODES } from '@cs/shared';
+import { createConfig, requireConfigValue } from './index';
 
 describe("config", () => {
   test("applies defaults for optional setup values", () => {
@@ -27,6 +27,22 @@ describe("config", () => {
         code: ERROR_CODES.CONFIG_INVALID
       })
     );
+  });
+
+  test("classifies provided string type mismatches as CONFIG_INVALID", () => {
+    let thrown: unknown;
+
+    try {
+      createConfig({
+        LOG_DIR: 123,
+        CONVEX_URL: "https://example.convex.cloud"
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(ConfigError);
+    expect((thrown as ConfigError).code).toBe(ERROR_CODES.CONFIG_INVALID);
   });
 
   test("throws CONFIG_MISSING when a required runtime value is absent", () => {

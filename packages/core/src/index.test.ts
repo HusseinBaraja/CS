@@ -1,16 +1,11 @@
-import { describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { PassThrough } from "node:stream";
-import { finished } from "node:stream/promises";
-import { ValidationError } from "@cs/shared";
-import {
-  createLogger,
-  createLoggerRuntimeConfig,
-  createProductionLogDestination,
-  logError
-} from "./index";
+import { describe, expect, test } from 'bun:test';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { PassThrough, Writable } from 'node:stream';
+import { finished } from 'node:stream/promises';
+import { ValidationError } from '@cs/shared';
+import { createLogger, createLoggerRuntimeConfig, createProductionLogDestination, logError } from './index';
 
 const parseLogLines = (buffer: string): Record<string, unknown>[] =>
   buffer
@@ -161,6 +156,70 @@ describe("logger", () => {
 
     expect(readFileSync(join(logDir, "cs-2026-03-06.log"), "utf8")).toContain("day-one");
     expect(readFileSync(join(logDir, "cs-2026-03-07.log"), "utf8")).toContain("day-two");
+
+    rmSync(logDir, { recursive: true, force: true });
+  });
+
+  test("handles destination stream errors without crashing", async () => {
+    class FailingWriteStream extends Writable {
+      override _write(
+        _chunk: Buffer | string,
+        _encoding: BufferEncoding,
+        callback: (error?: Error | null) => void
+      ): void {
+        callback(new Error("simulated stream failure"));
+      }
+    }
+
+    const logDir = mkdtempSync(join(tmpdir(), "cs-stream-error-"));
+    let recoveredOutput = "";
+    const recoveredStream = new PassThrough();
+    recoveredStream.on("data", (chunk: Buffer | string) => {
+      recoveredOutput += chunk.toString();
+    });
+
+    const reportedErrors: Error[] = [];
+    let streamCreationCount = 0;
+    const destination = createProductionLogDestination(
+      {
+        LOG_DIR: logDir,
+        LOG_RETENTION_DAYS: 14
+      },
+      {
+        createStream: () => {
+          streamCreationCount += 1;
+          if (streamCreationCount === 1) {
+            return new FailingWriteStream();
+          }
+
+          return recoveredStream;
+        },
+        onStreamError: (error) => {
+          reportedErrors.push(error);
+        }
+      }
+    );
+
+    const runtimeConfig = createLoggerRuntimeConfig({
+      NODE_ENV: "production",
+      LOG_LEVEL: "info",
+      LOG_DIR: logDir,
+      LOG_RETENTION_DAYS: 14
+    });
+    const logger = createLogger({}, destination, runtimeConfig);
+
+    expect(() => logger.info("first-write-fails")).not.toThrow();
+    await waitForAsyncWork();
+
+    expect(() => logger.info("second-write-recovers")).not.toThrow();
+    await waitForAsyncWork();
+
+    destination.end();
+    await finished(destination as Writable);
+
+    const logs = parseLogLines(recoveredOutput);
+    expect(logs.some((entry) => entry.msg === "second-write-recovers")).toBe(true);
+    expect(reportedErrors[0]?.message).toContain("simulated stream failure");
 
     rmSync(logDir, { recursive: true, force: true });
   });

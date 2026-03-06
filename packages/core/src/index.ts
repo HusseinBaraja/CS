@@ -1,16 +1,10 @@
-import {
-  createWriteStream,
-  mkdirSync,
-  readdirSync,
-  unlinkSync,
-  type WriteStream
-} from "node:fs";
-import { join } from "node:path";
-import pino from "pino";
-import type { DestinationStream, Logger, LoggerOptions } from "pino";
-import { Writable } from "node:stream";
-import { env } from "@cs/config";
-import { formatError, type HealthStatus } from "@cs/shared";
+import { createWriteStream, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
+import type { DestinationStream, Logger, LoggerOptions } from 'pino';
+import pino from 'pino';
+import { Writable } from 'node:stream';
+import { env } from '@cs/config';
+import { formatError, type HealthStatus } from '@cs/shared';
 
 const LOG_FILE_PREFIX = "cs";
 const LOG_FILE_PATTERN = new RegExp(`^${LOG_FILE_PREFIX}-(\\d{4}-\\d{2}-\\d{2})\\.log$`);
@@ -51,6 +45,8 @@ export interface LoggerRuntimeConfig {
 
 interface DailyRotatingFileStreamOptions {
   now?: () => Date;
+  createStream?: (path: string) => Writable;
+  onStreamError?: (error: Error) => void;
 }
 
 const formatLogDate = (date: Date): string => {
@@ -80,13 +76,27 @@ const getLogFilePath = (logDir: string, date: Date): string =>
 
 class DailyRotatingFileStream extends Writable {
   private currentDate = "";
-  private stream: WriteStream | null = null;
+  private stream: Writable | null = null;
+  private readonly now: () => Date;
+  private readonly createStream: (path: string) => Writable;
+  private readonly onStreamError: (error: Error) => void;
 
   constructor(
     private readonly config: Pick<LoggerRuntimeConfig, "LOG_DIR" | "LOG_RETENTION_DAYS">,
-    private readonly now: () => Date = () => new Date()
+    options: DailyRotatingFileStreamOptions = {}
   ) {
     super();
+    this.now = options.now ?? (() => new Date());
+    this.createStream = options.createStream ?? ((path) => createWriteStream(path, { flags: "a" }));
+    this.onStreamError =
+      options.onStreamError ??
+      ((error) => {
+        try {
+          process.stderr.write(`[logger] Failed to write log file: ${error.message}\n`);
+        } catch {
+          // Ignore stderr write failures to avoid affecting app flow.
+        }
+      });
     this.rotate();
   }
 
@@ -97,22 +107,47 @@ class DailyRotatingFileStream extends Writable {
   ): void {
     try {
       this.rotateIfNeeded();
-      const activeStream = this.stream;
-
-      if (!activeStream) {
-        callback(new Error("Logger stream is not initialized"));
-        return;
-      }
-
-      const canContinue = activeStream.write(chunk, encoding);
-      if (canContinue) {
-        callback();
-        return;
-      }
-
-      activeStream.once("drain", () => callback());
     } catch (error) {
-      callback(error as Error);
+      this.onStreamError(this.toError(error));
+      callback();
+      return;
+    }
+
+    const activeStream = this.stream;
+    if (!activeStream) {
+      callback();
+      return;
+    }
+
+    let completed = false;
+    const completeWrite = () => {
+      if (completed) {
+        return;
+      }
+
+      completed = true;
+      activeStream.off("error", onWriteError);
+      callback();
+    };
+
+    const onWriteError = (error: Error) => {
+      this.handleStreamError(error);
+      completeWrite();
+    };
+
+    activeStream.once("error", onWriteError);
+
+    try {
+      activeStream.write(chunk, encoding, (error) => {
+        if (error) {
+          this.handleStreamError(error);
+        }
+
+        completeWrite();
+      });
+    } catch (error) {
+      this.handleStreamError(error);
+      completeWrite();
     }
   }
 
@@ -122,18 +157,31 @@ class DailyRotatingFileStream extends Writable {
       return;
     }
 
-    this.stream.end(() => callback());
+    const closingStream = this.stream;
+    closingStream.off("error", this.handleStreamError);
+    closingStream.once("error", (streamError) => {
+      this.onStreamError(this.toError(streamError));
+    });
+    closingStream.end(() => callback());
     this.stream = null;
   }
 
   override _destroy(error: Error | null, callback: (error?: Error | null) => void): void {
-    this.stream?.destroy();
-    this.stream = null;
+    if (this.stream) {
+      const destroyingStream = this.stream;
+      destroyingStream.off("error", this.handleStreamError);
+      destroyingStream.once("error", (streamError) => {
+        this.onStreamError(this.toError(streamError));
+      });
+      destroyingStream.destroy();
+      this.stream = null;
+    }
+
     callback(error);
   }
 
   private rotateIfNeeded(): void {
-    if (formatLogDate(this.now()) !== this.currentDate) {
+    if (!this.stream || formatLogDate(this.now()) !== this.currentDate) {
       this.rotate();
     }
   }
@@ -149,9 +197,39 @@ class DailyRotatingFileStream extends Writable {
       return;
     }
 
-    this.stream?.end();
+    if (this.stream) {
+      const closingStream = this.stream;
+      closingStream.off("error", this.handleStreamError);
+      closingStream.once("error", (streamError) => {
+        this.onStreamError(this.toError(streamError));
+      });
+      closingStream.end();
+    }
+
     this.currentDate = currentDate;
-    this.stream = createWriteStream(nextPath, { flags: "a" });
+    const nextStream = this.createStream(nextPath);
+    nextStream.on("error", this.handleStreamError);
+    this.stream = nextStream;
+  }
+
+  private handleStreamError = (error: unknown): void => {
+    const activeStream = this.stream;
+    if (!activeStream) {
+      return;
+    }
+
+    this.onStreamError(this.toError(error));
+    activeStream.off("error", this.handleStreamError);
+    activeStream.destroy();
+    this.stream = null;
+  };
+
+  private toError(error: unknown): Error {
+    if (error instanceof Error) {
+      return error;
+    }
+
+    return new Error(String(error));
   }
 
   private cleanupExpiredLogs(): void {
@@ -185,7 +263,7 @@ export const createProductionLogDestination = (
   config: Pick<LoggerRuntimeConfig, "LOG_DIR" | "LOG_RETENTION_DAYS">,
   options: DailyRotatingFileStreamOptions = {}
 ): DestinationStream =>
-  new DailyRotatingFileStream(config, options.now);
+  new DailyRotatingFileStream(config, options);
 
 export const createLogger = (
   options: LoggerOptions = {},
