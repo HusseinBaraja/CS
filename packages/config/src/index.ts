@@ -6,6 +6,8 @@ import { ConfigError, ERROR_CODES } from "@cs/shared";
 const envSchema = {
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("debug"),
+  LOG_DIR: z.string().min(1).default("logs"),
+  LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
   API_PORT: z.coerce.number().int().positive().default(3000),
   CONVEX_URL: z.string().url().optional()
 };

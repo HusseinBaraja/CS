@@ -16,6 +16,8 @@ Monorepo for the API, bot, CLI, worker, and shared packages.
 
 - `NODE_ENV`: optional, defaults to `development`
 - `LOG_LEVEL`: optional, defaults to `debug`
+- `LOG_DIR`: optional, defaults to `logs`
+- `LOG_RETENTION_DAYS`: optional, defaults to `14`
 - `API_PORT`: optional, defaults to `3000`
 - `CONVEX_URL`: required for `api` and `worker`, unused by `bot` and `cli`
 

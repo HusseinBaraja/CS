@@ -2,8 +2,8 @@
 **Goal**: Create centralized error handling utilities.
 
 **Tasks**:
-- [ ] Create `errors.ts` — custom error classes in the approriate project place
-- [ ] Create error types:
+- [x] Create `errors.ts` in the shared package
+- [x] Create error types:
   - `AppError` — base class with `code`, `message`, `cause`, `toJSON()`
   - `ConfigError` — missing/invalid configuration
   - `DatabaseError` — connection or query failures
@@ -12,8 +12,9 @@
   - `AuthError` — API authentication failures
   - `ValidationError` — input validation failures
 
-- [ ] Add error formatting utilities (structured JSON for logging)
-- [ ] Add error code constants
+- [x] Add error formatting utilities for structured logging
+- [x] Add error code constants
+- [x] Distinguish missing configuration from invalid configuration at the error-code level
 
 **Verification**:
 - Custom errors contain proper metadata (code, message, cause)

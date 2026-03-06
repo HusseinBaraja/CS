@@ -10,6 +10,8 @@ describe("config", () => {
 
     expect(config.NODE_ENV).toBe("development");
     expect(config.LOG_LEVEL).toBe("debug");
+    expect(config.LOG_DIR).toBe("logs");
+    expect(config.LOG_RETENTION_DAYS).toBe(14);
     expect(config.API_PORT).toBe(3000);
     expect(config.CONVEX_URL).toBe("https://example.convex.cloud");
   });
