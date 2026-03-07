@@ -12,9 +12,9 @@
 
 ## 1. Project Overview
 
-**CSCB (Customer Service Chatbot)** is a multi-tenant, AI-powered WhatsApp customer service platform. It enables businesses — starting with packaging/disposables suppliers in the Middle East — to deploy intelligent chatbots that handle product inquiries, catalog browsing, image sharing, and human handoff, all through WhatsApp.
+**CSCB (Customer Service Chatbot)** is a multi-tenant, AI-powered WhatsApp customer service platform. It enables businesses to deploy intelligent chatbots that handle product inquiries, catalog sharing, image sharing, and human handoff, all through WhatsApp.
 
-A single application instance serves multiple companies. Each tenant has its own product catalog, conversation history, AI configuration, analytics, and WhatsApp session.
+A single application instance serves multiple companies. Each tenant has its own product catalog, conversation history, AI configuration, analytics, WhatsApp number, and WhatsApp session.
 
 ## 2. Business Case
 
@@ -43,7 +43,7 @@ An AI-powered WhatsApp bot that:
 | **Bilingual support**       | Arabic and English — matching the market                 |
 | **Owner time saved**        | Automates 70–90% of repetitive inquiries                 |
 | **Multi-tenant efficiency** | One deployment serves multiple businesses                |
-| **Low operating cost**      | Uses cheapest viable AI providers ($0.05–$0.14/M tokens) |
+| **Low operating cost**      | Uses cheapest viable AI providers ($0.05–$0.25/M tokens) |
 
 ## 3. Objectives & Success Criteria
 
@@ -54,7 +54,7 @@ An AI-powered WhatsApp bot that:
 | Ensure high availability           | ≥ 99% uptime (auto-restart via PM2)                   |
 | Provide bilingual experience       | Arabic and English detection and response             |
 | Enable multi-tenant operation      | ≥ 2 companies running simultaneously on day one       |
-| Keep costs low                     | AI API costs < $10/month per active tenant            |
+| Keep costs low                     | AI API costs Should be as little as possible            |
 | Deliver actionable analytics       | Daily/weekly reports delivered to owners via WhatsApp |
 
 ## 4. Scope
@@ -62,12 +62,12 @@ An AI-powered WhatsApp bot that:
 ### In Scope
 
 - WhatsApp chatbot (via Baileys) with multi-company session management
-- AI-powered responses with failover (DeepSeek → Gemini → Groq)
+- AI-powered responses with failover (DeepSeek → Gemini → etc)
 - RAG pipeline: product embeddings, vector search, context-aware answers
 - Full product catalog management (categories, products, variants, images)
 - REST API for all CRUD operations
 - Human handoff system with auto-unmute
-- Owner commands (`!help`, `!status`, `!clear`, `!list`, `!setrate`, `!analytics`)
+- Owner commands (`!help`, `!status`, `!clear`, `!list`, `!analytics`, `!currencyexchange)
 - Bilingual support (Arabic + English)
 - Analytics event tracking and reporting
 - Currency conversion with configurable exchange rates
@@ -87,16 +87,8 @@ An AI-powered WhatsApp bot that:
 - Customer authentication (phone number is the identity)
 - Automated marketing campaigns / bulk messaging
 
-## 5. Stakeholders
 
-| Role                | Responsibility                                                        |
-| ------------------- | --------------------------------------------------------------------- |
-| **Project Owner**   | Requirements, priorities, final acceptance                            |
-| **Developer(s)**    | Design, implementation, testing, deployment                           |
-| **Business Owners** | End users — manage their companies via WhatsApp commands and REST API |
-| **Customers**       | End users — interact with the chatbot via WhatsApp                    |
-
-## 6. Technology Decisions
+## 5. Technology Decisions
 
 | Decision                         | Rationale                                                      |
 | -------------------------------- | -------------------------------------------------------------- |
@@ -107,25 +99,13 @@ An AI-powered WhatsApp bot that:
 | **Hono** for REST API            | Built for Bun, extremely fast, Express-like DX                 |
 | **DeepSeek V3** as primary AI    | $0.14/M input tokens — best cost/quality ratio                 |
 | **Gemini Flash** as backup       | Fast, cheap, good quality fallback                             |
-| **Groq (Llama 3.1)** as tertiary | $0.05/M tokens — fastest inference for last-resort             |
+| **anything else** as tertiary    | $0.05/M tokens — fastest inference for last-resort             |
 | **Gemini Embeddings**            | Multi-language support (Arabic + English), affordable          |
 | **Cloudflare R2**                | S3-compatible object storage, generous free tier               |
 | **PM2** on Windows               | Keeps bot alive with auto-restart                              |
 | **Modular architecture**         | Small modules to avoid large monolithic files                  |
 
-## 7. Risks & Mitigations
-
-| Risk                                            | Likelihood | Impact | Mitigation                                                |
-| ----------------------------------------------- | ---------- | ------ | --------------------------------------------------------- |
-| Baileys breaks due to WhatsApp protocol changes | Medium     | High   | Monitor upstream; plan migration to official Business API |
-| AI provider outage                              | Medium     | Medium | 3-provider failover chain + human handoff as last resort  |
-| WhatsApp account ban (unofficial API)           | Low        | High   | Rate limiting, natural delays, comply with WhatsApp ToS   |
-| Prompt injection attacks                        | Medium     | Medium | System prompt guardrails, input sanitization              |
-| Convex free tier limits hit                     | Low        | Medium | Monitor usage; upgrade plan or optimize queries           |
-| Embedding quality for Arabic text               | Low        | Medium | Gemini embeddings have strong multilingual support        |
-| Data loss                                       | Low        | High   | Convex snapshot exports, automated backup scripts         |
-
-## 8. Constraints
+## 6. Constraints
 
 - **Platform:** Windows local machine (no cloud deployment initially)
 - **Budget:** Minimal — leverage free tiers and cheapest AI providers
@@ -133,22 +113,6 @@ An AI-powered WhatsApp bot that:
 - **WhatsApp API:** Unofficial (Baileys) — must comply with rate limits and usage patterns
 - **Architecture:** Modular, small files — optimized for AI-assisted development
 
-## 9. Milestones
-
-| Phase | Milestone                                       | Dependencies   |
-| ----- | ----------------------------------------------- | -------------- |
-| 1     | Project foundation (config, logging, errors)    | None           |
-| 2     | Convex backend (schema, seed, backup)           | Phase 1        |
-| 3     | REST API (all CRUD endpoints)                   | Phase 2        |
-| 4     | AI provider system with failover                | Phase 1        |
-| 5     | RAG pipeline (embeddings, search, context)      | Phases 2, 4    |
-| 6     | WhatsApp integration (Baileys, sessions, QR)    | Phases 2, 4, 5 |
-| 7     | Conversation memory & welcome messages          | Phase 6        |
-| 8     | Owner commands                                  | Phases 6, 7    |
-| 9     | Advanced features (actions, handoff, analytics) | Phases 5–8     |
-| 10    | Production hardening                            | All previous   |
-| 11    | Full test coverage                              | All previous   |
-| 12    | Documentation                                   | All previous   |
 
 ---
 
@@ -156,9 +120,9 @@ An AI-powered WhatsApp bot that:
 
 ## 1. Vision Statement
 
-> **CSCB empowers small businesses to provide instant, accurate, 24/7 customer service through WhatsApp — without hiring additional staff, without building custom software, and at a cost of pennies per conversation.**
+> **CSCB empowers small businesses to provide instant, accurate, 24/7 customer service through WhatsApp without hiring additional staff, without building custom software, and at a cost of pennies per conversation.**
 
-The vision is that any business owner can plug in their product catalog and have a professional, bilingual AI assistant answering customer questions on WhatsApp within minutes — grounded in real data, never hallucinating, and smart enough to hand off to a human when it can't help.
+The vision is that any business owner can plug in their product catalog and have a professional, bilingual AI assistant answering customer questions on WhatsApp within minutes grounded in real data, never hallucinating, and smart enough to hand off to a human when it can't help.
 
 ## 2. Product Position Statement
 
@@ -184,10 +148,10 @@ Features are organized by priority using the MoSCoW method:
 | **Bilingual support**          | Auto-detect Arabic/English, respond in matching language        |
 | **Product catalog management** | Categories, products, variants — full CRUD via REST API         |
 | **Semantic product search**    | Vector search using Gemini embeddings on Convex                 |
-| **AI provider failover**       | DeepSeek → Gemini → Groq → human handoff                        |
+| **AI provider failover**       | DeepSeek → Gemini → etc → human handoff                        |
 | **WhatsApp integration**       | Baileys multi-device, multi-session, QR pairing                 |
 | **Human handoff**              | Mute bot, notify owner, auto-unmute after 12h                   |
-| **Owner commands**             | `!help`, `!status`, `!clear`, `!list`, `!setrate`, `!analytics` |
+| **Owner commands**             | `!help`, `!status`, `!clear`, `!list`, `!analytics` |
 | **Access control**             | OWNER_ONLY, SINGLE_NUMBER, LIST, ALL modes                      |
 | **Rate limiting**              | Per-phone throttling for WhatsApp messages and API requests     |
 | **Image management**           | Upload to Cloudflare R2, send via WhatsApp                      |
@@ -208,7 +172,7 @@ Features are organized by priority using the MoSCoW method:
 | **Catalog formatting**        | Organized, category-grouped WhatsApp messages       |
 | **Typing indicators**         | Show "composing" before responding                  |
 | **Natural response delay**    | 1–3 second delay to feel human-like                 |
-| **Swagger API docs**          | Interactive docs at `/api/docs`                     |
+
 
 ### Could Have (post-v1.0)
 
@@ -236,15 +200,15 @@ Features are organized by priority using the MoSCoW method:
 
 ### Scenario 1: Customer Asks About a Product
 
-> **Maryam** messages the bot: "عندكم علب برغر؟" ("Do you have burger boxes?")
+> **Saleh** messages the bot: "عندكم علب برغر؟" ("Do you have burger boxes?")
 >
-> The bot detects Arabic, searches the catalog via RAG, finds "Burger Box" with 3 variants (Small/Medium/Large), and responds in Arabic with names, sizes, and prices converted to YER. Maryam asks for pictures — the bot sends product images with bilingual captions.
+> The bot detects Arabic, searches the catalog via RAG, finds "Burger Box" with 3 variants (Small/Medium/Large), and responds in Arabic with names, sizes, and prices converted to YER. Saleh asks for pictures — the bot sends product images with detected language captions.
 
 ### Scenario 2: Customer Requests the Full Catalog
 
-> **Ahmed** messages: "Send me the full catalog"
+> **Ahmed** messages: "Send me the catalog for the plastic bags"
 >
-> The AI detects the `SEND_CATALOG` action, queries all categories and products, and sends a formatted catalog grouped by category with prices — split across multiple messages if needed.
+> The AI detects the `SEND_CATALOG` action, queries the pdf file related to the desired catalog.
 
 ### Scenario 3: Customer Wants to Talk to a Human
 
