@@ -1,5 +1,5 @@
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+import { defineSchema, defineTable } from 'convex/server';
+import { v } from 'convex/values';
 
 // ── Reusable field patterns ──────────────────────────────────────────────────
 const flexRecord = v.record(
@@ -88,7 +88,7 @@ export default defineSchema({
     companyId: v.id("companies"),
     contentEn: v.string(),
     contentAr: v.optional(v.string()),
-    active: v.optional(v.boolean()), // Default: true
+    active: v.boolean(), // Required field to ensure proper indexing
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
   }).index("by_company_active", ["companyId", "active"]),
@@ -107,6 +107,9 @@ export default defineSchema({
   analyticsEvents: defineTable({
     companyId: v.id("companies"),
     eventType: v.string(),
+    timestamp: v.number(),
     payload: v.optional(flexRecord),
-  }).index("by_company_type", ["companyId", "eventType"]),
+  })
+    .index("by_company_type", ["companyId", "eventType"])
+    .index("by_company_type_time", ["companyId", "eventType", "timestamp"]),
 });

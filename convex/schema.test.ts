@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
-import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
-import schema from "./schema";
+import { convexTest } from 'convex-test';
+import { describe, expect, it } from 'vitest';
+import schema from './schema';
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -223,6 +223,52 @@ describe("convex schema", () => {
       expect(activeOffers).toHaveLength(1);
       expect(activeOffers[0]?.contentEn).toBe("20% off all containers!");
     });
+
+    it("filters inactive offers correctly", async () => {
+      const t = convexTest(schema, modules);
+      const companyId = await t.run(async (ctx) =>
+        ctx.db.insert("companies", {
+          name: "Test Co",
+          ownerPhone: "966500000000",
+        }),
+      );
+
+      // Insert one active and one inactive offer
+      await t.run(async (ctx) => {
+        await ctx.db.insert("offers", {
+          companyId,
+          contentEn: "Active offer",
+          active: true,
+        });
+        await ctx.db.insert("offers", {
+          companyId,
+          contentEn: "Inactive offer",
+          active: false,
+        });
+      });
+
+      const activeOffers = await t.run(async (ctx) =>
+        ctx.db
+          .query("offers")
+          .withIndex("by_company_active", (q) =>
+            q.eq("companyId", companyId).eq("active", true),
+          )
+          .collect(),
+      );
+      const inactiveOffers = await t.run(async (ctx) =>
+        ctx.db
+          .query("offers")
+          .withIndex("by_company_active", (q) =>
+            q.eq("companyId", companyId).eq("active", false),
+          )
+          .collect(),
+      );
+
+      expect(activeOffers).toHaveLength(1);
+      expect(activeOffers[0]?.contentEn).toBe("Active offer");
+      expect(inactiveOffers).toHaveLength(1);
+      expect(inactiveOffers[0]?.contentEn).toBe("Inactive offer");
+    });
   });
 
   // ── Currency Rates ─────────────────────────────────────────────────────
@@ -272,10 +318,12 @@ describe("convex schema", () => {
         }),
       );
 
+      const timestamp = Date.now();
       await t.run(async (ctx) =>
         ctx.db.insert("analyticsEvents", {
           companyId,
           eventType: "product_search",
+          timestamp,
           payload: { query: "burger boxes", resultCount: 3 },
         }),
       );
@@ -293,6 +341,63 @@ describe("convex schema", () => {
         query: "burger boxes",
         resultCount: 3,
       });
+      expect(events[0]?.timestamp).toBe(timestamp);
+    });
+
+    it("queries events by time range efficiently", async () => {
+      const t = convexTest(schema, modules);
+      const companyId = await t.run(async (ctx) =>
+        ctx.db.insert("companies", {
+          name: "Test Co",
+          ownerPhone: "966500000000",
+        }),
+      );
+
+      const now = Date.now();
+      const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+      const twoDaysAgo = now - 2 * 24 * 60 * 60 * 1000;
+
+      // Insert events at different times
+      await t.run(async (ctx) => {
+        await ctx.db.insert("analyticsEvents", {
+          companyId,
+          eventType: "product_view",
+          timestamp: sevenDaysAgo,
+          payload: { productId: "old" },
+        });
+        await ctx.db.insert("analyticsEvents", {
+          companyId,
+          eventType: "product_view",
+          timestamp: twoDaysAgo,
+          payload: { productId: "recent" },
+        });
+        await ctx.db.insert("analyticsEvents", {
+          companyId,
+          eventType: "product_view",
+          timestamp: now,
+          payload: { productId: "current" },
+        });
+      });
+
+      // Query events from last 3 days using time-based index
+      const threeDaysAgo = now - 3 * 24 * 60 * 60 * 1000;
+      const recentEvents = await t.run(async (ctx) =>
+        ctx.db
+          .query("analyticsEvents")
+          .withIndex("by_company_type_time", (q) =>
+            q
+              .eq("companyId", companyId)
+              .eq("eventType", "product_view")
+              .gte("timestamp", threeDaysAgo),
+          )
+          .collect(),
+      );
+
+      expect(recentEvents).toHaveLength(2);
+      expect(recentEvents.map((e) => e.payload?.productId)).toContain("recent");
+      expect(recentEvents.map((e) => e.payload?.productId)).toContain(
+        "current",
+      );
     });
   });
 
