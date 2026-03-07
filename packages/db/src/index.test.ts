@@ -1,3 +1,4 @@
+import { version as convexVersion } from "convex";
 import { describe, expect, test } from "bun:test";
 import { ERROR_CODES } from "@cs/shared";
 import { checkDbConnection, DB_PROVIDER } from "./index";
@@ -34,7 +35,7 @@ describe("@cs/db", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Convex-Client": "npm-1.32.0",
+        "Convex-Client": `npm-${convexVersion}`,
       },
     });
     expect(fetchCalls[0]?.init?.signal).toBeInstanceOf(AbortSignal);
@@ -83,6 +84,8 @@ describe("@cs/db", () => {
   });
 
   test("checkDbConnection aborts after timeout", async () => {
+    const startedAt = Date.now();
+
     await expect(
       checkDbConnection(
         {
@@ -91,18 +94,24 @@ describe("@cs/db", () => {
         },
         {
           timeoutMs: 50,
-          fetch: async (_input, init) => {
-            await new Promise((resolve) => setTimeout(resolve, 200));
-            if (init?.signal?.aborted) {
-              throw new DOMException("The operation was aborted", "AbortError");
-            }
-            return new Response(JSON.stringify({ ts: 1 }), { status: 200 });
-          },
+          fetch: (_input, init) =>
+            new Promise((_resolve, reject) => {
+              init?.signal?.addEventListener(
+                "abort",
+                () =>
+                  reject(
+                    new DOMException("The operation was aborted", "AbortError"),
+                  ),
+                { once: true },
+              );
+            }),
         },
       ),
     ).rejects.toMatchObject({
       code: ERROR_CODES.DB_CONNECTION_FAILED,
       message: "Database connection failed",
     });
+
+    expect(Date.now() - startedAt).toBeLessThan(150);
   });
 });

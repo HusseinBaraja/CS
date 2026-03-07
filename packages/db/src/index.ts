@@ -50,7 +50,11 @@ export const checkDbConnection = async (
 
   let response: Response;
   try {
-    response = await fetchImpl(`${connection.url}${QUERY_TIMESTAMP_PATH}`, {
+    const readinessUrl = new URL(
+      QUERY_TIMESTAMP_PATH,
+      connection.url,
+    ).toString();
+    response = await fetchImpl(readinessUrl, {
       method: "POST",
       signal: abortController.signal,
       headers: {
