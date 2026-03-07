@@ -15,8 +15,8 @@
     "@cs/config": "*",
     "@cs/core": "*",
     "@cs/db": "*",
-    "hono": "latest",
-    "@hono/node-server": "latest"
+    "@hono/node-server": "1.19.9",
+    "hono": "4.12.4"
   }
 }
 

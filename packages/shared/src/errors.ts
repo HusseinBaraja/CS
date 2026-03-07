@@ -112,8 +112,11 @@ export class AppError extends Error {
 }
 
 export class ConfigError extends AppError {
-  constructor(message: string, options: AppErrorOptions = {}) {
-    super(ERROR_CODES.CONFIG_INVALID, message, options);
+  constructor(
+    message: string,
+    options: AppErrorOptions & { code?: ErrorCode } = {}
+  ) {
+    super(options.code ?? ERROR_CODES.CONFIG_INVALID, message, options);
   }
 }
 

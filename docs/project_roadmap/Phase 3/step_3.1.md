@@ -14,11 +14,13 @@
 
 **Verification**:
 - Server starts on configured port
-- `GET /api/health` responds with status
+- `GET /api/health` responds with liveness status without requiring DB configuration
+- `GET /api/ready` reports dependency readiness without exposing connection secrets
 - Requests without API key are rejected (401)
 - Valid API key allows access
 
 **Tests**:
 - Health endpoint returns 200
+- Readiness endpoint returns 503 when DB configuration is missing
 - Missing auth header returns 401
 - Invalid API key returns 403
