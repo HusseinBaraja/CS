@@ -9,6 +9,7 @@
  */
 
 import type * as helpers from "../helpers.js";
+import type * as vectorSearch from "../vectorSearch.js";
 
 import type {
   ApiFromModules,
@@ -18,6 +19,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   helpers: typeof helpers;
+  vectorSearch: typeof vectorSearch;
 }>;
 
 /**

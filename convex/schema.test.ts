@@ -2,10 +2,14 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import schema from "./schema";
+import { api } from "./_generated/api";
 
-const modules = import.meta.glob("./**/*.ts");
+const modules =
+  typeof import.meta.glob === "function"
+    ? import.meta.glob(["./**/*.ts", "!./**/*.test.ts", "!./vitest.config.ts"])
+    : ({} as Record<string, () => Promise<any>>);
 
-describe("convex schema", () => {
+describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
   // ── Companies ──────────────────────────────────────────────────────────
   describe("companies", () => {
     it("inserts a valid company", async () => {
@@ -473,9 +477,30 @@ describe("convex schema", () => {
         }),
       );
 
+      // Insert another embedding with a different language to test filtering
+      await t.run(async (ctx) =>
+        ctx.db.insert("embeddings", {
+          companyId,
+          productId,
+          embedding,
+          textContent: "كوب ورقي",
+          language: "ar",
+        }),
+      );
+
       const doc = await t.run(async (ctx) => ctx.db.get(embId));
       expect(doc?.embedding).toHaveLength(768);
       expect(doc?.language).toBe("en");
+
+      const results = await t.action(api.vectorSearch.vectorSearchByEmbedding, {
+        companyId,
+        language: "en",
+        embedding,
+        count: 10,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]?._id).toBe(embId);
     });
   });
 });

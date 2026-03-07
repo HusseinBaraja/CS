@@ -1,0 +1,4 @@
+[test]
+# Exclude Convex vitest files from being inadvertently picked up
+# by Bun's native test runner. They are run via `bun x vitest`.
+pathIgnorePatterns = ["convex/"]
