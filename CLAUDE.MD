@@ -1,8 +1,11 @@
 The role of this file is to describe common mistakes and confusion points that agents might encounter as they work in this project. If you ever encounter something in the project that surprises you, please alert the developer working with you and indicate that this is the case in the AgentMD file to help prevent future agents from having the same issue.
 
 ## Project Overview
-CS is a WhatsApp bot powered by AI. Uses companies data to answer user questions. The goal is to answer questions without making any mistakes, this depends on having quality input data.
+
+Read docs/PROJECT_CHARTER_AND_VISION.md, and docs/SRS.md
+
 ## Architecture
+
 Turborepo monorepo with Bun as the runtime and package manager.
 
 | App      | Purpose                  |     |
@@ -13,12 +16,11 @@ Turborepo monorepo with Bun as the runtime and package manager.
 | `cli`    | Developer CLI utilities  |     |
 
 ### Path Aliases
+
 Defined in `tsconfig.base.json` as `@cs/*`. Always use aliases over relative imports between packages.
 
-## Tech Stack
-Bun, TypeScript, Convex, Hono, Baileys, Pino, DeepSeek/Gemini/Groq, Vitest, Oxlint, Prettier, Turborepo
-
 ## Commands
+
 Always use `bun` to run scripts from the repo root.
 
 | Command                                  | Description                                       |     |
@@ -36,7 +38,8 @@ Always use `bun` to run scripts from the repo root.
 **Do not run:** `bun dev` (assume already running), `bun build` (CI only)
 
 ## Conventions
+
 - **Modular code** — keep files small and focused, avoid large monolithic modules
 - **Use path aliases** (`@cs/*`) instead of deep relative imports
 - Follow test driven development conventin, test as you go
-- **Run `bun generate`** after any Convex schema changes  
+- **Run `bun generate`** after any Convex schema changes
