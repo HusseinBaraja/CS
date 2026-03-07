@@ -57,6 +57,16 @@
         "@cs/db": "*",
       },
     },
+    "convex": {
+      "name": "@cs/convex",
+      "dependencies": {
+        "convex": "1.32.0",
+      },
+      "devDependencies": {
+        "convex-test": "^0.0.41",
+        "vitest": "^4.0.18",
+      },
+    },
     "packages/ai": {
       "name": "@cs/ai",
       "version": "0.0.0",
@@ -119,6 +129,8 @@
     "@cs/ai": ["@cs/ai@workspace:packages/ai"],
 
     "@cs/config": ["@cs/config@workspace:packages/config"],
+
+    "@cs/convex": ["@cs/convex@workspace:convex"],
 
     "@cs/core": ["@cs/core@workspace:packages/core"],
 

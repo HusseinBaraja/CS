@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
-import { convexTest } from 'convex-test';
-import { describe, expect, it } from 'vitest';
-import schema from './schema';
+import { convexTest } from "convex-test";
+import { describe, expect, it } from "vitest";
+import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -161,6 +161,7 @@ describe("convex schema", () => {
         ctx.db.insert("conversations", {
           companyId,
           phoneNumber: "967771234567",
+          muted: false,
         }),
       );
 
@@ -187,6 +188,43 @@ describe("convex schema", () => {
       );
       expect(messages).toHaveLength(2);
       expect(messages[0]?.role).toBe("user");
+    });
+
+    it("queries conversations by the new index", async () => {
+      const t = convexTest(schema, modules);
+      const companyId = await t.run(async (ctx) =>
+        ctx.db.insert("companies", {
+          name: "Test Co",
+          ownerPhone: "966500000000",
+        }),
+      );
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("conversations", {
+          companyId,
+          phoneNumber: "123",
+          muted: false,
+        });
+        await ctx.db.insert("conversations", {
+          companyId,
+          phoneNumber: "456",
+          muted: true,
+        });
+      });
+
+      const mutedConversations = await t.run(async (ctx) =>
+        ctx.db
+          .query("conversations")
+          .withIndex("by_company_phone_and_muted", (q) =>
+            q
+              .eq("companyId", companyId)
+              .eq("phoneNumber", "456")
+              .eq("muted", true),
+          )
+          .collect(),
+      );
+      expect(mutedConversations).toHaveLength(1);
+      expect(mutedConversations[0]?.phoneNumber).toBe("456");
     });
   });
 
@@ -423,7 +461,7 @@ describe("convex schema", () => {
       );
 
       // 768-dimension dummy vector
-      const embedding = new Array(768).fill(0).map((_, i) => i * 0.001);
+      const embedding = Array.from({ length: 768 }, (_, i) => i * 0.001);
 
       const embId = await t.run(async (ctx) =>
         ctx.db.insert("embeddings", {

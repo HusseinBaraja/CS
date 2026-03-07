@@ -6,6 +6,13 @@
     "test": "vitest run",
     "test:watch": "vitest watch",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit"
+    "lint": "bun x oxlint"
+  },
+  "dependencies": {
+    "convex": "1.32.0"
+  },
+  "devDependencies": {
+    "convex-test": "^0.0.41",
+    "vitest": "^4.0.18"
   }
 }

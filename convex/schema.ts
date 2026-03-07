@@ -1,5 +1,5 @@
-import { defineSchema, defineTable } from 'convex/server';
-import { v } from 'convex/values';
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
 
 // ── Reusable field patterns ──────────────────────────────────────────────────
 const flexRecord = v.record(
@@ -13,7 +13,7 @@ export default defineSchema({
     name: v.string(),
     ownerPhone: v.string(),
     config: v.optional(flexRecord),
-    timezone: v.optional(v.string()), // Default: "Asia/Aden"
+    timezone: v.optional(v.string()),
   }).index("by_owner_phone", ["ownerPhone"]),
 
   // ── Categories ──────────────────────────────────────────────────────────
@@ -69,9 +69,9 @@ export default defineSchema({
   conversations: defineTable({
     companyId: v.id("companies"),
     phoneNumber: v.string(),
-    muted: v.optional(v.boolean()), // Default: false
+    muted: v.boolean(), // Default: false
     mutedAt: v.optional(v.number()),
-  }).index("by_company_phone", ["companyId", "phoneNumber"]),
+  }).index("by_company_phone_and_muted", ["companyId", "phoneNumber", "muted"]),
 
   // ── Messages ────────────────────────────────────────────────────────────
   messages: defineTable({
@@ -88,7 +88,7 @@ export default defineSchema({
     companyId: v.id("companies"),
     contentEn: v.string(),
     contentAr: v.optional(v.string()),
-    active: v.boolean(), // Required field to ensure proper indexing
+    active: v.boolean(),
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
   }).index("by_company_active", ["companyId", "active"]),

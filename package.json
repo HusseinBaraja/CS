@@ -17,6 +17,7 @@
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:convex": "bun x vitest run",
     "check": "turbo run check",
     "generate": "turbo run generate",
     "ci": "turbo run ci"
