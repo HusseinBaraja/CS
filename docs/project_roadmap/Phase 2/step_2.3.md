@@ -2,8 +2,7 @@
 **Goal**: Create a seed script with realistic sample data for development and testing.
 
 **Tasks**:
-- [ ] Create `convex/seed.ts` as a Convex mutation
-- [ ] Seed a sample company ("Demo Packaging Co")
+- [ ] Seed a sample company ("YAS Packaging Co")
 - [ ] Seed 4–5 categories (Containers, Cups, Plates, Bags, Cutlery)
 - [ ] Seed 15–20 products with bilingual names, descriptions, specs, and prices
 - [ ] Seed 2–3 variants per product where applicable

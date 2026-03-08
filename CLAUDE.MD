@@ -31,5 +31,7 @@ Defined in `tsconfig.base.json` as `@cs/*`. Always use aliases over relative imp
 | `bun check`                              | Runs typecheck + lint                             |
 | `bun test`                               | Run tests with Vitest                             |
 
+- When doing a step from the project roadmap, make sure to read @cs/SRS.md and @cs/PROJECT_CHARTER_AND_VISION.md to understand the project's goals and how to approach the problem.
+
 ## Known Pitfalls
 - Surprise: on the current Convex version in this repo, `ctx.vectorSearch(...).filter(...)` supports `q.eq(...)` and `q.or(...)`, but not multi-field `AND`. If you need exact ANN filtering across multiple dimensions like `companyId + language`, add a combined filter field such as `companyLanguage` and register that as the vector index `filterField`.
