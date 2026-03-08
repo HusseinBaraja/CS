@@ -1,4 +1,3 @@
 [test]
-# Exclude Convex vitest files from being inadvertently picked up
-# by Bun's native test runner. They are run via `bun x vitest`.
-pathIgnorePatterns = ["convex/"]
+# Convex tests use Vitest (run via `bun x vitest`) and import from
+# "vitest", so Bun's native test runner skips them automatically.
