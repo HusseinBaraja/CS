@@ -1,0 +1,3 @@
+[test]
+# Convex tests use Vitest (run via `bun x vitest`) and import from
+# "vitest", so Bun's native test runner skips them automatically.

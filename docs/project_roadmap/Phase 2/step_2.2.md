@@ -10,7 +10,7 @@ companies: defineTable({
 	name: v.string(),
 	ownerPhone: v.string(),
 	config: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
-	timezone: v.optional(v.string()), // Default: "Asia/Aden"
+	timezone: v.optional(v.string()),
 }).index("by_owner_phone", ["ownerPhone"]),
 ```
 
