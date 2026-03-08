@@ -8,7 +8,7 @@ export async function getCompanyOrThrow(
   ctx: { db: DatabaseReader },
   companyId: Id<"companies">,
 ): Promise<Doc<"companies">> {
-  const company = await ctx.db.get(companyId);
+  const company = await ctx.db.get("companies", companyId);
   if (!company) {
     throw new Error(`Company ${companyId} not found`);
   }
