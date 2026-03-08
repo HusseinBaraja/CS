@@ -3,12 +3,13 @@ import { describe, expect, it } from "vitest";
 import schema from "./schema";
 import { getCompanyOrThrow } from "./helpers";
 
-const modules =
-  typeof import.meta.glob === "function"
-    ? import.meta.glob("./**/*.ts")
-    : ({} as Record<string, () => Promise<any>>);
+if (typeof import.meta.glob !== "function") {
+  throw new Error("This suite requires import.meta.glob support.");
+}
 
-describe.skipIf(typeof import.meta.glob !== "function")("helpers", () => {
+const modules = import.meta.glob("./**/*.ts");
+
+describe("helpers", () => {
   describe("getCompanyOrThrow", () => {
     it("returns the company when it exists", async () => {
       const t = convexTest(schema, modules);
