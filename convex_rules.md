@@ -1,3 +1,5 @@
+```IMPORTANT: This file is made by the Convex team. and is not meant to be edited whatsoever.```
+
 # Convex guidelines
 
 ## Function guidelines
