@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
-import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
-import schema from "./schema";
-import { api } from "./_generated/api";
+import { convexTest } from 'convex-test';
+import { describe, expect, it } from 'vitest';
+import schema from './schema';
+import { api } from './_generated/api';
 
 const modules =
   typeof import.meta.glob === "function"
@@ -445,6 +445,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
 
   // ── Embeddings ─────────────────────────────────────────────────────────
   describe("embeddings", () => {
+    const companyLanguage = (companyId: string, language: string): string =>
+      `${companyId}:${language}`;
+
     it("inserts an embedding document", async () => {
       const t = convexTest(schema, modules);
       const companyId = await t.run(async (ctx) =>
@@ -474,6 +477,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
           embedding,
           textContent: "Paper Cup 8oz for hot beverages",
           language: "en",
+          companyLanguage: companyLanguage(companyId, "en"),
         }),
       );
 
@@ -485,6 +489,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
           embedding,
           textContent: "كوب ورقي",
           language: "ar",
+          companyLanguage: companyLanguage(companyId, "ar"),
         }),
       );
 
@@ -501,6 +506,71 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
 
       expect(results).toHaveLength(1);
       expect(results[0]?._id).toBe(embId);
+    });
+
+    it("applies the language filter during vector search", async () => {
+      const t = convexTest(schema, modules);
+      const companyId = await t.run(async (ctx) =>
+        ctx.db.insert("companies", {
+          name: "Test Co",
+          ownerPhone: "966500000000",
+        }),
+      );
+      const catId = await t.run(async (ctx) =>
+        ctx.db.insert("categories", { companyId, nameEn: "Cups" }),
+      );
+      const productId = await t.run(async (ctx) =>
+        ctx.db.insert("products", {
+          companyId,
+          categoryId: catId,
+          nameEn: "Paper Cup",
+        }),
+      );
+
+      const queryEmbedding = [1, ...Array.from({ length: 767 }, () => 0)];
+      const higherRankedArabicEmbedding = [
+        1,
+        ...Array.from({ length: 767 }, () => 0),
+      ];
+      const lowerRankedEnglishEmbedding = [
+        0.8,
+        0.6,
+        ...Array.from({ length: 766 }, () => 0),
+      ];
+
+      await t.run(async (ctx) => {
+        for (let i = 0; i < 5; i += 1) {
+          await ctx.db.insert("embeddings", {
+            companyId,
+            productId,
+            embedding: higherRankedArabicEmbedding,
+            textContent: `Arabic embedding ${i}`,
+            language: "ar",
+            companyLanguage: companyLanguage(companyId, "ar"),
+          });
+        }
+      });
+
+      const englishEmbeddingId = await t.run(async (ctx) =>
+        ctx.db.insert("embeddings", {
+          companyId,
+          productId,
+          embedding: lowerRankedEnglishEmbedding,
+          textContent: "English embedding",
+          language: "en",
+          companyLanguage: companyLanguage(companyId, "en"),
+        }),
+      );
+
+      const results = await t.action(api.vectorSearch.vectorSearchByEmbedding, {
+        companyId,
+        language: "en",
+        embedding: queryEmbedding,
+        count: 1,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]?._id).toBe(englishEmbeddingId);
     });
   });
 });

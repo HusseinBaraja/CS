@@ -1,5 +1,5 @@
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+import { defineSchema, defineTable } from 'convex/server';
+import { v } from 'convex/values';
 
 // ── Reusable field patterns ──────────────────────────────────────────────────
 const flexRecord = v.record(
@@ -56,13 +56,14 @@ export default defineSchema({
     embedding: v.array(v.float64()),
     textContent: v.string(),
     language: v.optional(v.string()),
+    companyLanguage: v.string(),
   })
     .index("by_company", ["companyId"])
     .index("by_product", ["productId"])
     .vectorIndex("by_embedding", {
       vectorField: "embedding",
       dimensions: 768, // Gemini embedding size
-      filterFields: ["companyId", "language"],
+      filterFields: ["companyLanguage"],
     }),
 
   // ── Conversations ───────────────────────────────────────────────────────
