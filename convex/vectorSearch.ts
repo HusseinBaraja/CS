@@ -34,6 +34,14 @@ export const vectorSearchByEmbedding = action({
     ctx,
     args,
   ): Promise<Array<{ _id: Id<"embeddings">; _score: number }>> => {
+    if (args.count <= 0) {
+      throw new Error("count must be positive");
+    }
+    if (args.embedding.length !== 768) {
+      throw new Error(
+        `embedding must have 768 dimensions, got ${args.embedding.length}`,
+      );
+    }
     const results = await ctx.vectorSearch("embeddings", "by_embedding", {
       vector: args.embedding,
       limit: Math.min(256, args.count * 4),
