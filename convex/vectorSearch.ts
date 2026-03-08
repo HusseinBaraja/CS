@@ -10,15 +10,16 @@ export const filterEmbeddings = internalQuery({
     count: v.number(),
   },
   handler: async (ctx, args) => {
-    const finalResults = [];
-    for (const r of args.results) {
-      const doc = await ctx.db.get(r._id);
-      if (doc && doc.language === args.language) {
-        finalResults.push(r);
-        if (finalResults.length >= args.count) break;
-      }
-    }
-    return finalResults;
+    const docs = await Promise.all(
+      args.results.map(async (r) => ({
+        result: r,
+        doc: await ctx.db.get("embeddings", r._id),
+      })),
+    );
+    return docs
+      .filter(({ doc }) => doc && doc.language === args.language)
+      .slice(0, args.count)
+      .map(({ result }) => result);
   },
 });
 
