@@ -36,7 +36,7 @@ export const vectorSearchByEmbedding = action({
   ): Promise<Array<{ _id: Id<"embeddings">; _score: number }>> => {
     const results = await ctx.vectorSearch("embeddings", "by_embedding", {
       vector: args.embedding,
-      limit: 256,
+      limit: Math.min(256, args.count * 4),
       filter: (q) => q.eq("companyId", args.companyId),
     });
 
