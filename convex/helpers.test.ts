@@ -32,16 +32,20 @@ describe("helpers", () => {
 
     it("throws when the company does not exist", async () => {
       const t = convexTest(schema, modules);
-      // Generate a fake ID (this is a bit hacky in convex-test but should work if we just use a random string of correct format)
-      // Actually, better to just use a valid ID format but one that doesn't exist.
-      const fakeId = "kd7bhf43p6er3m8x8q2z0v1b5s6jyxv" as any;
+      const deletedId = await t.run(async (ctx) => {
+        const id = await ctx.db.insert("companies", {
+          name: "Deleted Company",
+          ownerPhone: "966500000001",
+        });
+        await ctx.db.delete(id);
+        return id;
+      });
 
       await expect(
         t.run(async (ctx) => {
-          // @ts-ignore - intentional invalid ID for testing throw
-          return getCompanyOrThrow(ctx, fakeId);
+          return getCompanyOrThrow(ctx, deletedId);
         }),
-      ).rejects.toThrow(`Company ${fakeId as string} not found`);
+      ).rejects.toThrow(`Company ${deletedId} not found`);
     });
   });
 });
