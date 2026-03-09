@@ -1,5 +1,7 @@
 The role of this file is to describe common mistakes and confusion points that agents might encounter as they work in this project. If you ever encounter something in the project that surprises you, please alert the developer working with you and indicate that this is the case in the AgentMD file to help prevent future agents from having the same issue.
 
+Note: The road map was created before anything was built, so it has not been updated to reflect the current state of the project. If you see something that doesn't make sense, take the general idea from the road map and make it withing the new constraints of the current codebase.
+
 ## Project Overview
 Read docs/PROJECT_CHARTER_AND_VISION.md, and docs/SRS.md
 

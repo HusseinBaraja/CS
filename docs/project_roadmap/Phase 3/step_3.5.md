@@ -2,7 +2,7 @@
 **Goal**: Manage product variants.
 
 **Tasks**:
-- [ ] Add to `src/api/routes/products.ts` (or separate `variants.ts`)
+- [ ] Add to `api/routes/products.ts` (or separate `variants.ts`)
 - [ ] `GET /api/companies/:companyId/products/:productId/variants` — list
 - [ ] `POST /api/companies/:companyId/products/:productId/variants` — create
 - [ ] `PUT .../variants/:id` — update (enforce company match via join)

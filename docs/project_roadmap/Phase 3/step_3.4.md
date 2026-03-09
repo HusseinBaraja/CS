@@ -2,7 +2,7 @@
 **Goal**: Implement product CRUD with auto-embedding regeneration.
 
 **Tasks**:
-- [ ] Create `src/api/routes/products.ts`
+- [ ] Create `/api/routes/products.ts`
 - [ ] `GET /api/companies/:companyId/products` — list (with `?categoryId` and `?search` filters)
 - [ ] `GET /api/companies/:companyId/products/:id` — get with variants included
 - [ ] `POST /api/companies/:companyId/products` — create (auto-generate embeddings)
