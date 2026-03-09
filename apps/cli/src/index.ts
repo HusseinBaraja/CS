@@ -1,57 +1,38 @@
 #!/usr/bin/env bun
 import { env } from '@cs/config';
 import { logError, logger } from '@cs/core';
+import { backupCommand } from './commands/backup';
+import { seedCommand } from './commands/seed';
+import type { CliCommand } from './commands/types';
+
+const commands: CliCommand[] = [seedCommand, backupCommand];
 
 const printUsage = (): void => {
-  console.log("Usage: cs <command>");
+  console.log("Usage: cs <command> [options]");
   console.log("");
   console.log("Commands:");
-  console.log("  seed    Seed Convex with sample catalog data");
-};
 
-const runSeed = async (): Promise<void> => {
-  const child = Bun.spawn(
-    [
-      "bunx",
-      "convex",
-      "run",
-      "--typecheck",
-      "disable",
-      "--codegen",
-      "disable",
-      "internal.seed.seedSampleData",
-      "{}",
-    ],
-    {
-      cwd: process.cwd(),
-      stdout: "inherit",
-      stderr: "inherit",
-    },
-  );
-
-  const exitCode = await child.exited;
-  if (exitCode !== 0) {
-    throw new Error(`convex run failed with exit code ${exitCode}`);
+  for (const command of commands) {
+    console.log(`  ${command.name.padEnd(7)} ${command.description}`);
   }
 };
 
 const main = async (): Promise<void> => {
-  const [command] = process.argv.slice(2);
+  const [commandName, ...args] = process.argv.slice(2);
 
-  if (!command) {
+  if (!commandName) {
     logger.info({ env: env.NODE_ENV }, "cli ready");
     printUsage();
     return;
   }
 
-  switch (command) {
-    case "seed":
-      await runSeed();
-      return;
-    default:
-      printUsage();
-      throw new Error(`Unknown command: ${command}`);
+  const command = commands.find((candidate) => candidate.name === commandName);
+  if (!command) {
+    printUsage();
+    throw new Error(`Unknown command: ${commandName}`);
   }
+
+  await command.run(args);
 };
 
 try {

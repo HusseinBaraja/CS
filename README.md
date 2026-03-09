@@ -18,6 +18,8 @@ Monorepo for the API, bot, CLI, worker, and shared packages.
 - `LOG_LEVEL`: optional, defaults to `debug`
 - `LOG_DIR`: optional, defaults to `logs`
 - `LOG_RETENTION_DAYS`: optional, defaults to `14`
+- `BACKUP_DIR`: optional, defaults to `backups`
+- `BACKUP_RETENTION_COUNT`: optional, defaults to `5`
 - `API_PORT`: optional, defaults to `3000`
 - `CONVEX_URL`: required for `api` and `worker`, unused by `bot` and `cli`
 
@@ -37,6 +39,16 @@ bun run dev:api
 bun run dev:bot
 bun run dev:worker
 ```
+
+## Backups
+
+Create a Convex snapshot from the repo root with:
+
+```bash
+bun run backup -- --prod
+```
+
+See `docs/operations/convex-backups.md` for manual dashboard backups, restore steps, and retention behavior.
 
 ## Notes
 

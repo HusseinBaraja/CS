@@ -13,6 +13,8 @@ describe("config", () => {
     expect(config.LOG_LEVEL).toBe("debug");
     expect(config.LOG_DIR).toBe("logs");
     expect(config.LOG_RETENTION_DAYS).toBe(14);
+    expect(config.BACKUP_DIR).toBe("backups");
+    expect(config.BACKUP_RETENTION_COUNT).toBe(5);
     expect(config.API_PORT).toBe(3000);
     expect(config.CONVEX_URL).toBe("https://example.convex.cloud");
   });

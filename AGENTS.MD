@@ -35,3 +35,4 @@ Defined in `tsconfig.base.json` as `@cs/*`. Always use aliases over relative imp
 
 ## Known Pitfalls
 - Surprise: on the current Convex version in this repo, `ctx.vectorSearch(...).filter(...)` supports `q.eq(...)` and `q.or(...)`, but not multi-field `AND`. If you need exact ANN filtering across multiple dimensions like `companyId + language`, add a combined filter field such as `companyLanguage` and register that as the vector index `filterField`.
+- Surprise: for full Convex backups in this repo, use Convex Dashboard snapshots or the CLI `convex export` / `convex import` flow. There is not a separate app-level snapshot export API wired into the codebase here, and the Convex CLI defaults to the dev deployment unless you pass an explicit selector such as `--prod`, `--deployment-name`, `--preview-name`, or `--env-file`.

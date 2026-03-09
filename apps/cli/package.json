@@ -10,6 +10,7 @@
     "dev": "bun --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
     "seed": "bun src/index.ts seed",
+    "backup": "bun src/index.ts backup",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "check": "bun run typecheck && bun run lint",
