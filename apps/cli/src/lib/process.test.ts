@@ -35,7 +35,7 @@ describe("runInheritedCommand", () => {
   });
 
   test("throws when the spawned command exits non-zero", async () => {
-    expect(
+    await expect(
       runInheritedCommand(["convex", "export"], {
         spawn: () => ({
           exited: Promise.resolve(1)
@@ -47,7 +47,7 @@ describe("runInheritedCommand", () => {
   test("kills the spawned command and throws a timeout error when it exceeds timeoutMs", async () => {
     let killed = false;
 
-    expect(
+    await expect(
       runInheritedCommand(["convex", "export"], {
         timeoutMs: 10,
         spawn: () => ({

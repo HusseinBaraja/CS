@@ -80,7 +80,7 @@ describe("backup command", () => {
   test("removes a partially created backup when export fails", async () => {
     const backupDir = await mkdtemp(join(tmpdir(), "cs-backup-fail-"));
 
-    expect(
+    await expect(
       runBackup(
         ["--deployment-name", "dev-main", "--out-dir", backupDir],
         {
