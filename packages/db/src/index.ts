@@ -1,6 +1,8 @@
-import { ERROR_CODES } from "@cs/shared";
-import { requireEnv } from "@cs/config";
-import { version as convexVersion } from "convex";
+import { ERROR_CODES } from '@cs/shared';
+import { requireEnv } from '@cs/config';
+import { version as convexVersion } from 'convex';
+
+export * from "./client";
 
 export const DB_PROVIDER = "convex";
 const QUERY_TIMESTAMP_PATH = "/api/query_ts";

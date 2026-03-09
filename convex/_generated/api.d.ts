@@ -9,6 +9,8 @@
  */
 
 import type * as helpers from "../helpers.js";
+import type * as seed from "../seed.js";
+import type * as seedData from "../seedData.js";
 import type * as vectorSearch from "../vectorSearch.js";
 
 import type {
@@ -19,6 +21,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   helpers: typeof helpers;
+  seed: typeof seed;
+  seedData: typeof seedData;
   vectorSearch: typeof vectorSearch;
 }>;
 
