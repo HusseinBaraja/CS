@@ -8,9 +8,7 @@ import { seedCategories, seedCompany, seedCurrencyRate, seedOffers, seedProducts
 const modules =
   typeof import.meta.glob === "function"
     ? import.meta.glob(["./**/*.ts", "!./**/*.test.ts", "!./vitest.config.ts"])
-    : (() => {
-        throw new Error("Vite transform missing: import.meta.glob is unavailable in convex/seed.test.ts");
-      })();
+    : ({} as Record<string, () => Promise<any>>);
 
 const collectCounts = async (t: ReturnType<typeof convexTest>) =>
   t.run(async (ctx) => {
@@ -85,6 +83,67 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(counts.productVariants).toHaveLength(seedVariants.length);
     expect(counts.offers).toHaveLength(seedOffers.length);
     expect(counts.currencyRates).toHaveLength(1);
+  });
+
+  it("uses a single seed lock owner and releases it after completion", async () => {
+    const t = convexTest(schema, modules);
+    const ownerToken = "seed-lock-owner";
+
+    const firstAcquire = await t.mutation(internal.seed.acquireSeedSampleDataLock, {
+      now: 1_000,
+      ownerToken,
+    });
+    const secondAcquire = await t.mutation(internal.seed.acquireSeedSampleDataLock, {
+      now: 1_500,
+      ownerToken: "another-owner",
+    });
+    const renewed = await t.mutation(internal.seed.renewSeedSampleDataLock, {
+      now: 2_000,
+      ownerToken,
+    });
+
+    expect(firstAcquire).toEqual({
+      acquired: true,
+      waitMs: 0,
+    });
+    expect(secondAcquire.acquired).toBe(false);
+    expect(secondAcquire.waitMs).toBeGreaterThan(0);
+    expect(renewed).toEqual({
+      renewed: true,
+    });
+
+    await t.mutation(internal.seed.releaseSeedSampleDataLock, {
+      ownerToken,
+    });
+
+    const lockCount = await t.run(async (ctx) => ctx.db.query("jobLocks").collect());
+    expect(lockCount).toHaveLength(0);
+  });
+
+  it("allows a new owner to take over an expired seed lock", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.mutation(internal.seed.acquireSeedSampleDataLock, {
+      now: 1_000,
+      ownerToken: "expired-owner",
+    });
+
+    const acquired = await t.mutation(internal.seed.acquireSeedSampleDataLock, {
+      now: 200_000,
+      ownerToken: "replacement-owner",
+    });
+
+    expect(acquired).toEqual({
+      acquired: true,
+      waitMs: 0,
+    });
+
+    const locks = await t.run(async (ctx) => ctx.db.query("jobLocks").collect());
+    expect(locks).toHaveLength(1);
+    expect(locks[0]).toMatchObject({
+      key: "seedSampleData",
+      ownerToken: "replacement-owner",
+    });
   });
 
   it("does not clear non-seed tenants that happen to share the seed owner phone", async () => {

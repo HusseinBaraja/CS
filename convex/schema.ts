@@ -19,6 +19,13 @@ export default defineSchema({
     .index("by_owner_phone", ["ownerPhone"])
     .index("by_seed_key", ["seedKey"]),
 
+  jobLocks: defineTable({
+    key: v.string(),
+    ownerToken: v.string(),
+    acquiredAt: v.number(),
+    expiresAt: v.number(),
+  }).index("by_key", ["key"]),
+
   // ── Categories ──────────────────────────────────────────────────────────
   categories: defineTable({
     companyId: v.id("companies"),
