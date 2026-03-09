@@ -6,11 +6,11 @@ describe("runInheritedCommand", () => {
     let capturedArgs: string[] | undefined;
     let capturedOptions:
       | {
-          cwd: string;
-          stdin: "inherit";
-          stdout: "inherit";
-          stderr: "inherit";
-        }
+      cwd: string;
+      stdin: "inherit";
+      stdout: "inherit";
+      stderr: "inherit";
+    }
       | undefined;
 
     await runInheritedCommand(["convex", "export", "--prod"], {
@@ -35,12 +35,31 @@ describe("runInheritedCommand", () => {
   });
 
   test("throws when the spawned command exits non-zero", async () => {
-    await expect(
+    expect(
       runInheritedCommand(["convex", "export"], {
         spawn: () => ({
           exited: Promise.resolve(1)
         })
       })
     ).rejects.toThrow("Command failed with exit code 1: bunx convex export");
+  });
+
+  test("kills the spawned command and throws a timeout error when it exceeds timeoutMs", async () => {
+    let killed = false;
+
+    expect(
+      runInheritedCommand(["convex", "export"], {
+        timeoutMs: 10,
+        spawn: () => ({
+          exited: new Promise<number>(() => {
+          }),
+          kill: () => {
+            killed = true;
+          }
+        })
+      })
+    ).rejects.toThrow("runInheritedCommand timed out after 10ms");
+
+    expect(killed).toBe(true);
   });
 });

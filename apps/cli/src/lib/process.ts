@@ -7,6 +7,7 @@ interface InheritedSpawnOptions {
 
 interface SpawnedCommand {
   exited: Promise<number>;
+  kill?: () => void;
 }
 
 type SpawnLike = (args: string[], options: InheritedSpawnOptions) => SpawnedCommand;
@@ -14,6 +15,7 @@ type SpawnLike = (args: string[], options: InheritedSpawnOptions) => SpawnedComm
 interface InheritedCommandOptions {
   cwd?: string;
   spawn?: SpawnLike;
+  timeoutMs?: number;
 }
 
 export const runInheritedCommand = async (
@@ -21,14 +23,39 @@ export const runInheritedCommand = async (
   options: InheritedCommandOptions = {}
 ): Promise<void> => {
   const spawn = options.spawn ?? Bun.spawn;
-  const child = spawn(["bunx", ...args], {
+  const commandArgs = ["bunx", ...args];
+  const child = spawn(commandArgs, {
     cwd: options.cwd ?? process.cwd(),
     stdin: "inherit",
     stdout: "inherit",
     stderr: "inherit"
   });
 
-  const exitCode = await child.exited;
+  const exitCode =
+    options.timeoutMs === undefined
+      ? await child.exited
+      : await new Promise<number>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          child.kill?.();
+          reject(
+            new Error(
+              `runInheritedCommand timed out after ${options.timeoutMs}ms waiting for child.exited from spawn(${JSON.stringify(commandArgs)}); original args: ${JSON.stringify(args)}`
+            )
+          );
+        }, options.timeoutMs);
+
+        child.exited.then(
+          (code) => {
+            clearTimeout(timeoutId);
+            resolve(code);
+          },
+          (error) => {
+            clearTimeout(timeoutId);
+            reject(error);
+          }
+        );
+      });
+
   if (exitCode !== 0) {
     throw new Error(`Command failed with exit code ${exitCode}: bunx ${args.join(" ")}`);
   }
