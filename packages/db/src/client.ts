@@ -1,6 +1,6 @@
 import { requireEnv } from '@cs/config';
 import { ConvexHttpClient } from 'convex/browser';
-import { api, internal } from '../../../convex/_generated/api';
+import { api, internal } from '../../../convex/_generated/api'; // TODO: extract to @cs/convex-api workspace package
 
 export { api as convexApi, internal as convexInternal };
 
