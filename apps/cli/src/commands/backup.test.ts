@@ -4,6 +4,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildConvexExportArgs, resolveBackupOptions, runBackup } from './backup';
 
+const getExportZipPath = (args: string[]): string | undefined => {
+  const inlinePathArg = args.find((arg) => arg.startsWith("--path="));
+  if (inlinePathArg) {
+    return inlinePathArg.slice("--path=".length);
+  }
+
+  const pathIndex = args.indexOf("--path");
+  if (pathIndex === -1) {
+    return undefined;
+  }
+
+  return args[pathIndex + 1];
+};
+
 describe("backup command", () => {
   test("requires exactly one deployment selector", () => {
     expect(() => resolveBackupOptions([])).toThrow("Exactly one deployment selector is required for backups");
@@ -44,9 +58,9 @@ describe("backup command", () => {
       {
         now: () => new Date("2026-03-09T14:30:15Z"),
         runExport: async (args) => {
-          const zipPath = args[3];
+          const zipPath = getExportZipPath(args);
           if (!zipPath) {
-            throw new Error("expected export path");
+            throw new Error("expected --path argument in export args");
           }
 
           await writeFile(zipPath, "fresh");
@@ -66,15 +80,15 @@ describe("backup command", () => {
   test("removes a partially created backup when export fails", async () => {
     const backupDir = await mkdtemp(join(tmpdir(), "cs-backup-fail-"));
 
-    await expect(
+    expect(
       runBackup(
         ["--deployment-name", "dev-main", "--out-dir", backupDir],
         {
           now: () => new Date("2026-03-09T14:30:15Z"),
           runExport: async (args) => {
-            const zipPath = args[3];
+            const zipPath = getExportZipPath(args);
             if (!zipPath) {
-              throw new Error("expected export path");
+              throw new Error("expected --path argument in export args");
             }
 
             await writeFile(zipPath, "partial");
