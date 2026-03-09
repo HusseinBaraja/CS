@@ -251,6 +251,10 @@ export const insertSeedSampleData = internalMutation({
 
     const categoryIds = new Map<string, Id<"categories">>();
     for (const category of seedCategories) {
+      if (categoryIds.has(category.key)) {
+        throw new Error(`Duplicate category seed key: ${category.key}`);
+      }
+
       const categoryId = await ctx.db.insert("categories", {
         companyId,
         nameEn: category.nameEn,
@@ -263,6 +267,10 @@ export const insertSeedSampleData = internalMutation({
 
     const productIds = new Map<string, Id<"products">>();
     for (const product of seedProducts) {
+      if (productIds.has(product.key)) {
+        throw new Error(`Duplicate product seed key: ${product.key}`);
+      }
+
       const categoryId = categoryIds.get(product.categoryKey);
       if (!categoryId) {
         throw new Error(`Missing category for product ${product.key}`);
