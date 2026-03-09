@@ -102,7 +102,6 @@ export const seedProducts: SeedProduct[] = [
     specifications: { capacityMl: 750, material: "PP", lidIncluded: true },
     basePrice: 0.72,
     baseCurrency: "SAR",
-    imageUrls: ["https://example.com/images/meal-container-750.jpg"],
   },
   {
     key: "burger-box",
@@ -158,7 +157,6 @@ export const seedProducts: SeedProduct[] = [
     specifications: { material: "PET", drinkType: "Cold", clarity: "High" },
     basePrice: 0.24,
     baseCurrency: "SAR",
-    imageUrls: ["https://example.com/images/pet-cold-cup.jpg"],
   },
   {
     key: "ripple-cup",
