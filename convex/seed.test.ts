@@ -8,7 +8,9 @@ import { seedCategories, seedCompany, seedCurrencyRate, seedOffers, seedProducts
 const modules =
   typeof import.meta.glob === "function"
     ? import.meta.glob(["./**/*.ts", "!./**/*.test.ts", "!./vitest.config.ts"])
-    : ({} as Record<string, () => Promise<unknown>>);
+    : (() => {
+        throw new Error("Vite transform missing: import.meta.glob is unavailable in convex/seed.test.ts");
+      })();
 
 const collectCounts = async (t: ReturnType<typeof convexTest>) =>
   t.run(async (ctx) => {
