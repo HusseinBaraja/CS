@@ -25,6 +25,6 @@ const runSeed = async (args: string[]): Promise<void> => {
 
 export const seedCommand: CliCommand = {
   name: "seed",
-  description: "Seed Convex with sample catalog data",
+  description: "Seed Convex with sample catalog data (destructively resets any existing seeded tenant)",
   run: runSeed
 };
