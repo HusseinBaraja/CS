@@ -46,6 +46,36 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
     });
   });
 
+  describe("jobLocks", () => {
+    it("inserts and queries a job lock by key", async () => {
+      const t = convexTest(schema, modules);
+      const id = await t.run(async (ctx) =>
+        ctx.db.insert("jobLocks", {
+          key: "seedSampleData",
+          ownerToken: "owner-1",
+          acquiredAt: 1_000,
+          expiresAt: 2_000,
+        }),
+      );
+
+      const doc = await t.run(async (ctx) => ctx.db.get(id));
+      expect(doc).toMatchObject({
+        key: "seedSampleData",
+        ownerToken: "owner-1",
+      });
+
+      const locks = await t.run(async (ctx) =>
+        ctx.db
+          .query("jobLocks")
+          .withIndex("by_key", (q) => q.eq("key", "seedSampleData"))
+          .collect(),
+      );
+
+      expect(locks).toHaveLength(1);
+      expect(locks[0]?._id).toBe(id);
+    });
+  });
+
   // ── Categories ─────────────────────────────────────────────────────────
   describe("categories", () => {
     it("inserts a category linked to a company", async () => {

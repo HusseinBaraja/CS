@@ -8,17 +8,17 @@
  * @module
  */
 
-import type * as helpers from "../helpers.js";
-import type * as vectorSearch from "../vectorSearch.js";
+import type * as helpers from '../helpers.js';
+import type * as seed from '../seed.js';
+import type * as seedData from '../seedData.js';
+import type * as vectorSearch from '../vectorSearch.js';
 
-import type {
-  ApiFromModules,
-  FilterApi,
-  FunctionReference,
-} from "convex/server";
+import type { ApiFromModules, FilterApi, FunctionReference } from 'convex/server';
 
 declare const fullApi: ApiFromModules<{
   helpers: typeof helpers;
+  seed: typeof seed;
+  seedData: typeof seedData;
   vectorSearch: typeof vectorSearch;
 }>;
 

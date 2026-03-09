@@ -5,6 +5,7 @@ bun.lockb
 .env.local
 .env.*.local
 logs/
+backups/
 data/
 auth_sessions/
 .convex/

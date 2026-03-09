@@ -31,5 +31,9 @@ Defined in `tsconfig.base.json` as `@cs/*`. Always use aliases over relative imp
 | `bun check`                              | Runs typecheck + lint                             |
 | `bun test`                               | Run tests with Vitest                             |
 
+- When doing a step from the project roadmap, make sure to read @cs/SRS.md and @cs/PROJECT_CHARTER_AND_VISION.md to understand the project's goals and how to approach the problem.
+
 ## Known Pitfalls
 - Surprise: on the current Convex version in this repo, `ctx.vectorSearch(...).filter(...)` supports `q.eq(...)` and `q.or(...)`, but not multi-field `AND`. If you need exact ANN filtering across multiple dimensions like `companyId + language`, add a combined filter field such as `companyLanguage` and register that as the vector index `filterField`.
+- Surprise: for full Convex backups in this repo, use Convex Dashboard snapshots or the CLI `convex export` / `convex import` flow. There is not a separate app-level snapshot export API wired into the codebase here, and the Convex CLI defaults to the dev deployment unless you pass an explicit selector such as `--prod`, `--deployment-name`, `--preview-name`, or `--env-file`.
+- Surprise: on Convex `1.32.0` in this repo there is no schema-level unique index/constraint API for `defineTable(...)`. If you need singleton semantics, enforce them with a narrow indexed query inside a mutation plus an explicit lock/lease document, rather than assuming `.index(...)` can guarantee uniqueness.

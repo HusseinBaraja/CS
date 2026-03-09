@@ -47,6 +47,7 @@
       "dependencies": {
         "@cs/config": "*",
         "@cs/core": "*",
+        "@cs/db": "*",
       },
     },
     "apps/worker": {
@@ -86,6 +87,13 @@
         "zod": "4.3.6",
       },
     },
+    "packages/convex-api": {
+      "name": "@cs/convex-api",
+      "version": "0.0.0",
+      "dependencies": {
+        "convex": "1.32.0",
+      },
+    },
     "packages/core": {
       "name": "@cs/core",
       "version": "0.0.0",
@@ -101,6 +109,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@cs/config": "*",
+        "@cs/convex-api": "*",
         "@cs/shared": "*",
         "convex": "1.32.0",
       },
@@ -131,6 +140,8 @@
     "@cs/config": ["@cs/config@workspace:packages/config"],
 
     "@cs/convex": ["@cs/convex@workspace:convex"],
+
+    "@cs/convex-api": ["@cs/convex-api@workspace:packages/convex-api"],
 
     "@cs/core": ["@cs/core@workspace:packages/core"],
 

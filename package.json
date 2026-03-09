@@ -19,7 +19,9 @@
     "test": "turbo run test",
     "test:convex": "bun x vitest run",
     "check": "turbo run check",
-    "generate": "turbo run generate",
+    "generate": "bunx convex codegen",
+    "seed": "bun apps/cli/src/index.ts seed",
+    "backup": "bun apps/cli/src/index.ts backup",
     "ci": "turbo run ci"
   },
   "dependencies": {
