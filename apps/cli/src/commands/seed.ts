@@ -1,7 +1,11 @@
 import type { CliCommand } from './types';
 import { runInheritedCommand } from '../lib/process';
 
-const runSeed = async (): Promise<void> => {
+const runSeed = async (args: string[]): Promise<void> => {
+  if (args.length > 0) {
+    throw new Error(`Unexpected arguments for seed: ${args.join(" ")}`);
+  }
+
   await runInheritedCommand(
     [
       "convex",
