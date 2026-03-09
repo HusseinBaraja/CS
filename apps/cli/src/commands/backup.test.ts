@@ -15,6 +15,10 @@ describe("backup command", () => {
   test("rejects invalid retention counts", () => {
     expect(() => resolveBackupOptions(["--prod", "--retention", "0"])).toThrow("Invalid retention count: 0");
     expect(() => resolveBackupOptions(["--prod", "--retention", "abc"])).toThrow("Invalid retention count: abc");
+    expect(() => resolveBackupOptions(["--prod", "--retention", "1.5"])).toThrow("Invalid retention count: 1.5");
+    expect(() => resolveBackupOptions(["--prod", "--retention", "5days"])).toThrow(
+      "Invalid retention count: 5days"
+    );
   });
 
   test("builds convex export args for production with optional storage", () => {

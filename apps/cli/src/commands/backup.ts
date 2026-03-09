@@ -91,6 +91,10 @@ const parseRetentionCount = (value: string | undefined): number => {
     return env.BACKUP_RETENTION_COUNT;
   }
 
+  if (!/^\d+$/.test(value)) {
+    throw new Error(`Invalid retention count: ${value}`);
+  }
+
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(`Invalid retention count: ${value}`);

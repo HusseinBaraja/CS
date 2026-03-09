@@ -47,6 +47,7 @@
       "dependencies": {
         "@cs/config": "*",
         "@cs/core": "*",
+        "@cs/db": "*",
       },
     },
     "apps/worker": {
