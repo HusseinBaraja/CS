@@ -36,8 +36,9 @@ export const pruneManagedBackups = async (
   directory: string,
   keepCount: number
 ): Promise<string[]> => {
+  const effectiveKeepCount = Math.max(0, keepCount);
   const backups = sortManagedBackups(await listManagedBackups(directory));
-  const staleBackups = backups.slice(keepCount);
+  const staleBackups = backups.slice(effectiveKeepCount);
   const deleted: string[] = [];
 
   for (const backup of staleBackups) {
