@@ -18,14 +18,22 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
     const productVariants = await ctx.db.query("productVariants").collect();
     const offers = await ctx.db.query("offers").collect();
     const currencyRates = await ctx.db.query("currencyRates").collect();
+    const conversations = await ctx.db.query("conversations").collect();
+    const messages = await ctx.db.query("messages").collect();
+    const analyticsEvents = await ctx.db.query("analyticsEvents").collect();
+    const embeddings = await ctx.db.query("embeddings").collect();
 
     return {
+      analyticsEvents,
       companies,
       categories,
+      conversations,
       products,
       productVariants,
       offers,
       currencyRates,
+      embeddings,
+      messages,
     };
   });
 
@@ -33,7 +41,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
   it("creates the expected bilingual demo catalog", async () => {
     const t = convexTest(schema, modules);
 
-    const result = await t.mutation(internal.seed.seedSampleData, {});
+    const result = await t.action(internal.seed.seedSampleData, {});
     const counts = await collectCounts(t);
 
     expect(result.companyName).toBe(seedCompany.name);
@@ -63,8 +71,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
   it("is idempotent when run multiple times", async () => {
     const t = convexTest(schema, modules);
 
-    const firstRun = await t.mutation(internal.seed.seedSampleData, {});
-    const secondRun = await t.mutation(internal.seed.seedSampleData, {});
+    const firstRun = await t.action(internal.seed.seedSampleData, {});
+    const secondRun = await t.action(internal.seed.seedSampleData, {});
     const counts = await collectCounts(t);
 
     expect(firstRun.counts).toEqual(secondRun.counts);
@@ -96,13 +104,88 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
       return { categoryId, companyId };
     });
 
-    await t.mutation(internal.seed.seedSampleData, {});
-    await t.mutation(internal.seed.seedSampleData, {});
+    await t.action(internal.seed.seedSampleData, {});
+    await t.action(internal.seed.seedSampleData, {});
 
     const counts = await collectCounts(t);
 
     expect(counts.companies).toHaveLength(2);
     expect(counts.companies.some((company) => company._id === preservedTenant.companyId)).toBe(true);
     expect(counts.categories.some((category) => category._id === preservedTenant.categoryId)).toBe(true);
+  });
+
+  it("clears seeded tenant data over multiple cleanup batches before reseeding", async () => {
+    const t = convexTest(schema, modules);
+    const oversizedBatchCount = 70;
+
+    await t.action(internal.seed.seedSampleData, {});
+
+    await t.run(async (ctx) => {
+      const seededCompany = await ctx.db
+        .query("companies")
+        .withIndex("by_seed_key", (q) => q.eq("seedKey", seedCompany.seedKey))
+        .unique();
+
+      if (!seededCompany) {
+        throw new Error("Expected seeded company to exist");
+      }
+
+      const products = await ctx.db
+        .query("products")
+        .withIndex("by_company", (q) => q.eq("companyId", seededCompany._id))
+        .collect();
+
+      if (products.length === 0) {
+        throw new Error("Expected seeded products to exist");
+      }
+
+      const conversationId = await ctx.db.insert("conversations", {
+        companyId: seededCompany._id,
+        phoneNumber: "+15550001111",
+        muted: false,
+      });
+
+      const embedding = Array.from({ length: 768 }, () => 0.1);
+
+      for (let index = 0; index < oversizedBatchCount; index += 1) {
+        await ctx.db.insert("messages", {
+          conversationId,
+          role: "user",
+          content: `seed cleanup message ${index}`,
+          timestamp: index,
+        });
+
+        await ctx.db.insert("analyticsEvents", {
+          companyId: seededCompany._id,
+          eventType: "seed_cleanup_regression",
+          timestamp: index,
+          payload: { batch: index },
+        });
+
+        await ctx.db.insert("embeddings", {
+          companyId: seededCompany._id,
+          productId: products[0]._id,
+          embedding,
+          textContent: `seed cleanup embedding ${index}`,
+          companyLanguage: "en",
+          language: "en",
+        });
+      }
+    });
+
+    const result = await t.action(internal.seed.seedSampleData, {});
+    const counts = await collectCounts(t);
+
+    expect(result.clearedCompanies).toBe(1);
+    expect(counts.companies).toHaveLength(1);
+    expect(counts.categories).toHaveLength(seedCategories.length);
+    expect(counts.products).toHaveLength(seedProducts.length);
+    expect(counts.productVariants).toHaveLength(seedVariants.length);
+    expect(counts.offers).toHaveLength(seedOffers.length);
+    expect(counts.currencyRates).toHaveLength(1);
+    expect(counts.conversations).toHaveLength(0);
+    expect(counts.messages).toHaveLength(0);
+    expect(counts.analyticsEvents).toHaveLength(0);
+    expect(counts.embeddings).toHaveLength(0);
   });
 });

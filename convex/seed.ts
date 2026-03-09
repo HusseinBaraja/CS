@@ -1,84 +1,245 @@
+import { internal } from './_generated/api';
 import type { Doc, Id, TableNames } from './_generated/dataModel';
-import { internalMutation, type MutationCtx } from './_generated/server';
+import { internalAction, internalMutation, internalQuery, type MutationCtx } from './_generated/server';
+import { v } from 'convex/values';
 import { seedCategories, seedCompany, seedCurrencyRate, seedOffers, seedProducts, seedVariants } from './seedData';
 
-const deleteDocuments = async (
+const CLEANUP_BATCH_SIZE = 64;
+
+type CleanupStage =
+  | "embeddings"
+  | "productVariants"
+  | "messages"
+  | "analyticsEvents"
+  | "products"
+  | "categories"
+  | "offers"
+  | "currencyRates"
+  | "conversations"
+  | "company"
+  | "done";
+
+type CleanupBatchResult = {
+  deletedCount: number;
+  done: boolean;
+  stage: CleanupStage;
+};
+
+type SeedInsertResult = {
+  companyId: Id<"companies">;
+  companyName: string;
+  counts: {
+    categories: number;
+    currencyRates: number;
+    offers: number;
+    productVariants: number;
+    products: number;
+  };
+};
+
+const deleteDocuments = async <T extends TableNames>(
   ctx: MutationCtx,
-  ids: Array<Id<TableNames>>,
+  ids: Array<Id<T>>,
 ): Promise<void> => {
   for (const id of ids) {
     await ctx.db.delete(id);
   }
 };
 
-const collectCompaniesToClear = async (
-  ctx: MutationCtx,
-): Promise<Array<Doc<"companies">>> =>
-  ctx.db
-    .query("companies")
-    .withIndex("by_seed_key", (q) => q.eq("seedKey", seedCompany.seedKey))
-    .collect();
+const takeDocumentIds = async <T extends TableNames>(
+  documents: AsyncIterable<Doc<T>>,
+  limit: number,
+): Promise<Array<Id<T>>> => {
+  const ids: Array<Id<T>> = [];
 
-const clearSeededCompanyData = async (
-  ctx: MutationCtx,
-  companyId: Id<"companies">,
-): Promise<void> => {
-  const [categories, products, offers, currencyRates, embeddings, analyticsEvents, conversations] =
-    await Promise.all([
-      ctx.db.query("categories").withIndex("by_company", (q) => q.eq("companyId", companyId)).collect(),
-      ctx.db.query("products").withIndex("by_company", (q) => q.eq("companyId", companyId)).collect(),
-      ctx.db.query("offers").withIndex("by_company_active", (q) => q.eq("companyId", companyId)).collect(),
-      ctx.db.query("currencyRates").withIndex("by_company", (q) => q.eq("companyId", companyId)).collect(),
-      ctx.db.query("embeddings").withIndex("by_company", (q) => q.eq("companyId", companyId)).collect(),
-      ctx.db.query("analyticsEvents").withIndex("by_company_type", (q) => q.eq("companyId", companyId)).collect(),
-      ctx.db
-        .query("conversations")
-        .withIndex("by_company_phone_and_muted", (q) => q.eq("companyId", companyId))
-        .collect(),
-    ]);
+  for await (const document of documents) {
+    ids.push(document._id);
+    if (ids.length >= limit) {
+      break;
+    }
+  }
 
-  const variants = (
-    await Promise.all(
-      products.map((product) =>
-        ctx.db
-          .query("productVariants")
-          .withIndex("by_product", (q) => q.eq("productId", product._id))
-          .collect(),
-      ),
-    )
-  ).flat();
-
-  const messages = (
-    await Promise.all(
-      conversations.map((conversation) =>
-        ctx.db
-          .query("messages")
-          .withIndex("by_conversation", (q) => q.eq("conversationId", conversation._id))
-          .collect(),
-      ),
-    )
-  ).flat();
-
-  await deleteDocuments(ctx, embeddings.map((doc) => doc._id));
-  await deleteDocuments(ctx, variants.map((doc) => doc._id));
-  await deleteDocuments(ctx, messages.map((doc) => doc._id));
-  await deleteDocuments(ctx, conversations.map((doc) => doc._id));
-  await deleteDocuments(ctx, analyticsEvents.map((doc) => doc._id));
-  await deleteDocuments(ctx, products.map((doc) => doc._id));
-  await deleteDocuments(ctx, categories.map((doc) => doc._id));
-  await deleteDocuments(ctx, offers.map((doc) => doc._id));
-  await deleteDocuments(ctx, currencyRates.map((doc) => doc._id));
-  await ctx.db.delete(companyId);
+  return ids;
 };
 
-export const seedSampleData = internalMutation({
+const collectProductVariantIdsBatch = async (
+  ctx: MutationCtx,
+  companyId: Id<"companies">,
+  limit: number,
+): Promise<Array<Id<"productVariants">>> => {
+  const variantIds: Array<Id<"productVariants">> = [];
+
+  for await (const product of ctx.db.query("products").withIndex("by_company", (q) => q.eq("companyId", companyId))) {
+    for await (const variant of ctx.db
+      .query("productVariants")
+      .withIndex("by_product", (q) => q.eq("productId", product._id))) {
+      variantIds.push(variant._id);
+      if (variantIds.length >= limit) {
+        return variantIds;
+      }
+    }
+  }
+
+  return variantIds;
+};
+
+const collectMessageIdsBatch = async (
+  ctx: MutationCtx,
+  companyId: Id<"companies">,
+  limit: number,
+): Promise<Array<Id<"messages">>> => {
+  const messageIds: Array<Id<"messages">> = [];
+
+  for await (const conversation of ctx.db
+    .query("conversations")
+    .withIndex("by_company_phone_and_muted", (q) => q.eq("companyId", companyId))) {
+    for await (const message of ctx.db
+      .query("messages")
+      .withIndex("by_conversation", (q) => q.eq("conversationId", conversation._id))) {
+      messageIds.push(message._id);
+      if (messageIds.length >= limit) {
+        return messageIds;
+      }
+    }
+  }
+
+  return messageIds;
+};
+
+const deleteBatchIfAny = async <T extends TableNames>(
+  ctx: MutationCtx,
+  stage: CleanupStage,
+  ids: Array<Id<T>>,
+): Promise<CleanupBatchResult | null> => {
+  if (ids.length === 0) {
+    return null;
+  }
+
+  await deleteDocuments(ctx, ids);
+  return {
+    deletedCount: ids.length,
+    done: false,
+    stage,
+  };
+};
+
+export const listSeedCompanyIds = internalQuery({
   args: {},
   handler: async (ctx) => {
-    const companiesToClear = await collectCompaniesToClear(ctx);
+    const companyIds: Array<Id<"companies">> = [];
 
-    for (const company of companiesToClear) {
-      await clearSeededCompanyData(ctx, company._id);
+    for await (const company of ctx.db
+      .query("companies")
+      .withIndex("by_seed_key", (q) => q.eq("seedKey", seedCompany.seedKey))) {
+      companyIds.push(company._id);
     }
+
+    return companyIds;
+  },
+});
+
+export const clearSeededCompanyDataBatch = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+  },
+  handler: async (ctx, args): Promise<CleanupBatchResult> => {
+    const company = await ctx.db.get(args.companyId);
+    if (!company) {
+      return {
+        deletedCount: 0,
+        done: true,
+        stage: "done",
+      };
+    }
+
+    const embeddingsBatch = await takeDocumentIds(
+      ctx.db.query("embeddings").withIndex("by_company", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const embeddingsResult = await deleteBatchIfAny(ctx, "embeddings", embeddingsBatch);
+    if (embeddingsResult) {
+      return embeddingsResult;
+    }
+
+    const productVariantsBatch = await collectProductVariantIdsBatch(ctx, args.companyId, CLEANUP_BATCH_SIZE);
+    const productVariantsResult = await deleteBatchIfAny(ctx, "productVariants", productVariantsBatch);
+    if (productVariantsResult) {
+      return productVariantsResult;
+    }
+
+    const messagesBatch = await collectMessageIdsBatch(ctx, args.companyId, CLEANUP_BATCH_SIZE);
+    const messagesResult = await deleteBatchIfAny(ctx, "messages", messagesBatch);
+    if (messagesResult) {
+      return messagesResult;
+    }
+
+    const analyticsEventsBatch = await takeDocumentIds(
+      ctx.db.query("analyticsEvents").withIndex("by_company_type", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const analyticsEventsResult = await deleteBatchIfAny(ctx, "analyticsEvents", analyticsEventsBatch);
+    if (analyticsEventsResult) {
+      return analyticsEventsResult;
+    }
+
+    const productsBatch = await takeDocumentIds(
+      ctx.db.query("products").withIndex("by_company", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const productsResult = await deleteBatchIfAny(ctx, "products", productsBatch);
+    if (productsResult) {
+      return productsResult;
+    }
+
+    const categoriesBatch = await takeDocumentIds(
+      ctx.db.query("categories").withIndex("by_company", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const categoriesResult = await deleteBatchIfAny(ctx, "categories", categoriesBatch);
+    if (categoriesResult) {
+      return categoriesResult;
+    }
+
+    const offersBatch = await takeDocumentIds(
+      ctx.db.query("offers").withIndex("by_company_active", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const offersResult = await deleteBatchIfAny(ctx, "offers", offersBatch);
+    if (offersResult) {
+      return offersResult;
+    }
+
+    const currencyRatesBatch = await takeDocumentIds(
+      ctx.db.query("currencyRates").withIndex("by_company", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const currencyRatesResult = await deleteBatchIfAny(ctx, "currencyRates", currencyRatesBatch);
+    if (currencyRatesResult) {
+      return currencyRatesResult;
+    }
+
+    const conversationsBatch = await takeDocumentIds(
+      ctx.db.query("conversations").withIndex("by_company_phone_and_muted", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const conversationsResult = await deleteBatchIfAny(ctx, "conversations", conversationsBatch);
+    if (conversationsResult) {
+      return conversationsResult;
+    }
+
+    await ctx.db.delete(args.companyId);
+
+    return {
+      deletedCount: 1,
+      done: true,
+      stage: "company",
+    };
+  },
+});
+
+export const insertSeedSampleData = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<SeedInsertResult> => {
 
     const companyId = await ctx.db.insert("companies", {
       name: seedCompany.name,
@@ -158,7 +319,6 @@ export const seedSampleData = internalMutation({
     return {
       companyId,
       companyName: seedCompany.name,
-      clearedCompanies: companiesToClear.length,
       counts: {
         categories: seedCategories.length,
         products: seedProducts.length,
@@ -166,6 +326,32 @@ export const seedSampleData = internalMutation({
         offers: seedOffers.length,
         currencyRates: 1,
       },
+    };
+  },
+});
+
+export const seedSampleData = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const companyIds: Array<Id<"companies">> = await ctx.runQuery(internal.seed.listSeedCompanyIds, {});
+
+    for (const companyId of companyIds) {
+      let cleanupResult: CleanupBatchResult = {
+        deletedCount: 0,
+        done: false,
+        stage: "done",
+      };
+
+      while (!cleanupResult.done) {
+        cleanupResult = await ctx.runMutation(internal.seed.clearSeededCompanyDataBatch, { companyId });
+      }
+    }
+
+    const seededResult: SeedInsertResult = await ctx.runMutation(internal.seed.insertSeedSampleData, {});
+
+    return {
+      ...seededResult,
+      clearedCompanies: companyIds.length,
     };
   },
 });
