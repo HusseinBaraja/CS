@@ -1,4 +1,4 @@
-import { readdir, rm, stat } from 'node:fs/promises';
+import { readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isManagedBackupFile, parseBackupTimestamp } from './backup-paths';
 
@@ -16,12 +16,11 @@ export const listManagedBackups = async (directory: string): Promise<ManagedBack
     files.map(async (entry) => {
       const fullPath = join(directory, entry.name);
       const parsedTimestamp = parseBackupTimestamp(entry.name);
-      const metadata = await stat(fullPath);
 
       return {
         name: entry.name,
         path: fullPath,
-        timestamp: parsedTimestamp ?? metadata.mtimeMs
+        timestamp: parsedTimestamp ?? Date.now()
       };
     })
   );
