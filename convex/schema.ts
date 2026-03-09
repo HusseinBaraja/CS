@@ -12,9 +12,12 @@ export default defineSchema({
   companies: defineTable({
     name: v.string(),
     ownerPhone: v.string(),
+    seedKey: v.optional(v.string()),
     config: v.optional(flexRecord),
     timezone: v.optional(v.string()),
-  }).index("by_owner_phone", ["ownerPhone"]),
+  })
+    .index("by_owner_phone", ["ownerPhone"])
+    .index("by_seed_key", ["seedKey"]),
 
   // ── Categories ──────────────────────────────────────────────────────────
   categories: defineTable({

@@ -1,7 +1,6 @@
 #!/usr/bin/env bun
 import { env } from '@cs/config';
 import { logError, logger } from '@cs/core';
-import { convexInternal, createConvexAdminClient } from '@cs/db';
 
 const printUsage = (): void => {
   console.log("Usage: cs <command>");
@@ -11,20 +10,29 @@ const printUsage = (): void => {
 };
 
 const runSeed = async (): Promise<void> => {
-  const client = createConvexAdminClient();
-  const result = await client.mutation(convexInternal.seed.seedSampleData, {});
-
-  console.log(`Seeded ${result.companyName} (${result.companyId})`);
-  console.log(
+  const child = Bun.spawn(
     [
-      `categories=${result.counts.categories}`,
-      `products=${result.counts.products}`,
-      `variants=${result.counts.productVariants}`,
-      `offers=${result.counts.offers}`,
-      `currencyRates=${result.counts.currencyRates}`,
-      `clearedCompanies=${result.clearedCompanies}`,
-    ].join(" "),
+      "bunx",
+      "convex",
+      "run",
+      "--typecheck",
+      "disable",
+      "--codegen",
+      "disable",
+      "internal.seed.seedSampleData",
+      "{}",
+    ],
+    {
+      cwd: process.cwd(),
+      stdout: "inherit",
+      stderr: "inherit",
+    },
   );
+
+  const exitCode = await child.exited;
+  if (exitCode !== 0) {
+    throw new Error(`convex run failed with exit code ${exitCode}`);
+  }
 };
 
 const main = async (): Promise<void> => {
