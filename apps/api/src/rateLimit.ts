@@ -73,7 +73,7 @@ export const createRateLimitMiddleware = (
     }
 
     const currentTime = now();
-    const key = `${getClientId(c)}:${c.req.path}`;
+    const key = getClientId(c);
     const existing = requests.get(key);
 
     if (!existing || existing.resetAt <= currentTime) {

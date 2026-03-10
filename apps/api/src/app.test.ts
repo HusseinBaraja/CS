@@ -283,6 +283,30 @@ describe("api app", () => {
     expect(second.status).toBe(429);
   });
 
+  test("rate limiting applies one quota across protected API routes", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key",
+        rateLimitMax: 1,
+        rateLimitWindowMs: 60_000
+      }
+    });
+
+    const first = await app.request("/api", {
+      headers: {
+        "x-api-key": "test-api-key"
+      }
+    });
+    const second = await app.request("/api/missing", {
+      headers: {
+        "x-api-key": "test-api-key"
+      }
+    });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
   test("rate limiting can trust forwarded IPs when proxy hops are configured", async () => {
     const app = createApp({
       runtimeConfig: {
