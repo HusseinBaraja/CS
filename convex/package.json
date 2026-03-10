@@ -9,6 +9,7 @@
     "lint": "bun x oxlint"
   },
   "dependencies": {
+    "@cs/ai": "*",
     "convex": "1.32.0"
   },
   "devDependencies": {

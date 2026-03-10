@@ -5,7 +5,7 @@ import { ConfigError, ERROR_CODES } from '@cs/shared';
 
 type RuntimeEnv = Record<string, string | number | boolean | undefined>;
 
-const OPTIONAL_EMPTY_ENV_KEYS = new Set(["API_KEY", "API_CORS_ORIGINS"]);
+const OPTIONAL_EMPTY_ENV_KEYS = new Set(["API_KEY", "API_CORS_ORIGINS", "GEMINI_API_KEY"]);
 const parseCsvEnv = (value: string): string[] =>
   value
     .split(",")
@@ -21,6 +21,7 @@ const envSchema = {
   BACKUP_RETENTION_COUNT: z.coerce.number().int().positive().default(5),
   API_PORT: z.coerce.number().int().positive().default(3000),
   API_KEY: z.string().min(1).optional(),
+  GEMINI_API_KEY: z.string().min(1).optional(),
   API_CORS_ORIGINS: z
     .string()
     .default("*")

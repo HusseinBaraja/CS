@@ -2,6 +2,7 @@ The role of this file is to describe common mistakes and confusion points that a
 
 Note: The road map was created before anything was built, so it has not been updated to reflect the current state of the project. If you see something that doesn't make sense, take the general idea from the road map and make it withing the new constraints of the current codebase.
 Note: Suggest a commit message at the end of large changes.
+Note: follow test driven development. so make tests as you go.
 
 ## Project Overview
 Read docs/PROJECT_CHARTER_AND_VISION.md, and docs/SRS.md
@@ -42,3 +43,5 @@ Defined in `tsconfig.base.json` as `@cs/*`. Always use aliases over relative imp
 - Surprise: on the current Convex version in this repo, `ctx.vectorSearch(...).filter(...)` supports `q.eq(...)` and `q.or(...)`, but not multi-field `AND`. If you need exact ANN filtering across multiple dimensions like `companyId + language`, add a combined filter field such as `companyLanguage` and register that as the vector index `filterField`.
 - Surprise: for full Convex backups in this repo, use Convex Dashboard snapshots or the CLI `convex export` / `convex import` flow. There is not a separate app-level snapshot export API wired into the codebase here, and the Convex CLI defaults to the dev deployment unless you pass an explicit selector such as `--prod`, `--deployment-name`, `--preview-name`, or `--env-file`.
 - Surprise: on Convex `1.32.0` in this repo there is no schema-level unique index/constraint API for `defineTable(...)`. If you need singleton semantics, enforce them with a narrow indexed query inside a mutation plus an explicit lock/lease document, rather than assuming `.index(...)` can guarantee uniqueness.
+- Surprise: roadmap `docs/project_roadmap/Phase 3/step_3.4.md` says product delete should cascade Cloudflare R2 image cleanup, but the repo still introduces R2 in `docs/project_roadmap/Phase 3/step_3.8.md` and has no R2 service during Step 3.4. Treat Step 3.4 delete as Convex-only cleanup (product + variants + embeddings) and defer external object deletion to Step 3.8.
+- Surprise: real product embedding regeneration in this repo cannot live inside a plain Convex mutation. Because Gemini embedding generation is an external API call, product create/update need an action that generates embeddings first and then hands the writes to an internal mutation so failed embeddings do not leave partial product state behind.

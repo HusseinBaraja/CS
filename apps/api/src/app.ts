@@ -8,17 +8,21 @@ import { createRateLimitMiddleware } from './rateLimit';
 import { createErrorResponse } from './responses';
 import { createCategoriesRoutes } from './routes/categories';
 import { createCompaniesRoutes } from './routes/companies';
+import { createProductsRoutes } from './routes/products';
 import { type ApiRuntimeConfig, createApiRuntimeConfig } from './runtimeConfig';
 import type { CategoriesService } from './services/categories';
 import { createConvexCategoriesService } from './services/convexCategoriesService';
 import type { CompaniesService } from './services/companies';
 import { createConvexCompaniesService } from './services/convexCompaniesService';
+import type { ProductsService } from './services/products';
+import { createConvexProductsService } from './services/convexProductsService';
 
 export interface ApiAppOptions {
   createDbConnection?: () => DbConnection;
   checkDbReady?: (connection: DbConnection) => Promise<void> | void;
   companiesService?: CompaniesService;
   categoriesService?: CategoriesService;
+  productsService?: ProductsService;
   logger?: {
     warn: (payload: Record<string, unknown>, message: string) => void;
   };
@@ -116,6 +120,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
   });
   const companiesService = options.companiesService ?? createConvexCompaniesService();
   const categoriesService = options.categoriesService ?? createConvexCategoriesService();
+  const productsService = options.productsService ?? createConvexProductsService();
   const rateLimitMiddleware = createRateLimitMiddleware({
     max: runtimeConfig.rateLimitMax,
     windowMs: runtimeConfig.rateLimitWindowMs,
@@ -195,6 +200,13 @@ export const createApp = (options: ApiAppOptions = {}) => {
     "/api/companies/:companyId/categories",
     createCategoriesRoutes({
       categoriesService
+    })
+  );
+
+  app.route(
+    "/api/companies/:companyId/products",
+    createProductsRoutes({
+      productsService
     })
   );
 

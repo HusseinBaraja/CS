@@ -17,6 +17,7 @@ describe("config", () => {
     expect(config.BACKUP_RETENTION_COUNT).toBe(5);
     expect(config.API_PORT).toBe(3000);
     expect(config.API_KEY).toBeUndefined();
+    expect(config.GEMINI_API_KEY).toBeUndefined();
     expect(config.API_CORS_ORIGINS).toEqual(["*"]);
     expect(config.API_RATE_LIMIT_MAX).toBe(60);
     expect(config.API_RATE_LIMIT_WINDOW_MS).toBe(60_000);
@@ -135,14 +136,16 @@ describe("config", () => {
     expect((thrown as ConfigError).message).toContain("CONVEX_URL:");
   });
 
-  test("treats empty optional API auth and CORS env vars as unset values", () => {
+  test("treats empty optional API auth, Gemini, and CORS env vars as unset values", () => {
     const config = createConfig({
       API_KEY: "",
+      GEMINI_API_KEY: "",
       API_CORS_ORIGINS: "",
       CONVEX_URL: "https://example.convex.cloud"
     });
 
     expect(config.API_KEY).toBeUndefined();
+    expect(config.GEMINI_API_KEY).toBeUndefined();
     expect(config.API_CORS_ORIGINS).toEqual(["*"]);
   });
 });

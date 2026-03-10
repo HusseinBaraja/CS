@@ -19,7 +19,17 @@
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": "..",
+    "paths": {
+      "@cs/config": ["packages/config/src/index.ts"],
+      "@cs/shared": ["packages/shared/src/index.ts"],
+      "@cs/convex-api": ["packages/convex-api/src/index.ts"],
+      "@cs/core": ["packages/core/src/index.ts"],
+      "@cs/db": ["packages/db/src/index.ts"],
+      "@cs/ai": ["packages/ai/src/index.ts"],
+      "@cs/rag": ["packages/rag/src/index.ts"]
+    }
   },
   "include": ["./**/*"],
   "exclude": ["./_generated"]

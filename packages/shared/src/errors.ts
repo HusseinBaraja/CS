@@ -92,13 +92,16 @@ export class AppError extends Error {
   private readonly errorMessage: string;
 
   constructor(code: string, message: string, options: AppErrorOptions = {}) {
-    super(message, { cause: options.cause });
+    super(message);
     this.name = new.target.name;
     this.message = message;
     this.errorMessage = message;
     this.code = code;
     this.context = options.context;
     this.timestamp = new Date().toISOString();
+    if (options.cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = options.cause;
+    }
   }
 
   toJSON(): AppErrorPayload {
