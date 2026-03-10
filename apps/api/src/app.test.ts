@@ -184,6 +184,46 @@ describe("api app", () => {
     expect(response.headers.get("Access-Control-Allow-Methods")).toContain("GET");
   });
 
+  test("/apikey is not treated as a protected API route", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key"
+      }
+    });
+
+    const response = await app.request("/apikey");
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: "NOT_FOUND",
+        message: "Route not found"
+      }
+    });
+  });
+
+  test("/api-v2 is not treated as a protected API route", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key"
+      }
+    });
+
+    const response = await app.request("/api-v2");
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: "NOT_FOUND",
+        message: "Route not found"
+      }
+    });
+  });
+
   test("rate limiting returns 429 after the configured threshold", async () => {
     const app = createApp({
       runtimeConfig: {

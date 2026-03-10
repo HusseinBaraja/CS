@@ -2,10 +2,10 @@ import { timingSafeEqual } from 'node:crypto';
 import type { Context } from 'hono';
 import type { MiddlewareHandler } from 'hono/types';
 import { ERROR_CODES } from '@cs/shared';
+import { isProtectedApiPath } from './apiPath';
 import { createErrorResponse } from './responses';
 
 const DEFAULT_EXEMPT_PATHS = ["/api/health", "/api/ready"];
-const API_PATH_PREFIX = "/api";
 
 export interface ApiKeyAuthOptions {
   apiKey?: string;
@@ -46,9 +46,9 @@ export const createApiKeyAuthMiddleware = (
   const exemptPaths = new Set(options.exemptPaths ?? DEFAULT_EXEMPT_PATHS);
   const headerName = options.headerName ?? "x-api-key";
 
-  return async (c, next) => {
+    return async (c, next) => {
     if (
-      !c.req.path.startsWith(API_PATH_PREFIX) ||
+      !isProtectedApiPath(c.req.path) ||
       c.req.method === "OPTIONS" ||
       exemptPaths.has(c.req.path)
     ) {

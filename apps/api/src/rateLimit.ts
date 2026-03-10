@@ -1,10 +1,10 @@
 import type { Context } from 'hono';
 import type { MiddlewareHandler } from 'hono/types';
 import { ERROR_CODES } from '@cs/shared';
+import { isProtectedApiPath } from './apiPath';
 import { createErrorResponse } from './responses';
 
 const DEFAULT_EXEMPT_PATHS = ["/api/health", "/api/ready"];
-const API_PATH_PREFIX = "/api";
 
 interface RateLimitRecord {
   count: number;
@@ -38,7 +38,7 @@ export const createRateLimitMiddleware = (
 
   return async (c, next) => {
     if (
-      !c.req.path.startsWith(API_PATH_PREFIX) ||
+      !isProtectedApiPath(c.req.path) ||
       c.req.method === "OPTIONS" ||
       exemptPaths.has(c.req.path)
     ) {
