@@ -6,11 +6,15 @@ import { ConfigError, ERROR_CODES } from '@cs/shared';
 import { createApiKeyAuthMiddleware } from './auth';
 import { createRateLimitMiddleware } from './rateLimit';
 import { createErrorResponse } from './responses';
+import { createCompaniesRoutes } from './routes/companies';
 import { type ApiRuntimeConfig, createApiRuntimeConfig } from './runtimeConfig';
+import type { CompaniesService } from './services/companies';
+import { createConvexCompaniesService } from './services/convexCompaniesService';
 
 export interface ApiAppOptions {
   createDbConnection?: () => DbConnection;
   checkDbReady?: (connection: DbConnection) => Promise<void> | void;
+  companiesService?: CompaniesService;
   logger?: {
     warn: (payload: Record<string, unknown>, message: string) => void;
   };
@@ -106,6 +110,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const authMiddleware = createApiKeyAuthMiddleware({
     apiKey: runtimeConfig.apiKey
   });
+  const companiesService = options.companiesService ?? createConvexCompaniesService();
   const rateLimitMiddleware = createRateLimitMiddleware({
     max: runtimeConfig.rateLimitMax,
     windowMs: runtimeConfig.rateLimitWindowMs,
@@ -180,6 +185,13 @@ export const createApp = (options: ApiAppOptions = {}) => {
       return c.json(failure.body, failure.status);
     }
   });
+
+  app.route(
+    "/api/companies",
+    createCompaniesRoutes({
+      companiesService
+    })
+  );
 
   app.notFound((c) =>
     c.json(createErrorResponse("NOT_FOUND", "Route not found"), 404)
