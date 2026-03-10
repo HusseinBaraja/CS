@@ -130,7 +130,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
     getClientId: options.getClientId
   });
 
-  app.use("*", apiCors, authMiddleware, rateLimitMiddleware);
+  app.use("*", apiCors, rateLimitMiddleware, authMiddleware);
 
   app.onError((error, c) => {
     if (

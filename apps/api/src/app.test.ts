@@ -75,6 +75,31 @@ describe("api app", () => {
     });
   });
 
+  test("rate limiting throttles repeated missing auth failures", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key",
+        rateLimitMax: 1,
+        rateLimitWindowMs: 60_000
+      },
+      getClientId: () => "ip:203.0.113.10"
+    });
+
+    const first = await app.request("/api");
+    const second = await app.request("/api");
+    const body = await second.json();
+
+    expect(first.status).toBe(401);
+    expect(second.status).toBe(429);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
+        message: "Rate limit exceeded"
+      }
+    });
+  });
+
   test("invalid same-length API key returns 403", async () => {
     const app = createApp({
       runtimeConfig: {
@@ -95,6 +120,34 @@ describe("api app", () => {
       error: {
         code: ERROR_CODES.AUTH_TOKEN_INVALID,
         message: "Invalid API key"
+      }
+    });
+  });
+
+  test("rate limiting throttles repeated invalid auth failures", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key",
+        rateLimitMax: 1,
+        rateLimitWindowMs: 60_000
+      },
+      getClientId: () => "ip:203.0.113.11"
+    });
+
+    const headers = {
+      "x-api-key": "wrong-key"
+    };
+    const first = await app.request("/api", { headers });
+    const second = await app.request("/api", { headers });
+    const body = await second.json();
+
+    expect(first.status).toBe(403);
+    expect(second.status).toBe(429);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
+        message: "Rate limit exceeded"
       }
     });
   });
@@ -261,6 +314,35 @@ describe("api app", () => {
     });
     expect(third.headers.get("Retry-After")).toBe("60");
     expect(third.headers.get("X-RateLimit-Remaining")).toBe("0");
+  });
+
+  test("rate limiting uses injected now and client identity before auth", async () => {
+    let nowCalls = 0;
+    let clientIdCalls = 0;
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key",
+        rateLimitMax: 1,
+        rateLimitWindowMs: 60_000
+      },
+      now: () => {
+        nowCalls += 1;
+        return 1_000;
+      },
+      getClientId: () => {
+        clientIdCalls += 1;
+        return "ip:203.0.113.12";
+      }
+    });
+
+    const first = await app.request("/api");
+    const second = await app.request("/api");
+
+    expect(first.status).toBe(401);
+    expect(first.headers.get("X-RateLimit-Limit")).toBe("1");
+    expect(second.status).toBe(429);
+    expect(nowCalls).toBe(2);
+    expect(clientIdCalls).toBe(2);
   });
 
   test("rate limiting ignores x-forwarded-for rotation by default", async () => {
