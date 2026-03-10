@@ -1,47 +1,60 @@
-The role of this file is to describe common mistakes and confusion points that agents might encounter as they work in this project. If you ever encounter something in the project that surprises you, please alert the developer working with you and indicate that this is the case in the AgentMD file to help prevent future agents from having the same issue.
+# AGENTS.md
+## Task Completion Requirements
+- Run all repo scripts from the repository root with `bun`.
+- `bun lint` and `bun typecheck` must pass before considering code tasks complete.
+- Follow test-driven development when making code changes: add or update tests as you go.
+- Use `bun test` for the Vitest workspace test run when tests are needed.
+- Run `bun generate` after any Convex schema change.
+- Do not run `bun dev` (assume it is already running).
+- Do not run `bun build` (CI only).
+- Suggest a commit message at the end of large changes.
 
-Note: The road map was created before anything was built, so it has not been updated to reflect the current state of the project. If you see something that doesn't make sense, take the general idea from the road map and make it withing the new constraints of the current codebase.
-Note: Suggest a commit message at the end of large changes.
-Note: follow test driven development. so make tests as you go.
+## Project Snapshot
+CSCB is a very early-stage multi-tenant WhatsApp customer service platform for small and mid-size businesses. It combines a Hono REST API, a Baileys WhatsApp bot, Convex-backed data and vector search, and low-cost AI provider orchestration to answer product questions in Arabic and English, send catalogs and images, support human handoff, and track analytics.
 
-## Project Overview
-Read docs/PROJECT_CHARTER_AND_VISION.md, and docs/SRS.md
+The roadmap in `docs/project_roadmap` was written before the current codebase existed. Treat it as intent, not as an exact description of what should be built today.
 
-## Architecture
-Turborepo monorepo with Bun as the runtime and package manager.
+## Core Priorities
+- Correctness and reliability first.
+- Keep tenant isolation strict and behavior predictable during failures or restarts.
+- Keep responses grounded in real data; avoid architecture that encourages hallucinated or partial state.
+- Preserve low operational cost without trading away robustness.
+- Prefer small, focused moduler programming techniques over large monolithic systems.
 
-| App      | Purpose                  |     |
-| -------- | ------------------------ | --- |
-| `api`    | Hono REST API server     |     |
-| `bot`    | WhatsApp bot (Baileys)   |     |
-| `worker` | Background job processor |     |
-| `cli`    | Developer CLI utilities  |     |
+## Maintainability
+- Long-term maintainability is a core requirement.
+- Extract shared logic instead of duplicating behavior across apps or packages.
+- Do not hesitate to refactor existing code when that produces a cleaner system.
+- Use the `@cs/*` path aliases from `tsconfig.base.json` for cross-package imports.
+- If you encounter something surprising, tell the developer and add it to this file so future agents do not repeat the same mistake.
 
-### Path Aliases
-Defined in `tsconfig.base.json` as `@cs/*`. Always use aliases over relative imports between packages.
+## Required Reading
+- Read `docs/PROJECT_CHARTER_AND_VISION.md`.
+- Read `docs/SRS.md`.
+- When working from the roadmap, align the implementation with the current codebase and the documents above rather than following stale steps literally.
 
-**Do not run:** `bun dev` (assume already running), `bun build` (CI only)
+## Workspace Roles
+- `apps/api`: Hono REST API for CRUD, auth, validation, health checks, and service orchestration.
+- `apps/bot`: Baileys-based WhatsApp bot runtime.
+- `apps/worker`: Background job and asynchronous processing entrypoint.
+- `apps/cli`: Developer utilities such as seed and backup workflows.
+- `packages/ai`: Shared AI provider abstractions and related logic.
+- `packages/config`: Shared configuration helpers and validation.
+- `packages/convex-api`: Shared Convex-facing API helpers/types.
+- `packages/core`: Core domain logic intended to stay framework-light.
+- `packages/db`: Shared database client utilities.
+- `packages/rag`: Shared retrieval and RAG-related logic.
+- `packages/shared`: Cross-cutting shared utilities.
+- `convex`: Convex schema, functions, seeds, and tests.
 
-## MUST do
-- **Modular code** — keep files small and focused, avoid large monolithic modules
-- **Run `bun generate`** after any Convex schema changes
-- Always use `bun` to run scripts from the repo root after making changes.
-
-| Command                                  | Description                                       |
-| ---------------------------------------- | ------------------------------------------------- |
-| `bun typecheck`                          | Typecheck all workspaces                          |
-| `bun lint`                               | Type-aware Oxlint linting                         |
-| `bun lint --fix`                         | Auto-fix lint issues                              |
-| `bun check`                              | Runs typecheck + lint                             |
-| `bun test`                               | Run tests with Vitest                             |
-
-- When doing a step from the project roadmap, make sure to read @cs/SRS.md and @cs/PROJECT_CHARTER_AND_VISION.md to understand the project's goals and how to approach the problem.
+## Working Rules
+- Keep code modular and files focused.
+- Prefer extending existing shared packages over app-local duplication.
+- Preserve strict type safety and existing test coverage expectations.
+- After schema-affecting Convex changes, regenerate code before finishing.
 
 ## Known Pitfalls
-- Surprise: roadmap `docs/project_roadmap/Phase 3/step_3.1.md` is stale relative to the repo. `apps/api` already exists with `src/index.ts`, `src/app.ts`, and health/readiness tests, so treat Step 3.1 as a gap-analysis and completion task for missing middleware/bootstrap pieces rather than recreating the Hono server from scratch.
-- Surprise: `createApp()` is instantiated directly in API tests without `CONVEX_URL` set. Any default service you wire into `apps/api/src/app.ts` must resolve Convex configuration lazily inside request-time methods, not during app construction, or unrelated health/auth tests will start failing early.
-- Surprise: on the current Convex version in this repo, `ctx.vectorSearch(...).filter(...)` supports `q.eq(...)` and `q.or(...)`, but not multi-field `AND`. If you need exact ANN filtering across multiple dimensions like `companyId + language`, add a combined filter field such as `companyLanguage` and register that as the vector index `filterField`.
-- Surprise: for full Convex backups in this repo, use Convex Dashboard snapshots or the CLI `convex export` / `convex import` flow. There is not a separate app-level snapshot export API wired into the codebase here, and the Convex CLI defaults to the dev deployment unless you pass an explicit selector such as `--prod`, `--deployment-name`, `--preview-name`, or `--env-file`.
-- Surprise: on Convex `1.32.0` in this repo there is no schema-level unique index/constraint API for `defineTable(...)`. If you need singleton semantics, enforce them with a narrow indexed query inside a mutation plus an explicit lock/lease document, rather than assuming `.index(...)` can guarantee uniqueness.
-- Surprise: roadmap `docs/project_roadmap/Phase 3/step_3.4.md` says product delete should cascade Cloudflare R2 image cleanup, but the repo still introduces R2 in `docs/project_roadmap/Phase 3/step_3.8.md` and has no R2 service during Step 3.4. Treat Step 3.4 delete as Convex-only cleanup (product + variants + embeddings) and defer external object deletion to Step 3.8.
-- Surprise: real product embedding regeneration in this repo cannot live inside a plain Convex mutation. Because Gemini embedding generation is an external API call, product create/update need an action that generates embeddings first and then hands the writes to an internal mutation so failed embeddings do not leave partial product state behind.
+- `createApp()` is instantiated directly in API tests without `CONVEX_URL` set. Any default service you wire into `apps/api/src/app.ts` must resolve Convex configuration lazily inside request-time methods, not during app construction, or unrelated health/auth tests will start failing early.
+- on the current Convex version in this repo, `ctx.vectorSearch(...).filter(...)` supports `q.eq(...)` and `q.or(...)`, but not multi-field `AND`. If you need exact ANN filtering across multiple dimensions like `companyId + language`, add a combined filter field such as `companyLanguage` and register that as the vector index `filterField`.
+- on Convex `1.32.0` in this repo there is no schema-level unique index or constraint API for `defineTable(...)`. If you need singleton semantics, enforce them with a narrow indexed query inside a mutation plus an explicit lock or lease document, rather than assuming `.index(...)` can guarantee uniqueness.
+- real product embedding regeneration in this repo cannot live inside a plain Convex mutation. Because Gemini embedding generation is an external API call, product create and update need an action that generates embeddings first and then hands the writes to an internal mutation so failed embeddings do not leave partial product state behind.
