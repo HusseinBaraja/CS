@@ -10,6 +10,7 @@ const DEFAULT_EXEMPT_PATHS = ["/api/health", "/api/ready"];
 interface RateLimitRecord {
   count: number;
   resetAt: number;
+  expiresAt: number;
 }
 
 interface RateLimitPruneResult {
@@ -81,10 +82,25 @@ export const pruneExpiredRateLimitEntries = (
   currentTime: number
 ): void => {
   for (const [key, record] of requests) {
-    if (record.resetAt <= currentTime) {
+    if (record.expiresAt <= currentTime) {
       requests.delete(key);
     }
   }
+};
+
+export const scheduleRateLimitEntryCleanup = (
+  requests: Map<string, RateLimitRecord>,
+  key: string,
+  expiresAt: number,
+  delayMs: number
+): void => {
+  setTimeout(() => {
+    const currentRecord = requests.get(key);
+
+    if (currentRecord?.expiresAt === expiresAt) {
+      requests.delete(key);
+    }
+  }, Math.max(0, delayMs));
 };
 
 export const maybePruneRateLimitEntries = (
@@ -147,14 +163,17 @@ export const createRateLimitMiddleware = (
     const existing = requests.get(key);
 
     if (!existing || existing.resetAt <= currentTime) {
+      const expiresAt = currentTime + options.windowMs;
       requests.set(key, {
         count: 1,
-        resetAt: currentTime + options.windowMs
+        resetAt: expiresAt,
+        expiresAt
       });
+      scheduleRateLimitEntryCleanup(requests, key, expiresAt, options.windowMs);
 
       c.header("X-RateLimit-Limit", String(options.max));
       c.header("X-RateLimit-Remaining", String(options.max - 1));
-      c.header("X-RateLimit-Reset", String(Math.ceil((currentTime + options.windowMs) / 1000)));
+      c.header("X-RateLimit-Reset", String(Math.ceil(expiresAt / 1000)));
 
       await next();
       return;

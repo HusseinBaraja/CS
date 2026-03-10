@@ -3,7 +3,8 @@ import { Hono } from 'hono';
 import {
   createRateLimitMiddleware,
   maybePruneRateLimitEntries,
-  pruneExpiredRateLimitEntries
+  pruneExpiredRateLimitEntries,
+  scheduleRateLimitEntryCleanup
 } from './rateLimit';
 
 const createRateLimitTestApp = (options: Parameters<typeof createRateLimitMiddleware>[0]) => {
@@ -18,29 +19,29 @@ const createRateLimitTestApp = (options: Parameters<typeof createRateLimitMiddle
 describe("rate limit store pruning", () => {
   test("removes expired entries", () => {
     const requests = new Map([
-      ["expired", { count: 1, resetAt: 100 }],
-      ["active", { count: 2, resetAt: 300 }]
+      ["expired", { count: 1, resetAt: 100, expiresAt: 100 }],
+      ["active", { count: 2, resetAt: 300, expiresAt: 300 }]
     ]);
 
     pruneExpiredRateLimitEntries(requests, 200);
 
     expect(requests.has("expired")).toBe(false);
-    expect(requests.get("active")).toEqual({ count: 2, resetAt: 300 });
+    expect(requests.get("active")).toEqual({ count: 2, resetAt: 300, expiresAt: 300 });
   });
 
   test("retains live entries", () => {
     const requests = new Map([
-      ["active", { count: 1, resetAt: 300 }]
+      ["active", { count: 1, resetAt: 300, expiresAt: 300 }]
     ]);
 
     pruneExpiredRateLimitEntries(requests, 200);
 
-    expect(requests.get("active")).toEqual({ count: 1, resetAt: 300 });
+    expect(requests.get("active")).toEqual({ count: 1, resetAt: 300, expiresAt: 300 });
   });
 
   test("does not prune again before the next prune boundary", () => {
     const requests = new Map([
-      ["active", { count: 1, resetAt: 600 }]
+      ["active", { count: 1, resetAt: 600, expiresAt: 600 }]
     ]);
 
     const first = maybePruneRateLimitEntries(requests, 100, 0, 500);
@@ -59,7 +60,7 @@ describe("rate limit store pruning", () => {
       didPrune: false,
       nextPruneAt: 600
     });
-    expect(requests.get("active")).toEqual({ count: 1, resetAt: 600 });
+    expect(requests.get("active")).toEqual({ count: 1, resetAt: 600, expiresAt: 600 });
   });
 });
 
@@ -193,5 +194,42 @@ describe("rate limit client identification", () => {
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(429);
+  });
+});
+
+describe("rate limit entry cleanup", () => {
+  test("deletes idle entries after their expiry", async () => {
+    const requests = new Map([
+      ["ip:203.0.113.10", { count: 1, resetAt: 5, expiresAt: 5 }]
+    ]);
+
+    scheduleRateLimitEntryCleanup(requests, "ip:203.0.113.10", 5, 5);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(requests.has("ip:203.0.113.10")).toBe(false);
+  });
+
+  test("ignores stale cleanup timers after an entry is refreshed", async () => {
+    const requests = new Map([
+      ["ip:203.0.113.10", { count: 1, resetAt: 5, expiresAt: 5 }]
+    ]);
+
+    scheduleRateLimitEntryCleanup(requests, "ip:203.0.113.10", 5, 5);
+    requests.set("ip:203.0.113.10", {
+      count: 1,
+      resetAt: 25,
+      expiresAt: 25
+    });
+    scheduleRateLimitEntryCleanup(requests, "ip:203.0.113.10", 25, 25);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(requests.get("ip:203.0.113.10")).toEqual({
+      count: 1,
+      resetAt: 25,
+      expiresAt: 25
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(requests.has("ip:203.0.113.10")).toBe(false);
   });
 });
