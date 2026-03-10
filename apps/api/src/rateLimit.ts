@@ -131,7 +131,9 @@ export const createRateLimitMiddleware = (
   const exemptPaths = new Set(options.exemptPaths ?? DEFAULT_EXEMPT_PATHS);
   const trustedProxyHops = options.trustedProxyHops ?? 0;
   const trustedProxyIps = new Set(
-    (options.trustedProxyIps ?? []).map((value) => normalizeClientIp(value)).filter(Boolean)
+    (options.trustedProxyIps ?? [])
+      .map((value) => normalizeClientIp(value))
+      .filter((value): value is string => value !== null)
   );
   const getClientId = options.getClientId ?? ((context: Context) => {
     const clientIp = getTrustedProxyClientIp(context, trustedProxyHops, trustedProxyIps) ??
