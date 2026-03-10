@@ -133,10 +133,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
   app.use("*", apiCors, rateLimitMiddleware, authMiddleware);
 
   app.onError((error, c) => {
-    if (
-      error instanceof SyntaxError &&
-      c.req.header("content-type")?.includes("application/json")
-    ) {
+    if (error instanceof SyntaxError) {
       return c.json(
         createErrorResponse(ERROR_CODES.VALIDATION_FAILED, "Malformed JSON body"),
         400

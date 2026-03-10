@@ -494,6 +494,59 @@ describe("api app", () => {
     expect(second.status).toBe(200);
   });
 
+  test("malformed JSON without a content type returns 400", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key"
+      }
+    });
+
+    const response = await app.request("/api/companies", {
+      method: "POST",
+      headers: {
+        "x-api-key": "test-api-key"
+      },
+      body: "{"
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: "Malformed JSON body"
+      }
+    });
+  });
+
+  test("malformed JSON with a non-JSON content type returns 400", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key"
+      }
+    });
+
+    const response = await app.request("/api/companies", {
+      method: "POST",
+      headers: {
+        "x-api-key": "test-api-key",
+        "content-type": "text/plain"
+      },
+      body: "{"
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: "Malformed JSON body"
+      }
+    });
+  });
+
   test("readiness reports missing database configuration without leaking the url", async () => {
     const warningCollector = createWarningCollector();
     const app = createApp({
