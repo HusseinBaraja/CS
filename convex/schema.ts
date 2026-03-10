@@ -33,7 +33,9 @@ export default defineSchema({
     nameAr: v.optional(v.string()),
     descriptionEn: v.optional(v.string()),
     descriptionAr: v.optional(v.string()),
-  }).index("by_company", ["companyId"]),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_company_name_en", ["companyId", "nameEn"]),
 
   // ── Products ────────────────────────────────────────────────────────────
   products: defineTable({

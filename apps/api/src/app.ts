@@ -6,8 +6,11 @@ import { ConfigError, ERROR_CODES } from '@cs/shared';
 import { createApiKeyAuthMiddleware } from './auth';
 import { createRateLimitMiddleware } from './rateLimit';
 import { createErrorResponse } from './responses';
+import { createCategoriesRoutes } from './routes/categories';
 import { createCompaniesRoutes } from './routes/companies';
 import { type ApiRuntimeConfig, createApiRuntimeConfig } from './runtimeConfig';
+import type { CategoriesService } from './services/categories';
+import { createConvexCategoriesService } from './services/convexCategoriesService';
 import type { CompaniesService } from './services/companies';
 import { createConvexCompaniesService } from './services/convexCompaniesService';
 
@@ -15,6 +18,7 @@ export interface ApiAppOptions {
   createDbConnection?: () => DbConnection;
   checkDbReady?: (connection: DbConnection) => Promise<void> | void;
   companiesService?: CompaniesService;
+  categoriesService?: CategoriesService;
   logger?: {
     warn: (payload: Record<string, unknown>, message: string) => void;
   };
@@ -111,6 +115,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
     apiKey: runtimeConfig.apiKey
   });
   const companiesService = options.companiesService ?? createConvexCompaniesService();
+  const categoriesService = options.categoriesService ?? createConvexCategoriesService();
   const rateLimitMiddleware = createRateLimitMiddleware({
     max: runtimeConfig.rateLimitMax,
     windowMs: runtimeConfig.rateLimitWindowMs,
@@ -185,6 +190,13 @@ export const createApp = (options: ApiAppOptions = {}) => {
       return c.json(failure.body, failure.status);
     }
   });
+
+  app.route(
+    "/api/companies/:companyId/categories",
+    createCategoriesRoutes({
+      categoriesService
+    })
+  );
 
   app.route(
     "/api/companies",
