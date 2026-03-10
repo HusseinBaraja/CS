@@ -124,6 +124,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const rateLimitMiddleware = createRateLimitMiddleware({
     max: runtimeConfig.rateLimitMax,
     windowMs: runtimeConfig.rateLimitWindowMs,
+    trustedProxyHops: runtimeConfig.trustProxyHops,
     now: options.now,
     getClientId: options.getClientId
   });

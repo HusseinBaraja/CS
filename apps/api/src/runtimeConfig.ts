@@ -5,6 +5,7 @@ export interface ApiRuntimeConfig {
   corsOrigins: string[];
   rateLimitMax: number;
   rateLimitWindowMs: number;
+  trustProxyHops: number;
 }
 
 export const createApiRuntimeConfig = (
@@ -13,5 +14,6 @@ export const createApiRuntimeConfig = (
   apiKey: config.apiKey ?? env.API_KEY,
   corsOrigins: config.corsOrigins ?? env.API_CORS_ORIGINS,
   rateLimitMax: config.rateLimitMax ?? env.API_RATE_LIMIT_MAX,
-  rateLimitWindowMs: config.rateLimitWindowMs ?? env.API_RATE_LIMIT_WINDOW_MS
+  rateLimitWindowMs: config.rateLimitWindowMs ?? env.API_RATE_LIMIT_WINDOW_MS,
+  trustProxyHops: config.trustProxyHops ?? env.API_TRUST_PROXY_HOPS
 });

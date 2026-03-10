@@ -257,6 +257,59 @@ describe("api app", () => {
     expect(third.headers.get("X-RateLimit-Remaining")).toBe("0");
   });
 
+  test("rate limiting ignores x-forwarded-for rotation by default", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key",
+        rateLimitMax: 1,
+        rateLimitWindowMs: 60_000
+      }
+    });
+
+    const first = await app.request("/api", {
+      headers: {
+        "x-api-key": "test-api-key",
+        "x-forwarded-for": "203.0.113.5"
+      }
+    });
+    const second = await app.request("/api", {
+      headers: {
+        "x-api-key": "test-api-key",
+        "x-forwarded-for": "203.0.113.6"
+      }
+    });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  test("rate limiting can trust forwarded IPs when proxy hops are configured", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key",
+        rateLimitMax: 1,
+        rateLimitWindowMs: 60_000,
+        trustProxyHops: 1
+      }
+    });
+
+    const first = await app.request("/api", {
+      headers: {
+        "x-api-key": "test-api-key",
+        "x-forwarded-for": "198.51.100.10, 192.0.2.10"
+      }
+    });
+    const second = await app.request("/api", {
+      headers: {
+        "x-api-key": "test-api-key",
+        "x-forwarded-for": "198.51.100.11, 192.0.2.10"
+      }
+    });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+  });
+
   test("readiness reports missing database configuration without leaking the url", async () => {
     const warningCollector = createWarningCollector();
     const app = createApp({

@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { Context } from 'hono';
 import type { MiddlewareHandler } from 'hono/types';
 import { ERROR_CODES } from '@cs/shared';
@@ -45,8 +45,11 @@ export const createApiKeyAuthMiddleware = (
 ): MiddlewareHandler => {
   const exemptPaths = new Set(options.exemptPaths ?? DEFAULT_EXEMPT_PATHS);
   const headerName = options.headerName ?? "x-api-key";
+  const authenticatedClientId = options.apiKey
+    ? createHash("sha256").update(options.apiKey).digest("hex").slice(0, 16)
+    : null;
 
-    return async (c, next) => {
+  return async (c, next) => {
     if (
       !isProtectedApiPath(c.req.path) ||
       c.req.method === "OPTIONS" ||
@@ -81,6 +84,7 @@ export const createApiKeyAuthMiddleware = (
       );
     }
 
+    c.set("authenticatedClientId", authenticatedClientId);
     await next();
   };
 };

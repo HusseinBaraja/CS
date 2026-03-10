@@ -14,18 +14,36 @@ interface RateLimitRecord {
 export interface RateLimitOptions {
   max: number;
   windowMs: number;
+  trustedProxyHops?: number;
   exemptPaths?: string[];
   now?: () => number;
   getClientId?: (context: Context) => string;
 }
 
-const getForwardedClientId = (context: Context): string => {
-  const forwardedFor = context.req.header("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() || "unknown";
+const parseForwardedFor = (forwardedFor: string): string[] =>
+  forwardedFor
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+const getTrustedProxyClientIp = (
+  context: Context,
+  trustedProxyHops: number
+): string | null => {
+  if (trustedProxyHops <= 0) {
+    return null;
   }
 
-  return context.req.header("x-real-ip") ?? "unknown";
+  const forwardedFor = context.req.header("x-forwarded-for");
+  if (forwardedFor) {
+    const chain = parseForwardedFor(forwardedFor);
+    const clientIndex = chain.length - trustedProxyHops - 1;
+
+    return clientIndex >= 0 ? chain[clientIndex] ?? null : null;
+  }
+
+  const realIp = context.req.header("x-real-ip")?.trim();
+  return realIp && realIp.length > 0 ? realIp : null;
 };
 
 export const createRateLimitMiddleware = (
@@ -33,7 +51,15 @@ export const createRateLimitMiddleware = (
 ): MiddlewareHandler => {
   const now = options.now ?? (() => Date.now());
   const exemptPaths = new Set(options.exemptPaths ?? DEFAULT_EXEMPT_PATHS);
-  const getClientId = options.getClientId ?? getForwardedClientId;
+  const trustedProxyHops = options.trustedProxyHops ?? 0;
+  const getClientId = options.getClientId ?? ((context: Context) => {
+    const authenticatedClientId = context.get("authenticatedClientId");
+    const trustedProxyClientIp = getTrustedProxyClientIp(context, trustedProxyHops);
+
+    return trustedProxyClientIp
+      ? `${authenticatedClientId}:${trustedProxyClientIp}`
+      : authenticatedClientId;
+  });
   const requests = new Map<string, RateLimitRecord>();
 
   return async (c, next) => {
