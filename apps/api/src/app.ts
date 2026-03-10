@@ -1,7 +1,12 @@
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { logger } from '@cs/core';
 import { checkDbConnection, createDbConnection, DB_PROVIDER, type DbConnection, getDbConnectionInfo } from '@cs/db';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
+import { createApiKeyAuthMiddleware } from './auth';
+import { createRateLimitMiddleware } from './rateLimit';
+import { createErrorResponse } from './responses';
+import { type ApiRuntimeConfig, createApiRuntimeConfig } from './runtimeConfig';
 
 export interface ApiAppOptions {
   createDbConnection?: () => DbConnection;
@@ -9,6 +14,9 @@ export interface ApiAppOptions {
   logger?: {
     warn: (payload: Record<string, unknown>, message: string) => void;
   };
+  runtimeConfig?: Partial<ApiRuntimeConfig>;
+  now?: () => number;
+  getClientId?: (context: Context) => string;
 }
 
 const MAX_ERROR_MESSAGE_LENGTH = 120;
@@ -84,11 +92,58 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const connectToDb = options.createDbConnection ?? createDbConnection;
   const checkDbReady = options.checkDbReady ?? checkDbConnection;
   const appLogger = options.logger ?? logger;
+  const runtimeConfig = createApiRuntimeConfig(options.runtimeConfig);
+  const apiCors = cors({
+    origin: runtimeConfig.corsOrigins.includes("*")
+      ? "*"
+      : (origin) =>
+          runtimeConfig.corsOrigins.includes(origin) ? origin : null,
+    allowHeaders: ["Content-Type", "Authorization", "X-API-Key"],
+    allowMethods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    exposeHeaders: ["Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
+    maxAge: 86_400
+  });
+  const authMiddleware = createApiKeyAuthMiddleware({
+    apiKey: runtimeConfig.apiKey
+  });
+  const rateLimitMiddleware = createRateLimitMiddleware({
+    max: runtimeConfig.rateLimitMax,
+    windowMs: runtimeConfig.rateLimitWindowMs,
+    now: options.now,
+    getClientId: options.getClientId
+  });
+
+  app.use("*", apiCors, authMiddleware, rateLimitMiddleware);
+
+  app.onError((error, c) => {
+    if (
+      error instanceof SyntaxError &&
+      c.req.header("content-type")?.includes("application/json")
+    ) {
+      return c.json(
+        createErrorResponse(ERROR_CODES.VALIDATION_FAILED, "Malformed JSON body"),
+        400
+      );
+    }
+
+    return c.json(
+      createErrorResponse("INTERNAL_SERVER_ERROR", "Internal server error"),
+      500
+    );
+  });
 
   app.get("/api/health", (c) =>
     c.json({
       ok: true,
       runtime: "api"
+    })
+  );
+
+  app.get("/api", (c) =>
+    c.json({
+      ok: true,
+      runtime: "api",
+      auth: "api-key"
     })
   );
 
@@ -125,6 +180,10 @@ export const createApp = (options: ApiAppOptions = {}) => {
       return c.json(failure.body, failure.status);
     }
   });
+
+  app.notFound((c) =>
+    c.json(createErrorResponse("NOT_FOUND", "Route not found"), 404)
+  );
 
   return app;
 };

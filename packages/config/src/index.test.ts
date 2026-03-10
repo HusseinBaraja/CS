@@ -16,7 +16,23 @@ describe("config", () => {
     expect(config.BACKUP_DIR).toBe("backups");
     expect(config.BACKUP_RETENTION_COUNT).toBe(5);
     expect(config.API_PORT).toBe(3000);
+    expect(config.API_KEY).toBeUndefined();
+    expect(config.API_CORS_ORIGINS).toEqual(["*"]);
+    expect(config.API_RATE_LIMIT_MAX).toBe(60);
+    expect(config.API_RATE_LIMIT_WINDOW_MS).toBe(60_000);
     expect(config.CONVEX_URL).toBe("https://example.convex.cloud");
+  });
+
+  test("parses API CORS origins from a comma-separated env value", () => {
+    const config = createConfig({
+      API_CORS_ORIGINS: "https://one.example, https://two.example",
+      CONVEX_URL: "https://example.convex.cloud"
+    });
+
+    expect(config.API_CORS_ORIGINS).toEqual([
+      "https://one.example",
+      "https://two.example"
+    ]);
   });
 
   test("throws ConfigError for invalid values", () => {
@@ -27,6 +43,19 @@ describe("config", () => {
       })
     ).toThrow(
       new ConfigError("API_PORT: Invalid input: expected number, received NaN", {
+        code: ERROR_CODES.CONFIG_INVALID
+      })
+    );
+  });
+
+  test("rejects non-positive API rate limits", () => {
+    expect(() =>
+      createConfig({
+        API_RATE_LIMIT_MAX: 0,
+        CONVEX_URL: "https://example.convex.cloud"
+      })
+    ).toThrow(
+      new ConfigError("API_RATE_LIMIT_MAX: Too small: expected number to be >0", {
         code: ERROR_CODES.CONFIG_INVALID
       })
     );
@@ -104,5 +133,16 @@ describe("config", () => {
     expect(thrown).toBeInstanceOf(ConfigError);
     expect((thrown as ConfigError).code).toBe(ERROR_CODES.CONFIG_INVALID);
     expect((thrown as ConfigError).message).toContain("CONVEX_URL:");
+  });
+
+  test("treats empty optional API auth and CORS env vars as unset values", () => {
+    const config = createConfig({
+      API_KEY: "",
+      API_CORS_ORIGINS: "",
+      CONVEX_URL: "https://example.convex.cloud"
+    });
+
+    expect(config.API_KEY).toBeUndefined();
+    expect(config.API_CORS_ORIGINS).toEqual(["*"]);
   });
 });

@@ -5,6 +5,13 @@ import { ConfigError, ERROR_CODES } from '@cs/shared';
 
 type RuntimeEnv = Record<string, string | number | boolean | undefined>;
 
+const OPTIONAL_EMPTY_ENV_KEYS = new Set(["API_KEY", "API_CORS_ORIGINS"]);
+const parseCsvEnv = (value: string): string[] =>
+  value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
 const envSchema = {
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("debug"),
@@ -13,6 +20,16 @@ const envSchema = {
   BACKUP_DIR: z.string().min(1).default("backups"),
   BACKUP_RETENTION_COUNT: z.coerce.number().int().positive().default(5),
   API_PORT: z.coerce.number().int().positive().default(3000),
+  API_KEY: z.string().min(1).optional(),
+  API_CORS_ORIGINS: z
+    .string()
+    .default("*")
+    .transform((value) => {
+      const origins = parseCsvEnv(value);
+      return origins.length > 0 ? origins : ["*"];
+    }),
+  API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
+  API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   CONVEX_URL: z.string().min(1).url().optional()
 };
 
@@ -24,7 +41,7 @@ const normalizeRuntimeEnv = (
   Object.fromEntries(
     Object.entries(runtimeEnv).map(([key, value]) => [
       key,
-      key === "CONVEX_URL" || value !== "" ? value : undefined
+      OPTIONAL_EMPTY_ENV_KEYS.has(key) && value === "" ? undefined : value
     ])
   );
 
