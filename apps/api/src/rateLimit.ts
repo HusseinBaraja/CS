@@ -11,6 +11,11 @@ interface RateLimitRecord {
   resetAt: number;
 }
 
+interface RateLimitPruneResult {
+  didPrune: boolean;
+  nextPruneAt: number;
+}
+
 export interface RateLimitOptions {
   max: number;
   windowMs: number;
@@ -46,6 +51,38 @@ const getTrustedProxyClientIp = (
   return realIp && realIp.length > 0 ? realIp : null;
 };
 
+export const pruneExpiredRateLimitEntries = (
+  requests: Map<string, RateLimitRecord>,
+  currentTime: number
+): void => {
+  for (const [key, record] of requests) {
+    if (record.resetAt <= currentTime) {
+      requests.delete(key);
+    }
+  }
+};
+
+export const maybePruneRateLimitEntries = (
+  requests: Map<string, RateLimitRecord>,
+  currentTime: number,
+  nextPruneAt: number,
+  windowMs: number
+): RateLimitPruneResult => {
+  if (currentTime < nextPruneAt) {
+    return {
+      didPrune: false,
+      nextPruneAt
+    };
+  }
+
+  pruneExpiredRateLimitEntries(requests, currentTime);
+
+  return {
+    didPrune: true,
+    nextPruneAt: currentTime + windowMs
+  };
+};
+
 export const createRateLimitMiddleware = (
   options: RateLimitOptions
 ): MiddlewareHandler => {
@@ -61,6 +98,7 @@ export const createRateLimitMiddleware = (
       : authenticatedClientId;
   });
   const requests = new Map<string, RateLimitRecord>();
+  let nextPruneAt = 0;
 
   return async (c, next) => {
     if (
@@ -73,6 +111,12 @@ export const createRateLimitMiddleware = (
     }
 
     const currentTime = now();
+    nextPruneAt = maybePruneRateLimitEntries(
+      requests,
+      currentTime,
+      nextPruneAt,
+      options.windowMs
+    ).nextPruneAt;
     const key = getClientId(c);
     const existing = requests.get(key);
 
