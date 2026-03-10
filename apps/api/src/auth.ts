@@ -84,7 +84,7 @@ export const createApiKeyAuthMiddleware = (
       );
     }
 
-    c.set("authenticatedClientId", authenticatedClientId);
+    c.set("authenticatedClientId", authenticatedClientId!);
     await next();
   };
 };
