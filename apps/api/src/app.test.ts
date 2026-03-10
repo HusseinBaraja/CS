@@ -214,6 +214,89 @@ describe("api app", () => {
     expect(response.status).toBe(200);
   });
 
+  test("empty API key headers fall back to bearer auth", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key"
+      }
+    });
+
+    const response = await app.request("/api", {
+      headers: {
+        "x-api-key": "",
+        authorization: "Bearer test-api-key"
+      }
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  test("whitespace API key headers fall back to bearer auth", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key"
+      }
+    });
+
+    const response = await app.request("/api", {
+      headers: {
+        "x-api-key": "   ",
+        authorization: "Bearer test-api-key"
+      }
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  test("whitespace API key headers without bearer auth return 401", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key"
+      }
+    });
+
+    const response = await app.request("/api", {
+      headers: {
+        "x-api-key": "   "
+      }
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.AUTH_FAILED,
+        message: "Missing API key"
+      }
+    });
+  });
+
+  test("non-blank invalid API key headers still take precedence over bearer auth", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key"
+      }
+    });
+
+    const response = await app.request("/api", {
+      headers: {
+        "x-api-key": "wrong-key",
+        authorization: "Bearer test-api-key"
+      }
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.AUTH_TOKEN_INVALID,
+        message: "Invalid API key"
+      }
+    });
+  });
+
   test("CORS preflight succeeds without auth and returns the configured origin", async () => {
     const app = createApp({
       runtimeConfig: {

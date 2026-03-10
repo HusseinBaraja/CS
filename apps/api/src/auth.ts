@@ -29,8 +29,15 @@ const getBearerToken = (authorizationHeader: string | undefined): string | null 
 const getApiKey = (
   context: Context,
   headerName: string
-): string | null =>
-  context.req.header(headerName) ?? getBearerToken(context.req.header("authorization"));
+): string | null => {
+  const val = context.req.header(headerName);
+
+  if (val && val.trim().length > 0) {
+    return val;
+  }
+
+  return getBearerToken(context.req.header("authorization"));
+};
 
 const safeEqual = (left: string, right: string): boolean => {
   const leftBuffer = Buffer.from(left);
