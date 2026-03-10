@@ -125,6 +125,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
     max: runtimeConfig.rateLimitMax,
     windowMs: runtimeConfig.rateLimitWindowMs,
     trustedProxyHops: runtimeConfig.trustProxyHops,
+    trustedProxyIps: runtimeConfig.trustedProxyIps,
     now: options.now,
     getClientId: options.getClientId
   });

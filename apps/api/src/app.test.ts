@@ -234,13 +234,19 @@ describe("api app", () => {
     });
 
     const headers = {
-      "x-api-key": "test-api-key",
-      "x-forwarded-for": "203.0.113.5"
+      "x-api-key": "test-api-key"
+    };
+    const env = {
+      incoming: {
+        socket: {
+          remoteAddress: "203.0.113.5"
+        }
+      }
     };
 
-    const first = await app.request("/api", { headers });
-    const second = await app.request("/api", { headers });
-    const third = await app.request("/api", { headers });
+    const first = await app.request("/api", { headers }, env);
+    const second = await app.request("/api", { headers }, env);
+    const third = await app.request("/api", { headers }, env);
     const body = await third.json();
 
     expect(first.status).toBe(200);
@@ -271,11 +277,23 @@ describe("api app", () => {
         "x-api-key": "test-api-key",
         "x-forwarded-for": "203.0.113.5"
       }
+    }, {
+      incoming: {
+        socket: {
+          remoteAddress: "198.51.100.1"
+        }
+      }
     });
     const second = await app.request("/api", {
       headers: {
         "x-api-key": "test-api-key",
         "x-forwarded-for": "203.0.113.6"
+      }
+    }, {
+      incoming: {
+        socket: {
+          remoteAddress: "198.51.100.1"
+        }
       }
     });
 
@@ -292,16 +310,23 @@ describe("api app", () => {
       }
     });
 
+    const env = {
+      incoming: {
+        socket: {
+          remoteAddress: "203.0.113.5"
+        }
+      }
+    };
     const first = await app.request("/api", {
       headers: {
         "x-api-key": "test-api-key"
       }
-    });
+    }, env);
     const second = await app.request("/api/missing", {
       headers: {
         "x-api-key": "test-api-key"
       }
-    });
+    }, env);
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(429);
@@ -353,7 +378,8 @@ describe("api app", () => {
         apiKey: "test-api-key",
         rateLimitMax: 1,
         rateLimitWindowMs: 60_000,
-        trustProxyHops: 1
+        trustProxyHops: 1,
+        trustedProxyIps: ["192.0.2.10"]
       }
     });
 
@@ -362,11 +388,23 @@ describe("api app", () => {
         "x-api-key": "test-api-key",
         "x-forwarded-for": "198.51.100.10, 192.0.2.10"
       }
+    }, {
+      incoming: {
+        socket: {
+          remoteAddress: "192.0.2.10"
+        }
+      }
     });
     const second = await app.request("/api", {
       headers: {
         "x-api-key": "test-api-key",
         "x-forwarded-for": "198.51.100.11, 192.0.2.10"
+      }
+    }, {
+      incoming: {
+        socket: {
+          remoteAddress: "::ffff:192.0.2.10"
+        }
       }
     });
 

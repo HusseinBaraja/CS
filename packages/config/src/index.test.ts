@@ -19,6 +19,7 @@ describe("config", () => {
     expect(config.API_KEY).toBeUndefined();
     expect(config.GEMINI_API_KEY).toBeUndefined();
     expect(config.API_CORS_ORIGINS).toEqual(["*"]);
+    expect(config.API_TRUSTED_PROXY_IPS).toEqual([]);
     expect(config.API_TRUST_PROXY_HOPS).toBe(0);
     expect(config.API_RATE_LIMIT_MAX).toBe(60);
     expect(config.API_RATE_LIMIT_WINDOW_MS).toBe(60_000);
@@ -34,6 +35,18 @@ describe("config", () => {
     expect(config.API_CORS_ORIGINS).toEqual([
       "https://one.example",
       "https://two.example"
+    ]);
+  });
+
+  test("parses trusted proxy IPs from a comma-separated env value", () => {
+    const config = createConfig({
+      API_TRUSTED_PROXY_IPS: "192.0.2.10, ::ffff:203.0.113.10",
+      CONVEX_URL: "https://example.convex.cloud"
+    });
+
+    expect(config.API_TRUSTED_PROXY_IPS).toEqual([
+      "192.0.2.10",
+      "::ffff:203.0.113.10"
     ]);
   });
 

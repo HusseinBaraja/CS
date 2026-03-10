@@ -29,6 +29,7 @@ const envSchema = {
       const origins = parseCsvEnv(value);
       return origins.length > 0 ? origins : ["*"];
     }),
+  API_TRUSTED_PROXY_IPS: z.string().default("").transform(parseCsvEnv),
   API_TRUST_PROXY_HOPS: z.coerce.number().int().nonnegative().default(0),
   API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
   API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import type { MiddlewareHandler } from 'hono/types';
 import { ERROR_CODES } from '@cs/shared';
@@ -20,6 +21,7 @@ export interface RateLimitOptions {
   max: number;
   windowMs: number;
   trustedProxyHops?: number;
+  trustedProxyIps?: string[];
   exemptPaths?: string[];
   now?: () => number;
   getClientId?: (context: Context) => string;
@@ -34,7 +36,7 @@ interface NodeSocketBindings {
 }
 
 const normalizeClientIp = (value: string | null | undefined): string | null => {
-  const trimmedValue = value?.trim();
+  const trimmedValue = value?.trim().replace(/^::ffff:/u, "");
   return trimmedValue && trimmedValue.length > 0 ? trimmedValue : null;
 };
 
@@ -46,9 +48,15 @@ const parseForwardedFor = (forwardedFor: string): string[] =>
 
 const getTrustedProxyClientIp = (
   context: Context,
-  trustedProxyHops: number
+  trustedProxyHops: number,
+  trustedProxyIps: Set<string>
 ): string | null => {
   if (trustedProxyHops <= 0) {
+    return null;
+  }
+
+  const directClientIp = getConnectionClientIp(context);
+  if (!directClientIp || !trustedProxyIps.has(directClientIp)) {
     return null;
   }
 
@@ -106,14 +114,14 @@ export const createRateLimitMiddleware = (
   const now = options.now ?? (() => Date.now());
   const exemptPaths = new Set(options.exemptPaths ?? DEFAULT_EXEMPT_PATHS);
   const trustedProxyHops = options.trustedProxyHops ?? 0;
+  const trustedProxyIps = new Set(
+    (options.trustedProxyIps ?? []).map((value) => normalizeClientIp(value)).filter(Boolean)
+  );
   const getClientId = options.getClientId ?? ((context: Context) => {
-    const authenticatedClientId = context.get("authenticatedClientId");
-    const clientIp = getTrustedProxyClientIp(context, trustedProxyHops) ??
+    const clientIp = getTrustedProxyClientIp(context, trustedProxyHops, trustedProxyIps) ??
       getConnectionClientIp(context);
 
-    return clientIp
-      ? `${authenticatedClientId}:${clientIp}`
-      : authenticatedClientId;
+    return clientIp ? `ip:${clientIp}` : `req:${randomUUID()}`;
   });
   const requests = new Map<string, RateLimitRecord>();
   let nextPruneAt = 0;
