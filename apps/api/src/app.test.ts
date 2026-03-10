@@ -307,6 +307,46 @@ describe("api app", () => {
     expect(second.status).toBe(429);
   });
 
+  test("rate limiting falls back to the connection IP when forwarded headers are absent", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key",
+        rateLimitMax: 1,
+        rateLimitWindowMs: 60_000
+      }
+    });
+
+    const headers = {
+      "x-api-key": "test-api-key"
+    };
+
+    const first = await app.request(
+      "/api",
+      { headers },
+      {
+        incoming: {
+          socket: {
+            remoteAddress: "203.0.113.5"
+          }
+        }
+      }
+    );
+    const second = await app.request(
+      "/api",
+      { headers },
+      {
+        incoming: {
+          socket: {
+            remoteAddress: "203.0.113.6"
+          }
+        }
+      }
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+  });
+
   test("rate limiting can trust forwarded IPs when proxy hops are configured", async () => {
     const app = createApp({
       runtimeConfig: {

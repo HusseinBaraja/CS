@@ -25,6 +25,19 @@ export interface RateLimitOptions {
   getClientId?: (context: Context) => string;
 }
 
+interface NodeSocketBindings {
+  incoming?: {
+    socket?: {
+      remoteAddress?: string | null;
+    };
+  };
+}
+
+const normalizeClientIp = (value: string | null | undefined): string | null => {
+  const trimmedValue = value?.trim();
+  return trimmedValue && trimmedValue.length > 0 ? trimmedValue : null;
+};
+
 const parseForwardedFor = (forwardedFor: string): string[] =>
   forwardedFor
     .split(",")
@@ -44,12 +57,16 @@ const getTrustedProxyClientIp = (
     const chain = parseForwardedFor(forwardedFor);
     const clientIndex = chain.length - trustedProxyHops - 1;
 
-    return clientIndex >= 0 ? chain[clientIndex] ?? null : null;
+    return clientIndex >= 0 ? normalizeClientIp(chain[clientIndex]) : null;
   }
 
-  const realIp = context.req.header("x-real-ip")?.trim();
-  return realIp && realIp.length > 0 ? realIp : null;
+  return normalizeClientIp(context.req.header("x-real-ip"));
 };
+
+const getConnectionClientIp = (context: Context): string | null =>
+  normalizeClientIp(
+    (context.env as NodeSocketBindings | undefined)?.incoming?.socket?.remoteAddress
+  );
 
 export const pruneExpiredRateLimitEntries = (
   requests: Map<string, RateLimitRecord>,
@@ -91,10 +108,11 @@ export const createRateLimitMiddleware = (
   const trustedProxyHops = options.trustedProxyHops ?? 0;
   const getClientId = options.getClientId ?? ((context: Context) => {
     const authenticatedClientId = context.get("authenticatedClientId");
-    const trustedProxyClientIp = getTrustedProxyClientIp(context, trustedProxyHops);
+    const clientIp = getTrustedProxyClientIp(context, trustedProxyHops) ??
+      getConnectionClientIp(context);
 
-    return trustedProxyClientIp
-      ? `${authenticatedClientId}:${trustedProxyClientIp}`
+    return clientIp
+      ? `${authenticatedClientId}:${clientIp}`
       : authenticatedClientId;
   });
   const requests = new Map<string, RateLimitRecord>();
