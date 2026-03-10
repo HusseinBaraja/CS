@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import type { Context } from 'hono';
 import type { MiddlewareHandler } from 'hono/types';
 import { ERROR_CODES } from '@cs/shared';
@@ -30,6 +31,14 @@ const getApiKey = (
   headerName: string
 ): string | null =>
   context.req.header(headerName) ?? getBearerToken(context.req.header("authorization"));
+
+const safeEqual = (left: string, right: string): boolean => {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  return leftBuffer.length === rightBuffer.length &&
+    timingSafeEqual(leftBuffer, rightBuffer);
+};
 
 export const createApiKeyAuthMiddleware = (
   options: ApiKeyAuthOptions = {}
@@ -65,7 +74,7 @@ export const createApiKeyAuthMiddleware = (
       );
     }
 
-    if (providedApiKey !== options.apiKey) {
+    if (!safeEqual(providedApiKey, options.apiKey)) {
       return c.json(
         createErrorResponse(ERROR_CODES.AUTH_TOKEN_INVALID, "Invalid API key"),
         403

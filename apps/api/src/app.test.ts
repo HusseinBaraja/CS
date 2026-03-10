@@ -75,7 +75,7 @@ describe("api app", () => {
     });
   });
 
-  test("invalid API key returns 403", async () => {
+  test("invalid same-length API key returns 403", async () => {
     const app = createApp({
       runtimeConfig: {
         apiKey: "test-api-key"
@@ -85,6 +85,30 @@ describe("api app", () => {
     const response = await app.request("/api", {
       headers: {
         "x-api-key": "wrong-key"
+      }
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.AUTH_TOKEN_INVALID,
+        message: "Invalid API key"
+      }
+    });
+  });
+
+  test("invalid different-length API key returns 403", async () => {
+    const app = createApp({
+      runtimeConfig: {
+        apiKey: "test-api-key"
+      }
+    });
+
+    const response = await app.request("/api", {
+      headers: {
+        "x-api-key": "short"
       }
     });
     const body = await response.json();
