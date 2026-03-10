@@ -66,10 +66,6 @@ const resolveGeminiApiKey = (apiKey?: string): string => {
     return apiKey;
   }
 
-  if (geminiClientFactory !== defaultGeminiClientFactory) {
-    return "test-gemini-api-key";
-  }
-
   const runtimeApiKey = process.env.GEMINI_API_KEY;
   if (typeof runtimeApiKey === "string" && runtimeApiKey.trim().length > 0) {
     return runtimeApiKey;

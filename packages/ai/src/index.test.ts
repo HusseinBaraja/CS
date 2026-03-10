@@ -74,6 +74,8 @@ describe("@cs/ai", () => {
       };
     });
 
+    delete process.env.GEMINI_API_KEY;
+
     await expect(generateGeminiEmbedding("Needs env")).rejects.toThrow(
       "Missing required environment variable: GEMINI_API_KEY",
     );
