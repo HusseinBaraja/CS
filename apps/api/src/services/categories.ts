@@ -1,4 +1,4 @@
-import { ERROR_CODES } from '@cs/shared';
+import { ERROR_CODES, type ErrorCode } from '@cs/shared';
 
 export interface CategoryDto {
   id: string;
@@ -36,11 +36,11 @@ export interface CategoriesService {
 }
 
 export class CategoriesServiceError extends Error {
-  readonly code: string;
+  readonly code: ErrorCode;
   readonly status: 400 | 409 | 503;
 
   constructor(
-    code: string,
+    code: ErrorCode,
     message: string,
     status: 400 | 409 | 503,
   ) {

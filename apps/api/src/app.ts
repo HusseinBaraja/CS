@@ -5,7 +5,7 @@ import { checkDbConnection, createDbConnection, DB_PROVIDER, type DbConnection, 
 import { ConfigError, ERROR_CODES } from '@cs/shared';
 import { createApiKeyAuthMiddleware } from './auth';
 import { createRateLimitMiddleware } from './rateLimit';
-import { createErrorResponse } from './responses';
+import { createCustomErrorResponse, createErrorResponse } from './responses';
 import { createCategoriesRoutes } from './routes/categories';
 import { createCompaniesRoutes } from './routes/companies';
 import { createProductsRoutes } from './routes/products';
@@ -141,7 +141,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
     }
 
     return c.json(
-      createErrorResponse("INTERNAL_SERVER_ERROR", "Internal server error"),
+      createCustomErrorResponse("INTERNAL_SERVER_ERROR", "Internal server error"),
       500
     );
   });
@@ -217,7 +217,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
   );
 
   app.notFound((c) =>
-    c.json(createErrorResponse("NOT_FOUND", "Route not found"), 404)
+    c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Route not found"), 404)
   );
 
   return app;

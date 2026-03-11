@@ -1,4 +1,4 @@
-import { ERROR_CODES } from '@cs/shared';
+import { ERROR_CODES, type ErrorCode } from '@cs/shared';
 
 export type ProductSpecifications = Record<string, string | number | boolean>;
 
@@ -70,11 +70,11 @@ export interface ProductsService {
 }
 
 export class ProductsServiceError extends Error {
-  readonly code: string;
+  readonly code: ErrorCode;
   readonly status: 400 | 404 | 503;
 
   constructor(
-    code: string,
+    code: ErrorCode,
     message: string,
     status: 400 | 404 | 503,
   ) {
