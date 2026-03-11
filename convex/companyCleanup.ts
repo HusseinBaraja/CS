@@ -123,12 +123,13 @@ const collectProductVariantIdsBatch = async (
     }
 
     const remaining = limit - variantIds.length;
+    const productId = currentProductId;
     const variants = await ctx.db
       .query("productVariants")
       .withIndex("by_product", (q) =>
         lastVariantCreationTime === undefined
-          ? q.eq("productId", currentProductId)
-          : q.eq("productId", currentProductId).gt("_creationTime", lastVariantCreationTime),
+          ? q.eq("productId", productId)
+          : q.eq("productId", productId).gt("_creationTime", lastVariantCreationTime),
       )
       .take(remaining + 1);
 
@@ -207,12 +208,13 @@ const collectMessageIdsBatch = async (
     }
 
     const remaining = limit - messageIds.length;
+    const conversationId = currentConversationId;
     const messages = await ctx.db
       .query("messages")
       .withIndex("by_conversation", (q) =>
         lastMessageCreationTime === undefined
-          ? q.eq("conversationId", currentConversationId)
-          : q.eq("conversationId", currentConversationId).gt("_creationTime", lastMessageCreationTime),
+          ? q.eq("conversationId", conversationId)
+          : q.eq("conversationId", conversationId).gt("_creationTime", lastMessageCreationTime),
       )
       .take(remaining + 1);
 

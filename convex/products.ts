@@ -842,9 +842,13 @@ export const update = action({
       ? await buildProductEmbeddings(nextState)
       : null;
 
+    if (!embeddings) {
+      return ctx.runMutation(internal.products.patchProductWithEmbeddings, args);
+    }
+
     return ctx.runMutation(internal.products.patchProductWithEmbeddings, {
       ...args,
-      ...(embeddings ?? {}),
+      ...embeddings,
     });
   },
 });
