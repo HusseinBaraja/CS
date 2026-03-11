@@ -4,7 +4,8 @@
 
 **Tasks**:
 - [ ] Create `src/providers/types.ts`:
-  ```typescript
+
+```typescript
   interface AIProvider {
   readonly name: string;
   readonly model: string;
@@ -28,7 +29,7 @@
   usage?: { promptTokens: number; completionTokens: number };
   provider: string;
   }
-  ```
+```
 
 
 **Verification**:

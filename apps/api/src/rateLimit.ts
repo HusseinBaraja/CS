@@ -1,0 +1,276 @@
+import { createHash } from 'node:crypto';
+import type { Context } from 'hono';
+import type { MiddlewareHandler } from 'hono/types';
+import { ERROR_CODES } from '@cs/shared';
+import { isProtectedApiPath } from './apiPath';
+import { createErrorResponse } from './responses';
+
+const DEFAULT_EXEMPT_PATHS = ["/api/health", "/api/ready"];
+const DEFAULT_MAX_ENTRIES = 10_000;
+
+interface RateLimitRecord {
+  count: number;
+  resetAt: number;
+  expiresAt: number;
+}
+
+interface RateLimitPruneResult {
+  didPrune: boolean;
+  nextPruneAt: number;
+}
+
+export interface RateLimitOptions {
+  max: number;
+  maxEntries?: number;
+  windowMs: number;
+  trustedProxyHops?: number;
+  trustedProxyIps?: string[];
+  exemptPaths?: string[];
+  now?: () => number;
+  getClientId?: (context: Context) => string;
+}
+
+interface NodeSocketBindings {
+  incoming?: {
+    socket?: {
+      localAddress?: string | null;
+      localPort?: number | null;
+      remoteAddress?: string | null;
+      remotePort?: number | null;
+    };
+  };
+}
+
+const normalizeClientIp = (value: string | null | undefined): string | null => {
+  const trimmedValue = value?.trim().replace(/^::ffff:/u, "");
+  return trimmedValue && trimmedValue.length > 0 ? trimmedValue : null;
+};
+
+const parseForwardedFor = (forwardedFor: string): string[] =>
+  forwardedFor
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+const getTrustedProxyClientIp = (
+  context: Context,
+  trustedProxyHops: number,
+  trustedProxyIps: Set<string>
+): string | null => {
+  if (trustedProxyHops <= 0) {
+    return null;
+  }
+
+  const directClientIp = getConnectionClientIp(context);
+  if (!directClientIp || !trustedProxyIps.has(directClientIp)) {
+    return null;
+  }
+
+  const forwardedFor = context.req.header("x-forwarded-for");
+  if (forwardedFor) {
+    const chain = parseForwardedFor(forwardedFor);
+    const clientIndex = chain.length - trustedProxyHops - 1;
+
+    return clientIndex >= 0 ? normalizeClientIp(chain[clientIndex]) : null;
+  }
+
+  return normalizeClientIp(context.req.header("x-real-ip"));
+};
+
+const getConnectionClientIp = (context: Context): string | null =>
+  normalizeClientIp(
+    (context.env as NodeSocketBindings | undefined)?.incoming?.socket?.remoteAddress
+  );
+
+const normalizeClientIdComponent = (
+  value: number | string | null | undefined
+): string => {
+  if (typeof value === "number") {
+    return String(value);
+  }
+
+  return value?.trim() ?? "";
+};
+
+const getDeterministicFallbackClientId = (context: Context): string => {
+  const socket = (context.env as NodeSocketBindings | undefined)?.incoming?.socket;
+  const fingerprint = [
+    ["remotePort", socket?.remotePort],
+    ["localAddress", socket?.localAddress],
+    ["localPort", socket?.localPort],
+    ["host", context.req.header("host")],
+    ["userAgent", context.req.header("user-agent")],
+    ["acceptLanguage", context.req.header("accept-language")],
+    ["origin", context.req.header("origin")]
+  ]
+    .map(([key, value]) => `${key}:${normalizeClientIdComponent(value)}`)
+    .join("|");
+
+  return `transport:${createHash("sha256").update(fingerprint).digest("hex")}`;
+};
+
+export const pruneExpiredRateLimitEntries = (
+  requests: Map<string, RateLimitRecord>,
+  currentTime: number
+): void => {
+  for (const [key, record] of requests) {
+    if (record.expiresAt <= currentTime) {
+      requests.delete(key);
+    }
+  }
+};
+
+export const scheduleRateLimitEntryCleanup = (
+  requests: Map<string, RateLimitRecord>,
+  key: string,
+  expiresAt: number,
+  delayMs: number
+): void => {
+  setTimeout(() => {
+    const currentRecord = requests.get(key);
+
+    if (currentRecord?.expiresAt === expiresAt) {
+      requests.delete(key);
+    }
+  }, Math.max(0, delayMs));
+};
+
+export const setRateLimitEntry = (
+  requests: Map<string, RateLimitRecord>,
+  key: string,
+  record: RateLimitRecord
+): void => {
+  requests.delete(key);
+  requests.set(key, record);
+};
+
+export const enforceRateLimitStoreCapacity = (
+  requests: Map<string, RateLimitRecord>,
+  currentTime: number,
+  maxEntries: number
+): void => {
+  pruneExpiredRateLimitEntries(requests, currentTime);
+
+  while (requests.size > Math.max(0, maxEntries)) {
+    const oldestKey = requests.keys().next().value;
+
+    if (oldestKey === undefined) {
+      return;
+    }
+
+    requests.delete(oldestKey);
+  }
+};
+
+export const maybePruneRateLimitEntries = (
+  requests: Map<string, RateLimitRecord>,
+  currentTime: number,
+  nextPruneAt: number,
+  windowMs: number
+): RateLimitPruneResult => {
+  if (currentTime < nextPruneAt) {
+    return {
+      didPrune: false,
+      nextPruneAt
+    };
+  }
+
+  pruneExpiredRateLimitEntries(requests, currentTime);
+
+  return {
+    didPrune: true,
+    nextPruneAt: currentTime + windowMs
+  };
+};
+
+export const createRateLimitMiddleware = (
+  options: RateLimitOptions
+): MiddlewareHandler => {
+  const now = options.now ?? (() => Date.now());
+  const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
+  const exemptPaths = new Set(options.exemptPaths ?? DEFAULT_EXEMPT_PATHS);
+  const trustedProxyHops = options.trustedProxyHops ?? 0;
+  const trustedProxyIps = new Set(
+    (options.trustedProxyIps ?? [])
+      .map((value) => normalizeClientIp(value))
+      .filter((value): value is string => value !== null)
+  );
+  const getClientId = options.getClientId ?? ((context: Context) => {
+    const clientIp = getTrustedProxyClientIp(context, trustedProxyHops, trustedProxyIps) ??
+      getConnectionClientIp(context);
+
+    return clientIp ? `ip:${clientIp}` : getDeterministicFallbackClientId(context);
+  });
+  const requests = new Map<string, RateLimitRecord>();
+  let nextPruneAt = 0;
+
+  return async (c, next) => {
+    if (
+      !isProtectedApiPath(c.req.path) ||
+      c.req.method === "OPTIONS" ||
+      exemptPaths.has(c.req.path)
+    ) {
+      await next();
+      return;
+    }
+
+    const currentTime = now();
+    nextPruneAt = maybePruneRateLimitEntries(
+      requests,
+      currentTime,
+      nextPruneAt,
+      options.windowMs
+    ).nextPruneAt;
+    const key = getClientId(c);
+    const existing = requests.get(key);
+
+    if (!existing || existing.resetAt <= currentTime) {
+      const expiresAt = currentTime + options.windowMs;
+      if (!existing) {
+        enforceRateLimitStoreCapacity(requests, currentTime, maxEntries - 1);
+      }
+
+      const record = {
+        count: 1,
+        resetAt: expiresAt,
+        expiresAt
+      };
+      setRateLimitEntry(requests, key, record);
+      scheduleRateLimitEntryCleanup(requests, key, expiresAt, options.windowMs);
+
+      c.header("X-RateLimit-Limit", String(options.max));
+      c.header("X-RateLimit-Remaining", String(options.max - 1));
+      c.header("X-RateLimit-Reset", String(Math.ceil(expiresAt / 1000)));
+
+      await next();
+      return;
+    }
+
+    if (existing.count >= options.max) {
+      setRateLimitEntry(requests, key, existing);
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((existing.resetAt - currentTime) / 1000)
+      );
+
+      c.header("Retry-After", String(retryAfterSeconds));
+      c.header("X-RateLimit-Limit", String(options.max));
+      c.header("X-RateLimit-Remaining", "0");
+      c.header("X-RateLimit-Reset", String(Math.ceil(existing.resetAt / 1000)));
+
+      return c.json(
+        createErrorResponse(ERROR_CODES.RATE_LIMIT_EXCEEDED, "Rate limit exceeded"),
+        429
+      );
+    }
+
+    existing.count += 1;
+    setRateLimitEntry(requests, key, existing);
+
+    c.header("X-RateLimit-Limit", String(options.max));
+    c.header("X-RateLimit-Remaining", String(options.max - existing.count));
+    c.header("X-RateLimit-Reset", String(Math.ceil(existing.resetAt / 1000)));
+
+    await next();
+  };
+};

@@ -2,7 +2,6 @@
 **Goal**: Upload product images via API using Cloudflare R2.
 
 **Tasks**:
-- [ ] Install `@aws-sdk/client-s3`
 - [ ] Create `src/services/r2.ts` — R2 client setup using S3-compatible API
 - [ ] Add `POST /api/companies/:companyId/products/:productId/images`
 - [ ] Accept `multipart/form-data` with image file

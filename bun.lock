@@ -61,6 +61,7 @@
     "convex": {
       "name": "@cs/convex",
       "dependencies": {
+        "@cs/ai": "*",
         "convex": "1.32.0",
       },
       "devDependencies": {
@@ -72,6 +73,7 @@
       "name": "@cs/ai",
       "version": "0.0.0",
       "dependencies": {
+        "@cs/config": "*",
         "@cs/shared": "*",
         "@google/genai": "1.43.0",
         "groq-sdk": "0.37.0",

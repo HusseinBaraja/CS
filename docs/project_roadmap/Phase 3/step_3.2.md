@@ -2,7 +2,7 @@
 **Goal**: Implement company (tenant) management endpoints.
 **Tasks**:
 
-- [ ] Create `src/api/routes/companies.ts`
+- [ ] Create `companies.ts`
 - [ ] `GET /api/companies` — list all companies
 - [ ] `GET /api/companies/:companyId` — get single company
 - [ ] `POST /api/companies` — register new company

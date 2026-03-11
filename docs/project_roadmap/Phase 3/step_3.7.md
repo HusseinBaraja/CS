@@ -2,7 +2,7 @@
 **Goal**: Serve analytics summaries via API.
 
 **Tasks**:
-- [ ] Create `src/api/routes/analytics.ts`
+- [ ] Create `/api/routes/analytics.ts`
 - [ ] `GET /api/companies/:companyId/analytics?period=today|week|month`
 - [ ] Aggregate from `analytics_events` table:
   - Total conversations

@@ -1,14 +1,34 @@
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { logger } from '@cs/core';
 import { checkDbConnection, createDbConnection, DB_PROVIDER, type DbConnection, getDbConnectionInfo } from '@cs/db';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
+import { createApiKeyAuthMiddleware } from './auth';
+import { createRateLimitMiddleware } from './rateLimit';
+import { createCustomErrorResponse, createErrorResponse } from './responses';
+import { createCategoriesRoutes } from './routes/categories';
+import { createCompaniesRoutes } from './routes/companies';
+import { createProductsRoutes } from './routes/products';
+import { type ApiRuntimeConfig, createApiRuntimeConfig } from './runtimeConfig';
+import type { CategoriesService } from './services/categories';
+import { createConvexCategoriesService } from './services/convexCategoriesService';
+import type { CompaniesService } from './services/companies';
+import { createConvexCompaniesService } from './services/convexCompaniesService';
+import type { ProductsService } from './services/products';
+import { createConvexProductsService } from './services/convexProductsService';
 
 export interface ApiAppOptions {
   createDbConnection?: () => DbConnection;
   checkDbReady?: (connection: DbConnection) => Promise<void> | void;
+  companiesService?: CompaniesService;
+  categoriesService?: CategoriesService;
+  productsService?: ProductsService;
   logger?: {
     warn: (payload: Record<string, unknown>, message: string) => void;
   };
+  runtimeConfig?: Partial<ApiRuntimeConfig>;
+  now?: () => number;
+  getClientId?: (context: Context) => string;
 }
 
 const MAX_ERROR_MESSAGE_LENGTH = 120;
@@ -84,11 +104,61 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const connectToDb = options.createDbConnection ?? createDbConnection;
   const checkDbReady = options.checkDbReady ?? checkDbConnection;
   const appLogger = options.logger ?? logger;
+  const runtimeConfig = createApiRuntimeConfig(options.runtimeConfig);
+  const apiCors = cors({
+    origin: runtimeConfig.corsOrigins.includes("*")
+      ? "*"
+      : (origin) =>
+          runtimeConfig.corsOrigins.includes(origin) ? origin : null,
+    allowHeaders: ["Content-Type", "Authorization", "X-API-Key"],
+    allowMethods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    exposeHeaders: ["Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
+    maxAge: 86_400
+  });
+  const authMiddleware = createApiKeyAuthMiddleware({
+    apiKey: runtimeConfig.apiKey
+  });
+  const companiesService = options.companiesService ?? createConvexCompaniesService();
+  const categoriesService = options.categoriesService ?? createConvexCategoriesService();
+  const productsService = options.productsService ?? createConvexProductsService();
+  const rateLimitMiddleware = createRateLimitMiddleware({
+    max: runtimeConfig.rateLimitMax,
+    maxEntries: runtimeConfig.rateLimitMaxEntries,
+    windowMs: runtimeConfig.rateLimitWindowMs,
+    trustedProxyHops: runtimeConfig.trustProxyHops,
+    trustedProxyIps: runtimeConfig.trustedProxyIps,
+    now: options.now,
+    getClientId: options.getClientId
+  });
+
+  app.use("*", apiCors, rateLimitMiddleware, authMiddleware);
+
+  app.onError((error, c) => {
+    if (error instanceof SyntaxError) {
+      return c.json(
+        createErrorResponse(ERROR_CODES.VALIDATION_FAILED, "Malformed JSON body"),
+        400
+      );
+    }
+
+    return c.json(
+      createCustomErrorResponse("INTERNAL_SERVER_ERROR", "Internal server error"),
+      500
+    );
+  });
 
   app.get("/api/health", (c) =>
     c.json({
       ok: true,
       runtime: "api"
+    })
+  );
+
+  app.get("/api", (c) =>
+    c.json({
+      ok: true,
+      runtime: "api",
+      auth: "api-key"
     })
   );
 
@@ -125,6 +195,31 @@ export const createApp = (options: ApiAppOptions = {}) => {
       return c.json(failure.body, failure.status);
     }
   });
+
+  app.route(
+    "/api/companies/:companyId/categories",
+    createCategoriesRoutes({
+      categoriesService
+    })
+  );
+
+  app.route(
+    "/api/companies/:companyId/products",
+    createProductsRoutes({
+      productsService
+    })
+  );
+
+  app.route(
+    "/api/companies",
+    createCompaniesRoutes({
+      companiesService
+    })
+  );
+
+  app.notFound((c) =>
+    c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Route not found"), 404)
+  );
 
   return app;
 };

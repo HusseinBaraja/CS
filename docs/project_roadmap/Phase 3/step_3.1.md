@@ -4,9 +4,9 @@
 
 **Tasks**:
 - [ ] Install `hono`
-- [ ] Create `src/api/server.ts` — Hono app initialization
-- [ ] Create `src/api/middleware/auth.ts` — API key authentication
-- [ ] Create `src/api/middleware/rateLimit.ts` — request rate limiting
+- [ ] Create `server.ts` — Hono app initialization
+- [ ] Create `auth.ts` — API key authentication
+- [ ] Create `rateLimit.ts` — request rate limiting
 - [ ] Configure CORS
 - [ ] Configure JSON body parsing
 - [ ] Start on configurable port (default 3000)
