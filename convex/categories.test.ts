@@ -13,7 +13,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
   it("lists only categories for the requested company sorted by name and id", async () => {
     const t = convexTest(schema, modules);
 
-    const { companyId } = await t.run(async (ctx) => {
+    const { companyId, bagsCategoryId, firstContainersCategoryId, secondContainersCategoryId } = await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", {
         name: "Tenant One",
         ownerPhone: "966500000500",
@@ -23,15 +23,15 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
         ownerPhone: "966500000501",
       });
 
-      await ctx.db.insert("categories", {
+      const bagsCategoryId = await ctx.db.insert("categories", {
         companyId,
         nameEn: "Bags",
       });
-      await ctx.db.insert("categories", {
+      const firstContainersCategoryId = await ctx.db.insert("categories", {
         companyId,
         nameEn: "Containers",
       });
-      await ctx.db.insert("categories", {
+      const secondContainersCategoryId = await ctx.db.insert("categories", {
         companyId,
         nameEn: "Containers",
         descriptionEn: "Same name, different id",
@@ -42,7 +42,10 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       });
 
       return {
+        bagsCategoryId,
         companyId,
+        firstContainersCategoryId,
+        secondContainersCategoryId,
       };
     });
 
@@ -55,6 +58,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       "Bags",
       "Containers",
       "Containers",
+    ]);
+    expect(categories?.map((category) => category.id)).toEqual([
+      bagsCategoryId,
+      ...[firstContainersCategoryId, secondContainersCategoryId].sort((left, right) =>
+        left.localeCompare(right),
+      ),
     ]);
     expect(categories?.every((category) => category.companyId === companyId)).toBe(true);
   });
@@ -242,9 +251,17 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       descriptionEn: null,
       descriptionAr: "  وصف محدث  ",
     });
+    const storedCategory = await t.run(async (ctx) => ctx.db.get(categoryId));
 
     expect(updatedCategory).toEqual({
       id: categoryId,
+      companyId,
+      nameEn: "Containers",
+      descriptionAr: "وصف محدث",
+    });
+    expect(storedCategory).toEqual({
+      _id: categoryId,
+      _creationTime: expect.any(Number),
       companyId,
       nameEn: "Containers",
       descriptionAr: "وصف محدث",
@@ -358,12 +375,21 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
         categoryId,
       }),
     ).rejects.toThrow("CONFLICT: Category cannot be deleted while products exist");
+    const storedCategoryAfterConflict = await t.run(async (ctx) => ctx.db.get(categoryId));
 
     const missingDelete = await t.mutation(internal.categories.remove, {
       companyId: otherCompanyId,
       categoryId,
     });
+    const storedCategoryAfterOutOfScopeDelete = await t.run(async (ctx) => ctx.db.get(categoryId));
 
+    expect(storedCategoryAfterConflict).toEqual({
+      _id: categoryId,
+      _creationTime: expect.any(Number),
+      companyId,
+      nameEn: "Containers",
+    });
     expect(missingDelete).toBeNull();
+    expect(storedCategoryAfterOutOfScopeDelete).toEqual(storedCategoryAfterConflict);
   });
 });

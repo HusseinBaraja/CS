@@ -140,7 +140,7 @@ const collectProductVariantIdsBatch = async (
           stage: "productVariants",
           productCursor,
           currentProductId,
-          variantCursor: variantPage.continueCursor,
+          variantCursor: null,
         },
       };
     }
@@ -151,7 +151,7 @@ const collectProductVariantIdsBatch = async (
 
   return {
     ids: variantIds,
-    nextCursor: currentProductId
+    nextCursor: productCursor !== null
       ? {
         stage: "productVariants",
         productCursor,
@@ -216,7 +216,7 @@ const collectMessageIdsBatch = async (
           stage: "messages",
           conversationCursor,
           currentConversationId,
-          messageCursor: messagePage.continueCursor,
+          messageCursor: null,
         },
       };
     }
@@ -227,7 +227,7 @@ const collectMessageIdsBatch = async (
 
   return {
     ids: messageIds,
-    nextCursor: currentConversationId
+    nextCursor: conversationCursor !== null
       ? {
         stage: "messages",
         conversationCursor,

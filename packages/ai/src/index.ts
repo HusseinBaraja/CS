@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { createGeminiClient } from './geminiClientFactory';
 
 export interface ChatResult {
   text: string;
@@ -55,11 +55,6 @@ export interface GeminiEmbeddingClient {
 export type GeminiClientFactory = (apiKey: string) => GeminiEmbeddingClient;
 
 const DEFAULT_OUTPUT_DIMENSIONALITY = GEMINI_EMBEDDING_DIMENSIONS;
-
-const defaultGeminiClientFactory: GeminiClientFactory = (apiKey) =>
-  new GoogleGenAI({ apiKey }) as GeminiEmbeddingClient;
-
-let geminiClientFactory: GeminiClientFactory = defaultGeminiClientFactory;
 
 const resolveGeminiApiKey = (apiKey?: string): string => {
   if (apiKey) {
@@ -128,15 +123,6 @@ const assertValidOutputDimensionality = (
   return outputDimensionality;
 };
 
-export const setGeminiClientFactoryForTests = (factory: GeminiClientFactory): (() => void) => {
-  const previousFactory = geminiClientFactory;
-  geminiClientFactory = factory;
-
-  return () => {
-    geminiClientFactory = previousFactory;
-  };
-};
-
 export const generateGeminiEmbeddings = async (
   texts: string[],
   options: GeminiEmbeddingOptions = {},
@@ -153,7 +139,7 @@ export const generateGeminiEmbeddings = async (
   const effectiveOutputDimensionality = assertValidOutputDimensionality(
     options.outputDimensionality ?? DEFAULT_OUTPUT_DIMENSIONALITY,
   );
-  const client = geminiClientFactory(resolveGeminiApiKey(options.apiKey));
+  const client = createGeminiClient(resolveGeminiApiKey(options.apiKey));
   const response = await client.models.embedContent({
     model,
     contents: texts,

@@ -506,4 +506,134 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     expect(secondMessageBatch.deletedCount).toBe(oversizedBatchCount - CLEANUP_BATCH_SIZE);
     expect(remainingMessages).toHaveLength(0);
   });
+
+  it("continues product variant cleanup when a batch exactly exhausts one product and more products remain", async () => {
+    const t = convexTest(schema, modules);
+    const fixture = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Variant Cursor Tenant",
+        ownerPhone: "966500000702",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const firstProductId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+      });
+      const secondProductId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Soup Cup",
+      });
+
+      for (let index = 0; index < CLEANUP_BATCH_SIZE; index += 1) {
+        await ctx.db.insert("productVariants", {
+          productId: firstProductId,
+          variantLabel: `Variant ${index}`,
+          attributes: {
+            size: index,
+          },
+        });
+      }
+
+      const trailingVariantId = await ctx.db.insert("productVariants", {
+        productId: secondProductId,
+        variantLabel: "Trailing Variant",
+        attributes: {
+          size: CLEANUP_BATCH_SIZE,
+        },
+      });
+
+      return {
+        companyId,
+        trailingVariantId,
+      };
+    });
+
+    const firstVariantBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId: fixture.companyId,
+    });
+    const secondVariantBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId: fixture.companyId,
+      cursor: firstVariantBatch.nextCursor ?? undefined,
+    });
+    const remainingVariants = await t.run(async (ctx) =>
+      ctx.db.query("productVariants").collect(),
+    );
+
+    expect(firstVariantBatch.stage).toBe("productVariants");
+    expect(firstVariantBatch.deletedCount).toBe(CLEANUP_BATCH_SIZE);
+    expect(firstVariantBatch.nextCursor).toMatchObject({
+      stage: "productVariants",
+    });
+    expect(secondVariantBatch.stage).toBe("productVariants");
+    expect(secondVariantBatch.deletedCount).toBe(1);
+    expect(remainingVariants).toHaveLength(0);
+    expect(fixture.trailingVariantId).toBeDefined();
+  });
+
+  it("continues message cleanup when a batch exactly exhausts one conversation and more conversations remain", async () => {
+    const t = convexTest(schema, modules);
+    const fixture = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Message Cursor Tenant",
+        ownerPhone: "966500000703",
+      });
+      const firstConversationId = await ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000100",
+        muted: false,
+      });
+      const secondConversationId = await ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000101",
+        muted: false,
+      });
+
+      for (let index = 0; index < CLEANUP_BATCH_SIZE; index += 1) {
+        await ctx.db.insert("messages", {
+          conversationId: firstConversationId,
+          role: "user",
+          content: `Message ${index}`,
+          timestamp: index,
+        });
+      }
+
+      const trailingMessageId = await ctx.db.insert("messages", {
+        conversationId: secondConversationId,
+        role: "user",
+        content: "Trailing message",
+        timestamp: CLEANUP_BATCH_SIZE,
+      });
+
+      return {
+        companyId,
+        trailingMessageId,
+      };
+    });
+
+    const firstMessageBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId: fixture.companyId,
+    });
+    const secondMessageBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId: fixture.companyId,
+      cursor: firstMessageBatch.nextCursor ?? undefined,
+    });
+    const remainingMessages = await t.run(async (ctx) =>
+      ctx.db.query("messages").collect(),
+    );
+
+    expect(firstMessageBatch.stage).toBe("messages");
+    expect(firstMessageBatch.deletedCount).toBe(CLEANUP_BATCH_SIZE);
+    expect(firstMessageBatch.nextCursor).toMatchObject({
+      stage: "messages",
+    });
+    expect(secondMessageBatch.stage).toBe("messages");
+    expect(secondMessageBatch.deletedCount).toBe(1);
+    expect(remainingMessages).toHaveLength(0);
+    expect(fixture.trailingMessageId).toBeDefined();
+  });
 });

@@ -3,8 +3,8 @@ import {
   GEMINI_EMBEDDING_DIMENSIONS,
   generateGeminiEmbedding,
   generateGeminiEmbeddings,
-  setGeminiClientFactoryForTests,
 } from './index';
+import { setGeminiClientFactoryForTests } from './testUtils';
 
 const createEmbedding = (seed: number): number[] =>
   Array.from({ length: GEMINI_EMBEDDING_DIMENSIONS }, (_, index) => seed + index / 1000);
