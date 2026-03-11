@@ -16,6 +16,18 @@ const createWarningCollector = () => {
 };
 
 describe("api app", () => {
+  test("createApp fails fast for invalid runtime rate-limit overrides", () => {
+    expect(() =>
+      createApp({
+        runtimeConfig: {
+          rateLimitMax: 0
+        }
+      })
+    ).toThrow(
+      "Invalid ApiRuntimeConfig.rateLimitMax: expected a positive integer, received 0"
+    );
+  });
+
   test("health stays live without touching the database", async () => {
     const app = createApp({
       createDbConnection: () => {
