@@ -27,7 +27,39 @@ export type CleanupBatchResult = {
   deletedCount: number;
   done: boolean;
   stage: CleanupStage;
+  nextCursor: CleanupCursor | null;
 };
+
+export type ProductVariantCleanupCursor = {
+  stage: "productVariants";
+  productCursor: string | null;
+  currentProductId?: Id<"products">;
+  lastVariantCreationTime?: number;
+};
+
+export type MessageCleanupCursor = {
+  stage: "messages";
+  conversationCursor: string | null;
+  currentConversationId?: Id<"conversations">;
+  lastMessageCreationTime?: number;
+};
+
+export type CleanupCursor = ProductVariantCleanupCursor | MessageCleanupCursor;
+
+const cleanupCursorValidator = v.union(
+  v.object({
+    stage: v.literal("productVariants"),
+    productCursor: v.union(v.string(), v.null()),
+    currentProductId: v.optional(v.id("products")),
+    lastVariantCreationTime: v.optional(v.number()),
+  }),
+  v.object({
+    stage: v.literal("messages"),
+    conversationCursor: v.union(v.string(), v.null()),
+    currentConversationId: v.optional(v.id("conversations")),
+    lastMessageCreationTime: v.optional(v.number()),
+  }),
+);
 
 const deleteDocuments = async <T extends TableNames>(
   ctx: MutationCtx,
@@ -57,51 +89,176 @@ const takeDocumentIds = async <T extends TableNames>(
 const collectProductVariantIdsBatch = async (
   ctx: MutationCtx,
   companyId: Id<"companies">,
+  cursor: ProductVariantCleanupCursor | null,
   limit: number,
-): Promise<Array<Id<"productVariants">>> => {
+): Promise<{
+  ids: Array<Id<"productVariants">>;
+  nextCursor: ProductVariantCleanupCursor | null;
+}> => {
   const variantIds: Array<Id<"productVariants">> = [];
+  let productCursor = cursor?.productCursor ?? null;
+  let currentProductId = cursor?.currentProductId;
+  let lastVariantCreationTime = cursor?.lastVariantCreationTime;
 
-  for await (const product of ctx.db.query("products").withIndex("by_company", (q) => q.eq("companyId", companyId))) {
-    for await (const variant of ctx.db
-      .query("productVariants")
-      .withIndex("by_product", (q) => q.eq("productId", product._id))) {
-      variantIds.push(variant._id);
-      if (variantIds.length >= limit) {
-        return variantIds;
+  while (variantIds.length < limit) {
+    if (!currentProductId) {
+      const productPage = await ctx.db
+        .query("products")
+        .withIndex("by_company", (q) => q.eq("companyId", companyId))
+        .paginate({
+          numItems: 1,
+          cursor: productCursor,
+        });
+      const nextProduct = productPage.page[0];
+      if (!nextProduct) {
+        return {
+          ids: variantIds,
+          nextCursor: null,
+        };
       }
+
+      currentProductId = nextProduct._id;
+      productCursor = productPage.continueCursor;
+      lastVariantCreationTime = undefined;
     }
+
+    const remaining = limit - variantIds.length;
+    const variants = await ctx.db
+      .query("productVariants")
+      .withIndex("by_product", (q) =>
+        lastVariantCreationTime === undefined
+          ? q.eq("productId", currentProductId)
+          : q.eq("productId", currentProductId).gt("_creationTime", lastVariantCreationTime),
+      )
+      .take(remaining + 1);
+
+    const hasMoreVariants = variants.length > remaining;
+    const batch = hasMoreVariants ? variants.slice(0, remaining) : variants;
+    variantIds.push(...batch.map((variant) => variant._id));
+
+    if (hasMoreVariants) {
+      const lastVariant = batch.at(-1);
+      if (!lastVariant) {
+        throw new Error("Expected a variant to establish the cleanup cursor");
+      }
+
+      return {
+        ids: variantIds,
+        nextCursor: {
+          stage: "productVariants",
+          productCursor,
+          currentProductId,
+          lastVariantCreationTime: lastVariant._creationTime,
+        },
+      };
+    }
+
+    currentProductId = undefined;
+    lastVariantCreationTime = undefined;
   }
 
-  return variantIds;
+  return {
+    ids: variantIds,
+    nextCursor: currentProductId
+      ? {
+        stage: "productVariants",
+        productCursor,
+        currentProductId,
+        lastVariantCreationTime,
+      }
+      : null,
+  };
 };
 
 const collectMessageIdsBatch = async (
   ctx: MutationCtx,
   companyId: Id<"companies">,
+  cursor: MessageCleanupCursor | null,
   limit: number,
-): Promise<Array<Id<"messages">>> => {
+): Promise<{
+  ids: Array<Id<"messages">>;
+  nextCursor: MessageCleanupCursor | null;
+}> => {
   const messageIds: Array<Id<"messages">> = [];
+  let conversationCursor = cursor?.conversationCursor ?? null;
+  let currentConversationId = cursor?.currentConversationId;
+  let lastMessageCreationTime = cursor?.lastMessageCreationTime;
 
-  for await (const conversation of ctx.db
-    .query("conversations")
-    .withIndex("by_company_phone_and_muted", (q) => q.eq("companyId", companyId))) {
-    for await (const message of ctx.db
-      .query("messages")
-      .withIndex("by_conversation", (q) => q.eq("conversationId", conversation._id))) {
-      messageIds.push(message._id);
-      if (messageIds.length >= limit) {
-        return messageIds;
+  while (messageIds.length < limit) {
+    if (!currentConversationId) {
+      const conversationPage = await ctx.db
+        .query("conversations")
+        .withIndex("by_company_phone_and_muted", (q) => q.eq("companyId", companyId))
+        .paginate({
+          numItems: 1,
+          cursor: conversationCursor,
+        });
+      const nextConversation = conversationPage.page[0];
+      if (!nextConversation) {
+        return {
+          ids: messageIds,
+          nextCursor: null,
+        };
       }
+
+      currentConversationId = nextConversation._id;
+      conversationCursor = conversationPage.continueCursor;
+      lastMessageCreationTime = undefined;
     }
+
+    const remaining = limit - messageIds.length;
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_conversation", (q) =>
+        lastMessageCreationTime === undefined
+          ? q.eq("conversationId", currentConversationId)
+          : q.eq("conversationId", currentConversationId).gt("_creationTime", lastMessageCreationTime),
+      )
+      .take(remaining + 1);
+
+    const hasMoreMessages = messages.length > remaining;
+    const batch = hasMoreMessages ? messages.slice(0, remaining) : messages;
+    messageIds.push(...batch.map((message) => message._id));
+
+    if (hasMoreMessages) {
+      const lastMessage = batch.at(-1);
+      if (!lastMessage) {
+        throw new Error("Expected a message to establish the cleanup cursor");
+      }
+
+      return {
+        ids: messageIds,
+        nextCursor: {
+          stage: "messages",
+          conversationCursor,
+          currentConversationId,
+          lastMessageCreationTime: lastMessage._creationTime,
+        },
+      };
+    }
+
+    currentConversationId = undefined;
+    lastMessageCreationTime = undefined;
   }
 
-  return messageIds;
+  return {
+    ids: messageIds,
+    nextCursor: currentConversationId
+      ? {
+        stage: "messages",
+        conversationCursor,
+        currentConversationId,
+        lastMessageCreationTime,
+      }
+      : null,
+  };
 };
 
 const deleteBatchIfAny = async <T extends TableNames>(
   ctx: MutationCtx,
   stage: CleanupStage,
   ids: Array<Id<T>>,
+  nextCursor: CleanupCursor | null = null,
 ): Promise<CleanupBatchResult | null> => {
   if (ids.length === 0) {
     return null;
@@ -112,6 +269,7 @@ const deleteBatchIfAny = async <T extends TableNames>(
     deletedCount: ids.length,
     done: false,
     stage,
+    nextCursor,
   };
 };
 
@@ -141,6 +299,7 @@ export const companyExists = internalQuery({
 export const clearCompanyDataBatch = internalMutation({
   args: {
     companyId: v.id("companies"),
+    cursor: v.optional(cleanupCursorValidator),
   },
   handler: async (ctx, args): Promise<CleanupBatchResult> => {
     const company = await ctx.db.get(args.companyId);
@@ -149,6 +308,7 @@ export const clearCompanyDataBatch = internalMutation({
         deletedCount: 0,
         done: true,
         stage: "done",
+        nextCursor: null,
       };
     }
 
@@ -161,14 +321,34 @@ export const clearCompanyDataBatch = internalMutation({
       return embeddingsResult;
     }
 
-    const productVariantsBatch = await collectProductVariantIdsBatch(ctx, args.companyId, CLEANUP_BATCH_SIZE);
-    const productVariantsResult = await deleteBatchIfAny(ctx, "productVariants", productVariantsBatch);
+    const productVariantsBatch = await collectProductVariantIdsBatch(
+      ctx,
+      args.companyId,
+      args.cursor?.stage === "productVariants" ? args.cursor : null,
+      CLEANUP_BATCH_SIZE,
+    );
+    const productVariantsResult = await deleteBatchIfAny(
+      ctx,
+      "productVariants",
+      productVariantsBatch.ids,
+      productVariantsBatch.nextCursor,
+    );
     if (productVariantsResult) {
       return productVariantsResult;
     }
 
-    const messagesBatch = await collectMessageIdsBatch(ctx, args.companyId, CLEANUP_BATCH_SIZE);
-    const messagesResult = await deleteBatchIfAny(ctx, "messages", messagesBatch);
+    const messagesBatch = await collectMessageIdsBatch(
+      ctx,
+      args.companyId,
+      args.cursor?.stage === "messages" ? args.cursor : null,
+      CLEANUP_BATCH_SIZE,
+    );
+    const messagesResult = await deleteBatchIfAny(
+      ctx,
+      "messages",
+      messagesBatch.ids,
+      messagesBatch.nextCursor,
+    );
     if (messagesResult) {
       return messagesResult;
     }
@@ -233,6 +413,7 @@ export const clearCompanyDataBatch = internalMutation({
       deletedCount: 1,
       done: true,
       stage: "companies",
+      nextCursor: null,
     };
   },
 });

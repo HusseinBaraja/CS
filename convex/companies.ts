@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalAction, internalMutation, type MutationCtx, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
-import { type CleanupCounts, createEmptyCleanupCounts } from './companyCleanup';
+import { type CleanupCounts, type CleanupCursor, createEmptyCleanupCounts } from './companyCleanup';
 
 const configValue = v.union(v.string(), v.number(), v.boolean());
 const companyConfig = v.record(v.string(), configValue);
@@ -184,15 +184,19 @@ export const remove = internalAction({
     }
 
     const counts = createEmptyCleanupCounts();
+    let cursor: CleanupCursor | null = null;
 
     for (;;) {
       const result = await ctx.runMutation(internal.companyCleanup.clearCompanyDataBatch, {
         companyId: args.companyId,
+        ...(cursor ? { cursor } : {}),
       });
 
       if (result.stage !== "done") {
         counts[result.stage] += result.deletedCount;
       }
+
+      cursor = result.nextCursor;
 
       if (result.done) {
         break;

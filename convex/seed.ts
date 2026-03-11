@@ -2,7 +2,7 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalAction, internalMutation, internalQuery, type MutationCtx } from './_generated/server';
 import { v } from 'convex/values';
-import type { CleanupBatchResult } from './companyCleanup';
+import type { CleanupBatchResult, CleanupCursor } from './companyCleanup';
 import { seedCategories, seedCompany, seedCurrencyRate, seedOffers, seedProducts, seedVariants } from './seedData';
 
 const SEED_SAMPLE_DATA_LOCK_KEY = "seedSampleData";
@@ -289,11 +289,17 @@ export const seedSampleData = internalAction({
           deletedCount: 0,
           done: false,
           stage: "done",
+          nextCursor: null,
         };
+        let cursor: CleanupCursor | null = null;
 
         while (!cleanupResult.done) {
           await refreshLock();
-          cleanupResult = await ctx.runMutation(internal.companyCleanup.clearCompanyDataBatch, { companyId });
+          cleanupResult = await ctx.runMutation(internal.companyCleanup.clearCompanyDataBatch, {
+            companyId,
+            ...(cursor ? { cursor } : {}),
+          });
+          cursor = cleanupResult.nextCursor;
         }
       }
 

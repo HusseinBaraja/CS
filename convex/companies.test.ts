@@ -2,6 +2,7 @@
 import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 import { internal } from './_generated/api';
+import type { Id } from './_generated/dataModel';
 import schema from './schema';
 
 const modules =
@@ -43,6 +44,8 @@ const createTenantFixture = async (
     analyticsEventCount?: number;
     embeddingCount?: number;
     variantCount?: number;
+    productCount?: number;
+    conversationCount?: number;
   } = {},
 ) =>
   t.run(async (ctx) => {
@@ -50,6 +53,8 @@ const createTenantFixture = async (
     const analyticsEventCount = options.analyticsEventCount ?? 1;
     const embeddingCount = options.embeddingCount ?? 1;
     const variantCount = options.variantCount ?? 1;
+    const productCount = options.productCount ?? 1;
+    const conversationCount = options.conversationCount ?? 1;
 
     const companyId = await ctx.db.insert("companies", {
       name: "Cascade Tenant",
@@ -65,15 +70,20 @@ const createTenantFixture = async (
       nameEn: "Containers",
     });
 
-    const productId = await ctx.db.insert("products", {
-      companyId,
-      categoryId,
-      nameEn: "Burger Box",
-    });
+    const productIds: Array<Id<"products">> = [];
+
+    for (let index = 0; index < productCount; index += 1) {
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: `Burger Box ${index}`,
+      });
+      productIds.push(productId);
+    }
 
     for (let index = 0; index < variantCount; index += 1) {
       await ctx.db.insert("productVariants", {
-        productId,
+        productId: productIds[index % productIds.length]!,
         variantLabel: `Variant ${index}`,
         attributes: {
           size: index,
@@ -81,15 +91,20 @@ const createTenantFixture = async (
       });
     }
 
-    const conversationId = await ctx.db.insert("conversations", {
-      companyId,
-      phoneNumber: "967700000001",
-      muted: false,
-    });
+    const conversationIds: Array<Id<"conversations">> = [];
+
+    for (let index = 0; index < conversationCount; index += 1) {
+      const conversationId = await ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: `9677000000${String(index + 1).padStart(2, "0")}`,
+        muted: false,
+      });
+      conversationIds.push(conversationId);
+    }
 
     for (let index = 0; index < messageCount; index += 1) {
       await ctx.db.insert("messages", {
-        conversationId,
+        conversationId: conversationIds[index % conversationIds.length]!,
         role: "user",
         content: `Message ${index}`,
         timestamp: index,
@@ -124,7 +139,7 @@ const createTenantFixture = async (
     for (let index = 0; index < embeddingCount; index += 1) {
       await ctx.db.insert("embeddings", {
         companyId,
-        productId,
+        productId: productIds[index % productIds.length]!,
         embedding,
         textContent: `Embedding ${index}`,
         language: "en",
@@ -334,6 +349,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       analyticsEventCount: oversizedBatchCount,
       embeddingCount: oversizedBatchCount,
       variantCount: oversizedBatchCount,
+      productCount: 3,
+      conversationCount: 3,
     });
 
     const result = await t.action(internal.companies.remove, {
@@ -344,10 +361,10 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     expect(result?.counts).toEqual({
       companies: 1,
       categories: 1,
-      products: 1,
+      products: 3,
       productVariants: oversizedBatchCount,
       embeddings: oversizedBatchCount,
-      conversations: 1,
+      conversations: 3,
       messages: oversizedBatchCount,
       offers: 1,
       currencyRates: 1,
@@ -363,5 +380,54 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     expect(counts.offers).toHaveLength(0);
     expect(counts.currencyRates).toHaveLength(0);
     expect(counts.analyticsEvents).toHaveLength(0);
+  });
+
+  it("resumes cleanup cursors across variant and message batches without rescanning parent records", async () => {
+    const t = convexTest(schema, modules);
+    const oversizedBatchCount = 70;
+    const { companyId } = await createTenantFixture(t, {
+      messageCount: oversizedBatchCount,
+      analyticsEventCount: 0,
+      embeddingCount: 0,
+      variantCount: oversizedBatchCount,
+      productCount: 3,
+      conversationCount: 3,
+    });
+
+    const firstVariantBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId,
+    });
+    const secondVariantBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId,
+      cursor: firstVariantBatch.nextCursor ?? undefined,
+    });
+
+    expect(firstVariantBatch.stage).toBe("productVariants");
+    expect(firstVariantBatch.deletedCount).toBe(64);
+    expect(firstVariantBatch.done).toBe(false);
+    expect(firstVariantBatch.nextCursor).toMatchObject({
+      stage: "productVariants",
+    });
+    expect(secondVariantBatch.stage).toBe("productVariants");
+    expect(secondVariantBatch.deletedCount).toBe(6);
+    expect(secondVariantBatch.nextCursor).toBeNull();
+
+    const firstMessageBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId,
+    });
+    const secondMessageBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId,
+      cursor: firstMessageBatch.nextCursor ?? undefined,
+    });
+
+    expect(firstMessageBatch.stage).toBe("messages");
+    expect(firstMessageBatch.deletedCount).toBe(64);
+    expect(firstMessageBatch.done).toBe(false);
+    expect(firstMessageBatch.nextCursor).toMatchObject({
+      stage: "messages",
+    });
+    expect(secondMessageBatch.stage).toBe("messages");
+    expect(secondMessageBatch.deletedCount).toBe(6);
+    expect(secondMessageBatch.nextCursor).toBeNull();
   });
 });
