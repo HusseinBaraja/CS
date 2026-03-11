@@ -127,6 +127,19 @@ describe("config", () => {
     expect(inferConfigErrorCode(issues, { CONVEX_URL: "" })).toBe(ERROR_CODES.CONFIG_INVALID);
   });
 
+  test("treats whitespace-only CONVEX_URL as invalid instead of missing", () => {
+    const issues: StandardSchemaV1.Issue[] = [
+      {
+        message: "anything",
+        path: ["CONVEX_URL"]
+      }
+    ];
+
+    expect(inferConfigErrorCode(issues, { CONVEX_URL: "   " })).toBe(
+      ERROR_CODES.CONFIG_INVALID
+    );
+  });
+
   test("throws CONFIG_MISSING when a required runtime value is absent", () => {
     const config = createConfig({});
 
@@ -175,6 +188,28 @@ describe("config", () => {
     expect(config.GEMINI_API_KEY).toBeUndefined();
     expect(config.API_CORS_ORIGINS).toEqual(["*"]);
     expect(config.CONVEX_ADMIN_KEY).toBeUndefined();
+  });
+
+  test("treats whitespace-only optional secrets as unset values", () => {
+    const config = createConfig({
+      API_KEY: "   ",
+      GEMINI_API_KEY: "   ",
+      CONVEX_URL: "https://example.convex.cloud"
+    });
+
+    expect(config.API_KEY).toBeUndefined();
+    expect(config.GEMINI_API_KEY).toBeUndefined();
+  });
+
+  test("trims optional secrets before returning them", () => {
+    const config = createConfig({
+      API_KEY: "  secret  ",
+      GEMINI_API_KEY: "  gemini-secret  ",
+      CONVEX_URL: "https://example.convex.cloud"
+    });
+
+    expect(config.API_KEY).toBe("secret");
+    expect(config.GEMINI_API_KEY).toBe("gemini-secret");
   });
 
   test("treats empty CONVEX_ADMIN_KEY as an unset value", () => {

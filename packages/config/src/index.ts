@@ -17,6 +17,13 @@ const parseCsvEnv = (value: string): string[] =>
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
 
+const trimmedNonEmptyString = z
+  .string()
+  .transform((value) => value.trim())
+  .refine((value) => value.length > 0, {
+    message: "String must contain at least 1 character"
+  });
+
 const envSchema = {
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("debug"),
@@ -25,8 +32,8 @@ const envSchema = {
   BACKUP_DIR: z.string().min(1).default("backups"),
   BACKUP_RETENTION_COUNT: z.coerce.number().int().positive().default(5),
   API_PORT: z.coerce.number().int().positive().default(3000),
-  API_KEY: z.string().min(1).optional(),
-  GEMINI_API_KEY: z.string().min(1).optional(),
+  API_KEY: trimmedNonEmptyString.optional(),
+  GEMINI_API_KEY: trimmedNonEmptyString.optional(),
   API_CORS_ORIGINS: z
     .string()
     .default("*")
@@ -48,10 +55,14 @@ const normalizeRuntimeEnv = (
   runtimeEnv: RuntimeEnv
 ): RuntimeEnv =>
   Object.fromEntries(
-    Object.entries(runtimeEnv).map(([key, value]) => [
-      key,
-      OPTIONAL_EMPTY_ENV_KEYS.has(key) && value === "" ? undefined : value
-    ])
+    Object.entries(runtimeEnv).map(([key, value]) => {
+      const normalizedValue = typeof value === "string" ? value.trim() : value;
+
+      return [
+        key,
+        OPTIONAL_EMPTY_ENV_KEYS.has(key) && normalizedValue === "" ? undefined : normalizedValue
+      ];
+    })
   );
 
 const formatPathSegment = (
