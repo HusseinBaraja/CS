@@ -10,7 +10,16 @@ Monorepo for the API, bot, CLI, worker, and shared packages.
 ## Environment Setup
 
 1. Copy `.env.example` to `.env`.
-2. Set `CONVEX_URL` if you plan to run the API or worker.
+2. If you plan to run the API, set both `CONVEX_URL` and `CONVEX_ADMIN_KEY` in `.env`.
+3. `CONVEX_ADMIN_KEY` is required for server-side internal Convex calls from the API.
+4. `CONVEX_URL` is also required if you plan to run the worker.
+
+Example:
+
+```bash
+CONVEX_URL=https://your-deployment.convex.cloud
+CONVEX_ADMIN_KEY=your-admin-key
+```
 
 ### Active environment variables
 

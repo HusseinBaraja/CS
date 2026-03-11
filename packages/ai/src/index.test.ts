@@ -51,6 +51,39 @@ describe("@cs/ai", () => {
     expect(embeddings[1]).toHaveLength(768);
   });
 
+  test("rejects invalid output dimensionality before calling Gemini", async () => {
+    let factoryCallCount = 0;
+    let embedContentCallCount = 0;
+
+    resetGeminiClientFactory = setGeminiClientFactoryForTests(() => {
+      factoryCallCount += 1;
+
+      return {
+        models: {
+          embedContent: async () => {
+            embedContentCallCount += 1;
+
+            return {
+              embeddings: [{ values: createEmbedding(1) }],
+            };
+          },
+        },
+      };
+    });
+
+    for (const outputDimensionality of [0, -1, 1.5, Number.NaN]) {
+      await expect(
+        generateGeminiEmbedding("Invalid dimensions", {
+          apiKey: "test-key",
+          outputDimensionality,
+        }),
+      ).rejects.toThrow("positive integer");
+    }
+
+    expect(factoryCallCount).toBe(0);
+    expect(embedContentCallCount).toBe(0);
+  });
+
   test("rejects invalid Gemini embedding payloads", async () => {
     resetGeminiClientFactory = setGeminiClientFactoryForTests(() => ({
       models: {

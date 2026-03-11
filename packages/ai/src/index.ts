@@ -116,6 +116,18 @@ const assertEmbeddingDimensions = (
   return embedding;
 };
 
+const assertValidOutputDimensionality = (
+  outputDimensionality: number,
+): number => {
+  if (!Number.isInteger(outputDimensionality) || outputDimensionality <= 0) {
+    throw new Error(
+      `Gemini embeddings require outputDimensionality to be a positive integer, received ${String(outputDimensionality)}`,
+    );
+  }
+
+  return outputDimensionality;
+};
+
 export const setGeminiClientFactoryForTests = (factory: GeminiClientFactory): (() => void) => {
   const previousFactory = geminiClientFactory;
   geminiClientFactory = factory;
@@ -138,13 +150,15 @@ export const generateGeminiEmbeddings = async (
   }
 
   const model = options.model ?? GEMINI_EMBEDDING_MODEL;
-  const outputDimensionality = options.outputDimensionality ?? DEFAULT_OUTPUT_DIMENSIONALITY;
+  const effectiveOutputDimensionality = assertValidOutputDimensionality(
+    options.outputDimensionality ?? DEFAULT_OUTPUT_DIMENSIONALITY,
+  );
   const client = geminiClientFactory(resolveGeminiApiKey(options.apiKey));
   const response = await client.models.embedContent({
     model,
     contents: texts,
     config: {
-      outputDimensionality,
+      outputDimensionality: effectiveOutputDimensionality,
     },
   });
 
@@ -158,7 +172,7 @@ export const generateGeminiEmbeddings = async (
 
   return embeddings
     .filter(isEmbeddingVector)
-    .map((embedding) => assertEmbeddingDimensions(embedding, outputDimensionality));
+    .map((embedding) => assertEmbeddingDimensions(embedding, effectiveOutputDimensionality));
 };
 
 export const generateGeminiEmbedding = async (
