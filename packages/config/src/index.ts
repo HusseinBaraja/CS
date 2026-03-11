@@ -24,6 +24,68 @@ const trimmedNonEmptyString = z
     message: "String must contain at least 1 character"
   });
 
+const parseCorsOrigins = (
+  value: string,
+  ctx: z.RefinementCtx
+): string[] | typeof z.NEVER => {
+  const origins = parseCsvEnv(value);
+
+  if (origins.length === 0) {
+    return ["*"];
+  }
+
+  if (origins.length === 1 && origins[0] === "*") {
+    return ["*"];
+  }
+
+  if (origins.includes("*")) {
+    ctx.addIssue({
+      code: "custom",
+      message: 'API_CORS_ORIGINS must be "*" or a list of explicit origins'
+    });
+    return z.NEVER;
+  }
+
+  const normalizedOrigins: string[] = [];
+
+  for (const origin of origins) {
+    let url: URL;
+
+    try {
+      url = new URL(origin);
+    } catch {
+      ctx.addIssue({
+        code: "custom",
+        message: `Invalid CORS origin: ${origin}`
+      });
+      return z.NEVER;
+    }
+
+    const hasValidProtocol = url.protocol === "http:" || url.protocol === "https:";
+    const hasRootPathname = url.pathname === "/" || url.pathname === "";
+    const hasCredentials = url.username.length > 0 || url.password.length > 0;
+
+    if (
+      !hasValidProtocol ||
+      url.hostname.length === 0 ||
+      !hasRootPathname ||
+      url.search.length > 0 ||
+      url.hash.length > 0 ||
+      hasCredentials
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Invalid CORS origin: ${origin}`
+      });
+      return z.NEVER;
+    }
+
+    normalizedOrigins.push(url.origin);
+  }
+
+  return normalizedOrigins;
+};
+
 const envSchema = {
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("debug"),
@@ -37,10 +99,7 @@ const envSchema = {
   API_CORS_ORIGINS: z
     .string()
     .default("*")
-    .transform((value) => {
-      const origins = parseCsvEnv(value);
-      return origins.length > 0 ? origins : ["*"];
-    }),
+    .transform(parseCorsOrigins),
   API_TRUSTED_PROXY_IPS: z.string().default("").transform(parseCsvEnv),
   API_TRUST_PROXY_HOPS: z.coerce.number().int().nonnegative().default(0),
   API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),

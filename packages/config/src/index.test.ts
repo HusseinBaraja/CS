@@ -38,6 +38,66 @@ describe("config", () => {
     ]);
   });
 
+  test("accepts a single wildcard API CORS origin", () => {
+    const config = createConfig({
+      API_CORS_ORIGINS: "*",
+      CONVEX_URL: "https://example.convex.cloud"
+    });
+
+    expect(config.API_CORS_ORIGINS).toEqual(["*"]);
+  });
+
+  test("treats whitespace-only API CORS origins as the wildcard default", () => {
+    const config = createConfig({
+      API_CORS_ORIGINS: "   ",
+      CONVEX_URL: "https://example.convex.cloud"
+    });
+
+    expect(config.API_CORS_ORIGINS).toEqual(["*"]);
+  });
+
+  test("canonicalizes valid API CORS origins", () => {
+    const config = createConfig({
+      API_CORS_ORIGINS: "https://console.example/, https://two.example:8443/",
+      CONVEX_URL: "https://example.convex.cloud"
+    });
+
+    expect(config.API_CORS_ORIGINS).toEqual([
+      "https://console.example",
+      "https://two.example:8443"
+    ]);
+  });
+
+  test("rejects mixed wildcard and explicit API CORS origins", () => {
+    expect(() =>
+      createConfig({
+        API_CORS_ORIGINS: "*,https://console.example",
+        CONVEX_URL: "https://example.convex.cloud"
+      })
+    ).toThrow();
+  });
+
+  test("rejects invalid API CORS origins", () => {
+    const invalidOrigins = [
+      "/relative",
+      "ftp://console.example",
+      "https://console.example/path",
+      "https://console.example?foo=bar",
+      "https://console.example#hash",
+      "https://",
+      "https://user:pass@console.example"
+    ];
+
+    for (const origin of invalidOrigins) {
+      expect(() =>
+        createConfig({
+          API_CORS_ORIGINS: origin,
+          CONVEX_URL: "https://example.convex.cloud"
+        })
+      ).toThrow();
+    }
+  });
+
   test("parses trusted proxy IPs from a comma-separated env value", () => {
     const config = createConfig({
       API_TRUSTED_PROXY_IPS: "192.0.2.10, ::ffff:203.0.113.10",
