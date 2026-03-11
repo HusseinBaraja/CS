@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { Context } from 'hono';
 import type { MiddlewareHandler } from 'hono/types';
 import { ERROR_CODES } from '@cs/shared';
@@ -6,6 +6,7 @@ import { isProtectedApiPath } from './apiPath';
 import { createErrorResponse } from './responses';
 
 const DEFAULT_EXEMPT_PATHS = ["/api/health", "/api/ready"];
+const SAFE_EQUAL_HMAC_KEY = "cs-api-safe-equal-v1";
 
 export interface ApiKeyAuthOptions {
   apiKey?: string;
@@ -40,11 +41,10 @@ const getApiKey = (
 };
 
 const safeEqual = (left: string, right: string): boolean => {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
+  const leftBuffer = createHmac("sha256", SAFE_EQUAL_HMAC_KEY).update(left).digest();
+  const rightBuffer = createHmac("sha256", SAFE_EQUAL_HMAC_KEY).update(right).digest();
 
-  return leftBuffer.length === rightBuffer.length &&
-    timingSafeEqual(leftBuffer, rightBuffer);
+  return timingSafeEqual(leftBuffer, rightBuffer);
 };
 
 export const createApiKeyAuthMiddleware = (
