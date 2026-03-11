@@ -3,7 +3,7 @@ import { createConvexAdminClient } from "./client";
 
 describe("@cs/db client helpers", () => {
   test("createConvexAdminClient configures admin auth when explicit arguments are provided", () => {
-    const client = createConvexAdminClient("https://example.convex.cloud", "admin-token") as {
+    const client = createConvexAdminClient("https://example.convex.cloud", "admin-token") as unknown as {
       url: string;
       adminAuth?: string;
     };
