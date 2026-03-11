@@ -123,7 +123,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
   it("gets a product with variants nested and hides out-of-scope products", async () => {
     const t = convexTest(schema, modules);
 
-    const { companyId, otherCompanyId, productId } = await t.run(async (ctx) => {
+    const { companyId, otherCompanyId, categoryId, productId, variantId } = await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", {
         name: "Tenant One",
         ownerPhone: "966500000602",
@@ -142,7 +142,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         nameEn: "Burger Box",
       });
 
-      await ctx.db.insert("productVariants", {
+      const variantId = await ctx.db.insert("productVariants", {
         productId,
         variantLabel: "Large",
         attributes: {
@@ -154,7 +154,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       return {
         companyId,
         otherCompanyId,
+        categoryId,
         productId,
+        variantId,
       };
     });
 
@@ -170,11 +172,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(product).toEqual({
       id: productId,
       companyId,
-      categoryId: product?.categoryId,
+      categoryId,
       nameEn: "Burger Box",
       variants: [
         {
-          id: product?.variants[0]?.id,
+          id: variantId,
           productId,
           variantLabel: "Large",
           attributes: {
