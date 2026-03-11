@@ -55,6 +55,13 @@ const parseSpecifications = (
       };
     }
 
+    if (normalizedKey in specifications) {
+      return {
+        ok: false,
+        message: `specifications keys must be unique after trimming: ${normalizedKey}`,
+      };
+    }
+
     if (
       typeof entryValue !== "string" &&
       typeof entryValue !== "number" &&
