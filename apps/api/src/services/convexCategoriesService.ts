@@ -1,7 +1,13 @@
 import { convexApi, createConvexClient } from '@cs/db';
 import { ERROR_CODES } from '@cs/shared';
-import type { CategoriesService, CategoriesServiceError, DeleteCategoryResult } from './categories';
-import { createConflictServiceError, createDatabaseServiceError, createValidationServiceError } from './categories';
+import {
+  CategoriesServiceError,
+  type CategoriesService,
+  type DeleteCategoryResult,
+  createConflictServiceError,
+  createDatabaseServiceError,
+  createValidationServiceError,
+} from './categories';
 
 type ConvexClient = ReturnType<typeof createConvexClient>;
 
@@ -27,7 +33,14 @@ const parseTaggedError = (message: string): CategoriesServiceError | null => {
   return null;
 };
 
+const isCategoriesServiceError = (error: unknown): error is CategoriesServiceError =>
+  error instanceof CategoriesServiceError;
+
 const normalizeServiceError = (error: unknown): CategoriesServiceError => {
+  if (isCategoriesServiceError(error)) {
+    return error;
+  }
+
   if (error instanceof Error) {
     const taggedError = parseTaggedError(error.message);
     if (taggedError) {
