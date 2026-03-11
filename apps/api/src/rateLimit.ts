@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import type { Context } from 'hono';
 import type { MiddlewareHandler } from 'hono/types';
 import { ERROR_CODES } from '@cs/shared';
@@ -33,7 +33,10 @@ export interface RateLimitOptions {
 interface NodeSocketBindings {
   incoming?: {
     socket?: {
+      localAddress?: string | null;
+      localPort?: number | null;
       remoteAddress?: string | null;
+      remotePort?: number | null;
     };
   };
 }
@@ -78,6 +81,33 @@ const getConnectionClientIp = (context: Context): string | null =>
   normalizeClientIp(
     (context.env as NodeSocketBindings | undefined)?.incoming?.socket?.remoteAddress
   );
+
+const normalizeClientIdComponent = (
+  value: number | string | null | undefined
+): string => {
+  if (typeof value === "number") {
+    return String(value);
+  }
+
+  return value?.trim() ?? "";
+};
+
+const getDeterministicFallbackClientId = (context: Context): string => {
+  const socket = (context.env as NodeSocketBindings | undefined)?.incoming?.socket;
+  const fingerprint = [
+    ["remotePort", socket?.remotePort],
+    ["localAddress", socket?.localAddress],
+    ["localPort", socket?.localPort],
+    ["host", context.req.header("host")],
+    ["userAgent", context.req.header("user-agent")],
+    ["acceptLanguage", context.req.header("accept-language")],
+    ["origin", context.req.header("origin")]
+  ]
+    .map(([key, value]) => `${key}:${normalizeClientIdComponent(value)}`)
+    .join("|");
+
+  return `transport:${createHash("sha256").update(fingerprint).digest("hex")}`;
+};
 
 export const pruneExpiredRateLimitEntries = (
   requests: Map<string, RateLimitRecord>,
@@ -169,7 +199,7 @@ export const createRateLimitMiddleware = (
     const clientIp = getTrustedProxyClientIp(context, trustedProxyHops, trustedProxyIps) ??
       getConnectionClientIp(context);
 
-    return clientIp ? `ip:${clientIp}` : `req:${randomUUID()}`;
+    return clientIp ? `ip:${clientIp}` : getDeterministicFallbackClientId(context);
   });
   const requests = new Map<string, RateLimitRecord>();
   let nextPruneAt = 0;

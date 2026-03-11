@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, jest, test } from 'bun:test';
 import { Hono } from 'hono';
 import {
   createRateLimitMiddleware,
@@ -16,6 +16,13 @@ const createRateLimitTestApp = (options: Parameters<typeof createRateLimitMiddle
 
   return app;
 };
+
+afterEach(() => {
+  if (jest.isFakeTimers()) {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  }
+});
 
 describe("rate limit store pruning", () => {
   test("removes expired entries", () => {
@@ -220,21 +227,70 @@ describe("rate limit client identification", () => {
     expect(first.status).toBe(200);
     expect(second.status).toBe(429);
   });
+
+  test("uses a deterministic fallback fingerprint when transport IPs are unavailable", async () => {
+    const app = createRateLimitTestApp({
+      max: 1,
+      windowMs: 60_000
+    });
+    const headers = {
+      host: "api.example.test",
+      "user-agent": "client-a",
+      "accept-language": "en-US",
+      origin: "https://console.example.test"
+    };
+
+    const first = await app.request("/api", { headers });
+    const second = await app.request("/api", { headers });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  test("changes the fallback fingerprint when transport metadata changes", async () => {
+    const app = createRateLimitTestApp({
+      max: 1,
+      windowMs: 60_000
+    });
+
+    const first = await app.request("/api", {
+      headers: {
+        host: "api.example.test",
+        "user-agent": "client-a",
+        "accept-language": "en-US",
+        origin: "https://console.example.test"
+      }
+    });
+    const second = await app.request("/api", {
+      headers: {
+        host: "api.example.test",
+        "user-agent": "client-b",
+        "accept-language": "en-US",
+        origin: "https://console.example.test"
+      }
+    });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+  });
 });
 
 describe("rate limit entry cleanup", () => {
-  test("deletes idle entries after their expiry", async () => {
+  test("deletes idle entries after their expiry", () => {
+    jest.useFakeTimers();
     const requests = new Map([
       ["ip:203.0.113.10", { count: 1, resetAt: 5, expiresAt: 5 }]
     ]);
 
     scheduleRateLimitEntryCleanup(requests, "ip:203.0.113.10", 5, 5);
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    jest.advanceTimersByTime(5);
+    jest.runOnlyPendingTimers();
 
     expect(requests.has("ip:203.0.113.10")).toBe(false);
   });
 
-  test("ignores stale cleanup timers after an entry is refreshed", async () => {
+  test("ignores stale cleanup timers after an entry is refreshed", () => {
+    jest.useFakeTimers();
     const requests = new Map([
       ["ip:203.0.113.10", { count: 1, resetAt: 5, expiresAt: 5 }]
     ]);
@@ -247,14 +303,14 @@ describe("rate limit entry cleanup", () => {
     });
     scheduleRateLimitEntryCleanup(requests, "ip:203.0.113.10", 25, 25);
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    jest.advanceTimersByTime(5);
     expect(requests.get("ip:203.0.113.10")).toEqual({
       count: 1,
       resetAt: 25,
       expiresAt: 25
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    jest.advanceTimersByTime(20);
     expect(requests.has("ip:203.0.113.10")).toBe(false);
   });
 });
