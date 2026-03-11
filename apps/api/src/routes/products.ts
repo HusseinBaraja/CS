@@ -20,6 +20,23 @@ const requireParam = (value: string | undefined): string => {
   return value;
 };
 
+const parseJsonBody = async (request: Request): Promise<{ ok: true; value: unknown } | {
+  ok: false;
+  message: string;
+}> => {
+  try {
+    return {
+      ok: true,
+      value: await request.json(),
+    };
+  } catch {
+    return {
+      ok: false,
+      message: "Malformed JSON body",
+    };
+  }
+};
+
 export const createProductsRoutes = (
   options: ProductsRoutesOptions,
 ) => {
@@ -80,8 +97,12 @@ export const createProductsRoutes = (
 
   app.post("/", async (c) => {
     const companyId = requireParam(c.req.param("companyId"));
-    const body = await c.req.json();
-    const parsedBody = parseCreateProductBody(body);
+    const parsedJson = await parseJsonBody(c.req.raw);
+    if (!parsedJson.ok) {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
+    }
+
+    const parsedBody = parseCreateProductBody(parsedJson.value);
 
     if (!parsedBody.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);
@@ -106,8 +127,12 @@ export const createProductsRoutes = (
   app.put("/:id", async (c) => {
     const companyId = requireParam(c.req.param("companyId"));
     const productId = requireParam(c.req.param("id"));
-    const body = await c.req.json();
-    const parsedBody = parseUpdateProductBody(body);
+    const parsedJson = await parseJsonBody(c.req.raw);
+    if (!parsedJson.ok) {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
+    }
+
+    const parsedBody = parseUpdateProductBody(parsedJson.value);
 
     if (!parsedBody.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);

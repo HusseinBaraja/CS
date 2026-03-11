@@ -293,6 +293,26 @@ describe("product routes", () => {
     });
   });
 
+  test("POST /api/companies/:companyId/products rejects malformed JSON", async () => {
+    const app = createTestApp(createStubProductsService());
+
+    const response = await app.request("/api/companies/company-1/products", {
+      method: "POST",
+      headers: authHeaders,
+      body: "{",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: "Malformed JSON body",
+      },
+    });
+  });
+
   test("POST /api/companies/:companyId/products maps AI failures to 503", async () => {
     const app = createTestApp(createStubProductsService({
       create: async () => {
@@ -401,6 +421,26 @@ describe("product routes", () => {
       error: {
         code: ERROR_CODES.NOT_FOUND,
         message: "Product not found",
+      },
+    });
+  });
+
+  test("PUT /api/companies/:companyId/products/:id rejects malformed JSON", async () => {
+    const app = createTestApp(createStubProductsService());
+
+    const response = await app.request("/api/companies/company-1/products/product-1", {
+      method: "PUT",
+      headers: authHeaders,
+      body: "{",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: "Malformed JSON body",
       },
     });
   });
