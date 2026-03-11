@@ -10,11 +10,16 @@ const createEmbedding = (seed: number): number[] =>
   Array.from({ length: GEMINI_EMBEDDING_DIMENSIONS }, (_, index) => seed + index / 1000);
 
 let resetGeminiClientFactory: (() => void) | null = null;
+const previousGeminiApiKey = process.env.GEMINI_API_KEY;
 
 afterEach(() => {
   resetGeminiClientFactory?.();
   resetGeminiClientFactory = null;
-  delete process.env.GEMINI_API_KEY;
+  if (previousGeminiApiKey === undefined) {
+    delete process.env.GEMINI_API_KEY;
+  } else {
+    process.env.GEMINI_API_KEY = previousGeminiApiKey;
+  }
 });
 
 describe("@cs/ai", () => {
