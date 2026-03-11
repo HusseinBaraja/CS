@@ -23,13 +23,16 @@ describe("error hierarchy", () => {
 });
 
 describe("error serialization", () => {
-  test("AppError serializes required metadata", () => {
+  test("AppError exposes native cause metadata and serializes required fields", () => {
+    const cause = new Error("ENV var not found");
     const error = new AppError(ERROR_CODES.CONFIG_MISSING, "Missing key", {
-      cause: new Error("ENV var not found"),
+      cause,
       context: { module: "config", key: "API_KEY" }
     });
 
     const payload = error.toJSON();
+    expect(error.cause).toBe(cause);
+    expect(Object.prototype.propertyIsEnumerable.call(error, "cause")).toBe(false);
     expect(payload.code).toBe(ERROR_CODES.CONFIG_MISSING);
     expect(payload.message).toBe("Missing key");
     expect(payload.context).toEqual({ module: "config", key: "API_KEY" });
