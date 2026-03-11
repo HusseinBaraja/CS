@@ -1,34 +1,24 @@
-### Step 9.4: Human Handoff
-**Goal**: Mute the bot and redirect to human when needed.
+### Step 9.4: Media Cleanup Jobs
+**Goal**: Handle asynchronous cleanup of remote media objects created by product image management.
 
-**Tasks**:
-- [ ] Create `src/services/handoff.ts`
-- [ ] Triggers:
-    - Explicit request ("I want to talk to a person" / "أريد التحدث مع شخص")
-    - Order intent detected
-    - Low AI confidence
-    - All AI providers failed
+**Current baseline**:
+- Product records already have `imageUrls`, but no cleanup jobs exist.
+- Phase 3.8 introduces external storage and media lifecycle requirements.
+- Company cleanup already handles Convex-side record deletion in batches, which provides a pattern for safe cleanup orchestration.
 
-- [ ] On trigger:
-    1. Set `muted = true`, `muted_at = now()` in conversation
-    2. Notify owner with customer info + conversation context
-    3. Send customer: "Connecting you with our team..."
-
-- [ ] Auto-unmute after 12 hours of silence:
-    - Check `muted_at` on each incoming message (secondary safeguard)
-    - If > 12 hours since `muted_at`, set `muted = false`
-
-- [ ] Add Convex cron job (`convex/crons.ts`) running every 15 minutes:
-    - Query conversations WHERE `muted = true` AND `mutedAt < now() - 12 hours`
-    - Set `muted = false` on all matches
-    - This ensures conversations are unmuted even if the customer never messages again
+**Next work**:
+- [ ] Implement background cleanup for deleted product images and orphaned uploads.
+- [ ] Decide how cleanup jobs track storage keys, retries, and terminal failures.
+- [ ] Ensure company deletion and product deletion can trigger media cleanup without blocking the primary transaction path.
+- [ ] Add operator-visible logging for stuck or repeatedly failing media deletions.
 
 **Verification**:
-- "I want to speak to a person" → bot mutes, owner notified
-- Bot stays silent while muted
-- After 12h → bot resumes
+- Deleted product media is eventually removed from external storage.
+- Cleanup jobs can resume after interruption without losing track of outstanding work.
 
 **Tests**:
-- Mute sets flags correctly
-- Messages during mute → no response
-- Unmute after timeout  
+- Cleanup tests cover successful deletion, transient storage failure, and retry-safe reprocessing.
+- Company-deletion scenarios verify Convex cleanup and media cleanup stay coordinated.
+
+**Dependencies / Notes**:
+- External storage cleanup should rely on stable object keys, not only on public URLs.

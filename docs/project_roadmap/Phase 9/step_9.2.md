@@ -1,24 +1,24 @@
-### Step 9.2: Catalog Request Handling
-**Goal**: Send full catalog when requested.
+### Step 9.2: Scheduled Conversation Jobs
+**Goal**: Implement the time-based jobs required for conversation auto-resume, stale resets, and similar lifecycle work.
 
-**Tasks**:
-- [ ] Detect `SEND_CATALOG` action
-- [ ] Query all categories and products for the company
-- [ ] Format as organized WhatsApp message:
+**Current baseline**:
+- Conversation mute state and timestamps already exist in the schema.
+- No scheduler currently performs conversation maintenance.
+- Worker and Convex job ownership is still to be finalized in Phase 9.1.
 
-```
-    📦 *Category Name*
-    ├ Product 1 — 500 YER
-    ├ Product 2 — 300 YER
-    └ Product 3 — 200 YER
-```
-
-- [ ] Handle large catalogs (split into multiple messages if needed)
+**Next work**:
+- [ ] Implement scheduled handling for auto-resume after handoff windows.
+- [ ] Add stale conversation reset or archival logic if required by the finalized lifecycle policy.
+- [ ] Ensure scheduled jobs are idempotent and safe under retries or partial failure.
+- [ ] Add logging and metrics hooks for scheduled state transitions.
 
 **Verification**:
-- "Show me the catalog" / "كتالوج" triggers catalog send
-- Works in both Arabic and English
+- Timed conversation state changes happen exactly once from the user’s perspective.
+- Failed job attempts can retry without corrupting conversation state.
 
 **Tests**:
-- Catalog formatted correctly
-- Large catalog split into chunks 
+- Time-based tests cover due, not-yet-due, and already-processed conversations.
+- Retry tests confirm duplicate job execution is harmless.
+
+**Dependencies / Notes**:
+- Reuse the conversation lifecycle rules from Phase 6 rather than redefining them inside jobs.

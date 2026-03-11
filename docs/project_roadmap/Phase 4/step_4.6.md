@@ -1,26 +1,24 @@
-### Step 4.6: System Prompts & Language Detection
-**Goal**: Create the chatbot persona prompts and language utilities.
+### Step 4.6: Chat Orchestration
+**Goal**: Compose retrieval, prompt assembly, history, and provider failover into one reusable chat service.
 
-**Tasks**:
-- [ ] Create `src/services/ai/prompts.ts`:
-  - Base system prompt (business assistant persona)
-  - Language-matched response instructions
-  - Topic boundary rules (only business questions)
-  - Hallucination prevention instructions
-  - Action marker format (JSON in response for catalog/images/escalate)
-  - Price negotiation behavior (configurable: STRICT / REDIRECT_OWNER / SHOW_RANGE)
-- [ ] Create `src/utils/language.ts`:
-  - Detect Arabic via Unicode ranges
-  - Default to English for mixed content
-  - Return `"ar"` or `"en"`
+**Current baseline**:
+- Embedding generation already exists for catalog data, but there is no shared runtime that turns user input into a grounded answer.
+- `apps/bot` still uses a placeholder `mockChat` bootstrap flow.
+- Future bot and worker features need one shared orchestrator rather than embedding AI logic inside transport handlers.
+
+**Next work**:
+- [ ] Build a chat orchestration entrypoint in shared code that accepts tenant context, conversation context, and a user message.
+- [ ] Run language detection, query embedding, retrieval, prompt assembly, and provider failover in one defined sequence.
+- [ ] Return both the assistant text and any structured action envelope needed by later runtime steps.
+- [ ] Define graceful behavior when retrieval is empty, providers fail, or the request is off-topic.
 
 **Verification**:
-- Arabic text detected as `ar`
-- English text detected as `en`
-- System prompt includes product context placeholder
+- Product questions can produce grounded responses from retrieved catalog context.
+- Off-topic or low-signal inputs return safe fallbacks instead of hallucinated answers.
 
 **Tests**:
-- Pure Arabic → `ar`
-- Pure English → `en`
-- Mixed → `en` (default)
-- Numbers only → `en`
+- End-to-end orchestration tests cover successful retrieval, empty retrieval, provider failover, and refusal behavior.
+- Output tests confirm the orchestrator returns both user-facing text and structured action data when appropriate.
+
+**Dependencies / Notes**:
+- Keep orchestration reusable from `apps/bot` first, but do not make it transport-specific.

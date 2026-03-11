@@ -1,21 +1,24 @@
-### Step 5.3: Vector Search Service
-**Goal**: Implement semantic product search using Convex's built-in vector search.
+### Step 5.3: QR Pairing And Operational Visibility
+**Goal**: Make tenant pairing and bot runtime status observable enough to operate locally without a dashboard.
 
-**Tasks**:
-- [ ] Create `src/services/rag/vectorSearch.ts`
-- [ ] Implement `search(query: string, companyId: string, limit?: number)`:
-  1. Generate embedding for the query via Gemini
-  2. Call `ctx.vectorSearch("embeddings", "by_embedding", { ... })` as a Convex action
-  3. Filter by `companyId` using Convex's built-in filter expressions
-  4. Return ranked product matches with `_score` similarity values
-- [ ] Filter by similarity threshold on `_score` (configurable, default 0.3)
+**Current baseline**:
+- No QR pairing flow or runtime visibility exists yet in `apps/bot`.
+- The project is intentionally API-first and dashboard-free for now, so operator feedback must come from logs and simple runtime output.
+- The current environment is local and Windows-first, which affects how pairing artifacts should be displayed or stored.
+
+**Next work**:
+- [ ] Implement QR presentation for unpaired sessions in a way that works in the current local workflow.
+- [ ] Record connection state transitions such as connecting, open, closed, and retrying with tenant context.
+- [ ] Define a minimal operator-facing status surface, such as structured logs or a future status command hook.
+- [ ] Decide how pairing retries and expired QR flows should be surfaced without spamming logs.
 
 **Verification**:
-- "food containers" finds relevant container products
-- Arabic queries match Arabic product descriptions
-- Results ordered by relevance (`_score`)
-- Cross-company isolation works via `companyId` filter
+- An unpaired company can be paired without attaching a debugger or editing source code.
+- Operators can distinguish healthy, reconnecting, and unpaired sessions from logs alone.
 
 **Tests**:
-- Mock embedding → correct Convex vector search call
-- Threshold filters low-relevance results
+- Connection-state transitions produce stable status outputs.
+- QR generation and expiry handling are exercised with isolated runtime tests where feasible.
+
+**Dependencies / Notes**:
+- Keep this step compatible with future owner-facing `!status` output in Phase 7.2.

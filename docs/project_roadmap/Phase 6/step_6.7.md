@@ -1,18 +1,24 @@
-### Step 6.7: Per-User Rate Limiting
-**Goal**: Prevent abuse and respect WhatsApp limits.
+### Step 6.7: Conversation Reset And Cleanup
+**Goal**: Define how stale conversations age out, reset context, and get cleaned up across bot and job boundaries.
 
-**Tasks**:
-- [ ] Create `src/services/rateLimiter.ts`
-- [ ] Implement per-phone-number rate limiting
-- [ ] Configure minimum interval between messages (default: 3 seconds)
-- [ ] Queue messages that exceed limit (don't drop)
-- [ ] Track via in-memory Map (reset on restart is acceptable)
+**Current baseline**:
+- Conversation and message data already exist, but there is no idle-reset or cleanup policy.
+- Auto-resume and history-window behavior both depend on explicit lifecycle rules.
+- `apps/worker` exists but has not yet been assigned concrete cleanup responsibilities.
+
+**Next work**:
+- [ ] Define idle timeout rules for conversation-context reset versus full data retention.
+- [ ] Decide which cleanup operations are inline, scheduled in Convex, or delegated to `apps/worker`.
+- [ ] Add any missing timestamps or metadata required for cleanup decisions.
+- [ ] Keep cleanup logic tenant-safe and retry-safe.
 
 **Verification**:
-- Rapid messages from same user are throttled
-- Messages eventually delivered (not dropped)
-- Different users don't affect each other
+- Stale conversations stop influencing new AI context after the configured idle window.
+- Cleanup jobs can restart safely without deleting active or recently resumed conversation state.
 
 **Tests**:
-- Rapid messages → throttled
-- Messages delivered after throttle period
+- Idle timeout, stale reset, and scheduler retry cases are covered.
+- Cleanup logic does not delete unrelated tenant records.
+
+**Dependencies / Notes**:
+- Align this step with the worker-boundary decisions in Phase 9 before introducing irreversible cleanup automation.

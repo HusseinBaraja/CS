@@ -1,22 +1,24 @@
-### Step 7.4: Welcome Message & Proactive Offers
-**Goal**: Greet first-time customers and share active offers.
+### Step 7.4: Analytics Command
+**Goal**: Expose owner-facing analytics summaries over WhatsApp using the same aggregation layer planned for the REST API.
 
-**Tasks**:
-- [ ] Detect first-time customer (no existing conversation)
-- [ ] **Idempotency guard**: encapsulate the "find or create" logic completely inside a single Convex mutation script to prevent duplicate welcomes from rapid concurrent messages
-- [ ] Send welcome message template (bilingual)
-- [ ] Query active offers for the company from `offers` table
-- [ ] If offers exist, use AI to generate a natural promotional message from the offer data
-- [ ] Send offer message as a second message after welcome
-- [ ] Then proceed to answer the customer's actual query
+**Current baseline**:
+- Analytics events are already modeled, but no aggregation layer exists yet.
+- The charter expects commands such as `!analytics`.
+- A bot-side analytics command should reuse the same data logic as Phase 3.7 instead of re-implementing summaries in `apps/bot`.
+
+**Next work**:
+- [ ] Implement `!analytics` for supported periods such as today, week, and month.
+- [ ] Reuse the shared analytics aggregation layer rather than querying raw events from the command handler.
+- [ ] Define concise WhatsApp formatting for counts, trend highlights, and top products.
+- [ ] Decide whether the command should fail closed when no analytics data exists or return a zeroed summary.
 
 **Verification**:
-- First message → welcome + offer + answer
-- Returning customer → just answer (no welcome again)
-- No active offers → welcome + answer only
+- The same source data yields consistent summaries through both the API and the owner command.
+- Command output stays readable within WhatsApp message constraints.
 
 **Tests**:
-- First-time customer → welcome sent
-- Returning customer → no welcome
-- Active offers → AI-generated offer message
-- No offers → skipped gracefully
+- Command tests cover empty analytics, populated analytics, and invalid period arguments.
+- Integration coverage ensures API and command summaries stay aligned.
+
+**Dependencies / Notes**:
+- This step depends directly on Phase 3.7 producing a stable aggregation contract.

@@ -1,23 +1,25 @@
-## Phase 5: RAG Pipeline
-### Step 5.1: Gemini Embedding Service
-**Goal**: Generate text embeddings using Gemini's embedding API.
+## Phase 5: Bot Runtime Foundation
+### Step 5.1: Baileys Runtime Bootstrapping
+**Goal**: Replace the current placeholder bot bootstrap with a real Baileys runtime in `apps/bot`.
 
-**Tasks**:
-- [ ] Create `src/services/rag/embeddings.ts`
-- [ ] Use `gemini-embedding-001` model (768 dimensions)
-- [ ] Implement `generateEmbedding(text: string): Promise<number[]>`
-- [ ] Implement `generateBatchEmbeddings(texts: string[]): Promise<number[][]>`
-- [ ] Add retry logic and error handling
-- [ ] Add in-memory LRU cache for query embeddings (avoid re-embedding repeated queries)
-- [ ] Have 2 backup embedding providers in case Gemini is down. No text fallback.
+**Current baseline**:
+- `apps/bot` already exists and depends on `@whiskeysockets/baileys`, but its entrypoint is still a minimal `mockChat` bootstrap.
+- The roadmap no longer needs to plan basic package installation or app creation from scratch.
+- The charter still expects WhatsApp-based operation, QR pairing, and persisted sessions.
+
+**Next work**:
+- [ ] Add a real runtime entrypoint in `apps/bot` that initializes Baileys and handles connection lifecycle events.
+- [ ] Choose and implement local auth-state persistence suitable for the current Windows-first environment.
+- [ ] Add clean startup and shutdown behavior that integrates with the existing logging package.
+- [ ] Separate transport bootstrap from higher-level message orchestration so later steps can stay modular.
 
 **Verification**:
-- Embedding for English text returns 768-dimension vector
-- Embedding for Arabic text returns 768-dimension vector
-- Batch generation works
-- Cached queries return instantly without API call
-- Embedding API down → backup embedding provider returns results
+- Bot startup reaches a connectable Baileys state and logs meaningful lifecycle transitions.
+- Session state survives process restarts without forcing unnecessary re-pairing.
 
 **Tests**:
-- Mock API → correct dimension output
-- Empty string → handled gracefully
+- Connection-state handling is covered with unit tests or isolated runtime tests where practical.
+- Bootstrapping code fails safely when required WhatsApp runtime prerequisites are missing.
+
+**Dependencies / Notes**:
+- Do not run `bun dev` as part of roadmap execution or validation in this repo.

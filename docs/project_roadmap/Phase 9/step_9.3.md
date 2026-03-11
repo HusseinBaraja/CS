@@ -1,16 +1,24 @@
-### Step 9.3: Image Request Handling
-**Goal**: Send product images when requested.
+### Step 9.3: Analytics Rollups And Reports
+**Goal**: Add asynchronous analytics rollups and owner-facing report generation on top of the event stream.
 
-**Tasks**:
-- [ ] Detect `SEND_IMAGES` action with product ID
-- [ ] Look up product images from `image_paths`
-- [ ] Send images with bilingual captions
-- [ ] Handle multiple images per product
+**Current baseline**:
+- The project already models analytics events, but no scheduled report flow exists.
+- The charter calls for actionable analytics and eventual owner-facing summaries.
+- Real-time API reads should remain possible even if rollups are added later for efficiency.
+
+**Next work**:
+- [ ] Decide whether rollups are required for performance or only for scheduled report delivery.
+- [ ] Implement daily and weekly summary generation if the event volume or owner experience justifies it.
+- [ ] Define report delivery targets, formats, and retry behavior.
+- [ ] Ensure rollups are derivable from source events and do not become the only trusted source of truth.
 
 **Verification**:
-- "Show me pictures of plates" sends plate images
-- Images have proper captions
+- Scheduled summaries match the underlying analytics events for the same time window.
+- Report generation failures are observable and retryable.
 
-**Tests**
-- Product with images → sent
-- Product without images → graceful message
+**Tests**:
+- Rollup tests compare aggregated outputs against raw-event calculations.
+- Scheduling tests cover missed runs, retries, and empty-data summaries.
+
+**Dependencies / Notes**:
+- Keep report generation aligned with the analytics API contract instead of inventing a separate metric vocabulary.

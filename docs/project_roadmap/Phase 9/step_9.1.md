@@ -1,17 +1,25 @@
-## Phase 9: Advanced Features
-### Step 9.1: Action Detection System
-**Goal**: Detect and execute special actions from AI responses.
+## Phase 9: Async Jobs And Worker Role
+### Step 9.1: Worker Boundary Definition
+**Goal**: Decide which asynchronous responsibilities stay in Convex and which move into `apps/worker`.
 
-**Tasks**:
-- [ ] Create `src/services/ai/actions.ts`
-- [ ] Define action types: `SEND_CATALOG`, `SEND_IMAGES`, `ASK_CLARIFICATION`, `ESCALATE_HUMAN`
-- [ ] Parse AI response for JSON action markers
-- [ ] Execute corresponding actions after sending text response
+**Current baseline**:
+- `apps/worker` exists but currently only initializes a DB connection and logs startup.
+- Convex already handles several asynchronous concerns well, including actions, internal mutations, and cleanup batching.
+- The current roadmap needs a clear division of responsibility before adding scheduled or retry-heavy background work.
+
+**Next work**:
+- [ ] Define the criteria for keeping work inside Convex versus moving it into `apps/worker`.
+- [ ] Classify upcoming jobs such as auto-resume, analytics rollups, media cleanup, and reconciliation.
+- [ ] Document how worker jobs authenticate to Convex and what observability they must emit.
+- [ ] Avoid creating overlapping job implementations across Convex and the worker.
 
 **Verification**:
-- AI can trigger catalog send via action marker
-- AI can trigger image send via action marker
+- Each background responsibility has one clear owner.
+- The chosen boundary keeps external API calls and retry behavior predictable.
 
 **Tests**:
-- JSON marker parsed correctly
-- Unknown action type → ignored safely
+- Boundary tests or architecture checks confirm worker-driven jobs call the intended shared abstractions.
+- Design review covers retry safety and idempotency assumptions before implementation.
+
+**Dependencies / Notes**:
+- External API calls often fit better outside plain Convex mutations; the existing embedding flow is already a useful precedent.

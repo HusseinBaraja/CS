@@ -1,21 +1,24 @@
-### Step 6.6: Access Control
-**Goal**: Implement phone number-based access control per company.
+### Step 6.6: Welcome And Offer Flow
+**Goal**: Handle first-contact greetings and active promotional offers without breaking the main customer request flow.
 
-**Tasks**:
-- [ ] Create `src/services/accessControl.ts`
-- [ ] Implement modes (read from company config):
-    - `OWNER_ONLY` — only the owner's phone number
-    - `SINGLE_NUMBER` — one specific number
-    - `LIST` — approved numbers list
-    - `ALL` — any number
-- [ ] Check authorization before processing any message
-- [ ] Identify owner for admin commands
+**Current baseline**:
+- Offers already exist in the schema and seed data, but they are not queryable through bot logic yet.
+- No first-contact detection or welcome-message logic exists yet.
+- The product charter treats welcome and promotional messaging as conditional and context-aware, not as bulk marketing.
+
+**Next work**:
+- [ ] Define how the bot detects a first-time customer versus a returning one.
+- [ ] Add active-offer lookup rules that reuse the offer data model planned for the API in Phase 3.6.
+- [ ] Decide whether greetings and offers are static templates, AI-assisted phrasing, or a hybrid.
+- [ ] Ensure the customer’s actual question is still answered promptly after any welcome or offer content.
 
 **Verification**:
-- `OWNER_ONLY` blocks non-owner
-- `LIST` allows only approved numbers
-- `ALL` allows everyone
-- Owner always has access
+- First-time contacts receive the intended greeting behavior exactly once per tenant policy.
+- Active offers are only surfaced when valid for the company and current time window.
 
 **Tests**:
-- Each mode tested with authorized and unauthorized numbers
+- First-contact and returning-contact cases are both covered.
+- Active, expired, and disabled offer scenarios behave predictably.
+
+**Dependencies / Notes**:
+- This step depends on Phase 3.6 for a stable offers management surface and on conversation persistence for first-contact detection.

@@ -1,24 +1,24 @@
-### Step 9.6: Analytics Event Tracking
-**Goal**: Track all meaningful events for reporting.
+### Step 9.6: Operational Automation Hooks
+**Goal**: Connect worker jobs, CLI operations, backups, and seed flows into one coherent operational model.
 
-**Tasks**:
-- [ ] Create `src/services/analytics.ts`
-- [ ] Track events:
-    - `message_received` — every incoming message
-    - `product_searched` — every RAG search with results count
-    - `catalog_requested` — catalog action triggered
-    - `image_requested` — image action triggered
-    - `handoff_triggered` — human handoff with reason
-    - `ai_response` — provider, latency, token count
-    - `low_confidence` — query + score
+**Current baseline**:
+- `apps/cli` already supports seed and backup workflows.
+- Backup behavior is already documented in `docs/operations/convex-backups.md`.
+- `apps/worker` does not yet own concrete automation jobs.
 
-- [ ] Implement `getAnalyticsSummary(companyId, period)`
-- [ ] Add Convex cron job to purge analytics events older than 90 days (prevents unbounded table growth)
+**Next work**:
+- [ ] Document and implement how background automation is started, monitored, and recovered in local operation.
+- [ ] Define which maintenance tasks are operator-invoked through CLI versus automatically scheduled.
+- [ ] Add any shared runtime hooks needed for logging, locking, or job ownership across worker and Convex.
+- [ ] Keep seed, backup, and future maintenance jobs aligned with tenant isolation and failure-recovery requirements.
 
 **Verification**:
-- Events stored correctly
-- Summary aggregation matches raw events
+- Operators can reason about which tasks are automatic and which are manual.
+- Background automation does not conflict with existing CLI and Convex workflows.
 
 **Tests**:
-- Track event → stored in DB
-- Summary calculation correct
+- Automation tests cover lock handling, duplicate execution prevention, and logging hooks where applicable.
+- Operational documentation is verified against the actual command and runtime surface.
+
+**Dependencies / Notes**:
+- Reuse the existing lock and cleanup patterns already present in `convex/seed.ts` and `convex/companyCleanup.ts` where appropriate.

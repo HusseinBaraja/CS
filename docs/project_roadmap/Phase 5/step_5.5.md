@@ -1,24 +1,24 @@
-### Step 5.5: RAG-Enhanced AI Responses
-**Goal**: Integrate the full RAG pipeline into AI response generation.
+### Step 5.5: Outbound Message Delivery
+**Goal**: Provide one outbound delivery layer for text and media responses that the rest of the bot runtime can trust.
 
-**Tasks**:
-- [ ] Create `src/services/ai/chat.ts` — the main orchestrator
-- [ ] Pipeline:
-    1. Detect language of user query
-    2. Call vector search with query + company ID
-    3. Build context from results
-    4. Assemble messages: system prompt + context + conversation history + user query
-    5. Call AI provider
-    6. Return response with action markers (if any)
-- [ ] Handle "no results found" gracefully
+**Current baseline**:
+- No real outbound delivery abstraction exists yet in `apps/bot`.
+- Product records already expose `imageUrls`, which future image replies can depend on once media sending exists.
+- The product charter expects typing indicators and natural pacing, but those do not exist yet.
+
+**Next work**:
+- [ ] Add outbound helpers for plain text, media sends, and response sequencing.
+- [ ] Add optional typing indicators and intentional response delay hooks that can be enabled per conversation flow.
+- [ ] Normalize outbound formatting so later AI, catalog, and owner-command replies do not each build messages differently.
+- [ ] Define retry and failure behavior for outbound sends without duplicating messages excessively.
 
 **Verification**:
-- Product questions answered with real data from RAG
-- Prices shown correctly in target currency
-- Unknown products handled gracefully (bot says "I couldn't find...")
-- Off-topic questions politely refused
+- Text and media sends can be invoked through one stable bot-side interface.
+- Message formatting stays predictable across AI replies, catalog sends, and operator responses.
 
 **Tests**:
-- Product query with matches → contextual response
-- Product query with no matches → graceful fallback
-- Off-topic → refusal response
+- Unit tests cover formatting, delay policy, and retry classification.
+- Runtime tests verify outbound helper behavior for both plain text and media cases where practical.
+
+**Dependencies / Notes**:
+- Media delivery here should integrate with the storage decisions defined in Phase 3.8.

@@ -1,21 +1,25 @@
-## Phase 8: Owner Commands
-### Step 8.1: Command Parser
-**Goal**: Parse owner commands (prefix: `!`).
+## Phase 8: Customer-Facing AI Features
+### Step 8.1: Action Detection Contract
+**Goal**: Define the structured action contract that can safely accompany AI-generated text responses.
 
-**Tasks**:
-- [ ] Create `src/controllers/command.ts`
-- [ ] Detect `!` prefix in message
-- [ ] Parse command name and arguments
-- [ ] Validate sender is the company owner
-- [ ] Route to matching command handler
-- [ ] Return "unknown command" for invalid commands
+**Current baseline**:
+- The shared prompting and chat orchestration work still needs a defined action envelope.
+- No action parser or executor exists yet in the runtime.
+- The product scope expects actions such as catalog sends, image sends, clarification requests, and human escalation.
+
+**Next work**:
+- [ ] Define the allowed action types and the exact schema returned by the chat orchestrator.
+- [ ] Add a parser and validator that rejects malformed or unsupported actions safely.
+- [ ] Define how plain text and action payloads coexist in one assistant response contract.
+- [ ] Keep action handling transport-agnostic enough that bot runtime code only executes already-validated instructions.
 
 **Verification**:
-- `!help` → parsed correctly
-- `!setrate SAR YER 425` → command="setrate", args=["SAR","YER","425"]
-- Non-owner → rejected with message
+- Valid action payloads can be parsed without ambiguous fallback logic.
+- Unknown or malformed actions never cause unsafe execution.
 
 **Tests**:
-- Parse various command formats
-- Owner validation
-- Unknown command handling
+- Parser tests cover valid actions, invalid schemas, unknown action types, and missing fields.
+- Contract tests ensure the action schema stays aligned with prompt expectations from Phase 4.4.
+
+**Dependencies / Notes**:
+- Treat action payloads as advisory outputs from the model, not as trusted commands.
