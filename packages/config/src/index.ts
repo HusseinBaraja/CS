@@ -17,48 +17,41 @@ const parseCsvEnv = (value: string): string[] =>
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
 
-const trimmedNonEmptyString = z
-  .string()
-  .transform((value) => value.trim())
-  .refine((value) => value.length > 0, {
-    message: "String must contain at least 1 character"
-  });
+export const normalizeOptionalSecret = (
+  value: string | null | undefined
+): string | undefined => {
+  const normalizedValue = value?.trim();
+  return normalizedValue && normalizedValue.length > 0 ? normalizedValue : undefined;
+};
 
-const parseCorsOrigins = (
-  value: string,
-  ctx: z.RefinementCtx
-): string[] | typeof z.NEVER => {
-  const origins = parseCsvEnv(value);
+export const normalizeCorsOrigins = (
+  origins: readonly string[] | undefined
+): string[] => {
+  const normalizedInput = (origins ?? [])
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
 
-  if (origins.length === 0) {
+  if (normalizedInput.length === 0) {
     return ["*"];
   }
 
-  if (origins.length === 1 && origins[0] === "*") {
+  if (normalizedInput.length === 1 && normalizedInput[0] === "*") {
     return ["*"];
   }
 
-  if (origins.includes("*")) {
-    ctx.addIssue({
-      code: "custom",
-      message: 'API_CORS_ORIGINS must be "*" or a list of explicit origins'
-    });
-    return z.NEVER;
+  if (normalizedInput.includes("*")) {
+    throw new Error('API_CORS_ORIGINS must be "*" or a list of explicit origins');
   }
 
   const normalizedOrigins: string[] = [];
 
-  for (const origin of origins) {
+  for (const origin of normalizedInput) {
     let url: URL;
 
     try {
       url = new URL(origin);
     } catch {
-      ctx.addIssue({
-        code: "custom",
-        message: `Invalid CORS origin: ${origin}`
-      });
-      return z.NEVER;
+      throw new Error(`Invalid CORS origin: ${origin}`);
     }
 
     const hasValidProtocol = url.protocol === "http:" || url.protocol === "https:";
@@ -73,17 +66,48 @@ const parseCorsOrigins = (
       url.hash.length > 0 ||
       hasCredentials
     ) {
-      ctx.addIssue({
-        code: "custom",
-        message: `Invalid CORS origin: ${origin}`
-      });
-      return z.NEVER;
+      throw new Error(`Invalid CORS origin: ${origin}`);
     }
 
     normalizedOrigins.push(url.origin);
   }
 
   return normalizedOrigins;
+};
+
+export const assertNonNegativeInteger = (
+  propertyName: string,
+  value: number
+): number => {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(
+      `Invalid ${propertyName}: expected a non-negative integer, received ${String(value)}`,
+    );
+  }
+
+  return value;
+};
+
+const trimmedNonEmptyString = z
+  .string()
+  .transform((value) => value.trim())
+  .refine((value) => value.length > 0, {
+    message: "String must contain at least 1 character"
+  });
+
+const parseCorsOrigins = (
+  value: string,
+  ctx: z.RefinementCtx
+): string[] | typeof z.NEVER => {
+  try {
+    return normalizeCorsOrigins(parseCsvEnv(value));
+  } catch (error) {
+    ctx.addIssue({
+      code: "custom",
+      message: error instanceof Error ? error.message : "Invalid API_CORS_ORIGINS"
+    });
+    return z.NEVER;
+  }
 };
 
 const envSchema = {
@@ -116,11 +140,15 @@ const normalizeRuntimeEnv = (
 ): RuntimeEnv =>
   Object.fromEntries(
     Object.entries(runtimeEnv).map(([key, value]) => {
+      if (OPTIONAL_EMPTY_ENV_KEYS.has(key) && typeof value === "string") {
+        return [key, normalizeOptionalSecret(value)];
+      }
+
       const normalizedValue = typeof value === "string" ? value.trim() : value;
 
       return [
         key,
-        OPTIONAL_EMPTY_ENV_KEYS.has(key) && normalizedValue === "" ? undefined : normalizedValue
+        normalizedValue
       ];
     })
   );

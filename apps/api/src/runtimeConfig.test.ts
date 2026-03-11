@@ -2,6 +2,36 @@ import { describe, expect, test } from "bun:test";
 import { createApiRuntimeConfig } from "./runtimeConfig";
 
 describe("createApiRuntimeConfig", () => {
+  test("creates config with valid positive integers", () => {
+    const config = createApiRuntimeConfig({
+      rateLimitMax: 100,
+      rateLimitMaxEntries: 1_000,
+      rateLimitWindowMs: 60_000
+    });
+
+    expect(config.rateLimitMax).toBe(100);
+    expect(config.rateLimitWindowMs).toBe(60_000);
+    expect(config.rateLimitMaxEntries).toBe(1_000);
+  });
+
+  test("normalizes runtime overrides to match env-backed config", () => {
+    const config = createApiRuntimeConfig({
+      apiKey: "  secret  ",
+      corsOrigins: ["https://console.example/", "https://two.example:8443/"],
+      rateLimitMax: 100,
+      rateLimitMaxEntries: 1_000,
+      rateLimitWindowMs: 60_000,
+      trustProxyHops: 2
+    });
+
+    expect(config.apiKey).toBe("secret");
+    expect(config.corsOrigins).toEqual([
+      "https://console.example",
+      "https://two.example:8443"
+    ]);
+    expect(config.trustProxyHops).toBe(2);
+  });
+
   test("throws when rateLimitMax is zero", () => {
     expect(() => createApiRuntimeConfig({ rateLimitMax: 0 })).toThrow(
       "Invalid ApiRuntimeConfig.rateLimitMax: expected a positive integer, received 0",
@@ -53,6 +83,12 @@ describe("createApiRuntimeConfig", () => {
   test("throws when rateLimitMaxEntries is fractional", () => {
     expect(() => createApiRuntimeConfig({ rateLimitMaxEntries: 1000.5 })).toThrow(
       "Invalid ApiRuntimeConfig.rateLimitMaxEntries: expected a positive integer, received 1000.5",
+    );
+  });
+
+  test("throws when trustProxyHops is negative", () => {
+    expect(() => createApiRuntimeConfig({ trustProxyHops: -1 })).toThrow(
+      "Invalid ApiRuntimeConfig.trustProxyHops: expected a non-negative integer, received -1",
     );
   });
 });

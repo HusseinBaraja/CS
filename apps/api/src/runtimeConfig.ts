@@ -1,4 +1,9 @@
-import { env } from '@cs/config';
+import {
+  assertNonNegativeInteger,
+  env,
+  normalizeCorsOrigins,
+  normalizeOptionalSecret
+} from '@cs/config';
 
 export interface ApiRuntimeConfig {
   apiKey?: string;
@@ -37,12 +42,15 @@ export const createApiRuntimeConfig = (
   );
 
   return {
-    apiKey: config.apiKey ?? env.API_KEY,
-    corsOrigins: config.corsOrigins ?? env.API_CORS_ORIGINS,
+    apiKey: normalizeOptionalSecret(config.apiKey ?? env.API_KEY),
+    corsOrigins: normalizeCorsOrigins(config.corsOrigins ?? env.API_CORS_ORIGINS),
     trustedProxyIps: config.trustedProxyIps ?? env.API_TRUSTED_PROXY_IPS,
     rateLimitMax,
     rateLimitMaxEntries,
     rateLimitWindowMs,
-    trustProxyHops: config.trustProxyHops ?? env.API_TRUST_PROXY_HOPS
+    trustProxyHops: assertNonNegativeInteger(
+      "ApiRuntimeConfig.trustProxyHops",
+      config.trustProxyHops ?? env.API_TRUST_PROXY_HOPS,
+    )
   };
 };
