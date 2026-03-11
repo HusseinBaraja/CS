@@ -141,6 +141,10 @@ export const createApp = (options: ApiAppOptions = {}) => {
       );
     }
 
+    appLogger.warn(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Unhandled error in request"
+    );
     return c.json(
       createCustomErrorResponse("INTERNAL_SERVER_ERROR", "Internal server error"),
       500
