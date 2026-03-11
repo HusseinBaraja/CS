@@ -123,6 +123,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const productsService = options.productsService ?? createConvexProductsService();
   const rateLimitMiddleware = createRateLimitMiddleware({
     max: runtimeConfig.rateLimitMax,
+    maxEntries: runtimeConfig.rateLimitMaxEntries,
     windowMs: runtimeConfig.rateLimitWindowMs,
     trustedProxyHops: runtimeConfig.trustProxyHops,
     trustedProxyIps: runtimeConfig.trustedProxyIps,

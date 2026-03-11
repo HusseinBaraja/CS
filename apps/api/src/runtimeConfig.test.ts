@@ -37,4 +37,22 @@ describe("createApiRuntimeConfig", () => {
       "Invalid ApiRuntimeConfig.rateLimitWindowMs: expected a positive integer, received 1000.5",
     );
   });
+
+  test("throws when rateLimitMaxEntries is zero", () => {
+    expect(() => createApiRuntimeConfig({ rateLimitMaxEntries: 0 })).toThrow(
+      "Invalid ApiRuntimeConfig.rateLimitMaxEntries: expected a positive integer, received 0",
+    );
+  });
+
+  test("throws when rateLimitMaxEntries is negative", () => {
+    expect(() => createApiRuntimeConfig({ rateLimitMaxEntries: -1 })).toThrow(
+      "Invalid ApiRuntimeConfig.rateLimitMaxEntries: expected a positive integer, received -1",
+    );
+  });
+
+  test("throws when rateLimitMaxEntries is fractional", () => {
+    expect(() => createApiRuntimeConfig({ rateLimitMaxEntries: 1000.5 })).toThrow(
+      "Invalid ApiRuntimeConfig.rateLimitMaxEntries: expected a positive integer, received 1000.5",
+    );
+  });
 });

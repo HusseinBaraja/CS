@@ -6,6 +6,7 @@ import { isProtectedApiPath } from './apiPath';
 import { createErrorResponse } from './responses';
 
 const DEFAULT_EXEMPT_PATHS = ["/api/health", "/api/ready"];
+const DEFAULT_MAX_ENTRIES = 10_000;
 
 interface RateLimitRecord {
   count: number;
@@ -20,6 +21,7 @@ interface RateLimitPruneResult {
 
 export interface RateLimitOptions {
   max: number;
+  maxEntries?: number;
   windowMs: number;
   trustedProxyHops?: number;
   trustedProxyIps?: string[];
@@ -103,6 +105,33 @@ export const scheduleRateLimitEntryCleanup = (
   }, Math.max(0, delayMs));
 };
 
+export const setRateLimitEntry = (
+  requests: Map<string, RateLimitRecord>,
+  key: string,
+  record: RateLimitRecord
+): void => {
+  requests.delete(key);
+  requests.set(key, record);
+};
+
+export const enforceRateLimitStoreCapacity = (
+  requests: Map<string, RateLimitRecord>,
+  currentTime: number,
+  maxEntries: number
+): void => {
+  pruneExpiredRateLimitEntries(requests, currentTime);
+
+  while (requests.size > Math.max(0, maxEntries)) {
+    const oldestKey = requests.keys().next().value;
+
+    if (oldestKey === undefined) {
+      return;
+    }
+
+    requests.delete(oldestKey);
+  }
+};
+
 export const maybePruneRateLimitEntries = (
   requests: Map<string, RateLimitRecord>,
   currentTime: number,
@@ -128,6 +157,7 @@ export const createRateLimitMiddleware = (
   options: RateLimitOptions
 ): MiddlewareHandler => {
   const now = options.now ?? (() => Date.now());
+  const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
   const exemptPaths = new Set(options.exemptPaths ?? DEFAULT_EXEMPT_PATHS);
   const trustedProxyHops = options.trustedProxyHops ?? 0;
   const trustedProxyIps = new Set(
@@ -166,11 +196,16 @@ export const createRateLimitMiddleware = (
 
     if (!existing || existing.resetAt <= currentTime) {
       const expiresAt = currentTime + options.windowMs;
-      requests.set(key, {
+      if (!existing) {
+        enforceRateLimitStoreCapacity(requests, currentTime, maxEntries - 1);
+      }
+
+      const record = {
         count: 1,
         resetAt: expiresAt,
         expiresAt
-      });
+      };
+      setRateLimitEntry(requests, key, record);
       scheduleRateLimitEntryCleanup(requests, key, expiresAt, options.windowMs);
 
       c.header("X-RateLimit-Limit", String(options.max));
@@ -182,6 +217,7 @@ export const createRateLimitMiddleware = (
     }
 
     if (existing.count >= options.max) {
+      setRateLimitEntry(requests, key, existing);
       const retryAfterSeconds = Math.max(
         1,
         Math.ceil((existing.resetAt - currentTime) / 1000)
@@ -199,6 +235,7 @@ export const createRateLimitMiddleware = (
     }
 
     existing.count += 1;
+    setRateLimitEntry(requests, key, existing);
 
     c.header("X-RateLimit-Limit", String(options.max));
     c.header("X-RateLimit-Remaining", String(options.max - existing.count));

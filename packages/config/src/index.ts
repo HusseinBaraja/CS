@@ -103,6 +103,7 @@ const envSchema = {
   API_TRUSTED_PROXY_IPS: z.string().default("").transform(parseCsvEnv),
   API_TRUST_PROXY_HOPS: z.coerce.number().int().nonnegative().default(0),
   API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
+  API_RATE_LIMIT_MAX_ENTRIES: z.coerce.number().int().positive().default(10_000),
   API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   CONVEX_ADMIN_KEY: z.string().min(1).optional(),
   CONVEX_URL: z.string().min(1).url().optional()

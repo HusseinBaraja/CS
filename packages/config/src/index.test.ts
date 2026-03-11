@@ -23,6 +23,7 @@ describe("config", () => {
     expect(config.API_TRUST_PROXY_HOPS).toBe(0);
     expect(config.API_RATE_LIMIT_MAX).toBe(60);
     expect(config.API_RATE_LIMIT_WINDOW_MS).toBe(60_000);
+    expect(config.API_RATE_LIMIT_MAX_ENTRIES).toBe(10_000);
     expect(config.CONVEX_URL).toBe("https://example.convex.cloud");
   });
 
@@ -131,6 +132,19 @@ describe("config", () => {
       })
     ).toThrow(
       new ConfigError("API_RATE_LIMIT_MAX: Too small: expected number to be >0", {
+        code: ERROR_CODES.CONFIG_INVALID
+      })
+    );
+  });
+
+  test("rejects non-positive API rate-limit store capacity", () => {
+    expect(() =>
+      createConfig({
+        API_RATE_LIMIT_MAX_ENTRIES: 0,
+        CONVEX_URL: "https://example.convex.cloud"
+      })
+    ).toThrow(
+      new ConfigError("API_RATE_LIMIT_MAX_ENTRIES: Too small: expected number to be >0", {
         code: ERROR_CODES.CONFIG_INVALID
       })
     );
