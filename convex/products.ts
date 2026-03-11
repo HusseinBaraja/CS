@@ -275,6 +275,16 @@ const buildProductEmbeddings = async (
   }
 };
 
+const hasEmbeddingRelevantChanges = (
+  previous: ProductWriteState,
+  next: ProductWriteState,
+): boolean =>
+  previous.nameEn !== next.nameEn ||
+  previous.nameAr !== next.nameAr ||
+  previous.descriptionEn !== next.descriptionEn ||
+  previous.descriptionAr !== next.descriptionAr ||
+  serializeSpecifications(previous.specifications) !== serializeSpecifications(next.specifications);
+
 const getCompany = async (
   ctx: ProductReader,
   companyId: Id<"companies">,
@@ -366,6 +376,50 @@ const replaceEmbeddings = async (
   }
 
   await insertEmbeddings(ctx, args);
+};
+
+const getEmbeddingReplacementArgs = (args: {
+  companyId: Id<"companies">;
+  productId: Id<"products">;
+  englishEmbedding?: number[];
+  arabicEmbedding?: number[];
+  englishText?: string;
+  arabicText?: string;
+}):
+  | {
+    companyId: Id<"companies">;
+    productId: Id<"products">;
+    englishEmbedding: number[];
+    arabicEmbedding: number[];
+    englishText: string;
+    arabicText: string;
+  }
+  | null => {
+  const embeddingValues = [
+    args.englishEmbedding,
+    args.arabicEmbedding,
+    args.englishText,
+    args.arabicText,
+  ];
+  const hasAnyEmbeddingValue = embeddingValues.some((value) => value !== undefined);
+  const hasAllEmbeddingValues = embeddingValues.every((value) => value !== undefined);
+
+  if (hasAnyEmbeddingValue && !hasAllEmbeddingValues) {
+    throw createTaggedError(VALIDATION_PREFIX, "Embedding replacement payload must be all-or-none");
+  }
+
+  if (!hasAllEmbeddingValues) {
+    return null;
+  }
+
+  return {
+    companyId: args.companyId,
+    productId: args.productId,
+    englishEmbedding: args.englishEmbedding!,
+    arabicEmbedding: args.arabicEmbedding!,
+    englishText: args.englishText!,
+    arabicText: args.arabicText!,
+  };
 };
 
 const normalizeCreateState = (args: {
@@ -675,10 +729,10 @@ export const patchProductWithEmbeddings = internalMutation({
     basePrice: v.optional(v.union(v.number(), v.null())),
     baseCurrency: v.optional(v.union(v.string(), v.null())),
     imageUrls: v.optional(v.union(v.array(v.string()), v.null())),
-    englishEmbedding: v.array(v.float64()),
-    arabicEmbedding: v.array(v.float64()),
-    englishText: v.string(),
-    arabicText: v.string(),
+    englishEmbedding: v.optional(v.array(v.float64())),
+    arabicEmbedding: v.optional(v.array(v.float64())),
+    englishText: v.optional(v.string()),
+    arabicText: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<ProductDetailDto | null> => {
     const existingProduct = await getScopedProduct(ctx, args.companyId, args.productId);
@@ -696,14 +750,10 @@ export const patchProductWithEmbeddings = internalMutation({
     const patch = createProductPatch(args);
     await ctx.db.patch(args.productId, patch);
 
-    await replaceEmbeddings(ctx, {
-      companyId: args.companyId,
-      productId: args.productId,
-      englishEmbedding: args.englishEmbedding,
-      arabicEmbedding: args.arabicEmbedding,
-      englishText: args.englishText,
-      arabicText: args.arabicText,
-    });
+    const embeddingReplacementArgs = getEmbeddingReplacementArgs(args);
+    if (embeddingReplacementArgs) {
+      await replaceEmbeddings(ctx, embeddingReplacementArgs);
+    }
 
     const updatedProduct = await ctx.db.get(args.productId);
     if (!updatedProduct) {
@@ -788,11 +838,13 @@ export const update = action({
     }
 
     const nextState = mergeUpdateState(existingProduct, args);
-    const embeddings = await buildProductEmbeddings(nextState);
+    const embeddings = hasEmbeddingRelevantChanges(existingProduct, nextState)
+      ? await buildProductEmbeddings(nextState)
+      : null;
 
     return ctx.runMutation(internal.products.patchProductWithEmbeddings, {
       ...args,
-      ...embeddings,
+      ...(embeddings ?? {}),
     });
   },
 });

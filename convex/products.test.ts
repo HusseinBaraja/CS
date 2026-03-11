@@ -319,6 +319,74 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     ).rejects.toThrow("NOT_FOUND: Category not found");
   });
 
+  it("updates non-embedding fields without replacing embeddings", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000610",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+      });
+
+      for (const language of ["en", "ar"] as const) {
+        await ctx.db.insert("embeddings", {
+          companyId,
+          productId,
+          embedding: createEmbedding(language === "en" ? 40 : 50),
+          textContent: `${language} text`,
+          language,
+          companyLanguage: `${companyId}:${language}`,
+        });
+      }
+
+      return {
+        companyId,
+        productId,
+      };
+    });
+
+    const embeddingsBefore = await t.run(async (ctx) =>
+      ctx.db
+        .query("embeddings")
+        .withIndex("by_product", (q) => q.eq("productId", productId))
+        .collect(),
+    );
+
+    const updatedProduct = await t.action(api.products.update, {
+      companyId,
+      productId,
+      basePrice: 2.5,
+      baseCurrency: "SAR",
+    });
+    const embeddingsAfter = await t.run(async (ctx) =>
+      ctx.db
+        .query("embeddings")
+        .withIndex("by_product", (q) => q.eq("productId", productId))
+        .collect(),
+    );
+
+    expect(updatedProduct).toMatchObject({
+      id: productId,
+      basePrice: 2.5,
+      baseCurrency: "SAR",
+    });
+    expect(embeddingsAfter.map((embedding) => embedding._id)).toEqual(
+      embeddingsBefore.map((embedding) => embedding._id),
+    );
+    expect(embeddingsAfter.map((embedding) => embedding.textContent)).toEqual(
+      embeddingsBefore.map((embedding) => embedding.textContent),
+    );
+  });
+
   it("deletes a product with its variants and embeddings", async () => {
     const t = convexTest(schema, modules);
 
