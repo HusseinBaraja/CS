@@ -34,14 +34,14 @@ export type ProductVariantCleanupCursor = {
   stage: "productVariants";
   productCursor: string | null;
   currentProductId?: Id<"products">;
-  lastVariantCreationTime?: number;
+  variantCursor?: string | null;
 };
 
 export type MessageCleanupCursor = {
   stage: "messages";
   conversationCursor: string | null;
   currentConversationId?: Id<"conversations">;
-  lastMessageCreationTime?: number;
+  messageCursor?: string | null;
 };
 
 export type CleanupCursor = ProductVariantCleanupCursor | MessageCleanupCursor;
@@ -51,13 +51,13 @@ const cleanupCursorValidator = v.union(
     stage: v.literal("productVariants"),
     productCursor: v.union(v.string(), v.null()),
     currentProductId: v.optional(v.id("products")),
-    lastVariantCreationTime: v.optional(v.number()),
+    variantCursor: v.optional(v.union(v.string(), v.null())),
   }),
   v.object({
     stage: v.literal("messages"),
     conversationCursor: v.union(v.string(), v.null()),
     currentConversationId: v.optional(v.id("conversations")),
-    lastMessageCreationTime: v.optional(v.number()),
+    messageCursor: v.optional(v.union(v.string(), v.null())),
   }),
 );
 
@@ -98,7 +98,7 @@ const collectProductVariantIdsBatch = async (
   const variantIds: Array<Id<"productVariants">> = [];
   let productCursor = cursor?.productCursor ?? null;
   let currentProductId = cursor?.currentProductId;
-  let lastVariantCreationTime = cursor?.lastVariantCreationTime;
+  let variantCursor = cursor?.variantCursor ?? null;
 
   while (variantIds.length < limit) {
     if (!currentProductId) {
@@ -119,43 +119,34 @@ const collectProductVariantIdsBatch = async (
 
       currentProductId = nextProduct._id;
       productCursor = productPage.continueCursor;
-      lastVariantCreationTime = undefined;
+      variantCursor = null;
     }
 
     const remaining = limit - variantIds.length;
     const productId = currentProductId;
-    const variants = await ctx.db
+    const variantPage = await ctx.db
       .query("productVariants")
-      .withIndex("by_product", (q) =>
-        lastVariantCreationTime === undefined
-          ? q.eq("productId", productId)
-          : q.eq("productId", productId).gt("_creationTime", lastVariantCreationTime),
-      )
-      .take(remaining + 1);
+      .withIndex("by_product", (q) => q.eq("productId", productId))
+      .paginate({
+        numItems: remaining,
+        cursor: variantCursor,
+      });
+    variantIds.push(...variantPage.page.map((variant) => variant._id));
 
-    const hasMoreVariants = variants.length > remaining;
-    const batch = hasMoreVariants ? variants.slice(0, remaining) : variants;
-    variantIds.push(...batch.map((variant) => variant._id));
-
-    if (hasMoreVariants) {
-      const lastVariant = batch.at(-1);
-      if (!lastVariant) {
-        throw new Error("Expected a variant to establish the cleanup cursor");
-      }
-
+    if (!variantPage.isDone) {
       return {
         ids: variantIds,
         nextCursor: {
           stage: "productVariants",
           productCursor,
           currentProductId,
-          lastVariantCreationTime: lastVariant._creationTime,
+          variantCursor: variantPage.continueCursor,
         },
       };
     }
 
     currentProductId = undefined;
-    lastVariantCreationTime = undefined;
+    variantCursor = null;
   }
 
   return {
@@ -165,7 +156,7 @@ const collectProductVariantIdsBatch = async (
         stage: "productVariants",
         productCursor,
         currentProductId,
-        lastVariantCreationTime,
+        variantCursor,
       }
       : null,
   };
@@ -183,7 +174,7 @@ const collectMessageIdsBatch = async (
   const messageIds: Array<Id<"messages">> = [];
   let conversationCursor = cursor?.conversationCursor ?? null;
   let currentConversationId = cursor?.currentConversationId;
-  let lastMessageCreationTime = cursor?.lastMessageCreationTime;
+  let messageCursor = cursor?.messageCursor ?? null;
 
   while (messageIds.length < limit) {
     if (!currentConversationId) {
@@ -204,43 +195,34 @@ const collectMessageIdsBatch = async (
 
       currentConversationId = nextConversation._id;
       conversationCursor = conversationPage.continueCursor;
-      lastMessageCreationTime = undefined;
+      messageCursor = null;
     }
 
     const remaining = limit - messageIds.length;
     const conversationId = currentConversationId;
-    const messages = await ctx.db
+    const messagePage = await ctx.db
       .query("messages")
-      .withIndex("by_conversation", (q) =>
-        lastMessageCreationTime === undefined
-          ? q.eq("conversationId", conversationId)
-          : q.eq("conversationId", conversationId).gt("_creationTime", lastMessageCreationTime),
-      )
-      .take(remaining + 1);
+      .withIndex("by_conversation", (q) => q.eq("conversationId", conversationId))
+      .paginate({
+        numItems: remaining,
+        cursor: messageCursor,
+      });
+    messageIds.push(...messagePage.page.map((message) => message._id));
 
-    const hasMoreMessages = messages.length > remaining;
-    const batch = hasMoreMessages ? messages.slice(0, remaining) : messages;
-    messageIds.push(...batch.map((message) => message._id));
-
-    if (hasMoreMessages) {
-      const lastMessage = batch.at(-1);
-      if (!lastMessage) {
-        throw new Error("Expected a message to establish the cleanup cursor");
-      }
-
+    if (!messagePage.isDone) {
       return {
         ids: messageIds,
         nextCursor: {
           stage: "messages",
           conversationCursor,
           currentConversationId,
-          lastMessageCreationTime: lastMessage._creationTime,
+          messageCursor: messagePage.continueCursor,
         },
       };
     }
 
     currentConversationId = undefined;
-    lastMessageCreationTime = undefined;
+    messageCursor = null;
   }
 
   return {
@@ -250,7 +232,7 @@ const collectMessageIdsBatch = async (
         stage: "messages",
         conversationCursor,
         currentConversationId,
-        lastMessageCreationTime,
+        messageCursor,
       }
       : null,
   };

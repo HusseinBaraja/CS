@@ -13,7 +13,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
   it("lists only categories for the requested company sorted by name and id", async () => {
     const t = convexTest(schema, modules);
 
-    const { companyId, otherCompanyId } = await t.run(async (ctx) => {
+    const { companyId } = await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", {
         name: "Tenant One",
         ownerPhone: "966500000500",
@@ -43,7 +43,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
 
       return {
         companyId,
-        otherCompanyId,
       };
     });
 
@@ -51,7 +50,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       companyId,
     });
 
-    expect(otherCompanyId).toBeDefined();
     expect(categories).toHaveLength(3);
     expect(categories?.map((category) => category.nameEn)).toEqual([
       "Bags",
@@ -264,7 +262,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
   it("returns null when updating a category outside the company scope", async () => {
     const t = convexTest(schema, modules);
 
-    const { companyId, otherCompanyId, categoryId } = await t.run(async (ctx) => {
+    const { otherCompanyId, categoryId } = await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", {
         name: "Tenant One",
         ownerPhone: "966500000510",
@@ -279,7 +277,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       });
 
       return {
-        companyId,
         otherCompanyId,
         categoryId,
       };
@@ -291,7 +288,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       nameEn: "Renamed",
     });
 
-    expect(companyId).toBeDefined();
     expect(updatedCategory).toBeNull();
   });
 

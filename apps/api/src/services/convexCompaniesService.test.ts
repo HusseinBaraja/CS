@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { convexInternal } from "@cs/db";
-import { ERROR_CODES } from "@cs/shared";
 import { getFunctionName } from "convex/server";
 import { createConvexCompaniesService } from "./convexCompaniesService";
 import {
@@ -58,6 +57,23 @@ describe("createConvexCompaniesService", () => {
     await expect(service.list()).rejects.toEqual(
       createConflictServiceError("Owner phone is already assigned to another company"),
     );
+  });
+
+  test("preserves existing companies service errors", async () => {
+    const originalError = createConflictServiceError("Owner phone is already assigned to another company");
+    const service = createService({
+      query: async () => {
+        throw originalError;
+      },
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+      action: async () => {
+        throw new Error("action should not be called");
+      },
+    });
+
+    await expect(service.list()).rejects.toBe(originalError);
   });
 
   test("maps decode and argument validation failures to validation service errors", async () => {

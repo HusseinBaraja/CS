@@ -3,6 +3,7 @@ import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { CLEANUP_BATCH_SIZE } from './companyCleanup';
 import schema from './schema';
 
 const modules =
@@ -403,13 +404,13 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     });
 
     expect(firstVariantBatch.stage).toBe("productVariants");
-    expect(firstVariantBatch.deletedCount).toBe(64);
+    expect(firstVariantBatch.deletedCount).toBe(CLEANUP_BATCH_SIZE);
     expect(firstVariantBatch.done).toBe(false);
     expect(firstVariantBatch.nextCursor).toMatchObject({
       stage: "productVariants",
     });
     expect(secondVariantBatch.stage).toBe("productVariants");
-    expect(secondVariantBatch.deletedCount).toBe(6);
+    expect(secondVariantBatch.deletedCount).toBe(oversizedBatchCount - CLEANUP_BATCH_SIZE);
     expect(secondVariantBatch.nextCursor).toBeNull();
 
     const firstMessageBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
@@ -421,13 +422,88 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     });
 
     expect(firstMessageBatch.stage).toBe("messages");
-    expect(firstMessageBatch.deletedCount).toBe(64);
+    expect(firstMessageBatch.deletedCount).toBe(CLEANUP_BATCH_SIZE);
     expect(firstMessageBatch.done).toBe(false);
     expect(firstMessageBatch.nextCursor).toMatchObject({
       stage: "messages",
     });
     expect(secondMessageBatch.stage).toBe("messages");
-    expect(secondMessageBatch.deletedCount).toBe(6);
+    expect(secondMessageBatch.deletedCount).toBe(oversizedBatchCount - CLEANUP_BATCH_SIZE);
     expect(secondMessageBatch.nextCursor).toBeNull();
+  });
+
+  it("completes child cleanup batches when a single parent spans multiple pages", async () => {
+    const t = convexTest(schema, modules);
+    const oversizedBatchCount = 70;
+    const fixture = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Cursor Tenant",
+        ownerPhone: "966500000701",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+      });
+      const conversationId = await ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000099",
+        muted: false,
+      });
+
+      for (let index = 0; index < oversizedBatchCount; index += 1) {
+        await ctx.db.insert("productVariants", {
+          productId,
+          variantLabel: `Variant ${index}`,
+          attributes: {
+            size: index,
+          },
+        });
+        await ctx.db.insert("messages", {
+          conversationId,
+          role: "user",
+          content: `Message ${index}`,
+          timestamp: index,
+        });
+      }
+
+      return {
+        companyId,
+      };
+    });
+
+    const firstVariantBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId: fixture.companyId,
+    });
+    const secondVariantBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId: fixture.companyId,
+      cursor: firstVariantBatch.nextCursor ?? undefined,
+    });
+    const remainingVariants = await t.run(async (ctx) => ctx.db.query("productVariants").collect());
+
+    expect(firstVariantBatch.stage).toBe("productVariants");
+    expect(firstVariantBatch.deletedCount).toBe(CLEANUP_BATCH_SIZE);
+    expect(secondVariantBatch.stage).toBe("productVariants");
+    expect(secondVariantBatch.deletedCount).toBe(oversizedBatchCount - CLEANUP_BATCH_SIZE);
+    expect(remainingVariants).toHaveLength(0);
+
+    const firstMessageBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId: fixture.companyId,
+    });
+    const secondMessageBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId: fixture.companyId,
+      cursor: firstMessageBatch.nextCursor ?? undefined,
+    });
+    const remainingMessages = await t.run(async (ctx) => ctx.db.query("messages").collect());
+
+    expect(firstMessageBatch.stage).toBe("messages");
+    expect(firstMessageBatch.deletedCount).toBe(CLEANUP_BATCH_SIZE);
+    expect(secondMessageBatch.stage).toBe("messages");
+    expect(secondMessageBatch.deletedCount).toBe(oversizedBatchCount - CLEANUP_BATCH_SIZE);
+    expect(remainingMessages).toHaveLength(0);
   });
 });

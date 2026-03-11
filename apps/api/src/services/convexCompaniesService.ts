@@ -1,7 +1,12 @@
 import { convexInternal, createConvexAdminClient, type ConvexAdminClient } from '@cs/db';
 import { ERROR_CODES } from '@cs/shared';
-import type { CompaniesService, CompaniesServiceError, DeleteCompanyResult } from './companies';
-import { createConflictServiceError, createDatabaseServiceError, createValidationServiceError } from './companies';
+import type { CompaniesService, DeleteCompanyResult } from './companies';
+import {
+  CompaniesServiceError,
+  createConflictServiceError,
+  createDatabaseServiceError,
+  createValidationServiceError,
+} from './companies';
 
 export interface ConvexCompaniesServiceOptions {
   createClient?: () => ConvexAdminClient;
@@ -25,7 +30,14 @@ const parseTaggedError = (message: string): CompaniesServiceError | null => {
   return null;
 };
 
+const isCompaniesServiceError = (error: unknown): error is CompaniesServiceError =>
+  error instanceof CompaniesServiceError;
+
 const normalizeServiceError = (error: unknown): CompaniesServiceError => {
+  if (isCompaniesServiceError(error)) {
+    return error;
+  }
+
   if (error instanceof Error) {
     const taggedError = parseTaggedError(error.message);
     if (taggedError) {
