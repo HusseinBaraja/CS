@@ -445,6 +445,36 @@ describe("product routes", () => {
     });
   });
 
+  test("PUT /api/companies/:companyId/products/:id returns 409 for concurrent update conflicts", async () => {
+    const app = createTestApp(createStubProductsService({
+      update: async () => {
+        throw new ProductsServiceError(
+          ERROR_CODES.CONFLICT,
+          "Product was modified concurrently; retry the update",
+          409,
+        );
+      },
+    }));
+
+    const response = await app.request("/api/companies/company-1/products/product-1", {
+      method: "PUT",
+      headers: authHeaders,
+      body: JSON.stringify({
+        nameEn: "Updated Burger Box",
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.CONFLICT,
+        message: "Product was modified concurrently; retry the update",
+      },
+    });
+  });
+
   test("DELETE /api/companies/:companyId/products/:id returns the deleted payload", async () => {
     const deletedResult: DeleteProductResult = {
       productId: "product-1",

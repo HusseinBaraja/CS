@@ -5,6 +5,7 @@ import { getFunctionName } from "convex/server";
 import { createConvexProductsService } from "./convexProductsService";
 import {
   createAiServiceError,
+  createConflictServiceError,
   createDatabaseServiceError,
   createNotFoundServiceError,
   createValidationServiceError,
@@ -136,5 +137,25 @@ describe("createConvexProductsService", () => {
       categoryId: "category-1",
       nameEn: "Burger Box",
     })).rejects.toEqual(createNotFoundServiceError("Category not found"));
+  });
+
+  test("maps conflict tags on actions", async () => {
+    const service = createService({
+      query: async () => {
+        throw new Error("query should not be called");
+      },
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+      action: async () => {
+        throw new Error("CONFLICT: Product was modified concurrently; retry the update");
+      },
+    });
+
+    await expect(service.update("company-1", "product-1", {
+      nameEn: "Updated Burger Box",
+    })).rejects.toEqual(
+      createConflictServiceError("Product was modified concurrently; retry the update"),
+    );
   });
 });

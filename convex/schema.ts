@@ -41,6 +41,7 @@ export default defineSchema({
   products: defineTable({
     companyId: v.id("companies"),
     categoryId: v.id("categories"),
+    revision: v.optional(v.number()),
     nameEn: v.string(),
     nameAr: v.optional(v.string()),
     descriptionEn: v.optional(v.string()),

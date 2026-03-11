@@ -4,6 +4,7 @@ import {
   type DeleteProductResult,
   type ProductsService,
   createAiServiceError,
+  createConflictServiceError,
   createDatabaseServiceError,
   createNotFoundServiceError,
   ProductsServiceError,
@@ -16,6 +17,7 @@ export interface ConvexProductsServiceOptions {
 
 const ERROR_PREFIXES = new Map<string, (message: string) => ProductsServiceError>([
   [ERROR_CODES.AI_PROVIDER_FAILED, createAiServiceError],
+  [ERROR_CODES.CONFLICT, createConflictServiceError],
   [ERROR_CODES.NOT_FOUND, createNotFoundServiceError],
   [ERROR_CODES.VALIDATION_FAILED, createValidationServiceError],
 ]);

@@ -68,6 +68,7 @@ type ProductUpdateArgs = {
 
 type ProductWriteSnapshot = ProductWriteState & {
   productId: Id<"products">;
+  expectedRevision: number;
 };
 
 type ProductReader = {
@@ -75,6 +76,7 @@ type ProductReader = {
 };
 
 const AI_PREFIX = "AI_PROVIDER_FAILED";
+const CONFLICT_PREFIX = "CONFLICT";
 const NOT_FOUND_PREFIX = "NOT_FOUND";
 const VALIDATION_PREFIX = "VALIDATION_FAILED";
 
@@ -640,6 +642,7 @@ export const getUpdateSnapshot = internalQuery({
 
     return {
       productId: product._id,
+      expectedRevision: product.revision ?? 0,
       ...toWriteState(product),
     };
   },
@@ -688,6 +691,7 @@ export const insertProductWithEmbeddings = internalMutation({
     const productId = await ctx.db.insert("products", {
       companyId: args.companyId,
       categoryId: productState.categoryId,
+      revision: 1,
       nameEn: productState.nameEn,
       ...(productState.nameAr ? { nameAr: productState.nameAr } : {}),
       ...(productState.descriptionEn ? { descriptionEn: productState.descriptionEn } : {}),
@@ -729,6 +733,7 @@ export const patchProductWithEmbeddings = internalMutation({
     basePrice: v.optional(v.union(v.number(), v.null())),
     baseCurrency: v.optional(v.union(v.string(), v.null())),
     imageUrls: v.optional(v.union(v.array(v.string()), v.null())),
+    expectedRevision: v.number(),
     englishEmbedding: v.optional(v.array(v.float64())),
     arabicEmbedding: v.optional(v.array(v.float64())),
     englishText: v.optional(v.string()),
@@ -740,6 +745,10 @@ export const patchProductWithEmbeddings = internalMutation({
       return null;
     }
 
+    if ((existingProduct.revision ?? 0) !== args.expectedRevision) {
+      throw createTaggedError(CONFLICT_PREFIX, "Product was modified concurrently; retry the update");
+    }
+
     if (args.categoryId !== undefined) {
       const category = await getScopedCategory(ctx, args.companyId, args.categoryId);
       if (!category) {
@@ -748,7 +757,10 @@ export const patchProductWithEmbeddings = internalMutation({
     }
 
     const patch = createProductPatch(args);
-    await ctx.db.patch(args.productId, patch);
+    await ctx.db.patch(args.productId, {
+      ...patch,
+      revision: args.expectedRevision + 1,
+    });
 
     const embeddingReplacementArgs = getEmbeddingReplacementArgs(args);
     if (embeddingReplacementArgs) {
@@ -843,11 +855,15 @@ export const update = internalAction({
       : null;
 
     if (!embeddings) {
-      return ctx.runMutation(internal.products.patchProductWithEmbeddings, args);
+      return ctx.runMutation(internal.products.patchProductWithEmbeddings, {
+        ...args,
+        expectedRevision: existingProduct.expectedRevision,
+      });
     }
 
     return ctx.runMutation(internal.products.patchProductWithEmbeddings, {
       ...args,
+      expectedRevision: existingProduct.expectedRevision,
       ...embeddings,
     });
   },

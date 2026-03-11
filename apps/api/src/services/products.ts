@@ -71,12 +71,12 @@ export interface ProductsService {
 
 export class ProductsServiceError extends Error {
   readonly code: ErrorCode;
-  readonly status: 400 | 404 | 503;
+  readonly status: 400 | 404 | 409 | 503;
 
   constructor(
     code: ErrorCode,
     message: string,
-    status: 400 | 404 | 503,
+    status: 400 | 404 | 409 | 503,
   ) {
     super(message);
     this.name = "ProductsServiceError";
@@ -90,6 +90,9 @@ export const createValidationServiceError = (message: string): ProductsServiceEr
 
 export const createNotFoundServiceError = (message: string): ProductsServiceError =>
   new ProductsServiceError(ERROR_CODES.NOT_FOUND, message, 404);
+
+export const createConflictServiceError = (message: string): ProductsServiceError =>
+  new ProductsServiceError(ERROR_CODES.CONFLICT, message, 409);
 
 export const createAiServiceError = (message: string): ProductsServiceError =>
   new ProductsServiceError(ERROR_CODES.AI_PROVIDER_FAILED, message, 503);
