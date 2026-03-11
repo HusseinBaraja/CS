@@ -3,13 +3,17 @@ import { ERROR_CODES } from '@cs/shared';
 import { createApp } from '../app';
 import {
   type CreateProductInput,
+  type CreateProductVariantInput,
   type DeleteProductResult,
+  type DeleteProductVariantResult,
   type ListProductsFilters,
   type ProductDetailDto,
   type ProductListItemDto,
   type ProductsService,
   ProductsServiceError,
+  type ProductVariantDto,
   type UpdateProductInput,
+  type UpdateProductVariantInput,
 } from '../services/products';
 
 const API_KEY = "test-api-key";
@@ -90,6 +94,27 @@ const createStubProductsService = (
   }),
   delete: async () => ({
     productId: "product-1",
+  }),
+  listVariants: async () => [],
+  createVariant: async (_companyId: string, productId: string, input: CreateProductVariantInput) => ({
+    id: "variant-created",
+    productId,
+    ...input,
+  }),
+  updateVariant: async (_companyId: string, productId: string, variantId: string, patch: UpdateProductVariantInput) => ({
+    id: variantId,
+    productId,
+    variantLabel: patch.variantLabel ?? "Updated Variant",
+    attributes: patch.attributes ?? {
+      size: "L",
+    },
+    ...(patch.priceOverride !== null && patch.priceOverride !== undefined
+      ? { priceOverride: patch.priceOverride }
+      : {}),
+  }),
+  deleteVariant: async (_companyId: string, productId: string, variantId: string) => ({
+    productId,
+    variantId,
   }),
   ...overrides,
 });
@@ -495,6 +520,555 @@ describe("product routes", () => {
     expect(body).toEqual({
       ok: true,
       deleted: deletedResult,
+    });
+  });
+
+  test("GET /api/companies/:companyId/products/:productId/variants returns the stored variants", async () => {
+    let receivedCompanyId: string | undefined;
+    let receivedProductId: string | undefined;
+    const variants: ProductVariantDto[] = [
+      {
+        id: "variant-2",
+        productId: "product-1",
+        variantLabel: "Medium",
+        attributes: {
+          size: "M",
+          options: ["white", "kraft"],
+        },
+        priceOverride: 1.4,
+      },
+      baseProductDetail.variants[0]!,
+    ];
+    const app = createTestApp(createStubProductsService({
+      listVariants: async (companyId, productId) => {
+        receivedCompanyId = companyId;
+        receivedProductId = productId;
+        return variants;
+      },
+    }));
+
+    const response = await app.request("/api/companies/company-1/products/product-1/variants", {
+      headers: {
+        "x-api-key": API_KEY,
+      },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(receivedCompanyId).toBe("company-1");
+    expect(receivedProductId).toBe("product-1");
+    expect(body).toEqual({
+      ok: true,
+      variants,
+    });
+  });
+
+  test("GET /api/companies/:companyId/products/:productId/variants returns 404 when the product does not exist", async () => {
+    const app = createTestApp(createStubProductsService({
+      listVariants: async () => null,
+    }));
+
+    const response = await app.request("/api/companies/company-1/products/product-1/variants", {
+      headers: {
+        "x-api-key": API_KEY,
+      },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.NOT_FOUND,
+        message: "Product not found",
+      },
+    });
+  });
+
+  test("POST /api/companies/:companyId/products/:productId/variants creates a variant with recursive attributes", async () => {
+    let receivedCompanyId: string | undefined;
+    let receivedProductId: string | undefined;
+    let receivedInput: CreateProductVariantInput | undefined;
+    const app = createTestApp(createStubProductsService({
+      createVariant: async (companyId, productId, input) => {
+        receivedCompanyId = companyId;
+        receivedProductId = productId;
+        receivedInput = input;
+
+        return {
+          id: "variant-created",
+          productId,
+          ...input,
+        };
+      },
+    }));
+
+    const response = await app.request("/api/companies/company-1/products/product-1/variants", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        variantLabel: "  Family Pack  ",
+        attributes: {
+          " size ": "XL",
+          nested: {
+            " display ": "front",
+            tags: ["sale", null, 2, { " tone ": "warm" }],
+          },
+        },
+        priceOverride: 2.25,
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(receivedCompanyId).toBe("company-1");
+    expect(receivedProductId).toBe("product-1");
+    expect(receivedInput).toEqual({
+      variantLabel: "Family Pack",
+      attributes: {
+        size: "XL",
+        nested: {
+          display: "front",
+          tags: ["sale", null, 2, { tone: "warm" }],
+        },
+      },
+      priceOverride: 2.25,
+    });
+    expect(body).toEqual({
+      ok: true,
+      variant: {
+        id: "variant-created",
+        productId: "product-1",
+        variantLabel: "Family Pack",
+        attributes: {
+          size: "XL",
+          nested: {
+            display: "front",
+            tags: ["sale", null, 2, { tone: "warm" }],
+          },
+        },
+        priceOverride: 2.25,
+      },
+    });
+  });
+
+  test("POST /api/companies/:companyId/products/:productId/variants returns 404 when the parent product does not exist", async () => {
+    const app = createTestApp(createStubProductsService({
+      createVariant: async () => null,
+    }));
+
+    const response = await app.request("/api/companies/company-1/products/product-1/variants", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        variantLabel: "Large",
+        attributes: {
+          size: "L",
+        },
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.NOT_FOUND,
+        message: "Product not found",
+      },
+    });
+  });
+
+  test("POST /api/companies/:companyId/products/:productId/variants rejects invalid recursive attributes", async () => {
+    const app = createTestApp(createStubProductsService());
+
+    const response = await app.request("/api/companies/company-1/products/product-1/variants", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        variantLabel: "Large",
+        attributes: ["invalid"],
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: "attributes must be an object",
+      },
+    });
+  });
+
+  test("POST /api/companies/:companyId/products/:productId/variants rejects malformed JSON", async () => {
+    const app = createTestApp(createStubProductsService());
+
+    const response = await app.request("/api/companies/company-1/products/product-1/variants", {
+      method: "POST",
+      headers: authHeaders,
+      body: "{",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: "Malformed JSON body",
+      },
+    });
+  });
+
+  test("POST /api/companies/:companyId/products/:productId/variants returns 409 for concurrent update conflicts", async () => {
+    const app = createTestApp(createStubProductsService({
+      createVariant: async () => {
+        throw new ProductsServiceError(
+          ERROR_CODES.CONFLICT,
+          "Product was modified concurrently; retry the update",
+          409,
+        );
+      },
+    }));
+
+    const response = await app.request("/api/companies/company-1/products/product-1/variants", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        variantLabel: "Large",
+        attributes: {
+          size: "L",
+        },
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.CONFLICT,
+        message: "Product was modified concurrently; retry the update",
+      },
+    });
+  });
+
+  test("PUT /api/companies/:companyId/products/:productId/variants/:variantId updates a variant and clears nullable priceOverride", async () => {
+    let receivedPatch: UpdateProductVariantInput | undefined;
+    const app = createTestApp(createStubProductsService({
+      updateVariant: async (_companyId, productId, variantId, patch) => {
+        receivedPatch = patch;
+
+        return {
+          id: variantId,
+          productId,
+          variantLabel: patch.variantLabel ?? "Large",
+          attributes: patch.attributes ?? {
+            size: "L",
+          },
+        };
+      },
+    }));
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/variants/variant-1",
+      {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({
+          variantLabel: "  Extra Large  ",
+          attributes: {
+            " size ": "XL",
+            nested: {
+              finish: ["matte", "gloss"],
+            },
+          },
+          priceOverride: null,
+        }),
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(receivedPatch).toEqual({
+      variantLabel: "Extra Large",
+      attributes: {
+        size: "XL",
+        nested: {
+          finish: ["matte", "gloss"],
+        },
+      },
+      priceOverride: null,
+    });
+    expect(body).toEqual({
+      ok: true,
+      variant: {
+        id: "variant-1",
+        productId: "product-1",
+        variantLabel: "Extra Large",
+        attributes: {
+          size: "XL",
+          nested: {
+            finish: ["matte", "gloss"],
+          },
+        },
+      },
+    });
+  });
+
+  test("PUT /api/companies/:companyId/products/:productId/variants/:variantId returns 404 when the parent product does not exist", async () => {
+    const app = createTestApp(createStubProductsService({
+      updateVariant: async () => null,
+    }));
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/variants/variant-1",
+      {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({
+          variantLabel: "Large",
+        }),
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.NOT_FOUND,
+        message: "Product not found",
+      },
+    });
+  });
+
+  test("PUT /api/companies/:companyId/products/:productId/variants/:variantId returns 404 when the variant does not exist", async () => {
+    const app = createTestApp(createStubProductsService({
+      updateVariant: async () => {
+        throw new ProductsServiceError(ERROR_CODES.NOT_FOUND, "Variant not found", 404);
+      },
+    }));
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/variants/variant-1",
+      {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({
+          variantLabel: "Large",
+        }),
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.NOT_FOUND,
+        message: "Variant not found",
+      },
+    });
+  });
+
+  test("PUT /api/companies/:companyId/products/:productId/variants/:variantId rejects an empty body", async () => {
+    const app = createTestApp(createStubProductsService());
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/variants/variant-1",
+      {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({}),
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: "Request body must include at least one updatable field",
+      },
+    });
+  });
+
+  test("PUT /api/companies/:companyId/products/:productId/variants/:variantId rejects invalid recursive attributes", async () => {
+    const app = createTestApp(createStubProductsService());
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/variants/variant-1",
+      {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({
+          attributes: {
+            nested: {
+              "  ": "bad",
+            },
+          },
+        }),
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: "attributes.nested keys must be non-empty strings",
+      },
+    });
+  });
+
+  test("PUT /api/companies/:companyId/products/:productId/variants/:variantId returns 409 for concurrent update conflicts", async () => {
+    const app = createTestApp(createStubProductsService({
+      updateVariant: async () => {
+        throw new ProductsServiceError(
+          ERROR_CODES.CONFLICT,
+          "Product was modified concurrently; retry the update",
+          409,
+        );
+      },
+    }));
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/variants/variant-1",
+      {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({
+          variantLabel: "Large",
+        }),
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.CONFLICT,
+        message: "Product was modified concurrently; retry the update",
+      },
+    });
+  });
+
+  test("DELETE /api/companies/:companyId/products/:productId/variants/:variantId returns the deleted payload", async () => {
+    const deletedResult: DeleteProductVariantResult = {
+      productId: "product-1",
+      variantId: "variant-1",
+    };
+    const app = createTestApp(createStubProductsService({
+      deleteVariant: async () => deletedResult,
+    }));
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/variants/variant-1",
+      {
+        method: "DELETE",
+        headers: {
+          "x-api-key": API_KEY,
+        },
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      ok: true,
+      deleted: deletedResult,
+    });
+  });
+
+  test("DELETE /api/companies/:companyId/products/:productId/variants/:variantId returns 404 when the parent product does not exist", async () => {
+    const app = createTestApp(createStubProductsService({
+      deleteVariant: async () => null,
+    }));
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/variants/variant-1",
+      {
+        method: "DELETE",
+        headers: {
+          "x-api-key": API_KEY,
+        },
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.NOT_FOUND,
+        message: "Product not found",
+      },
+    });
+  });
+
+  test("DELETE /api/companies/:companyId/products/:productId/variants/:variantId returns 404 when the variant does not exist", async () => {
+    const app = createTestApp(createStubProductsService({
+      deleteVariant: async () => {
+        throw new ProductsServiceError(ERROR_CODES.NOT_FOUND, "Variant not found", 404);
+      },
+    }));
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/variants/variant-1",
+      {
+        method: "DELETE",
+        headers: {
+          "x-api-key": API_KEY,
+        },
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.NOT_FOUND,
+        message: "Variant not found",
+      },
+    });
+  });
+
+  test("DELETE /api/companies/:companyId/products/:productId/variants/:variantId returns 409 for concurrent update conflicts", async () => {
+    const app = createTestApp(createStubProductsService({
+      deleteVariant: async () => {
+        throw new ProductsServiceError(
+          ERROR_CODES.CONFLICT,
+          "Product was modified concurrently; retry the update",
+          409,
+        );
+      },
+    }));
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/variants/variant-1",
+      {
+        method: "DELETE",
+        headers: {
+          "x-api-key": API_KEY,
+        },
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.CONFLICT,
+        message: "Product was modified concurrently; retry the update",
+      },
     });
   });
 });

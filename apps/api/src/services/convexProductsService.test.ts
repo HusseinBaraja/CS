@@ -1,8 +1,8 @@
-import { describe, expect, test } from "bun:test";
-import { convexInternal } from "@cs/db";
-import { ERROR_CODES } from "@cs/shared";
-import { getFunctionName } from "convex/server";
-import { createConvexProductsService } from "./convexProductsService";
+import { describe, expect, test } from 'bun:test';
+import { convexInternal } from '@cs/db';
+import { ERROR_CODES } from '@cs/shared';
+import { getFunctionName } from 'convex/server';
+import { createConvexProductsService } from './convexProductsService';
 import {
   createAiServiceError,
   createConflictServiceError,
@@ -10,7 +10,7 @@ import {
   createNotFoundServiceError,
   createValidationServiceError,
   ProductsServiceError,
-} from "./products";
+} from './products';
 
 type StubConvexClient = {
   query: (reference: unknown, args: unknown) => Promise<unknown>;
@@ -98,7 +98,7 @@ describe("createConvexProductsService", () => {
     });
 
     await expect(service.list("company-1", {})).rejects.toEqual(
-      createValidationServiceError("Invalid product, company, or category identifier"),
+      createValidationServiceError("Invalid product, company, category, or variant identifier"),
     );
   });
 
@@ -156,6 +156,219 @@ describe("createConvexProductsService", () => {
       nameEn: "Updated Burger Box",
     })).rejects.toEqual(
       createConflictServiceError("Product was modified concurrently; retry the update"),
+    );
+  });
+
+  test("uses the internal Convex variant query reference", async () => {
+    let receivedReference: unknown;
+    let receivedArgs: unknown;
+    const service = createService({
+      query: async (reference, args) => {
+        receivedReference = reference;
+        receivedArgs = args;
+        return [];
+      },
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+      action: async () => {
+        throw new Error("action should not be called");
+      },
+    });
+
+    await expect(service.listVariants("company-1", "product-1")).resolves.toEqual([]);
+    expect(getFunctionName(receivedReference as never)).toBe(
+      getFunctionName(convexInternal.products.listVariants),
+    );
+    expect(receivedArgs).toEqual({
+      companyId: "company-1",
+      productId: "product-1",
+    });
+  });
+
+  test("uses the internal Convex createVariant action reference", async () => {
+    let receivedReference: unknown;
+    let receivedArgs: unknown;
+    const service = createService({
+      query: async () => {
+        throw new Error("query should not be called");
+      },
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+      action: async (reference, args) => {
+        receivedReference = reference;
+        receivedArgs = args;
+        return {
+          id: "variant-1",
+          productId: "product-1",
+          variantLabel: "Family Pack",
+          attributes: {
+            nested: {
+              tone: "warm",
+            },
+          },
+        };
+      },
+    });
+
+    await expect(service.createVariant("company-1", "product-1", {
+      variantLabel: "Family Pack",
+      attributes: {
+        nested: {
+          tone: "warm",
+        },
+      },
+    })).resolves.toEqual({
+      id: "variant-1",
+      productId: "product-1",
+      variantLabel: "Family Pack",
+      attributes: {
+        nested: {
+          tone: "warm",
+        },
+      },
+    });
+    expect(getFunctionName(receivedReference as never)).toBe(
+      getFunctionName(convexInternal.products.createVariant),
+    );
+    expect(receivedArgs).toEqual({
+      companyId: "company-1",
+      productId: "product-1",
+      variantLabel: "Family Pack",
+      attributes: {
+        nested: {
+          tone: "warm",
+        },
+      },
+    });
+  });
+
+  test("uses the internal Convex updateVariant action reference", async () => {
+    let receivedReference: unknown;
+    let receivedArgs: unknown;
+    const service = createService({
+      query: async () => {
+        throw new Error("query should not be called");
+      },
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+      action: async (reference, args) => {
+        receivedReference = reference;
+        receivedArgs = args;
+        return {
+          id: "variant-1",
+          productId: "product-1",
+          variantLabel: "Updated",
+          attributes: {
+            size: "XL",
+          },
+        };
+      },
+    });
+
+    await expect(service.updateVariant("company-1", "product-1", "variant-1", {
+      variantLabel: "Updated",
+      attributes: {
+        size: "XL",
+      },
+      priceOverride: null,
+    })).resolves.toEqual({
+      id: "variant-1",
+      productId: "product-1",
+      variantLabel: "Updated",
+      attributes: {
+        size: "XL",
+      },
+    });
+    expect(getFunctionName(receivedReference as never)).toBe(
+      getFunctionName(convexInternal.products.updateVariant),
+    );
+    expect(receivedArgs).toEqual({
+      companyId: "company-1",
+      productId: "product-1",
+      variantId: "variant-1",
+      variantLabel: "Updated",
+      attributes: {
+        size: "XL",
+      },
+      priceOverride: null,
+    });
+  });
+
+  test("uses the internal Convex removeVariant action reference", async () => {
+    let receivedReference: unknown;
+    let receivedArgs: unknown;
+    const service = createService({
+      query: async () => {
+        throw new Error("query should not be called");
+      },
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+      action: async (reference, args) => {
+        receivedReference = reference;
+        receivedArgs = args;
+        return {
+          productId: "product-1",
+          variantId: "variant-1",
+        };
+      },
+    });
+
+    await expect(service.deleteVariant("company-1", "product-1", "variant-1")).resolves.toEqual({
+      productId: "product-1",
+      variantId: "variant-1",
+    });
+    expect(getFunctionName(receivedReference as never)).toBe(
+      getFunctionName(convexInternal.products.removeVariant),
+    );
+    expect(receivedArgs).toEqual({
+      companyId: "company-1",
+      productId: "product-1",
+      variantId: "variant-1",
+    });
+  });
+
+  test("maps variant validation tags on actions", async () => {
+    const service = createService({
+      query: async () => {
+        throw new Error("query should not be called");
+      },
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+      action: async () => {
+        throw new Error("VALIDATION_FAILED: attributes.nested must be an object");
+      },
+    });
+
+    await expect(service.createVariant("company-1", "product-1", {
+      variantLabel: "Large",
+      attributes: {
+        nested: "bad",
+      },
+    })).rejects.toEqual(
+      createValidationServiceError("attributes.nested must be an object"),
+    );
+  });
+
+  test("maps variant AI failures on actions", async () => {
+    const service = createService({
+      query: async () => {
+        throw new Error("query should not be called");
+      },
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+      action: async () => {
+        throw new Error("AI_PROVIDER_FAILED: Gemini rate limit exceeded");
+      },
+    });
+
+    await expect(service.deleteVariant("company-1", "product-1", "variant-1")).rejects.toEqual(
+      createAiServiceError("Gemini rate limit exceeded"),
     );
   });
 });

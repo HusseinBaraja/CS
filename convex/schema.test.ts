@@ -178,6 +178,55 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
         attributes: { size: "L", color: "White" },
       });
     });
+
+    it("accepts nested object and array attribute values", async () => {
+      const t = convexTest(schema, modules);
+      const companyId = await t.run(async (ctx) =>
+        ctx.db.insert("companies", {
+          name: "Nested Test Co",
+          ownerPhone: "966500000099",
+        }),
+      );
+      const catId = await t.run(async (ctx) =>
+        ctx.db.insert("categories", { companyId, nameEn: "Containers" }),
+      );
+      const productId = await t.run(async (ctx) =>
+        ctx.db.insert("products", {
+          companyId,
+          categoryId: catId,
+          nameEn: "Meal Box",
+        }),
+      );
+
+      const variantId = await t.run(async (ctx) =>
+        ctx.db.insert("productVariants", {
+          productId,
+          variantLabel: "Family Pack",
+          attributes: {
+            size: "XL",
+            nested: {
+              materials: ["paper", "kraft"],
+              metadata: {
+                recyclable: true,
+                notes: null,
+              },
+            },
+          },
+        }),
+      );
+
+      const doc = await t.run(async (ctx) => ctx.db.get(variantId));
+      expect(doc?.attributes).toEqual({
+        size: "XL",
+        nested: {
+          materials: ["paper", "kraft"],
+          metadata: {
+            recyclable: true,
+            notes: null,
+          },
+        },
+      });
+    });
   });
 
   // ── Conversations & Messages ──────────────────────────────────────────

@@ -1,7 +1,13 @@
 import { Hono } from 'hono';
 import { ERROR_CODES } from '@cs/shared';
 import { createErrorResponse } from '../responses';
-import { parseCreateProductBody, parseListProductsQuery, parseUpdateProductBody } from './productSchemas';
+import {
+  parseCreateProductBody,
+  parseCreateVariantBody,
+  parseListProductsQuery,
+  parseUpdateProductBody,
+  parseUpdateVariantBody,
+} from './productSchemas';
 import type { ProductsService } from '../services/products';
 import { ProductsServiceError } from '../services/products';
 
@@ -163,6 +169,123 @@ export const createProductsRoutes = (
 
     try {
       const deleted = await options.productsService.delete(companyId, productId);
+      if (!deleted) {
+        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
+      }
+
+      return c.json({
+        ok: true,
+        deleted,
+      });
+    } catch (error) {
+      if (isServiceError(error)) {
+        return c.json(createErrorResponse(error.code, error.message), error.status);
+      }
+
+      throw error;
+    }
+  });
+
+  app.get("/:id/variants", async (c) => {
+    const companyId = requireParam(c.req.param("companyId"));
+    const productId = requireParam(c.req.param("id"));
+
+    try {
+      const variants = await options.productsService.listVariants(companyId, productId);
+      if (!variants) {
+        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
+      }
+
+      return c.json({
+        ok: true,
+        variants,
+      });
+    } catch (error) {
+      if (isServiceError(error)) {
+        return c.json(createErrorResponse(error.code, error.message), error.status);
+      }
+
+      throw error;
+    }
+  });
+
+  app.post("/:id/variants", async (c) => {
+    const companyId = requireParam(c.req.param("companyId"));
+    const productId = requireParam(c.req.param("id"));
+    const parsedJson = await parseJsonBody(c.req.raw);
+    if (!parsedJson.ok) {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
+    }
+
+    const parsedBody = parseCreateVariantBody(parsedJson.value);
+    if (!parsedBody.ok) {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);
+    }
+
+    try {
+      const variant = await options.productsService.createVariant(companyId, productId, parsedBody.value);
+      if (!variant) {
+        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
+      }
+
+      return c.json({
+        ok: true,
+        variant,
+      }, 201);
+    } catch (error) {
+      if (isServiceError(error)) {
+        return c.json(createErrorResponse(error.code, error.message), error.status);
+      }
+
+      throw error;
+    }
+  });
+
+  app.put("/:id/variants/:variantId", async (c) => {
+    const companyId = requireParam(c.req.param("companyId"));
+    const productId = requireParam(c.req.param("id"));
+    const variantId = requireParam(c.req.param("variantId"));
+    const parsedJson = await parseJsonBody(c.req.raw);
+    if (!parsedJson.ok) {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
+    }
+
+    const parsedBody = parseUpdateVariantBody(parsedJson.value);
+    if (!parsedBody.ok) {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);
+    }
+
+    try {
+      const variant = await options.productsService.updateVariant(
+        companyId,
+        productId,
+        variantId,
+        parsedBody.value,
+      );
+      if (!variant) {
+        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
+      }
+
+      return c.json({
+        ok: true,
+        variant,
+      });
+    } catch (error) {
+      if (isServiceError(error)) {
+        return c.json(createErrorResponse(error.code, error.message), error.status);
+      }
+
+      throw error;
+    }
+  });
+
+  app.delete("/:id/variants/:variantId", async (c) => {
+    const companyId = requireParam(c.req.param("companyId"));
+    const productId = requireParam(c.req.param("id"));
+    const variantId = requireParam(c.req.param("variantId"));
+
+    try {
+      const deleted = await options.productsService.deleteVariant(companyId, productId, variantId);
       if (!deleted) {
         return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
       }

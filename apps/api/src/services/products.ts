@@ -2,11 +2,23 @@ import { ERROR_CODES, type ErrorCode } from '@cs/shared';
 
 export type ProductSpecifications = Record<string, string | number | boolean>;
 
+export type ProductVariantAttributeValue =
+  | string
+  | number
+  | boolean
+  | null
+  | ProductVariantAttributeValue[]
+  | ProductVariantAttributes;
+
+export interface ProductVariantAttributes {
+  [key: string]: ProductVariantAttributeValue;
+}
+
 export interface ProductVariantDto {
   id: string;
   productId: string;
   variantLabel: string;
-  attributes: ProductSpecifications;
+  attributes: ProductVariantAttributes;
   priceOverride?: number;
 }
 
@@ -61,12 +73,46 @@ export interface DeleteProductResult {
   productId: string;
 }
 
+export interface CreateProductVariantInput {
+  variantLabel: string;
+  attributes: ProductVariantAttributes;
+  priceOverride?: number;
+}
+
+export interface UpdateProductVariantInput {
+  variantLabel?: string;
+  attributes?: ProductVariantAttributes;
+  priceOverride?: number | null;
+}
+
+export interface DeleteProductVariantResult {
+  productId: string;
+  variantId: string;
+}
+
 export interface ProductsService {
   list(companyId: string, filters: ListProductsFilters): Promise<ProductListItemDto[] | null>;
   get(companyId: string, productId: string): Promise<ProductDetailDto | null>;
   create(companyId: string, input: CreateProductInput): Promise<ProductDetailDto>;
   update(companyId: string, productId: string, patch: UpdateProductInput): Promise<ProductDetailDto | null>;
   delete(companyId: string, productId: string): Promise<DeleteProductResult | null>;
+  listVariants(companyId: string, productId: string): Promise<ProductVariantDto[] | null>;
+  createVariant(
+    companyId: string,
+    productId: string,
+    input: CreateProductVariantInput,
+  ): Promise<ProductVariantDto | null>;
+  updateVariant(
+    companyId: string,
+    productId: string,
+    variantId: string,
+    patch: UpdateProductVariantInput,
+  ): Promise<ProductVariantDto | null>;
+  deleteVariant(
+    companyId: string,
+    productId: string,
+    variantId: string,
+  ): Promise<DeleteProductVariantResult | null>;
 }
 
 export class ProductsServiceError extends Error {

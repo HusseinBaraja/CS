@@ -1,14 +1,14 @@
-import { convexInternal, createConvexAdminClient, type ConvexAdminClient } from '@cs/db';
+import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
 import { ERROR_CODES } from '@cs/shared';
 import {
-  type DeleteProductResult,
-  type ProductsService,
   createAiServiceError,
   createConflictServiceError,
   createDatabaseServiceError,
   createNotFoundServiceError,
-  ProductsServiceError,
   createValidationServiceError,
+  type DeleteProductResult,
+  type ProductsService,
+  ProductsServiceError,
 } from './products';
 
 export interface ConvexProductsServiceOptions {
@@ -55,7 +55,7 @@ const normalizeServiceError = (error: unknown): ProductsServiceError => {
       error.message.includes("Invalid argument") ||
       error.message.includes("Unable to decode")
     ) {
-      return createValidationServiceError("Invalid product, company, or category identifier");
+      return createValidationServiceError("Invalid product, company, category, or variant identifier");
     }
   }
 
@@ -91,6 +91,13 @@ export const createConvexProductsService = (
           productId: productId as never,
         })
       ),
+    listVariants: (companyId, productId) =>
+      withClient((client) =>
+        client.query(convexInternal.products.listVariants, {
+          companyId: companyId as never,
+          productId: productId as never,
+        })
+      ),
     create: (companyId, input) =>
       withClient((client) => {
         const {
@@ -118,6 +125,31 @@ export const createConvexProductsService = (
           ...(categoryId ? { categoryId: categoryId as never } : {}),
         });
       }),
+    createVariant: (companyId, productId, input) =>
+      withClient((client) =>
+        client.action(convexInternal.products.createVariant, {
+          companyId: companyId as never,
+          productId: productId as never,
+          ...input,
+        })
+      ),
+    updateVariant: (companyId, productId, variantId, patch) =>
+      withClient((client) =>
+        client.action(convexInternal.products.updateVariant, {
+          companyId: companyId as never,
+          productId: productId as never,
+          variantId: variantId as never,
+          ...patch,
+        })
+      ),
+    deleteVariant: (companyId, productId, variantId) =>
+      withClient((client) =>
+        client.action(convexInternal.products.removeVariant, {
+          companyId: companyId as never,
+          productId: productId as never,
+          variantId: variantId as never,
+        })
+      ),
     delete: (companyId, productId) =>
       withClient((client) =>
         client.mutation(convexInternal.products.remove, {

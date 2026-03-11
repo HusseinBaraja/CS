@@ -58,7 +58,7 @@ export default defineSchema({
   productVariants: defineTable({
     productId: v.id("products"),
     variantLabel: v.string(),
-    attributes: flexRecord, // e.g. { size: "L", color: "White" }
+    attributes: v.record(v.string(), v.any()),
     priceOverride: v.optional(v.number()),
   }).index("by_product", ["productId"]),
 

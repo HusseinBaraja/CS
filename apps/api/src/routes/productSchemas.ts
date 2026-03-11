@@ -1,8 +1,12 @@
 import type {
   CreateProductInput,
+  CreateProductVariantInput,
   ListProductsFilters,
   ProductSpecifications,
+  ProductVariantAttributes,
+  ProductVariantAttributeValue,
   UpdateProductInput,
+  UpdateProductVariantInput,
 } from '../services/products';
 import {
   isRecord,
@@ -137,6 +141,97 @@ const parseImageUrls = (
   return {
     ok: true,
     value: imageUrls,
+  };
+};
+
+const parseVariantAttributeValue = (
+  value: unknown,
+  path: string,
+): ParseResult<ProductVariantAttributeValue> => {
+  if (value === null) {
+    return {
+      ok: true,
+      value: null,
+    };
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return {
+      ok: true,
+      value,
+    };
+  }
+
+  if (Array.isArray(value)) {
+    const entries: ProductVariantAttributeValue[] = [];
+    for (const [index, entryValue] of value.entries()) {
+      const parsedEntry = parseVariantAttributeValue(entryValue, `${path}[${index}]`);
+      if (!parsedEntry.ok) {
+        return parsedEntry;
+      }
+
+      entries.push(parsedEntry.value);
+    }
+
+    return {
+      ok: true,
+      value: entries,
+    };
+  }
+
+  if (isRecord(value)) {
+    return parseVariantAttributes(value, path);
+  }
+
+  return {
+    ok: false,
+    message: `${path} must be a string, number, boolean, null, object, or array`,
+  };
+};
+
+const parseVariantAttributes = (
+  value: unknown,
+  path = "attributes",
+): ParseResult<ProductVariantAttributes> => {
+  if (!isRecord(value)) {
+    return {
+      ok: false,
+      message: `${path} must be an object`,
+    };
+  }
+
+  const attributes: ProductVariantAttributes = {};
+  for (const [key, entryValue] of Object.entries(value)) {
+    const normalizedKey = key.trim();
+    if (normalizedKey.length === 0) {
+      return {
+        ok: false,
+        message: `${path} keys must be non-empty strings`,
+      };
+    }
+
+    if (normalizedKey in attributes) {
+      return {
+        ok: false,
+        message: `${path} keys must be unique after trimming: ${normalizedKey}`,
+      };
+    }
+
+    const parsedValue = parseVariantAttributeValue(entryValue, `${path}.${normalizedKey}`);
+    if (!parsedValue.ok) {
+      return parsedValue;
+    }
+
+    attributes[normalizedKey] = parsedValue.value;
+  }
+
+  return {
+    ok: true,
+    value: attributes,
   };
 };
 
@@ -349,6 +444,96 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
     }
 
     updates.imageUrls = imageUrls.value;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return {
+      ok: false,
+      message: "Request body must include at least one updatable field",
+    };
+  }
+
+  return {
+    ok: true,
+    value: updates,
+  };
+};
+
+export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProductVariantInput> => {
+  const parsedObject = parseObject(value);
+  if (!parsedObject.ok) {
+    return parsedObject;
+  }
+
+  const variantLabel = parseRequiredString(parsedObject.value.variantLabel, "variantLabel");
+  if (!variantLabel.ok) {
+    return variantLabel;
+  }
+
+  const attributes = parseVariantAttributes(parsedObject.value.attributes);
+  if (!attributes.ok) {
+    return attributes;
+  }
+
+  const priceOverride = parseOptionalNumber(parsedObject.value.priceOverride, "priceOverride");
+  if (!priceOverride.ok) {
+    return priceOverride;
+  }
+
+  return {
+    ok: true,
+    value: {
+      variantLabel: variantLabel.value,
+      attributes: attributes.value,
+      ...(priceOverride.value !== undefined && priceOverride.value !== null
+        ? { priceOverride: priceOverride.value }
+        : {}),
+    },
+  };
+};
+
+export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProductVariantInput> => {
+  const parsedObject = parseObject(value);
+  if (!parsedObject.ok) {
+    return parsedObject;
+  }
+
+  if (Object.keys(parsedObject.value).length === 0) {
+    return {
+      ok: false,
+      message: "Request body must include at least one updatable field",
+    };
+  }
+
+  const updates: UpdateProductVariantInput = {};
+
+  if ("variantLabel" in parsedObject.value) {
+    const variantLabel = parseRequiredString(parsedObject.value.variantLabel, "variantLabel");
+    if (!variantLabel.ok) {
+      return variantLabel;
+    }
+
+    updates.variantLabel = variantLabel.value;
+  }
+
+  if ("attributes" in parsedObject.value) {
+    const attributes = parseVariantAttributes(parsedObject.value.attributes);
+    if (!attributes.ok) {
+      return attributes;
+    }
+
+    updates.attributes = attributes.value;
+  }
+
+  if ("priceOverride" in parsedObject.value) {
+    const priceOverride = parseOptionalNumber(parsedObject.value.priceOverride, "priceOverride", {
+      allowNull: true,
+    });
+    if (!priceOverride.ok) {
+      return priceOverride;
+    }
+
+    updates.priceOverride = priceOverride.value;
   }
 
   if (Object.keys(updates).length === 0) {
