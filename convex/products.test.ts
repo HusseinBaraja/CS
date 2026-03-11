@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { convexTest } from 'convex-test';
 import { setGeminiClientFactoryForTests } from '@cs/ai';
-import { api } from './_generated/api';
+import { internal } from './_generated/api';
 import schema from './schema';
 
 const modules =
@@ -103,14 +103,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       };
     });
 
-    const allProducts = await t.query(api.products.list, {
+    const allProducts = await t.query(internal.products.list, {
       companyId,
     });
-    const categoryProducts = await t.query(api.products.list, {
+    const categoryProducts = await t.query(internal.products.list, {
       companyId,
       categoryId: otherCategoryId,
     });
-    const searchedProducts = await t.query(api.products.list, {
+    const searchedProducts = await t.query(internal.products.list, {
       companyId,
       search: "PaPeR",
     });
@@ -160,11 +160,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       };
     });
 
-    const product = await t.query(api.products.get, {
+    const product = await t.query(internal.products.get, {
       companyId,
       productId,
     });
-    const hiddenProduct = await t.query(api.products.get, {
+    const hiddenProduct = await t.query(internal.products.get, {
       companyId: otherCompanyId,
       productId,
     });
@@ -209,7 +209,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       };
     });
 
-    const product = await t.action(api.products.create, {
+    const product = await t.action(internal.products.create, {
       companyId,
       categoryId,
       nameEn: "Burger Box",
@@ -287,7 +287,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       };
     });
 
-    const updatedProduct = await t.action(api.products.update, {
+    const updatedProduct = await t.action(internal.products.update, {
       companyId,
       productId,
       categoryId: nextCategoryId,
@@ -311,7 +311,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(embeddings.every((embedding) => embedding.textContent.includes("Updated"))).toBe(true);
 
     await expect(
-      t.action(api.products.update, {
+      t.action(internal.products.update, {
         companyId,
         productId,
         categoryId: foreignCategoryId,
@@ -361,7 +361,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         .collect(),
     );
 
-    const updatedProduct = await t.action(api.products.update, {
+    const updatedProduct = await t.action(internal.products.update, {
       companyId,
       productId,
       basePrice: 2.5,
@@ -427,7 +427,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       };
     });
 
-    const deleted = await t.mutation(api.products.remove, {
+    const deleted = await t.mutation(internal.products.remove, {
       companyId,
       productId,
     });
@@ -475,12 +475,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       };
     });
 
-    const updatedProduct = await t.action(api.products.update, {
+    const updatedProduct = await t.action(internal.products.update, {
       companyId: otherCompanyId,
       productId,
       nameEn: "Hidden",
     });
-    const deletedProduct = await t.mutation(api.products.remove, {
+    const deletedProduct = await t.mutation(internal.products.remove, {
       companyId: otherCompanyId,
       productId,
     });

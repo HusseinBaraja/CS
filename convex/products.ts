@@ -2,7 +2,7 @@ import { GEMINI_EMBEDDING_DIMENSIONS, generateGeminiEmbeddings } from '@cs/ai';
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { action, internalMutation, internalQuery, mutation, type MutationCtx, query } from './_generated/server';
+import { internalAction, internalMutation, internalQuery, type MutationCtx } from './_generated/server';
 
 const flexValue = v.union(v.string(), v.number(), v.boolean());
 const flexRecord = v.record(v.string(), flexValue);
@@ -561,7 +561,7 @@ const createProductPatch = (
   return patch;
 };
 
-export const list = query({
+export const list = internalQuery({
   args: {
     companyId: v.id("companies"),
     categoryId: v.optional(v.id("categories")),
@@ -595,7 +595,7 @@ export const list = query({
   },
 });
 
-export const get = query({
+export const get = internalQuery({
   args: {
     companyId: v.id("companies"),
     productId: v.id("products"),
@@ -765,7 +765,7 @@ export const patchProductWithEmbeddings = internalMutation({
   },
 });
 
-export const create = action({
+export const create = internalAction({
   args: {
     companyId: v.id("companies"),
     categoryId: v.id("categories"),
@@ -802,7 +802,7 @@ export const create = action({
   },
 });
 
-export const update = action({
+export const update = internalAction({
   args: {
     companyId: v.id("companies"),
     productId: v.id("products"),
@@ -853,7 +853,7 @@ export const update = action({
   },
 });
 
-export const remove = mutation({
+export const remove = internalMutation({
   args: {
     companyId: v.id("companies"),
     productId: v.id("products"),

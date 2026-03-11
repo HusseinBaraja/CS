@@ -1,17 +1,17 @@
-import { convexApi, createConvexClient } from '@cs/db';
+import { convexInternal, createConvexAdminClient, type ConvexAdminClient } from '@cs/db';
 import { ERROR_CODES } from '@cs/shared';
-import type { DeleteProductResult, ProductsService, ProductsServiceError } from './products';
 import {
+  type DeleteProductResult,
+  type ProductsService,
   createAiServiceError,
   createDatabaseServiceError,
   createNotFoundServiceError,
+  ProductsServiceError,
   createValidationServiceError,
 } from './products';
 
-type ConvexClient = ReturnType<typeof createConvexClient>;
-
 export interface ConvexProductsServiceOptions {
-  createClient?: () => ConvexClient;
+  createClient?: () => ConvexAdminClient;
 }
 
 const ERROR_PREFIXES = new Map<string, (message: string) => ProductsServiceError>([
@@ -33,7 +33,14 @@ const parseTaggedError = (message: string): ProductsServiceError | null => {
   return null;
 };
 
+const isProductsServiceError = (error: unknown): error is ProductsServiceError =>
+  error instanceof ProductsServiceError;
+
 const normalizeServiceError = (error: unknown): ProductsServiceError => {
+  if (isProductsServiceError(error)) {
+    return error;
+  }
+
   if (error instanceof Error) {
     const taggedError = parseTaggedError(error.message);
     if (taggedError) {
@@ -56,9 +63,9 @@ const normalizeServiceError = (error: unknown): ProductsServiceError => {
 export const createConvexProductsService = (
   options: ConvexProductsServiceOptions = {},
 ): ProductsService => {
-  const createClient = options.createClient ?? createConvexClient;
+  const createClient = options.createClient ?? createConvexAdminClient;
 
-  const withClient = async <T>(callback: (client: ConvexClient) => Promise<T>): Promise<T> => {
+  const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> => {
     try {
       return await callback(createClient());
     } catch (error) {
@@ -69,7 +76,7 @@ export const createConvexProductsService = (
   return {
     list: (companyId, filters) =>
       withClient((client) =>
-        client.query(convexApi.products.list, {
+        client.query(convexInternal.products.list, {
           companyId: companyId as never,
           ...(filters.categoryId ? { categoryId: filters.categoryId as never } : {}),
           ...(filters.search ? { search: filters.search } : {}),
@@ -77,7 +84,7 @@ export const createConvexProductsService = (
       ),
     get: (companyId, productId) =>
       withClient((client) =>
-        client.query(convexApi.products.get, {
+        client.query(convexInternal.products.get, {
           companyId: companyId as never,
           productId: productId as never,
         })
@@ -89,7 +96,7 @@ export const createConvexProductsService = (
           ...restInput
         } = input;
 
-        return client.action(convexApi.products.create, {
+        return client.action(convexInternal.products.create, {
           companyId: companyId as never,
           ...restInput,
           categoryId: categoryId as never,
@@ -102,7 +109,7 @@ export const createConvexProductsService = (
           ...restPatch
         } = patch;
 
-        return client.action(convexApi.products.update, {
+        return client.action(convexInternal.products.update, {
           companyId: companyId as never,
           productId: productId as never,
           ...restPatch,
@@ -111,7 +118,7 @@ export const createConvexProductsService = (
       }),
     delete: (companyId, productId) =>
       withClient((client) =>
-        client.mutation(convexApi.products.remove, {
+        client.mutation(convexInternal.products.remove, {
           companyId: companyId as never,
           productId: productId as never,
         })
