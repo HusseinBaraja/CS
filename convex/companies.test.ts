@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
-import { api } from './_generated/api';
+import { internal } from './_generated/api';
 import schema from './schema';
 
 const modules =
@@ -158,7 +158,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       });
     });
 
-    const companies = await t.query(api.companies.list, {});
+    const companies = await t.query(internal.companies.list, {});
 
     expect(companies).toHaveLength(3);
     expect(companies.map((company) => company.name)).toEqual([
@@ -186,7 +186,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       }),
     );
 
-    const company = await t.query(api.companies.get, {
+    const company = await t.query(internal.companies.get, {
       companyId,
     });
 
@@ -204,7 +204,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
   it("creates a company and trims required fields", async () => {
     const t = convexTest(schema, modules);
 
-    const company = await t.mutation(api.companies.create, {
+    const company = await t.mutation(internal.companies.create, {
       name: "  Tenant  ",
       ownerPhone: " 966500000020 ",
       timezone: "Asia/Aden",
@@ -237,7 +237,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       }),
     );
 
-    const updatedCompany = await t.mutation(api.companies.update, {
+    const updatedCompany = await t.mutation(internal.companies.update, {
       companyId,
       name: "  Renamed Tenant  ",
       timezone: null,
@@ -262,7 +262,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     );
 
     await expect(
-      t.mutation(api.companies.create, {
+      t.mutation(internal.companies.create, {
         name: "New Tenant",
         ownerPhone: "966500000040",
       }),
@@ -276,7 +276,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     );
 
     await expect(
-      t.mutation(api.companies.update, {
+      t.mutation(internal.companies.update, {
         companyId: secondCompanyId,
         ownerPhone: "966500000040",
       }),
@@ -294,7 +294,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       variantCount: 2,
     });
 
-    const result = await t.action(api.companies.remove, {
+    const result = await t.action(internal.companies.remove, {
       companyId,
     });
     const counts = await collectCounts(t);
@@ -336,7 +336,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       variantCount: oversizedBatchCount,
     });
 
-    const result = await t.action(api.companies.remove, {
+    const result = await t.action(internal.companies.remove, {
       companyId,
     });
     const counts = await collectCounts(t);

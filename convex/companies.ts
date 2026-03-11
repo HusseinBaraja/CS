@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
-import { action, mutation, type MutationCtx, query } from './_generated/server';
+import { internalAction, internalMutation, type MutationCtx, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
 import { type CleanupCounts, createEmptyCleanupCounts } from './companyCleanup';
 
@@ -70,7 +70,7 @@ const assertOwnerPhoneAvailable = async (
   }
 };
 
-export const list = query({
+export const list = internalQuery({
   args: {},
   handler: async (ctx): Promise<CompanyDto[]> => {
     const companies = await ctx.db.query("companies").collect();
@@ -81,7 +81,7 @@ export const list = query({
   },
 });
 
-export const get = query({
+export const get = internalQuery({
   args: {
     companyId: v.id("companies"),
   },
@@ -91,7 +91,7 @@ export const get = query({
   },
 });
 
-export const create = mutation({
+export const create = internalMutation({
   args: {
     name: v.string(),
     ownerPhone: v.string(),
@@ -121,7 +121,7 @@ export const create = mutation({
   },
 });
 
-export const update = mutation({
+export const update = internalMutation({
   args: {
     companyId: v.id("companies"),
     name: v.optional(v.string()),
@@ -170,7 +170,7 @@ export const update = mutation({
   },
 });
 
-export const remove = action({
+export const remove = internalAction({
   args: {
     companyId: v.id("companies"),
   },

@@ -1,12 +1,10 @@
-import { convexApi, createConvexClient } from '@cs/db';
+import { convexInternal, createConvexAdminClient, type ConvexAdminClient } from '@cs/db';
 import { ERROR_CODES } from '@cs/shared';
 import type { CompaniesService, CompaniesServiceError, DeleteCompanyResult } from './companies';
 import { createConflictServiceError, createDatabaseServiceError, createValidationServiceError } from './companies';
 
-type ConvexClient = ReturnType<typeof createConvexClient>;
-
 export interface ConvexCompaniesServiceOptions {
-  createClient?: () => ConvexClient;
+  createClient?: () => ConvexAdminClient;
 }
 
 const ERROR_PREFIXES = new Map<string, (message: string) => CompaniesServiceError>([
@@ -50,9 +48,9 @@ const normalizeServiceError = (error: unknown): CompaniesServiceError => {
 export const createConvexCompaniesService = (
   options: ConvexCompaniesServiceOptions = {},
 ): CompaniesService => {
-  const createClient = options.createClient ?? createConvexClient;
+  const createClient = options.createClient ?? createConvexAdminClient;
 
-  const withClient = async <T>(callback: (client: ConvexClient) => Promise<T>): Promise<T> => {
+  const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> => {
     try {
       return await callback(createClient());
     } catch (error) {
@@ -62,25 +60,25 @@ export const createConvexCompaniesService = (
 
   return {
     list: () =>
-      withClient((client) => client.query(convexApi.companies.list, {})),
+      withClient((client) => client.query(convexInternal.companies.list, {})),
     get: (companyId) =>
       withClient((client) =>
-        client.query(convexApi.companies.get, {
+        client.query(convexInternal.companies.get, {
           companyId: companyId as never,
         })
       ),
     create: (input) =>
-      withClient((client) => client.mutation(convexApi.companies.create, input)),
+      withClient((client) => client.mutation(convexInternal.companies.create, input)),
     update: (companyId, patch) =>
       withClient((client) =>
-        client.mutation(convexApi.companies.update, {
+        client.mutation(convexInternal.companies.update, {
           companyId: companyId as never,
           ...patch,
         })
       ),
     delete: (companyId) =>
       withClient((client) =>
-        client.action(convexApi.companies.remove, {
+        client.action(convexInternal.companies.remove, {
           companyId: companyId as never,
         })
       ) as Promise<DeleteCompanyResult | null>,
