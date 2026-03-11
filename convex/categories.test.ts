@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
-import { api } from './_generated/api';
+import { internal } from './_generated/api';
 import schema from './schema';
 
 const modules =
@@ -47,7 +47,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       };
     });
 
-    const categories = await t.query(api.categories.list, {
+    const categories = await t.query(internal.categories.list, {
       companyId,
     });
 
@@ -73,7 +73,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       return companyId;
     });
 
-    const categories = await t.query(api.categories.list, {
+    const categories = await t.query(internal.categories.list, {
       companyId,
     });
 
@@ -105,11 +105,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       };
     });
 
-    const category = await t.query(api.categories.get, {
+    const category = await t.query(internal.categories.get, {
       companyId,
       categoryId,
     });
-    const hiddenCategory = await t.query(api.categories.get, {
+    const hiddenCategory = await t.query(internal.categories.get, {
       companyId: otherCompanyId,
       categoryId,
     });
@@ -133,7 +133,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       }),
     );
 
-    const category = await t.mutation(api.categories.create, {
+    const category = await t.mutation(internal.categories.create, {
       companyId,
       nameEn: "  Containers  ",
       nameAr: "  حاويات  ",
@@ -163,7 +163,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       return companyId;
     });
 
-    const category = await t.mutation(api.categories.create, {
+    const category = await t.mutation(internal.categories.create, {
       companyId,
       nameEn: "Containers",
     });
@@ -196,13 +196,13 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
     });
 
     await expect(
-      t.mutation(api.categories.create, {
+      t.mutation(internal.categories.create, {
         companyId,
         nameEn: "  Containers  ",
       }),
     ).rejects.toThrow("CONFLICT: Category name already exists for this company");
 
-    const category = await t.mutation(api.categories.create, {
+    const category = await t.mutation(internal.categories.create, {
       companyId: otherCompanyId,
       nameEn: "Containers",
     });
@@ -237,7 +237,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       };
     });
 
-    const updatedCategory = await t.mutation(api.categories.update, {
+    const updatedCategory = await t.mutation(internal.categories.update, {
       companyId,
       categoryId,
       nameAr: null,
@@ -253,7 +253,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
     });
 
     await expect(
-      t.mutation(api.categories.update, {
+      t.mutation(internal.categories.update, {
         companyId,
         categoryId: duplicateCategoryId,
         nameEn: " Containers ",
@@ -285,7 +285,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       };
     });
 
-    const updatedCategory = await t.mutation(api.categories.update, {
+    const updatedCategory = await t.mutation(internal.categories.update, {
       companyId: otherCompanyId,
       categoryId,
       nameEn: "Renamed",
@@ -314,7 +314,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       };
     });
 
-    const result = await t.mutation(api.categories.remove, {
+    const result = await t.mutation(internal.categories.remove, {
       companyId,
       categoryId,
     });
@@ -357,13 +357,13 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
     });
 
     await expect(
-      t.mutation(api.categories.remove, {
+      t.mutation(internal.categories.remove, {
         companyId,
         categoryId,
       }),
     ).rejects.toThrow("CONFLICT: Category cannot be deleted while products exist");
 
-    const missingDelete = await t.mutation(api.categories.remove, {
+    const missingDelete = await t.mutation(internal.categories.remove, {
       companyId: otherCompanyId,
       categoryId,
     });

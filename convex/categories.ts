@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
-import { mutation, type MutationCtx, query } from './_generated/server';
+import { internalMutation, type MutationCtx, internalQuery } from './_generated/server';
 
 type CategoryDto = {
   id: string;
@@ -89,7 +89,7 @@ const assertCategoryNameAvailable = async (
   }
 };
 
-export const list = query({
+export const list = internalQuery({
   args: {
     companyId: v.id("companies"),
   },
@@ -110,7 +110,7 @@ export const list = query({
   },
 });
 
-export const get = query({
+export const get = internalQuery({
   args: {
     companyId: v.id("companies"),
     categoryId: v.id("categories"),
@@ -121,7 +121,7 @@ export const get = query({
   },
 });
 
-export const create = mutation({
+export const create = internalMutation({
   args: {
     companyId: v.id("companies"),
     nameEn: v.string(),
@@ -159,7 +159,7 @@ export const create = mutation({
   },
 });
 
-export const update = mutation({
+export const update = internalMutation({
   args: {
     companyId: v.id("companies"),
     categoryId: v.id("categories"),
@@ -209,7 +209,7 @@ export const update = mutation({
   },
 });
 
-export const remove = mutation({
+export const remove = internalMutation({
   args: {
     companyId: v.id("companies"),
     categoryId: v.id("categories"),

@@ -21,6 +21,7 @@ Monorepo for the API, bot, CLI, worker, and shared packages.
 - `BACKUP_DIR`: optional, defaults to `backups`
 - `BACKUP_RETENTION_COUNT`: optional, defaults to `5`
 - `API_PORT`: optional, defaults to `3000`
+- `CONVEX_ADMIN_KEY`: required for server-side internal Convex calls from the API
 - `CONVEX_URL`: required for `api` and `worker`, unused by `bot` and `cli`
 
 ## Commands

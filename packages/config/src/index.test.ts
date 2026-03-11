@@ -174,5 +174,15 @@ describe("config", () => {
     expect(config.API_KEY).toBeUndefined();
     expect(config.GEMINI_API_KEY).toBeUndefined();
     expect(config.API_CORS_ORIGINS).toEqual(["*"]);
+    expect(config.CONVEX_ADMIN_KEY).toBeUndefined();
+  });
+
+  test("treats empty CONVEX_ADMIN_KEY as an unset value", () => {
+    const config = createConfig({
+      CONVEX_ADMIN_KEY: "",
+      CONVEX_URL: "https://example.convex.cloud"
+    });
+
+    expect(config.CONVEX_ADMIN_KEY).toBeUndefined();
   });
 });

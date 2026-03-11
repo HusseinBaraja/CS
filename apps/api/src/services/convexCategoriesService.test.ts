@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { convexInternal } from "@cs/db";
 import { ERROR_CODES } from "@cs/shared";
+import { getFunctionName } from "convex/server";
 import { createConvexCategoriesService } from "./convexCategoriesService";
 import {
   CategoriesServiceError,
@@ -19,6 +21,24 @@ const createService = (client: StubConvexClient) =>
   });
 
 describe("createConvexCategoriesService", () => {
+  test("uses internal Convex category references", async () => {
+    let receivedReference: unknown;
+    const service = createService({
+      query: async (reference) => {
+        receivedReference = reference;
+        return [];
+      },
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+    });
+
+    await expect(service.list("company-1")).resolves.toEqual([]);
+    expect(getFunctionName(receivedReference as never)).toBe(
+      getFunctionName(convexInternal.categories.list),
+    );
+  });
+
   test("rethrows existing CategoriesServiceError instances unchanged", async () => {
     const error = new CategoriesServiceError(
       ERROR_CODES.CONFLICT,

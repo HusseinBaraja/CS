@@ -5,7 +5,12 @@ import { ConfigError, ERROR_CODES } from '@cs/shared';
 
 type RuntimeEnv = Record<string, string | number | boolean | undefined>;
 
-const OPTIONAL_EMPTY_ENV_KEYS = new Set(["API_KEY", "API_CORS_ORIGINS", "GEMINI_API_KEY"]);
+const OPTIONAL_EMPTY_ENV_KEYS = new Set([
+  "API_KEY",
+  "API_CORS_ORIGINS",
+  "CONVEX_ADMIN_KEY",
+  "GEMINI_API_KEY",
+]);
 const parseCsvEnv = (value: string): string[] =>
   value
     .split(",")
@@ -33,6 +38,7 @@ const envSchema = {
   API_TRUST_PROXY_HOPS: z.coerce.number().int().nonnegative().default(0),
   API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
   API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  CONVEX_ADMIN_KEY: z.string().min(1).optional(),
   CONVEX_URL: z.string().min(1).url().optional()
 };
 

@@ -1,4 +1,4 @@
-import { convexApi, createConvexClient } from '@cs/db';
+import { convexInternal, createConvexAdminClient, type ConvexAdminClient } from '@cs/db';
 import { ERROR_CODES } from '@cs/shared';
 import {
   CategoriesServiceError,
@@ -9,10 +9,8 @@ import {
   createValidationServiceError,
 } from './categories';
 
-type ConvexClient = ReturnType<typeof createConvexClient>;
-
 export interface ConvexCategoriesServiceOptions {
-  createClient?: () => ConvexClient;
+  createClient?: () => ConvexAdminClient;
 }
 
 const ERROR_PREFIXES = new Map<string, (message: string) => CategoriesServiceError>([
@@ -63,9 +61,9 @@ const normalizeServiceError = (error: unknown): CategoriesServiceError => {
 export const createConvexCategoriesService = (
   options: ConvexCategoriesServiceOptions = {},
 ): CategoriesService => {
-  const createClient = options.createClient ?? createConvexClient;
+  const createClient = options.createClient ?? createConvexAdminClient;
 
-  const withClient = async <T>(callback: (client: ConvexClient) => Promise<T>): Promise<T> => {
+  const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> => {
     try {
       return await callback(createClient());
     } catch (error) {
@@ -76,27 +74,27 @@ export const createConvexCategoriesService = (
   return {
     list: (companyId) =>
       withClient((client) =>
-        client.query(convexApi.categories.list, {
+        client.query(convexInternal.categories.list, {
           companyId: companyId as never,
         })
       ),
     get: (companyId, categoryId) =>
       withClient((client) =>
-        client.query(convexApi.categories.get, {
+        client.query(convexInternal.categories.get, {
           companyId: companyId as never,
           categoryId: categoryId as never,
         })
       ),
     create: (companyId, input) =>
       withClient((client) =>
-        client.mutation(convexApi.categories.create, {
+        client.mutation(convexInternal.categories.create, {
           companyId: companyId as never,
           ...input,
         })
       ),
     update: (companyId, categoryId, patch) =>
       withClient((client) =>
-        client.mutation(convexApi.categories.update, {
+        client.mutation(convexInternal.categories.update, {
           companyId: companyId as never,
           categoryId: categoryId as never,
           ...patch,
@@ -104,7 +102,7 @@ export const createConvexCategoriesService = (
       ),
     delete: (companyId, categoryId) =>
       withClient((client) =>
-        client.mutation(convexApi.categories.remove, {
+        client.mutation(convexInternal.categories.remove, {
           companyId: companyId as never,
           categoryId: categoryId as never,
         })
