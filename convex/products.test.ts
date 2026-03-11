@@ -14,14 +14,30 @@ const createEmbedding = (seed: number): number[] =>
   Array.from({ length: 768 }, (_, index) => seed + index / 1000);
 
 let resetGeminiClientFactory: (() => void) | null = null;
+let originalGeminiApiKey: string | undefined;
+let hasStoredGeminiApiKey = false;
 
 afterEach(() => {
   resetGeminiClientFactory?.();
   resetGeminiClientFactory = null;
-  delete process.env.GEMINI_API_KEY;
+  if (hasStoredGeminiApiKey) {
+    if (originalGeminiApiKey === undefined) {
+      delete process.env.GEMINI_API_KEY;
+    } else {
+      process.env.GEMINI_API_KEY = originalGeminiApiKey;
+    }
+  }
+
+  originalGeminiApiKey = undefined;
+  hasStoredGeminiApiKey = false;
 });
 
 const installGeminiStub = () => {
+  if (!hasStoredGeminiApiKey) {
+    originalGeminiApiKey = process.env.GEMINI_API_KEY;
+    hasStoredGeminiApiKey = true;
+  }
+
   process.env.GEMINI_API_KEY = "test-gemini-key";
   resetGeminiClientFactory = setGeminiClientFactoryForTests(() => ({
     models: {
