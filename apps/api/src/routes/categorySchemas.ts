@@ -1,102 +1,10 @@
 import type { CreateCategoryInput, UpdateCategoryInput } from '../services/categories';
-
-type ParseSuccess<T> = {
-  ok: true;
-  value: T;
-};
-
-type ParseFailure = {
-  ok: false;
-  message: string;
-};
-
-type ParseResult<T> = ParseSuccess<T> | ParseFailure;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const parseObject = (value: unknown): ParseResult<Record<string, unknown>> => {
-  if (!isRecord(value)) {
-    return {
-      ok: false,
-      message: "Request body must be a JSON object",
-    };
-  }
-
-  return {
-    ok: true,
-    value,
-  };
-};
-
-const parseRequiredString = (value: unknown, fieldName: string): ParseResult<string> => {
-  if (typeof value !== "string") {
-    return {
-      ok: false,
-      message: `${fieldName} must be a string`,
-    };
-  }
-
-  const normalized = value.trim();
-  if (normalized.length === 0) {
-    return {
-      ok: false,
-      message: `${fieldName} is required`,
-    };
-  }
-
-  return {
-    ok: true,
-    value: normalized,
-  };
-};
-
-const parseOptionalString = (
-  value: unknown,
-  fieldName: string,
-  options: { allowNull?: boolean } = {},
-): ParseResult<string | null | undefined> => {
-  if (value === undefined) {
-    return {
-      ok: true,
-      value: undefined,
-    };
-  }
-
-  if (value === null) {
-    if (options.allowNull) {
-      return {
-        ok: true,
-        value: null,
-      };
-    }
-
-    return {
-      ok: false,
-      message: `${fieldName} must be a string`,
-    };
-  }
-
-  if (typeof value !== "string") {
-    return {
-      ok: false,
-      message: `${fieldName} must be a string`,
-    };
-  }
-
-  const normalized = value.trim();
-  if (normalized.length === 0) {
-    return {
-      ok: false,
-      message: `${fieldName} is required when provided`,
-    };
-  }
-
-  return {
-    ok: true,
-    value: normalized,
-  };
-};
+import {
+  parseObject,
+  parseOptionalString,
+  parseRequiredString,
+  type ParseResult,
+} from './parserUtils';
 
 export const parseCreateCategoryBody = (value: unknown): ParseResult<CreateCategoryInput> => {
   const parsedObject = parseObject(value);
