@@ -116,6 +116,42 @@ describe("category routes", () => {
     });
   });
 
+  test("GET /api/companies/:companyId/categories/:id returns the category payload", async () => {
+    let receivedCompanyId: string | undefined;
+    let receivedCategoryId: string | undefined;
+    const app = createTestApp(createStubCategoriesService({
+      get: async (companyId, categoryId) => {
+        receivedCompanyId = companyId;
+        receivedCategoryId = categoryId;
+
+        return {
+          ...baseCategory,
+          companyId,
+          id: categoryId,
+        };
+      },
+    }));
+
+    const response = await app.request("/api/companies/company-1/categories/existing-category", {
+      headers: {
+        "x-api-key": API_KEY,
+      },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(receivedCompanyId).toBe("company-1");
+    expect(receivedCategoryId).toBe("existing-category");
+    expect(body).toEqual({
+      ok: true,
+      category: {
+        ...baseCategory,
+        companyId: "company-1",
+        id: "existing-category",
+      },
+    });
+  });
+
   test("GET /api/companies/:companyId/categories/:id returns 404 when the category does not exist", async () => {
     const app = createTestApp(createStubCategoriesService());
 
