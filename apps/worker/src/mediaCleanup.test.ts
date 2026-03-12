@@ -222,4 +222,80 @@ describe("createMediaCleanupProcessor", () => {
       lastError: "Missing required environment variable: R2_ACCESS_KEY_ID",
     });
   });
+
+  test("limits pending and retry jobs to a single combined batch size", async () => {
+    const queryArgs: unknown[] = [];
+    const { client } = createClientStub({
+      mutation: async (_reference, args) => {
+        const input = args as { jobId?: string };
+        if ("limit" in (args as Record<string, unknown>)) {
+          return [];
+        }
+        if (input.jobId) {
+          return {
+            _id: input.jobId,
+            objectKey: `companies/company-1/products/product-1/${input.jobId}.jpg`,
+            attempts: 0,
+          };
+        }
+        return null;
+      },
+      query: async (_reference, args) => {
+        queryArgs.push(args);
+        const input = args as { status: string; limit: number };
+        if (input.status === "pending") {
+          return ["job-1", "job-2"];
+        }
+        return ["job-3", "job-4"];
+      },
+    });
+
+    const deletedKeys: string[] = [];
+    const processor = createMediaCleanupProcessor({
+      createClient: () => client as never,
+      createStorage: () =>
+        ({
+          createPresignedUpload: async () => {
+            throw new Error("not used");
+          },
+          createPresignedDownload: async () => {
+            throw new Error("not used");
+          },
+          statObject: async () => {
+            throw new Error("not used");
+          },
+          deleteObject: async (key: string) => {
+            deletedKeys.push(key);
+          },
+        }) as never,
+      logger: createLoggerStub(),
+      now: () => Date.UTC(2026, 2, 12, 0, 0, 0),
+      batchSize: 3,
+    });
+
+    await expect(processor.runTick()).resolves.toEqual({
+      expiredUploadCount: 0,
+      completedJobs: 3,
+      retriedJobs: 0,
+      failedJobs: 0,
+      skippedJobs: 0,
+    });
+    expect(queryArgs).toEqual([
+      {
+        status: "pending",
+        now: Date.UTC(2026, 2, 12, 0, 0, 0),
+        limit: 3,
+      },
+      {
+        status: "retry",
+        now: Date.UTC(2026, 2, 12, 0, 0, 0),
+        limit: 1,
+      },
+    ]);
+    expect(deletedKeys).toEqual([
+      "companies/company-1/products/product-1/job-1.jpg",
+      "companies/company-1/products/product-1/job-2.jpg",
+      "companies/company-1/products/product-1/job-3.jpg",
+    ]);
+  });
 });
