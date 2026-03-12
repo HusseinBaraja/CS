@@ -4,6 +4,7 @@ import { createErrorResponse } from '../responses';
 import type { CategoriesService } from '../services/categories';
 import { CategoriesServiceError } from '../services/categories';
 import { parseCreateCategoryBody, parseUpdateCategoryBody } from './categorySchemas';
+import { requireRouteParam } from './routeParams';
 
 export interface CategoriesRoutesOptions {
   categoriesService: CategoriesService;
@@ -12,21 +13,13 @@ export interface CategoriesRoutesOptions {
 const isServiceError = (error: unknown): error is CategoriesServiceError =>
   error instanceof CategoriesServiceError;
 
-const requireParam = (value: string | undefined): string => {
-  if (!value) {
-    throw new Error("Missing route parameter");
-  }
-
-  return value;
-};
-
 export const createCategoriesRoutes = (
   options: CategoriesRoutesOptions,
 ) => {
   const app = new Hono();
 
   app.get("/", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
 
     try {
       const categories = await options.categoriesService.list(companyId);
@@ -48,8 +41,8 @@ export const createCategoriesRoutes = (
   });
 
   app.get("/:id", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const categoryId = requireParam(c.req.param("id"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const categoryId = requireRouteParam(c.req.param("id"), "id");
 
     try {
       const category = await options.categoriesService.get(companyId, categoryId);
@@ -72,7 +65,7 @@ export const createCategoriesRoutes = (
   });
 
   app.post("/", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
     const body = await c.req.json();
     const parsedBody = parseCreateCategoryBody(body);
 
@@ -100,8 +93,8 @@ export const createCategoriesRoutes = (
   });
 
   app.put("/:id", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const categoryId = requireParam(c.req.param("id"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const categoryId = requireRouteParam(c.req.param("id"), "id");
     const body = await c.req.json();
     const parsedBody = parseUpdateCategoryBody(body);
 
@@ -130,8 +123,8 @@ export const createCategoriesRoutes = (
   });
 
   app.delete("/:id", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const categoryId = requireParam(c.req.param("id"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const categoryId = requireRouteParam(c.req.param("id"), "id");
 
     try {
       const deleted = await options.categoriesService.delete(companyId, categoryId);

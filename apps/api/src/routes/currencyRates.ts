@@ -5,6 +5,7 @@ import type { CurrencyRatesService } from '../services/currencyRates';
 import { CurrencyRatesServiceError } from '../services/currencyRates';
 import { parseCurrencyRatePath, parseUpsertCurrencyRateBody } from './currencyRateSchemas';
 import { parseJsonBody } from './parserUtils';
+import { requireRouteParam } from './routeParams';
 
 export interface CurrencyRatesRoutesOptions {
   currencyRatesService: CurrencyRatesService;
@@ -13,21 +14,13 @@ export interface CurrencyRatesRoutesOptions {
 const isServiceError = (error: unknown): error is CurrencyRatesServiceError =>
   error instanceof CurrencyRatesServiceError;
 
-const requireParam = (value: string | undefined): string => {
-  if (!value) {
-    throw new Error("Missing route parameter");
-  }
-
-  return value;
-};
-
 export const createCurrencyRatesRoutes = (
   options: CurrencyRatesRoutesOptions,
 ) => {
   const app = new Hono();
 
   app.get("/", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
 
     try {
       const currencyRates = await options.currencyRatesService.list(companyId);
@@ -49,9 +42,9 @@ export const createCurrencyRatesRoutes = (
   });
 
   app.put("/:fromCurrency/:toCurrency", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const fromCurrency = requireParam(c.req.param("fromCurrency"));
-    const toCurrency = requireParam(c.req.param("toCurrency"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const fromCurrency = requireRouteParam(c.req.param("fromCurrency"), "fromCurrency");
+    const toCurrency = requireRouteParam(c.req.param("toCurrency"), "toCurrency");
     const parsedPath = parseCurrencyRatePath(fromCurrency, toCurrency);
     if (!parsedPath.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedPath.message), 400);

@@ -14,6 +14,7 @@ import { ProductMediaServiceError } from '../services/productMedia';
 import type { ProductsService } from '../services/products';
 import { ProductsServiceError } from '../services/products';
 import { parseJsonBody } from './parserUtils';
+import { requireRouteParam } from './routeParams';
 
 export interface ProductsRoutesOptions {
   productsService: ProductsService;
@@ -26,21 +27,13 @@ const isServiceError = (error: unknown): error is ProductsServiceError =>
 const isProductMediaServiceError = (error: unknown): error is ProductMediaServiceError =>
   error instanceof ProductMediaServiceError;
 
-const requireParam = (value: string | undefined): string => {
-  if (!value) {
-    throw new Error("Missing route parameter");
-  }
-
-  return value;
-};
-
 export const createProductsRoutes = (
   options: ProductsRoutesOptions,
 ) => {
   const app = new Hono();
 
   app.get("/", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
     const parsedQuery = parseListProductsQuery(
       c.req.query("categoryId"),
       c.req.query("search"),
@@ -70,8 +63,8 @@ export const createProductsRoutes = (
   });
 
   app.get("/:id", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const productId = requireParam(c.req.param("id"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
 
     try {
       const product = await options.productsService.get(companyId, productId);
@@ -93,7 +86,7 @@ export const createProductsRoutes = (
   });
 
   app.post("/", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
     const parsedJson = await parseJsonBody(c.req.raw);
     if (!parsedJson.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
@@ -122,8 +115,8 @@ export const createProductsRoutes = (
   });
 
   app.put("/:id", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const productId = requireParam(c.req.param("id"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
     const parsedJson = await parseJsonBody(c.req.raw);
     if (!parsedJson.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
@@ -155,8 +148,8 @@ export const createProductsRoutes = (
   });
 
   app.delete("/:id", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const productId = requireParam(c.req.param("id"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
 
     try {
       const deleted = await options.productsService.delete(companyId, productId);
@@ -178,8 +171,8 @@ export const createProductsRoutes = (
   });
 
   app.post("/:id/images/uploads", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const productId = requireParam(c.req.param("id"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
     const parsedJson = await parseJsonBody(c.req.raw);
     if (!parsedJson.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
@@ -210,9 +203,9 @@ export const createProductsRoutes = (
   });
 
   app.post("/:id/images/uploads/:uploadId/complete", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const productId = requireParam(c.req.param("id"));
-    const uploadId = requireParam(c.req.param("uploadId"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
+    const uploadId = requireRouteParam(c.req.param("uploadId"), "uploadId");
 
     try {
       const image = await options.productMediaService.completeUpload(companyId, productId, uploadId);
@@ -234,9 +227,9 @@ export const createProductsRoutes = (
   });
 
   app.delete("/:id/images/:imageId", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const productId = requireParam(c.req.param("id"));
-    const imageId = requireParam(c.req.param("imageId"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
+    const imageId = requireRouteParam(c.req.param("imageId"), "imageId");
 
     try {
       const deleted = await options.productMediaService.deleteImage(companyId, productId, imageId);
@@ -258,8 +251,8 @@ export const createProductsRoutes = (
   });
 
   app.get("/:id/variants", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const productId = requireParam(c.req.param("id"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
 
     try {
       const variants = await options.productsService.listVariants(companyId, productId);
@@ -281,8 +274,8 @@ export const createProductsRoutes = (
   });
 
   app.post("/:id/variants", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const productId = requireParam(c.req.param("id"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
     const parsedJson = await parseJsonBody(c.req.raw);
     if (!parsedJson.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
@@ -313,9 +306,9 @@ export const createProductsRoutes = (
   });
 
   app.put("/:id/variants/:variantId", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const productId = requireParam(c.req.param("id"));
-    const variantId = requireParam(c.req.param("variantId"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
+    const variantId = requireRouteParam(c.req.param("variantId"), "variantId");
     const parsedJson = await parseJsonBody(c.req.raw);
     if (!parsedJson.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
@@ -351,9 +344,9 @@ export const createProductsRoutes = (
   });
 
   app.delete("/:id/variants/:variantId", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const productId = requireParam(c.req.param("id"));
-    const variantId = requireParam(c.req.param("variantId"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
+    const variantId = requireRouteParam(c.req.param("variantId"), "variantId");
 
     try {
       const deleted = await options.productsService.deleteVariant(companyId, productId, variantId);

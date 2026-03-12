@@ -5,6 +5,7 @@ import type { OffersService } from '../services/offers';
 import { OffersServiceError } from '../services/offers';
 import { parseCreateOfferBody, parseListOffersQuery, parseUpdateOfferBody } from './offerSchemas';
 import { parseJsonBody } from './parserUtils';
+import { requireRouteParam } from './routeParams';
 
 export interface OffersRoutesOptions {
   offersService: OffersService;
@@ -13,21 +14,13 @@ export interface OffersRoutesOptions {
 const isServiceError = (error: unknown): error is OffersServiceError =>
   error instanceof OffersServiceError;
 
-const requireParam = (value: string | undefined): string => {
-  if (!value) {
-    throw new Error("Missing route parameter");
-  }
-
-  return value;
-};
-
 export const createOffersRoutes = (
   options: OffersRoutesOptions,
 ) => {
   const app = new Hono();
 
   app.get("/", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
     const parsedQuery = parseListOffersQuery(c.req.query("activeOnly"));
 
     if (!parsedQuery.ok) {
@@ -54,7 +47,7 @@ export const createOffersRoutes = (
   });
 
   app.post("/", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
     const parsedJson = await parseJsonBody(c.req.raw);
     if (!parsedJson.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
@@ -85,8 +78,8 @@ export const createOffersRoutes = (
   });
 
   app.put("/:id", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const offerId = requireParam(c.req.param("id"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const offerId = requireRouteParam(c.req.param("id"), "id");
     const parsedJson = await parseJsonBody(c.req.raw);
     if (!parsedJson.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
@@ -117,8 +110,8 @@ export const createOffersRoutes = (
   });
 
   app.delete("/:id", async (c) => {
-    const companyId = requireParam(c.req.param("companyId"));
-    const offerId = requireParam(c.req.param("id"));
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const offerId = requireRouteParam(c.req.param("id"), "id");
 
     try {
       const deleted = await options.offersService.delete(companyId, offerId);

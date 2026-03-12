@@ -2,7 +2,7 @@ import { type Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from '@cs/core';
 import { checkDbConnection, createDbConnection, DB_PROVIDER, type DbConnection, getDbConnectionInfo } from '@cs/db';
-import { ConfigError, ERROR_CODES } from '@cs/shared';
+import { ConfigError, ERROR_CODES, ValidationError } from '@cs/shared';
 import { createApiKeyAuthMiddleware } from './auth';
 import { createRateLimitMiddleware } from './rateLimit';
 import { createCustomErrorResponse, createErrorResponse } from './responses';
@@ -156,6 +156,13 @@ export const createApp = (options: ApiAppOptions = {}) => {
     if (error instanceof SyntaxError) {
       return c.json(
         createErrorResponse(ERROR_CODES.VALIDATION_FAILED, "Malformed JSON body"),
+        400
+      );
+    }
+
+    if (error instanceof ValidationError) {
+      return c.json(
+        createErrorResponse(ERROR_CODES.VALIDATION_FAILED, error.message),
         400
       );
     }

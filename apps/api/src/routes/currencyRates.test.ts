@@ -79,6 +79,54 @@ const createTestApp = (currencyRatesService: CurrencyRatesService) =>
   };
 
 describe("currency rate routes", () => {
+  test("returns 400 when the mounted route is missing companyId", async () => {
+    const app = new Hono();
+
+    app.use("*", createApiKeyAuthMiddleware({ apiKey: API_KEY }));
+    app.onError((error, c) => {
+      if (error instanceof SyntaxError) {
+        return c.json(
+          createErrorResponse(ERROR_CODES.VALIDATION_FAILED, "Malformed JSON body"),
+          400,
+        );
+      }
+
+      if (error instanceof ValidationError) {
+        return c.json(
+          createErrorResponse(ERROR_CODES.VALIDATION_FAILED, error.message),
+          400,
+        );
+      }
+
+      return c.json(
+        createCustomErrorResponse("INTERNAL_SERVER_ERROR", "Internal server error"),
+        500,
+      );
+    });
+    app.route(
+      "/api/currency-rates",
+      createCurrencyRatesRoutes({
+        currencyRatesService: createStubCurrencyRatesService(),
+      }),
+    );
+
+    const response = await app.request("/api/currency-rates", {
+      headers: {
+        "x-api-key": API_KEY,
+      },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: "Missing route parameter: companyId",
+      },
+    });
+  });
+
   test("GET /api/companies/:companyId/currency-rates returns the stored rates", async () => {
     const app = createTestApp(createStubCurrencyRatesService({
       list: async () => [baseCurrencyRate],
