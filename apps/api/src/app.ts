@@ -137,7 +137,9 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const companiesService = options.companiesService ?? createConvexCompaniesService();
   const categoriesService = options.categoriesService ?? createConvexCategoriesService();
   const productsService = options.productsService ?? createConvexProductsService();
-  const productMediaService = options.productMediaService ?? createConvexProductMediaService();
+  const productMediaService = options.productMediaService ?? createConvexProductMediaService({
+    logger: appLogger,
+  });
   const offersService = options.offersService ?? createConvexOffersService();
   const currencyRatesService = options.currencyRatesService ?? createConvexCurrencyRatesService();
   const rateLimitMiddleware = createRateLimitMiddleware({

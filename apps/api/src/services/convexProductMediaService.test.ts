@@ -17,10 +17,34 @@ type StubConvexClient = {
   action: (reference: unknown, args: unknown) => Promise<unknown>;
 };
 
-const createService = (client: StubConvexClient, storageOverrides: Partial<ReturnType<typeof createStorageStub>> = {}) =>
+type ProductMediaLogger = {
+  warn: (payload: Record<string, unknown>, message: string) => void;
+};
+
+const createLoggerStub = () => {
+  const warnCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
+
+  return {
+    logger: {
+      warn: (payload, message) => {
+        warnCalls.push({ payload, message });
+      },
+    } satisfies ProductMediaLogger,
+    warnCalls,
+  };
+};
+
+const createService = (
+  client: StubConvexClient,
+  options: {
+    logger?: ProductMediaLogger;
+    storageOverrides?: Partial<ReturnType<typeof createStorageStub>>;
+  } = {},
+) =>
   createConvexProductMediaService({
     createClient: () => client as never,
-    createStorage: () => createStorageStub(storageOverrides) as never,
+    createStorage: () => createStorageStub(options.storageOverrides) as never,
+    logger: options.logger,
     now: () => Date.UTC(2026, 2, 12, 0, 0, 0),
   });
 
@@ -127,6 +151,100 @@ describe("createConvexProductMediaService", () => {
     );
   });
 
+  test("warns when upload session creation succeeds but storage config prevents presigning", async () => {
+    const { logger, warnCalls } = createLoggerStub();
+    const service = createService({
+      query: async () => {
+        throw new Error("query should not be called");
+      },
+      mutation: async () => ({
+        uploadId: "upload-1",
+        imageId: "image-1",
+        objectKey: "companies/company-1/products/product-1/image-1.jpg",
+        expiresAt: Date.UTC(2026, 2, 12, 0, 15, 0),
+      }),
+      action: async () => {
+        throw new Error("action should not be called");
+      },
+    }, {
+      logger,
+      storageOverrides: {
+        createPresignedUpload: async () => {
+          throw new ConfigError("Missing required environment variable: R2_ACCESS_KEY_ID", {
+            code: ERROR_CODES.CONFIG_MISSING,
+          });
+        },
+      },
+    });
+
+    await expect(service.createUpload("company-1", "product-1", {
+      contentType: "image/jpeg",
+      sizeBytes: 1024,
+    })).rejects.toEqual(createProductMediaConfigError("Product media storage is not configured"));
+
+    expect(warnCalls).toEqual([{
+      message: "product image upload session left pending after storage presign failure",
+      payload: {
+        companyId: "company-1",
+        productId: "product-1",
+        uploadId: "upload-1",
+        imageId: "image-1",
+        objectKey: "companies/company-1/products/product-1/image-1.jpg",
+        expiresAt: Date.UTC(2026, 2, 12, 0, 15, 0),
+        errorName: "ConfigError",
+        errorMessage: "Missing required environment variable: R2_ACCESS_KEY_ID",
+        cleanupDelaySeconds: 900,
+      },
+    }]);
+  });
+
+  test("warns when upload session creation succeeds but storage presigning fails", async () => {
+    const { logger, warnCalls } = createLoggerStub();
+    const service = createService({
+      query: async () => {
+        throw new Error("query should not be called");
+      },
+      mutation: async () => ({
+        uploadId: "upload-2",
+        imageId: "image-2",
+        objectKey: "companies/company-1/products/product-1/image-2.jpg",
+        expiresAt: Date.UTC(2026, 2, 12, 0, 15, 0),
+      }),
+      action: async () => {
+        throw new Error("action should not be called");
+      },
+    }, {
+      logger,
+      storageOverrides: {
+        createPresignedUpload: async () => {
+          throw new StorageError("temporary outage");
+        },
+      },
+    });
+
+    await expect(service.createUpload("company-1", "product-1", {
+      contentType: "image/jpeg",
+      sizeBytes: 1024,
+    })).rejects.toEqual(
+      createProductMediaStorageError("Product media storage is temporarily unavailable"),
+    );
+
+    expect(warnCalls).toEqual([{
+      message: "product image upload session left pending after storage presign failure",
+      payload: {
+        companyId: "company-1",
+        productId: "product-1",
+        uploadId: "upload-2",
+        imageId: "image-2",
+        objectKey: "companies/company-1/products/product-1/image-2.jpg",
+        expiresAt: Date.UTC(2026, 2, 12, 0, 15, 0),
+        errorName: "StorageError",
+        errorMessage: "temporary outage",
+        cleanupDelaySeconds: 900,
+      },
+    }]);
+  });
+
   test("completes an upload from the stored object stat and decorates the image with a download URL", async () => {
     const service = createService({
       query: async () => ({
@@ -219,10 +337,12 @@ describe("createConvexProductMediaService", () => {
         throw new Error("action should not be called");
       },
     }, {
-      statObject: async () => {
-        throw new ConfigError("Missing required environment variable: R2_ACCESS_KEY_ID", {
-          code: ERROR_CODES.CONFIG_MISSING,
-        });
+      storageOverrides: {
+        statObject: async () => {
+          throw new ConfigError("Missing required environment variable: R2_ACCESS_KEY_ID", {
+            code: ERROR_CODES.CONFIG_MISSING,
+          });
+        },
       },
     });
 
@@ -252,8 +372,10 @@ describe("createConvexProductMediaService", () => {
         throw new Error("action should not be called");
       },
     }, {
-      statObject: async () => {
-        throw new StorageError("temporary outage");
+      storageOverrides: {
+        statObject: async () => {
+          throw new StorageError("temporary outage");
+        },
       },
     });
 

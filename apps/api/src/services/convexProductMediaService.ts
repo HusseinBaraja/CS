@@ -7,6 +7,7 @@ import {
   PRODUCT_IMAGE_UPLOAD_EXPIRY_SECONDS,
   StorageError,
 } from '@cs/storage';
+import { logger as defaultLogger } from '@cs/core';
 import { ConfigError, ERROR_CODES, type ErrorCode } from '@cs/shared';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
 import type { ProductImageDto } from './products';
@@ -21,9 +22,14 @@ import {
   ProductMediaServiceError,
 } from './productMedia';
 
+type ProductMediaLogger = {
+  warn: (payload: Record<string, unknown>, message: string) => void;
+};
+
 export interface ConvexProductMediaServiceOptions {
   createClient?: () => ConvexAdminClient;
   createStorage?: () => ObjectStorage;
+  logger?: ProductMediaLogger;
   now?: () => number;
 }
 
@@ -47,6 +53,9 @@ const parseTaggedError = (message: string): ProductMediaServiceError | null => {
 
 const isProductMediaServiceError = (error: unknown): error is ProductMediaServiceError =>
   error instanceof ProductMediaServiceError;
+
+const isStorageSetupError = (error: unknown): error is ConfigError | StorageError =>
+  error instanceof ConfigError || error instanceof StorageError;
 
 const maybeDecorateImage = async (
   storage: ObjectStorage,
@@ -105,6 +114,7 @@ export const createConvexProductMediaService = (
 ): ProductMediaService => {
   const createClient = options.createClient ?? createConvexAdminClient;
   const createStorage = options.createStorage ?? createR2Storage;
+  const logger = options.logger ?? defaultLogger;
   const now = options.now ?? Date.now;
 
   const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> => {
@@ -146,11 +156,33 @@ export const createConvexProductMediaService = (
           return null;
         }
 
-        const upload = await createStorage().createPresignedUpload({
-          key: uploadSession.objectKey,
-          contentType: normalizedContentType as never,
-          expiresIn: PRODUCT_IMAGE_UPLOAD_EXPIRY_SECONDS,
-        });
+        let upload: { url: string; expiresAt: string };
+        try {
+          upload = await createStorage().createPresignedUpload({
+            key: uploadSession.objectKey,
+            contentType: normalizedContentType as never,
+            expiresIn: PRODUCT_IMAGE_UPLOAD_EXPIRY_SECONDS,
+          });
+        } catch (error) {
+          if (isStorageSetupError(error)) {
+            logger.warn(
+              {
+                companyId,
+                productId,
+                uploadId: uploadSession.uploadId,
+                imageId: uploadSession.imageId,
+                objectKey: uploadSession.objectKey,
+                expiresAt: uploadSession.expiresAt,
+                errorName: error.name,
+                errorMessage: error.message,
+                cleanupDelaySeconds: PRODUCT_IMAGE_UPLOAD_EXPIRY_SECONDS,
+              },
+              "product image upload session left pending after storage presign failure",
+            );
+          }
+
+          throw error;
+        }
 
         const result: CreateProductImageUploadResult = {
           uploadId: uploadSession.uploadId,
