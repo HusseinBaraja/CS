@@ -25,16 +25,27 @@ export interface DeleteProductImageResult {
 }
 
 export interface ProductMediaService {
+  /**
+   * Returns null when the parent product does not exist for the company scope.
+   */
   createUpload(
     companyId: string,
     productId: string,
     input: CreateProductImageUploadInput,
   ): Promise<CreateProductImageUploadResult | null>;
+  /**
+   * Returns null when the upload session does not exist for the scoped product.
+   * Throws ProductMediaServiceError(NOT_FOUND) when the parent product is missing.
+   */
   completeUpload(
     companyId: string,
     productId: string,
     uploadId: string,
   ): Promise<ProductImageDto | null>;
+  /**
+   * Returns null when the parent product does not exist for the company scope.
+   * Throws ProductMediaServiceError(NOT_FOUND) when the image is missing.
+   */
   deleteImage(
     companyId: string,
     productId: string,

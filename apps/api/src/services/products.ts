@@ -107,17 +107,28 @@ export interface ProductsService {
   update(companyId: string, productId: string, patch: UpdateProductInput): Promise<ProductDetailDto | null>;
   delete(companyId: string, productId: string): Promise<DeleteProductResult | null>;
   listVariants(companyId: string, productId: string): Promise<ProductVariantDto[] | null>;
+  /**
+   * Returns null when the parent product does not exist for the company scope.
+   */
   createVariant(
     companyId: string,
     productId: string,
     input: CreateProductVariantInput,
   ): Promise<ProductVariantDto | null>;
+  /**
+   * Returns null when the parent product does not exist for the company scope.
+   * Throws ProductsServiceError(NOT_FOUND) when the variant is missing.
+   */
   updateVariant(
     companyId: string,
     productId: string,
     variantId: string,
     patch: UpdateProductVariantInput,
   ): Promise<ProductVariantDto | null>;
+  /**
+   * Returns null when the parent product does not exist for the company scope.
+   * Throws ProductsServiceError(NOT_FOUND) when the variant is missing.
+   */
   deleteVariant(
     companyId: string,
     productId: string,

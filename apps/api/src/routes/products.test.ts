@@ -19,6 +19,7 @@ import {
 import {
   type CreateProductImageUploadInput,
   type DeleteProductImageResult,
+  ProductMediaServiceError,
   type ProductMediaService,
 } from '../services/productMedia';
 
@@ -544,6 +545,60 @@ describe("product routes", () => {
     });
   });
 
+  test("POST /api/companies/:companyId/products/:id/images/uploads/:uploadId/complete returns 404 when the parent product does not exist", async () => {
+    const app = createTestApp(createStubProductsService(), createStubProductMediaService({
+      completeUpload: async () => {
+        throw new ProductMediaServiceError(ERROR_CODES.NOT_FOUND, "Product not found", 404);
+      },
+    }));
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/images/uploads/upload-1/complete",
+      {
+        method: "POST",
+        headers: {
+          "x-api-key": API_KEY,
+        },
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.NOT_FOUND,
+        message: "Product not found",
+      },
+    });
+  });
+
+  test("POST /api/companies/:companyId/products/:id/images/uploads/:uploadId/complete returns 404 when the upload session does not exist", async () => {
+    const app = createTestApp(createStubProductsService(), createStubProductMediaService({
+      completeUpload: async () => null,
+    }));
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/images/uploads/upload-1/complete",
+      {
+        method: "POST",
+        headers: {
+          "x-api-key": API_KEY,
+        },
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.NOT_FOUND,
+        message: "Upload session not found",
+      },
+    });
+  });
+
   test("DELETE /api/companies/:companyId/products/:id/images/:imageId removes a product image", async () => {
     const deletedResult: DeleteProductImageResult = {
       productId: "product-1",
@@ -569,6 +624,34 @@ describe("product routes", () => {
     expect(body).toEqual({
       ok: true,
       deleted: deletedResult,
+    });
+  });
+
+  test("DELETE /api/companies/:companyId/products/:id/images/:imageId returns 404 when the image does not exist", async () => {
+    const app = createTestApp(createStubProductsService(), createStubProductMediaService({
+      deleteImage: async () => {
+        throw new ProductMediaServiceError(ERROR_CODES.NOT_FOUND, "Product image not found", 404);
+      },
+    }));
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/images/image-2",
+      {
+        method: "DELETE",
+        headers: {
+          "x-api-key": API_KEY,
+        },
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.NOT_FOUND,
+        message: "Product image not found",
+      },
     });
   });
 

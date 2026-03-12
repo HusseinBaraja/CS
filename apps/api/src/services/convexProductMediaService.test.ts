@@ -6,6 +6,7 @@ import { StorageError } from '@cs/storage';
 import { createConvexProductMediaService } from './convexProductMediaService';
 import {
   createProductMediaConfigError,
+  createProductMediaNotFoundError,
   createProductMediaStorageError,
   createProductMediaValidationError,
 } from './productMedia';
@@ -163,6 +164,38 @@ describe("createConvexProductMediaService", () => {
       downloadUrl: "https://signed.example/download",
       downloadUrlExpiresAt: "2026-03-12T00:15:00.000Z",
     });
+  });
+
+  test("maps missing parent products to a not found error during upload completion", async () => {
+    const service = createService({
+      query: async () => {
+        throw new Error("NOT_FOUND: Product not found");
+      },
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+      action: async () => {
+        throw new Error("action should not be called");
+      },
+    });
+
+    await expect(service.completeUpload("company-1", "product-1", "upload-1")).rejects.toEqual(
+      createProductMediaNotFoundError("Product not found"),
+    );
+  });
+
+  test("returns null when the upload session is missing during upload completion", async () => {
+    const service = createService({
+      query: async () => null,
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+      action: async () => {
+        throw new Error("action should not be called");
+      },
+    });
+
+    await expect(service.completeUpload("company-1", "product-1", "upload-1")).resolves.toBeNull();
   });
 
   test("maps storage misconfiguration to a safe config error", async () => {

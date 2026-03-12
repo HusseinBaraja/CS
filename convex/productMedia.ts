@@ -279,6 +279,11 @@ export const getUploadSession = internalQuery({
     uploadId: v.id("productImageUploads"),
   },
   handler: async (ctx, args) => {
+    const product = await getScopedProduct(ctx, args.companyId, args.productId);
+    if (!product) {
+      throw createTaggedError(NOT_FOUND_PREFIX, "Product not found");
+    }
+
     const upload = await ctx.db.get(args.uploadId);
     if (!upload || upload.companyId !== args.companyId || upload.productId !== args.productId) {
       return null;
