@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as analytics from '../analytics.js';
 import type * as categories from '../categories.js';
 import type * as companies from '../companies.js';
 import type * as companyCleanup from '../companyCleanup.js';
@@ -22,6 +23,7 @@ import type * as vectorSearch from '../vectorSearch.js';
 import type { ApiFromModules, FilterApi, FunctionReference } from 'convex/server';
 
 declare const fullApi: ApiFromModules<{
+  analytics: typeof analytics;
   categories: typeof categories;
   companies: typeof companies;
   companyCleanup: typeof companyCleanup;

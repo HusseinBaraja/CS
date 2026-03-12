@@ -7,11 +7,14 @@ import { createApiKeyAuthMiddleware } from './auth';
 import { createRateLimitMiddleware } from './rateLimit';
 import { createCustomErrorResponse, createErrorResponse } from './responses';
 import { createCategoriesRoutes } from './routes/categories';
+import { createAnalyticsRoutes } from './routes/analytics';
 import { createCompaniesRoutes } from './routes/companies';
 import { createCurrencyRatesRoutes } from './routes/currencyRates';
 import { createOffersRoutes } from './routes/offers';
 import { createProductsRoutes } from './routes/products';
 import { type ApiRuntimeConfig, createApiRuntimeConfig } from './runtimeConfig';
+import type { AnalyticsService } from './services/analytics';
+import { createConvexAnalyticsService } from './services/convexAnalyticsService';
 import type { CategoriesService } from './services/categories';
 import { createConvexCategoriesService } from './services/convexCategoriesService';
 import type { CompaniesService } from './services/companies';
@@ -26,6 +29,7 @@ import { createConvexProductsService } from './services/convexProductsService';
 export interface ApiAppOptions {
   createDbConnection?: () => DbConnection;
   checkDbReady?: (connection: DbConnection) => Promise<void> | void;
+  analyticsService?: AnalyticsService;
   companiesService?: CompaniesService;
   categoriesService?: CategoriesService;
   productsService?: ProductsService;
@@ -126,6 +130,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const authMiddleware = createApiKeyAuthMiddleware({
     apiKey: runtimeConfig.apiKey
   });
+  const analyticsService = options.analyticsService ?? createConvexAnalyticsService();
   const companiesService = options.companiesService ?? createConvexCompaniesService();
   const categoriesService = options.categoriesService ?? createConvexCategoriesService();
   const productsService = options.productsService ?? createConvexProductsService();
@@ -209,6 +214,13 @@ export const createApp = (options: ApiAppOptions = {}) => {
       return c.json(failure.body, failure.status);
     }
   });
+
+  app.route(
+    "/api/companies/:companyId/analytics",
+    createAnalyticsRoutes({
+      analyticsService
+    })
+  );
 
   app.route(
     "/api/companies/:companyId/categories",
