@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { type AnalyticsSummaryDto, ERROR_CODES } from '@cs/shared';
+import { ANALYTICS_PERIODS, type AnalyticsSummaryDto, ERROR_CODES } from '@cs/shared';
 import { createApp } from '../app';
 import { type AnalyticsPeriod, type AnalyticsService, createDatabaseServiceError } from '../services/analytics';
 
@@ -49,6 +49,8 @@ const createTestApp = (analyticsService: AnalyticsService) =>
   });
 
 describe("analytics routes", () => {
+  const invalidPeriodMessage = `period must be one of ${ANALYTICS_PERIODS.join(", ")}`;
+
   test("GET /api/companies/:companyId/analytics defaults period to today", async () => {
     let receivedPeriod: AnalyticsPeriod | undefined;
     const app = createTestApp(createStubAnalyticsService({
@@ -119,7 +121,7 @@ describe("analytics routes", () => {
       ok: false,
       error: {
         code: ERROR_CODES.VALIDATION_FAILED,
-        message: "period must be one of today, week, month",
+        message: invalidPeriodMessage,
       },
     });
   });

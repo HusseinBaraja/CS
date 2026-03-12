@@ -2,6 +2,7 @@ import { ANALYTICS_PERIODS, type AnalyticsPeriod } from '@cs/shared';
 import type { ParseResult } from './parserUtils';
 
 const PERIOD_SET = new Set<string>(ANALYTICS_PERIODS);
+const INVALID_PERIOD_MESSAGE = `period must be one of ${ANALYTICS_PERIODS.join(", ")}`;
 
 export const parseAnalyticsPeriodQuery = (
   value: string | undefined,
@@ -17,7 +18,7 @@ export const parseAnalyticsPeriodQuery = (
   if (!PERIOD_SET.has(normalized)) {
     return {
       ok: false,
-      message: "period must be one of today, week, month",
+      message: INVALID_PERIOD_MESSAGE,
     };
   }
 
