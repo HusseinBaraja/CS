@@ -95,7 +95,7 @@ describe("createMediaCleanupProcessor", () => {
     });
     expect(deletedKey as string | null).toBe("companies/company-1/products/product-1/image-1.jpg");
     expect(calls.mutations).toHaveLength(3);
-    expect(calls.queries).toHaveLength(2);
+    expect(calls.queries).toHaveLength(3);
   });
 
   test("retries transient storage failures", async () => {
@@ -223,7 +223,7 @@ describe("createMediaCleanupProcessor", () => {
     });
   });
 
-  test("limits pending and retry jobs to a single combined batch size", async () => {
+  test("limits pending, stale processing, and retry jobs to a single combined batch size", async () => {
     const queryArgs: unknown[] = [];
     const { client } = createClientStub({
       mutation: async (_reference, args) => {
@@ -244,7 +244,10 @@ describe("createMediaCleanupProcessor", () => {
         queryArgs.push(args);
         const input = args as { status: string; limit: number };
         if (input.status === "pending") {
-          return ["job-1", "job-2"];
+          return ["job-1"];
+        }
+        if (input.status === "processing") {
+          return ["job-2"];
         }
         return ["job-3", "job-4"];
       },
@@ -285,6 +288,11 @@ describe("createMediaCleanupProcessor", () => {
         status: "pending",
         now: Date.UTC(2026, 2, 12, 0, 0, 0),
         limit: 3,
+      },
+      {
+        status: "processing",
+        now: Date.UTC(2026, 2, 12, 0, 0, 0),
+        limit: 2,
       },
       {
         status: "retry",

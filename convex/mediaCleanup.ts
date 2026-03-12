@@ -8,6 +8,7 @@ const CLEANUP_JOB_RETRY_DELAYS_MS = [
   10 * 60_000,
   30 * 60_000,
 ] as const;
+const MEDIA_CLEANUP_PROCESSING_LEASE_MS = 5 * 60_000;
 
 const PENDING_UPLOAD_STATUS = "pending" as const;
 const RETRY_JOB_STATUS = "retry" as const;
@@ -47,6 +48,7 @@ export const enqueueCleanupJobInMutation = async (
     status: PENDING_UPLOAD_STATUS,
     attempts: 0,
     nextAttemptAt: now,
+    leaseExpiresAt: now,
     createdAt: now,
     updatedAt: now,
   });
@@ -66,20 +68,28 @@ export const claimJob = internalMutation({
     }
 
     if (
-      (job.status !== PENDING_UPLOAD_STATUS && job.status !== RETRY_JOB_STATUS) ||
-      job.nextAttemptAt > args.now
+      (
+        (
+          job.status !== PENDING_UPLOAD_STATUS &&
+          job.status !== RETRY_JOB_STATUS
+        ) ||
+        job.nextAttemptAt > args.now
+      ) &&
+      (job.status !== PROCESSING_JOB_STATUS || job.leaseExpiresAt > args.now)
     ) {
       return null;
     }
 
     await ctx.db.patch(args.jobId, {
       status: PROCESSING_JOB_STATUS,
+      leaseExpiresAt: args.now + MEDIA_CLEANUP_PROCESSING_LEASE_MS,
       updatedAt: args.now,
     });
 
     return {
       ...job,
       status: PROCESSING_JOB_STATUS,
+      leaseExpiresAt: args.now + MEDIA_CLEANUP_PROCESSING_LEASE_MS,
     };
   },
 });
@@ -97,6 +107,7 @@ export const markJobCompleted = internalMutation({
 
     await ctx.db.patch(args.jobId, {
       status: COMPLETED_JOB_STATUS,
+      leaseExpiresAt: args.now,
       updatedAt: args.now,
       lastError: undefined,
     });
@@ -126,6 +137,7 @@ export const markJobRetry = internalMutation({
       status: RETRY_JOB_STATUS,
       attempts,
       nextAttemptAt: args.nextAttemptAt,
+      leaseExpiresAt: args.now,
       lastError: args.lastError,
       updatedAt: args.now,
     });
@@ -153,6 +165,7 @@ export const markJobFailed = internalMutation({
     await ctx.db.patch(args.jobId, {
       status: FAILED_JOB_STATUS,
       attempts: job.attempts + 1,
+      leaseExpiresAt: args.now,
       lastError: args.lastError,
       updatedAt: args.now,
     });
@@ -166,15 +179,27 @@ export const markJobFailed = internalMutation({
 
 export const listDueJobIds = internalQuery({
   args: {
-    status: v.union(v.literal(PENDING_UPLOAD_STATUS), v.literal(RETRY_JOB_STATUS)),
+    status: v.union(
+      v.literal(PENDING_UPLOAD_STATUS),
+      v.literal(PROCESSING_JOB_STATUS),
+      v.literal(RETRY_JOB_STATUS),
+    ),
     now: v.number(),
     limit: v.number(),
   },
   handler: async (ctx, args) => {
-    const jobs = await ctx.db
-      .query("mediaCleanupJobs")
-      .withIndex("by_status_next_attempt_at", (q) => q.eq("status", args.status).lte("nextAttemptAt", args.now))
-      .take(args.limit);
+    const jobs = args.status === PROCESSING_JOB_STATUS
+      ? await ctx.db
+        .query("mediaCleanupJobs")
+        .withIndex(
+          "by_status_lease_expires_at",
+          (q) => q.eq("status", args.status).lte("leaseExpiresAt", args.now),
+        )
+        .take(args.limit)
+      : await ctx.db
+        .query("mediaCleanupJobs")
+        .withIndex("by_status_next_attempt_at", (q) => q.eq("status", args.status).lte("nextAttemptAt", args.now))
+        .take(args.limit);
 
     return jobs.map((job) => job._id);
   },

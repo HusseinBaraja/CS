@@ -131,13 +131,22 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
       now: tickNow,
       limit: batchSize,
     });
-    const remainingSlots = Math.max(0, batchSize - pendingJobIds.length);
+    const remainingAfterPending = Math.max(0, batchSize - pendingJobIds.length);
+    const staleProcessingJobIds =
+      remainingAfterPending > 0
+        ? await client.query(convexInternal.mediaCleanup.listDueJobIds, {
+            status: "processing",
+            now: tickNow,
+            limit: remainingAfterPending,
+          })
+        : [];
+    const remainingAfterProcessing = Math.max(0, remainingAfterPending - staleProcessingJobIds.length);
     const retryJobIds =
-      remainingSlots > 0
+      remainingAfterProcessing > 0
         ? await client.query(convexInternal.mediaCleanup.listDueJobIds, {
             status: "retry",
             now: tickNow,
-            limit: remainingSlots,
+            limit: remainingAfterProcessing,
           })
         : [];
 
@@ -149,7 +158,7 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
       skippedJobs: 0,
     };
 
-    for (const jobId of [...pendingJobIds, ...retryJobIds].slice(0, batchSize)) {
+    for (const jobId of [...pendingJobIds, ...staleProcessingJobIds, ...retryJobIds].slice(0, batchSize)) {
       const outcome = await processCleanupJob(client, storage, jobId, tickNow, logger);
       switch (outcome) {
         case "completed":

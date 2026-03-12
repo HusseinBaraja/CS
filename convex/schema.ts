@@ -100,11 +100,13 @@ export default defineSchema({
     status: mediaCleanupStatusValidator,
     attempts: v.number(),
     nextAttemptAt: v.number(),
+    leaseExpiresAt: v.number(),
     lastError: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_status_next_attempt_at", ["status", "nextAttemptAt"])
+    .index("by_status_lease_expires_at", ["status", "leaseExpiresAt"])
     .index("by_object_key", ["objectKey"]),
 
   // ── Product Variants ────────────────────────────────────────────────────

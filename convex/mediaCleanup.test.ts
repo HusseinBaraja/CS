@@ -81,6 +81,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex media cleanup", 
         status: "pending",
         attempts: 0,
         nextAttemptAt: now,
+        leaseExpiresAt: now,
         createdAt: now,
         updatedAt: now,
       });
@@ -128,6 +129,93 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex media cleanup", 
     expect(job).toMatchObject({
       status: "completed",
       attempts: 1,
+    });
+  });
+
+  it("reclaims stale processing jobs after the lease expires", async () => {
+    const t = convexTest(schema, modules);
+
+    const now = Date.UTC(2026, 2, 12, 0, 0, 0);
+    const uploadId = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000712",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+      });
+
+      return ctx.db.insert("productImageUploads", {
+        companyId,
+        productId,
+        imageId: "image-lease",
+        objectKey: "companies/company-1/products/product-1/image-lease.jpg",
+        intendedContentType: "image/jpeg",
+        maxSizeBytes: 5 * 1024 * 1024,
+        status: "pending",
+        createdAt: now - 20 * 60 * 1000,
+        expiresAt: now - 5 * 60 * 1000,
+      });
+    });
+
+    await t.mutation(internal.mediaCleanup.expirePendingUploadsBatch, {
+      now,
+      limit: 10,
+    });
+
+    const [jobId] = await t.run(async (ctx) =>
+      ctx.db.query("mediaCleanupJobs").collect().then((jobs) => jobs.map((job) => job._id)),
+    );
+    expect(jobId).toBeDefined();
+
+    await t.mutation(internal.mediaCleanup.claimJob, {
+      jobId: jobId!,
+      now,
+    });
+
+    await expect(
+      t.query(internal.mediaCleanup.listDueJobIds, {
+        status: "processing",
+        now: now + 4 * 60_000,
+        limit: 10,
+      }),
+    ).resolves.toEqual([]);
+
+    await expect(
+      t.query(internal.mediaCleanup.listDueJobIds, {
+        status: "processing",
+        now: now + 5 * 60_000,
+        limit: 10,
+      }),
+    ).resolves.toEqual([jobId]);
+
+    const reclaimed = await t.mutation(internal.mediaCleanup.claimJob, {
+      jobId: jobId!,
+      now: now + 5 * 60_000,
+    });
+    expect(reclaimed).toMatchObject({
+      _id: jobId,
+      status: "processing",
+      attempts: 0,
+    });
+
+    await t.mutation(internal.mediaCleanup.markJobCompleted, {
+      jobId: jobId!,
+      now: now + 5 * 60_000 + 1_000,
+    });
+
+    const upload = await t.run(async (ctx) => ctx.db.get(uploadId));
+    const job = await t.run(async (ctx) => ctx.db.get(jobId!));
+    expect(upload?.status).toBe("expired");
+    expect(job).toMatchObject({
+      status: "completed",
+      attempts: 0,
     });
   });
 });
