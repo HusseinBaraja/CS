@@ -1,7 +1,9 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalEnv": [
-    "NODE_ENV",
+    "NODE_ENV"
+  ],
+  "globalPassThroughEnv": [
     "LOG_LEVEL",
     "LOG_DIR",
     "LOG_RETENTION_DAYS",
