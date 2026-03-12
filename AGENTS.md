@@ -11,6 +11,15 @@
 - Do not run `bun build` (CI only).
 - Suggest a commit message at the end of large changes.
 
+## Commit Message Skill
+
+- Use `.agents/skills/git-commit/SKILL.md` only for commit-related requests such as writing a commit message, preparing a commit, summarizing a diff as a commit, or executing `git commit`.
+- Inspect the actual git diff before proposing a commit message. Prefer the staged diff when staged changes exist; otherwise inspect the working tree diff.
+- Keep the commit scope narrow to the user's intended change and do not include unrelated modified files in the proposed commit message.
+- Do not auto-stage files unless the user explicitly asks. If staging is needed, suggest the specific files or commands instead of assuming all changes should be included.
+- Prefer conventional commit format and the workflow in `.github/skills/git-commit/SKILL.md`.
+- Preserve the existing non-destructive git rules in this file when handling commit requests.
+
 ## Project Snapshot
 
 CSCB is a very early-stage multi-tenant WhatsApp customer service platform for small and mid-size businesses. It combines a Hono REST API, a Baileys WhatsApp bot, Convex-backed data and vector search, and low-cost AI provider orchestration to answer product questions in Arabic and English, send catalogs and images, support human handoff, and track analytics.
