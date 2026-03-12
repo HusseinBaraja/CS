@@ -23,6 +23,12 @@ describe("analytics schema parsers", () => {
       value: "month",
     });
   });
+   test("trims whitespace from valid periods", () => {
+     expect(parseAnalyticsPeriodQuery(" today ")).toEqual({
+        ok: true,
+        value: "today",
+     });
+   });
 
   test("rejects invalid periods", () => {
     expect(parseAnalyticsPeriodQuery("year")).toEqual({
