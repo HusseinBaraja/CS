@@ -4,7 +4,6 @@ import {
   createDatabaseServiceError,
   createNotFoundServiceError,
   createValidationServiceError,
-  type DeleteOfferResult,
   type OfferDto,
   type OffersService,
   OffersServiceError,
@@ -165,6 +164,6 @@ export const createConvexOffersService = (
           companyId: toCompanyId(companyId),
           offerId: toOfferId(offerId),
         })
-      ) as Promise<DeleteOfferResult | null>,
+      ),
   };
 };
