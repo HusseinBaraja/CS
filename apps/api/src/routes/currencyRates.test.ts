@@ -1,12 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { ERROR_CODES } from '@cs/shared';
-import { createApp } from '../app';
+import { Hono } from 'hono';
+import { ERROR_CODES, ValidationError } from '@cs/shared';
+import { createApiKeyAuthMiddleware } from '../auth';
+import { createCustomErrorResponse, createErrorResponse } from '../responses';
 import {
   type CurrencyRateDto,
   type CurrencyRatesService,
   type UpsertCurrencyRateInput,
   type UpsertCurrencyRateResult,
 } from '../services/currencyRates';
+import { createCurrencyRatesRoutes } from './currencyRates';
 
 const API_KEY = "test-api-key";
 
@@ -37,12 +40,43 @@ const createStubCurrencyRatesService = (
 });
 
 const createTestApp = (currencyRatesService: CurrencyRatesService) =>
-  createApp({
-    currencyRatesService,
-    runtimeConfig: {
-      apiKey: API_KEY,
-    },
-  });
+  {
+    const app = new Hono();
+
+    app.use("*", createApiKeyAuthMiddleware({ apiKey: API_KEY }));
+
+    app.onError((error, c) => {
+      if (error instanceof SyntaxError) {
+        return c.json(
+          createErrorResponse(ERROR_CODES.VALIDATION_FAILED, "Malformed JSON body"),
+          400,
+        );
+      }
+
+      if (error instanceof ValidationError) {
+        return c.json(
+          createErrorResponse(ERROR_CODES.VALIDATION_FAILED, error.message),
+          400,
+        );
+      }
+
+      return c.json(
+        createCustomErrorResponse("INTERNAL_SERVER_ERROR", "Internal server error"),
+        500,
+      );
+    });
+
+    app.route(
+      "/api/companies/:companyId/currency-rates",
+      createCurrencyRatesRoutes({ currencyRatesService }),
+    );
+
+    app.notFound((c) =>
+      c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Route not found"), 404),
+    );
+
+    return app;
+  };
 
 describe("currency rate routes", () => {
   test("GET /api/companies/:companyId/currency-rates returns the stored rates", async () => {
