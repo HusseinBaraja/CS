@@ -348,28 +348,37 @@ export const summary = internalQuery({
 
     counts.totalMessages = counts.customerMessages + counts.assistantMessages;
 
-    const productSummaries = await Promise.all(
-      Array.from(productInteractionStats.entries()).map(async ([productId, stats]) => {
-        try {
-          const product = await ctx.db.get(productId as Id<"products">);
-          if (!product || product.companyId !== args.companyId) {
-            return null;
-          }
+    const interactedProductIds = new Set(Array.from(productInteractionStats.keys()));
+    const productsById =
+      interactedProductIds.size === 0
+        ? new Map<string, Doc<"products">>()
+        : new Map(
+            (
+              await ctx.db
+                .query("products")
+                .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+                .collect()
+            )
+              .filter((product) => interactedProductIds.has(product._id))
+              .map((product) => [product._id, product] as const),
+          );
 
-          return {
-            latestTimestamp: stats.latestTimestamp,
-            topProduct: {
-              productId,
-              nameEn: product.nameEn,
-              ...(product.nameAr ? { nameAr: product.nameAr } : {}),
-              interactionCount: stats.interactionCount,
-            } satisfies AnalyticsTopProductDto,
-          };
-        } catch {
-          return null;
-        }
-      }),
-    );
+    const productSummaries = Array.from(productInteractionStats.entries()).map(([productId, stats]) => {
+      const product = productsById.get(productId);
+      if (!product) {
+        return null;
+      }
+
+      return {
+        latestTimestamp: stats.latestTimestamp,
+        topProduct: {
+          productId,
+          nameEn: product.nameEn,
+          ...(product.nameAr ? { nameAr: product.nameAr } : {}),
+          interactionCount: stats.interactionCount,
+        } satisfies AnalyticsTopProductDto,
+      };
+    });
 
     const validTopProducts = productSummaries
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null)

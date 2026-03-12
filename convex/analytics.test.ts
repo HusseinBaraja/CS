@@ -419,4 +419,108 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
       },
     ]);
   });
+
+  it("returns only the top five same-company products sorted by interaction count and recency", async () => {
+    freezeNow();
+    const t = convexTest(schema, modules);
+
+    const companyId = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant One",
+        ownerPhone: "966500000809",
+        timezone: "Asia/Aden",
+      });
+      const otherCompanyId = await ctx.db.insert("companies", {
+        name: "Tenant Two",
+        ownerPhone: "966500000810",
+        timezone: "Asia/Aden",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const otherCategoryId = await ctx.db.insert("categories", {
+        companyId: otherCompanyId,
+        nameEn: "Foreign",
+      });
+      const [product1, product2, product3, product4, product5, product6] = await Promise.all([
+        ctx.db.insert("products", { companyId, categoryId, nameEn: "Burger Box" }),
+        ctx.db.insert("products", { companyId, categoryId, nameEn: "Soup Container" }),
+        ctx.db.insert("products", { companyId, categoryId, nameEn: "Salad Bowl" }),
+        ctx.db.insert("products", { companyId, categoryId, nameEn: "Paper Cup" }),
+        ctx.db.insert("products", { companyId, categoryId, nameEn: "Fries Box" }),
+        ctx.db.insert("products", { companyId, categoryId, nameEn: "Cake Tray" }),
+      ]);
+      const foreignProductId = await ctx.db.insert("products", {
+        companyId: otherCompanyId,
+        categoryId: otherCategoryId,
+        nameEn: "Foreign Product",
+      });
+
+      const insertProductEvents = async (productId: string, count: number, baseMinute: number) => {
+        for (let index = 0; index < count; index += 1) {
+          await ctx.db.insert("analyticsEvents", {
+            companyId,
+            eventType: "product_search",
+            timestamp: Date.parse(`2026-03-12T09:${String(baseMinute + index).padStart(2, "0")}:00.000Z`),
+            payload: { query: productId, resultCount: 1, productId },
+          });
+        }
+      };
+
+      await insertProductEvents(product1, 4, 0);
+      await insertProductEvents(product2, 3, 10);
+      await insertProductEvents(product3, 3, 20);
+      await insertProductEvents(product4, 2, 30);
+      await insertProductEvents(product5, 2, 40);
+      await insertProductEvents(product6, 1, 50);
+      await ctx.db.insert("analyticsEvents", {
+        companyId,
+        eventType: "catalog_sent",
+        timestamp: Date.parse("2026-03-12T09:59:00.000Z"),
+        payload: { productId: foreignProductId, productCount: 1 },
+      });
+      await ctx.db.insert("analyticsEvents", {
+        companyId,
+        eventType: "image_sent",
+        timestamp: Date.parse("2026-03-12T09:58:00.000Z"),
+        payload: { productId: "not-a-real-id", imageCount: 1 },
+      });
+
+      return companyId;
+    });
+
+    const summary = await t.query(internal.analytics.summary, {
+      companyId,
+      period: "today",
+    });
+
+    expect(summary?.topProducts).toEqual([
+      {
+        productId: expect.any(String),
+        nameEn: "Burger Box",
+        interactionCount: 4,
+      },
+      {
+        productId: expect.any(String),
+        nameEn: "Salad Bowl",
+        interactionCount: 3,
+      },
+      {
+        productId: expect.any(String),
+        nameEn: "Soup Container",
+        interactionCount: 3,
+      },
+      {
+        productId: expect.any(String),
+        nameEn: "Fries Box",
+        interactionCount: 2,
+      },
+      {
+        productId: expect.any(String),
+        nameEn: "Paper Cup",
+        interactionCount: 2,
+      },
+    ]);
+  });
 });
