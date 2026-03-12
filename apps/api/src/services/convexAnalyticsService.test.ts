@@ -58,6 +58,18 @@ describe("createConvexAnalyticsService", () => {
     );
   });
 
+  test("maps tagged Convex validation errors to validation service errors", async () => {
+    const service = createService({
+      query: async () => {
+        throw new Error("VALIDATION_FAILED: bad input");
+      },
+    });
+
+    await expect(service.getSummary("company-1", "today")).rejects.toEqual(
+      createValidationServiceError("Invalid company identifier or analytics period"),
+    );
+  });
+
   test("maps unknown errors to database unavailable errors", async () => {
     const service = createService({
       query: async () => {

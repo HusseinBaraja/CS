@@ -20,16 +20,19 @@ const normalizeServiceError = (error: unknown): AnalyticsServiceError => {
     return error;
   }
 
-  if (
-    error instanceof Error &&
-    (
+  if (error instanceof Error) {
+    if (error.message.includes("VALIDATION_FAILED")) {
+      return createValidationServiceError("Invalid company identifier or analytics period");
+    }
+
+    if (
       error.message.includes("ArgumentValidationError") ||
       error.message.includes("Value does not match validator") ||
       error.message.includes("Invalid argument") ||
       error.message.includes("Unable to decode")
-    )
-  ) {
-    return createValidationServiceError("Invalid company identifier or analytics period");
+    ) {
+      return createValidationServiceError("Invalid company identifier or analytics period");
+    }
   }
 
   return createDatabaseServiceError("Analytics data is temporarily unavailable");
