@@ -425,8 +425,25 @@ describe("product routes", () => {
           ...baseProductDetail,
           categoryId: patch.categoryId ?? baseProductDetail.categoryId,
           nameEn: patch.nameEn ?? baseProductDetail.nameEn,
-          variants: baseProductDetail.variants,
-          images: baseProductDetail.images,
+          nameAr: patch.nameAr === null ? undefined : patch.nameAr ?? baseProductDetail.nameAr,
+          descriptionEn:
+            patch.descriptionEn === null
+              ? undefined
+              : patch.descriptionEn ?? baseProductDetail.descriptionEn,
+          descriptionAr:
+            patch.descriptionAr === null
+              ? undefined
+              : patch.descriptionAr ?? baseProductDetail.descriptionAr,
+          specifications:
+            patch.specifications === null
+              ? undefined
+              : patch.specifications ?? baseProductDetail.specifications,
+          basePrice:
+            patch.basePrice === null ? undefined : patch.basePrice ?? baseProductDetail.basePrice,
+          baseCurrency:
+            patch.baseCurrency === null
+              ? undefined
+              : patch.baseCurrency ?? baseProductDetail.baseCurrency,
         };
       },
     }));
@@ -465,6 +482,7 @@ describe("product routes", () => {
         companyId: baseProductDetail.companyId,
         categoryId: "category-2",
         nameEn: "Updated Burger Box",
+        images: baseProductDetail.images,
         variants: baseProductDetail.variants,
       },
     });
