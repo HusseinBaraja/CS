@@ -1,5 +1,4 @@
 import { logger } from '@cs/core';
-import { createDbConnection, getDbConnectionInfo } from '@cs/db';
 import { createMediaCleanupProcessor } from './mediaCleanup';
 
 interface WorkerLogger {
@@ -28,7 +27,7 @@ export const startWorker = async (options: StartWorkerOptions = {}): Promise<voi
   const workerProcess = options.workerProcess ?? process;
   const mediaCleanup = (options.createMediaCleanupProcessor ?? createMediaCleanupProcessor)();
 
-  workerLogger.info({ db: getDbConnectionInfo(createDbConnection()) }, "worker initialized");
+  workerLogger.info({ db: { provider: "convex" } }, "worker initialized");
   await mediaCleanup.runTick();
 
   const stopMediaCleanup = mediaCleanup.start();

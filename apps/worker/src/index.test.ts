@@ -37,7 +37,7 @@ const createProcessStub = () => {
 };
 
 describe("startWorker", () => {
-  test("runs an initial tick and registers graceful shutdown handlers", async () => {
+  test("runs an initial tick, logs the provider directly, and registers graceful shutdown handlers", async () => {
     const events: string[] = [];
     const { logger, infoCalls, errorCalls } = createLoggerStub();
     const { process, handlers } = createProcessStub();
@@ -67,13 +67,12 @@ describe("startWorker", () => {
       }),
     });
 
-    expect(infoCalls).toHaveLength(1);
-    expect(infoCalls[0]?.message).toBe("worker initialized");
-    expect(infoCalls[0]?.payload).toEqual({
-      db: {
-        provider: expect.any(String),
+    expect(infoCalls).toEqual([
+      {
+        payload: { db: { provider: "convex" } },
+        message: "worker initialized",
       },
-    });
+    ]);
     expect(errorCalls).toEqual([]);
     expect(events).toEqual(["runTick", "start"]);
     expect(Array.from(handlers.keys()).sort()).toEqual(["SIGINT", "SIGTERM", "beforeExit"]);
