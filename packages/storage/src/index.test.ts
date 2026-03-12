@@ -33,7 +33,7 @@ describe("@cs/storage", () => {
 
   test("creates presigned upload and download URLs lazily from env", async () => {
     let receivedConfig: Record<string, string> | undefined;
-    let receivedPresignOptions: Record<string, unknown> | undefined;
+    const receivedPresignOptionsCalls: Array<Record<string, unknown>> = [];
     let createClientCount = 0;
 
     process.env.R2_BUCKET_NAME = "media";
@@ -50,7 +50,7 @@ describe("@cs/storage", () => {
           file: () =>
             ({
               presign: (presignOptions) => {
-                receivedPresignOptions = presignOptions;
+                receivedPresignOptionsCalls.push(presignOptions);
                 return "https://signed.example/upload";
               },
               exists: async () => true,
@@ -84,7 +84,23 @@ describe("@cs/storage", () => {
       secretAccessKey: "secret",
     });
     expect(createClientCount).toBe(1);
-    expect(receivedPresignOptions).toEqual({
+    expect(receivedPresignOptionsCalls).toEqual([
+      {
+        method: "PUT",
+        type: "image/png",
+        expiresIn: PRODUCT_IMAGE_UPLOAD_EXPIRY_SECONDS,
+      },
+      {
+        method: "GET",
+        expiresIn: PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS,
+      },
+    ]);
+    expect(receivedPresignOptionsCalls[0]).toEqual({
+      method: "PUT",
+      type: "image/png",
+      expiresIn: PRODUCT_IMAGE_UPLOAD_EXPIRY_SECONDS,
+    });
+    expect(receivedPresignOptionsCalls[1]).toEqual({
       method: "GET",
       expiresIn: PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS,
     });
