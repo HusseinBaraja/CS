@@ -1,4 +1,4 @@
-import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
+import { type ConvexAdminClient, convexInternal, createConvexAdminClient, type Id } from '@cs/db';
 import { ERROR_CODES } from '@cs/shared';
 import {
   createDatabaseServiceError,
@@ -86,6 +86,12 @@ const toEpochMillis = (value: string | null | undefined, fieldName: string): num
   return timestamp;
 };
 
+const toCompanyId = (companyId: string): Id<"companies"> =>
+  companyId as Id<"companies">;
+
+const toOfferId = (offerId: string): Id<"offers"> =>
+  offerId as Id<"offers">;
+
 const mapOffer = (offer: ConvexOfferDto): OfferDto => ({
   id: offer.id,
   companyId: offer.companyId,
@@ -114,7 +120,7 @@ export const createConvexOffersService = (
     list: (companyId, filters) =>
       withClient(async (client) => {
         const offers = await client.query(convexInternal.offers.list, {
-          companyId: companyId as never,
+          companyId: toCompanyId(companyId),
           ...(filters.activeOnly !== undefined ? { activeOnly: filters.activeOnly } : {}),
         });
 
@@ -123,7 +129,7 @@ export const createConvexOffersService = (
     create: (companyId, input) =>
       withClient(async (client) => {
         const offer = await client.mutation(convexInternal.offers.create, {
-          companyId: companyId as never,
+          companyId: toCompanyId(companyId),
           contentEn: input.contentEn,
           ...(input.contentAr !== undefined ? { contentAr: input.contentAr } : {}),
           active: input.active,
@@ -140,8 +146,8 @@ export const createConvexOffersService = (
     update: (companyId, offerId, patch) =>
       withClient(async (client) => {
         const offer = await client.mutation(convexInternal.offers.update, {
-          companyId: companyId as never,
-          offerId: offerId as never,
+          companyId: toCompanyId(companyId),
+          offerId: toOfferId(offerId),
           ...(patch.contentEn !== undefined ? { contentEn: patch.contentEn } : {}),
           ...(patch.contentAr !== undefined ? { contentAr: patch.contentAr } : {}),
           ...(patch.active !== undefined ? { active: patch.active } : {}),
@@ -158,8 +164,8 @@ export const createConvexOffersService = (
     delete: (companyId, offerId) =>
       withClient((client) =>
         client.mutation(convexInternal.offers.remove, {
-          companyId: companyId as never,
-          offerId: offerId as never,
+          companyId: toCompanyId(companyId),
+          offerId: toOfferId(offerId),
         })
       ) as Promise<DeleteOfferResult | null>,
   };
