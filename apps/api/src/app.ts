@@ -8,12 +8,18 @@ import { createRateLimitMiddleware } from './rateLimit';
 import { createCustomErrorResponse, createErrorResponse } from './responses';
 import { createCategoriesRoutes } from './routes/categories';
 import { createCompaniesRoutes } from './routes/companies';
+import { createCurrencyRatesRoutes } from './routes/currencyRates';
+import { createOffersRoutes } from './routes/offers';
 import { createProductsRoutes } from './routes/products';
 import { type ApiRuntimeConfig, createApiRuntimeConfig } from './runtimeConfig';
 import type { CategoriesService } from './services/categories';
 import { createConvexCategoriesService } from './services/convexCategoriesService';
 import type { CompaniesService } from './services/companies';
 import { createConvexCompaniesService } from './services/convexCompaniesService';
+import type { CurrencyRatesService } from './services/currencyRates';
+import { createConvexCurrencyRatesService } from './services/convexCurrencyRatesService';
+import type { OffersService } from './services/offers';
+import { createConvexOffersService } from './services/convexOffersService';
 import type { ProductsService } from './services/products';
 import { createConvexProductsService } from './services/convexProductsService';
 
@@ -23,6 +29,8 @@ export interface ApiAppOptions {
   companiesService?: CompaniesService;
   categoriesService?: CategoriesService;
   productsService?: ProductsService;
+  offersService?: OffersService;
+  currencyRatesService?: CurrencyRatesService;
   logger?: {
     warn: (payload: Record<string, unknown>, message: string) => void;
   };
@@ -121,6 +129,8 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const companiesService = options.companiesService ?? createConvexCompaniesService();
   const categoriesService = options.categoriesService ?? createConvexCategoriesService();
   const productsService = options.productsService ?? createConvexProductsService();
+  const offersService = options.offersService ?? createConvexOffersService();
+  const currencyRatesService = options.currencyRatesService ?? createConvexCurrencyRatesService();
   const rateLimitMiddleware = createRateLimitMiddleware({
     max: runtimeConfig.rateLimitMax,
     maxEntries: runtimeConfig.rateLimitMaxEntries,
@@ -211,6 +221,20 @@ export const createApp = (options: ApiAppOptions = {}) => {
     "/api/companies/:companyId/products",
     createProductsRoutes({
       productsService
+    })
+  );
+
+  app.route(
+    "/api/companies/:companyId/offers",
+    createOffersRoutes({
+      offersService
+    })
+  );
+
+  app.route(
+    "/api/companies/:companyId/currency-rates",
+    createCurrencyRatesRoutes({
+      currencyRatesService
     })
   );
 

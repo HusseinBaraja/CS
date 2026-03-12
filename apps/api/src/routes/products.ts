@@ -10,6 +10,7 @@ import {
 } from './productSchemas';
 import type { ProductsService } from '../services/products';
 import { ProductsServiceError } from '../services/products';
+import { parseJsonBody } from './parserUtils';
 
 export interface ProductsRoutesOptions {
   productsService: ProductsService;
@@ -24,23 +25,6 @@ const requireParam = (value: string | undefined): string => {
   }
 
   return value;
-};
-
-const parseJsonBody = async (request: Request): Promise<{ ok: true; value: unknown } | {
-  ok: false;
-  message: string;
-}> => {
-  try {
-    return {
-      ok: true,
-      value: await request.json(),
-    };
-  } catch {
-    return {
-      ok: false,
-      message: "Malformed JSON body",
-    };
-  }
 };
 
 export const createProductsRoutes = (

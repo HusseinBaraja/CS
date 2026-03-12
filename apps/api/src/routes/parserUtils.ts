@@ -10,6 +10,22 @@ export type ParseFailure = {
 
 export type ParseResult<T> = ParseSuccess<T> | ParseFailure;
 
+export const parseJsonBody = async (
+  request: Request,
+): Promise<ParseResult<unknown>> => {
+  try {
+    return {
+      ok: true,
+      value: await request.json(),
+    };
+  } catch {
+    return {
+      ok: false,
+      message: "Malformed JSON body",
+    };
+  }
+};
+
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
