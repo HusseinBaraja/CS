@@ -88,6 +88,7 @@ export default defineSchema({
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
   })
+    .index("by_company", ["companyId"])
     .index("by_product", ["productId"])
     .index("by_status_expires_at", ["status", "expiresAt"]),
 
@@ -105,6 +106,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_company", ["companyId"])
     .index("by_status_next_attempt_at", ["status", "nextAttemptAt"])
     .index("by_status_lease_expires_at", ["status", "leaseExpiresAt"])
     .index("by_object_key", ["objectKey"]),

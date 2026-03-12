@@ -28,10 +28,12 @@ export interface DeleteCompanyCounts {
   companies: number;
   categories: number;
   products: number;
+  productImageUploads: number;
   productVariants: number;
   embeddings: number;
   conversations: number;
   messages: number;
+  mediaCleanupJobs: number;
   offers: number;
   currencyRates: number;
   analyticsEvents: number;
