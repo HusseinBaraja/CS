@@ -72,6 +72,12 @@ export const createConvexProductsService = (
 ): ProductsService => {
   const createClient = options.createClient ?? createConvexAdminClient;
   const createStorage = options.createStorage ?? createR2Storage;
+  let storageClient: ObjectStorage | undefined;
+
+  const getStorage = (): ObjectStorage => {
+    storageClient ??= createStorage();
+    return storageClient;
+  };
 
   const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> => {
     try {
@@ -83,7 +89,7 @@ export const createConvexProductsService = (
 
   const decorateImage = async (image: ProductImageDto): Promise<ProductImageDto> => {
     try {
-      const download = await createStorage().createPresignedDownload({
+      const download = await getStorage().createPresignedDownload({
         key: image.key,
         expiresIn: PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS,
       });
