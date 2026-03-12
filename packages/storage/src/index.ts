@@ -62,13 +62,16 @@ const toIsoExpiry = (now: number, expiresIn: number) => new Date(now + expiresIn
 const createStorageClient = (
   runtimeEnv: Record<string, string | number | boolean | undefined> = process.env,
   createClient: NonNullable<R2StorageOptions["createClient"]> = (options) => new S3Client(options),
-): S3Client =>
-  createClient({
-    bucket: requireConfigValue(createConfig(runtimeEnv), "R2_BUCKET_NAME"),
-    endpoint: requireConfigValue(createConfig(runtimeEnv), "R2_ENDPOINT"),
-    accessKeyId: requireConfigValue(createConfig(runtimeEnv), "R2_ACCESS_KEY_ID"),
-    secretAccessKey: requireConfigValue(createConfig(runtimeEnv), "R2_SECRET_ACCESS_KEY"),
+): S3Client => {
+  const config = createConfig(runtimeEnv);
+
+  return createClient({
+    bucket: requireConfigValue(config, "R2_BUCKET_NAME"),
+    endpoint: requireConfigValue(config, "R2_ENDPOINT"),
+    accessKeyId: requireConfigValue(config, "R2_ACCESS_KEY_ID"),
+    secretAccessKey: requireConfigValue(config, "R2_SECRET_ACCESS_KEY"),
   });
+};
 
 const normalizeStorageFailure = (
   message: string,

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, mock, test } from 'bun:test';
 import {
   createR2Storage,
   PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS,
@@ -29,6 +29,8 @@ describe("@cs/storage", () => {
         process.env[key] = value;
       }
     }
+
+    mock.restore();
   });
 
   test("creates presigned upload and download URLs lazily from env", async () => {
@@ -137,5 +139,59 @@ describe("@cs/storage", () => {
     });
 
     await expect(storage.statObject("missing")).resolves.toBeNull();
+  });
+
+  test("parses the R2 config once when creating a storage client", async () => {
+    let createConfigCount = 0;
+
+    mock.module("@cs/config", () => ({
+      createConfig: (runtimeEnv: Record<string, string | number | boolean | undefined>) => {
+        createConfigCount += 1;
+        return runtimeEnv;
+      },
+      requireConfigValue: <
+        TConfig extends Record<string, unknown>,
+        TKey extends keyof TConfig
+      >(config: TConfig, key: TKey) => {
+        const value = config[key];
+
+        if (value === undefined || value === null || (typeof value === "string" && value === "")) {
+          throw new Error(`Missing required environment variable: ${String(key)}`);
+        }
+
+        return value as Exclude<TConfig[TKey], null | undefined>;
+      },
+    }));
+
+    process.env.R2_BUCKET_NAME = "media";
+    process.env.R2_ENDPOINT = "https://account.r2.cloudflarestorage.com";
+    process.env.R2_ACCESS_KEY_ID = "access";
+    process.env.R2_SECRET_ACCESS_KEY = "secret";
+
+    const moduleUrl = new URL(`./index.ts?single-parse=${Date.now()}`, import.meta.url).href;
+    const { createR2Storage: createIsolatedR2Storage } = await import(moduleUrl);
+
+    const storage = createIsolatedR2Storage({
+      createClient: () =>
+        ({
+          file: () =>
+            ({
+              presign: () => "https://signed.example/upload",
+              exists: async () => true,
+              stat: async () => ({
+                size: 12,
+              }),
+              delete: async () => undefined,
+            }) as StubS3File,
+        }) as never,
+    });
+
+    await storage.createPresignedUpload({
+      key: "companies/a/products/b/file.png",
+      contentType: "image/png",
+      expiresIn: PRODUCT_IMAGE_UPLOAD_EXPIRY_SECONDS,
+    });
+
+    expect(createConfigCount).toBe(1);
   });
 });
