@@ -55,6 +55,26 @@ describe("product schema parsers", () => {
     });
   });
 
+  test("parseUpdateProductBody rejects an empty object when no recognized updatable fields are provided", () => {
+    const result = parseUpdateProductBody({});
+
+    expect(result).toEqual({
+      ok: false,
+      message: "Request body must include at least one recognized updatable field",
+    });
+  });
+
+  test("parseUpdateProductBody rejects payloads with only unrecognized fields", () => {
+    const result = parseUpdateProductBody({
+      ignored: true,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: "Request body must include at least one recognized updatable field",
+    });
+  });
+
   test("parseCreateProductImageUploadBody trims optional alt text", () => {
     const result = parseCreateProductImageUploadBody({
       contentType: " image/jpeg ",

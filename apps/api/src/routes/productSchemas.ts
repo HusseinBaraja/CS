@@ -285,13 +285,6 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
     return parsedObject;
   }
 
-  if (Object.keys(parsedObject.value).length === 0) {
-    return {
-      ok: false,
-      message: "Request body must include at least one updatable field",
-    };
-  }
-
   const updates: UpdateProductInput = {};
 
   if ("categoryId" in parsedObject.value) {
@@ -373,9 +366,12 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
   }
 
   if (Object.keys(updates).length === 0) {
+    const hasAnyFields = Object.keys(parsedObject.value).length > 0;
     return {
       ok: false,
-      message: "Request body must include at least one updatable field",
+      message: hasAnyFields
+        ? "Request body must include at least one recognized updatable field"
+        : "Request body must include at least one recognized updatable field",
     };
   }
 
