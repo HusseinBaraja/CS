@@ -15,6 +15,7 @@
     "@cs/config": "*",
     "@cs/core": "*",
     "@cs/db": "*",
+    "@cs/shared": "*",
     "@cs/storage": "*",
     "@hono/node-server": "1.19.9",
     "hono": "4.12.4"
