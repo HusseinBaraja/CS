@@ -83,7 +83,12 @@ const normalizeStorageFailure = (
 
 export const createR2Storage = (options: R2StorageOptions = {}): ObjectStorage => {
   const now = options.now ?? Date.now;
-  const getClient = () => createStorageClient(process.env, options.createClient);
+  let client: S3Client | undefined;
+
+  const getClient = () => {
+    client ??= createStorageClient(process.env, options.createClient);
+    return client;
+  };
 
   return {
     async createPresignedUpload(request): Promise<{ url: string; expiresAt: string }> {

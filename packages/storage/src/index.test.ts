@@ -34,6 +34,7 @@ describe("@cs/storage", () => {
   test("creates presigned upload and download URLs lazily from env", async () => {
     let receivedConfig: Record<string, string> | undefined;
     let receivedPresignOptions: Record<string, unknown> | undefined;
+    let createClientCount = 0;
 
     process.env.R2_BUCKET_NAME = "media";
     process.env.R2_ENDPOINT = "https://account.r2.cloudflarestorage.com";
@@ -43,6 +44,7 @@ describe("@cs/storage", () => {
     const storage = createR2Storage({
       now: () => Date.UTC(2026, 2, 12, 0, 0, 0),
       createClient: (options) => {
+        createClientCount += 1;
         receivedConfig = options;
         return {
           file: () =>
@@ -72,6 +74,8 @@ describe("@cs/storage", () => {
       key: "companies/a/products/b/file.png",
       expiresIn: PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS,
     });
+    const stat = await storage.statObject("companies/a/products/b/file.png");
+    await expect(storage.deleteObject("companies/a/products/b/file.png")).resolves.toBeUndefined();
 
     expect(receivedConfig).toEqual({
       bucket: "media",
@@ -79,12 +83,18 @@ describe("@cs/storage", () => {
       accessKeyId: "access",
       secretAccessKey: "secret",
     });
+    expect(createClientCount).toBe(1);
     expect(receivedPresignOptions).toEqual({
       method: "GET",
       expiresIn: PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS,
     });
     expect(upload.url).toBe("https://signed.example/upload");
     expect(download.url).toBe("https://signed.example/upload");
+    expect(stat).toEqual({
+      etag: "\"etag\"",
+      size: 12,
+      contentType: "image/png",
+    });
     expect(upload.expiresAt).toBe("2026-03-12T00:15:00.000Z");
     expect(download.expiresAt).toBe("2026-03-12T00:15:00.000Z");
   });
