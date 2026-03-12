@@ -24,7 +24,6 @@ export interface SeedProduct {
   specifications: Record<string, string | number | boolean>;
   basePrice: number;
   baseCurrency: "SAR";
-  imageUrls?: string[];
 }
 
 export interface SeedVariant {

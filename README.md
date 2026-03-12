@@ -13,6 +13,7 @@ Monorepo for the API, bot, CLI, worker, and shared packages.
 2. If you plan to run the API, set both `CONVEX_URL` and `CONVEX_ADMIN_KEY` in `.env`.
 3. `CONVEX_ADMIN_KEY` is required for server-side internal Convex calls from the API.
 4. `CONVEX_URL` is also required if you plan to run the worker.
+5. Product image management also requires the R2 variables when using media endpoints.
 
 Example:
 
@@ -32,6 +33,10 @@ CONVEX_ADMIN_KEY=your-admin-key
 - `API_PORT`: optional, defaults to `3000`
 - `CONVEX_ADMIN_KEY`: required for server-side internal Convex calls from the API
 - `CONVEX_URL`: required for `api` and `worker`, unused by `bot` and `cli`
+- `R2_BUCKET_NAME`: required for product media upload/download flows
+- `R2_ENDPOINT`: required for product media upload/download flows
+- `R2_ACCESS_KEY_ID`: required for product media upload/download flows
+- `R2_SECRET_ACCESS_KEY`: required for product media upload/download flows
 
 ## Commands
 

@@ -6,6 +6,27 @@ const flexRecord = v.record(
   v.string(),
   v.union(v.string(), v.number(), v.boolean()),
 );
+const productImageValidator = v.object({
+  id: v.string(),
+  key: v.string(),
+  contentType: v.string(),
+  sizeBytes: v.number(),
+  etag: v.optional(v.string()),
+  alt: v.optional(v.string()),
+  uploadedAt: v.number(),
+});
+const productImageUploadStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("completed"),
+  v.literal("expired"),
+);
+const mediaCleanupStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("processing"),
+  v.literal("retry"),
+  v.literal("completed"),
+  v.literal("failed"),
+);
 
 export default defineSchema({
   // ── Companies ────────────────────────────────────────────────────────────
@@ -49,10 +70,42 @@ export default defineSchema({
     specifications: v.optional(flexRecord),
     basePrice: v.optional(v.number()),
     baseCurrency: v.optional(v.string()), // Default: "SAR"
-    imageUrls: v.optional(v.array(v.string())), // Cloudflare R2 public URLs
+    images: v.optional(v.array(productImageValidator)),
   })
     .index("by_company", ["companyId"])
     .index("by_category", ["companyId", "categoryId"]),
+
+  productImageUploads: defineTable({
+    companyId: v.id("companies"),
+    productId: v.id("products"),
+    imageId: v.string(),
+    objectKey: v.string(),
+    intendedContentType: v.string(),
+    maxSizeBytes: v.number(),
+    alt: v.optional(v.string()),
+    status: productImageUploadStatusValidator,
+    expiresAt: v.number(),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_product", ["productId"])
+    .index("by_status_expires_at", ["status", "expiresAt"]),
+
+  mediaCleanupJobs: defineTable({
+    companyId: v.id("companies"),
+    productId: v.optional(v.id("products")),
+    imageId: v.optional(v.string()),
+    objectKey: v.string(),
+    reason: v.string(),
+    status: mediaCleanupStatusValidator,
+    attempts: v.number(),
+    nextAttemptAt: v.number(),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_status_next_attempt_at", ["status", "nextAttemptAt"])
+    .index("by_object_key", ["objectKey"]),
 
   // ── Product Variants ────────────────────────────────────────────────────
   productVariants: defineTable({

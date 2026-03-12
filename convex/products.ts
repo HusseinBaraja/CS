@@ -1,5 +1,6 @@
 import { GEMINI_EMBEDDING_DIMENSIONS, generateGeminiEmbeddings } from '@cs/ai';
 import { v } from 'convex/values';
+import { enqueueCleanupJobInMutation } from './mediaCleanup';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalAction, internalMutation, internalQuery, type MutationCtx } from './_generated/server';
@@ -28,6 +29,16 @@ type ProductVariantDto = {
   priceOverride?: number;
 };
 
+type ProductImageDto = {
+  id: string;
+  key: string;
+  contentType: string;
+  sizeBytes: number;
+  etag?: string;
+  alt?: string;
+  uploadedAt: number;
+};
+
 type ProductListItemDto = {
   id: string;
   companyId: string;
@@ -39,7 +50,7 @@ type ProductListItemDto = {
   specifications?: ProductSpecifications;
   basePrice?: number;
   baseCurrency?: string;
-  imageUrls?: string[];
+  images: ProductImageDto[];
 };
 
 type ProductDetailDto = ProductListItemDto & {
@@ -65,7 +76,6 @@ type ProductWriteState = {
   specifications?: ProductSpecifications;
   basePrice?: number;
   baseCurrency?: string;
-  imageUrls?: string[];
 };
 
 type ProductUpdateArgs = {
@@ -79,7 +89,6 @@ type ProductUpdateArgs = {
   specifications?: ProductSpecifications | null;
   basePrice?: number | null;
   baseCurrency?: string | null;
-  imageUrls?: string[] | null;
 };
 
 type ProductWriteSnapshot = ProductWriteState & {
@@ -182,21 +191,6 @@ const normalizeSpecifications = (
   });
 
   return Object.fromEntries(normalizedEntries);
-};
-
-const normalizeImageUrls = (value: string[] | null | undefined): string[] | undefined => {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  return value.map((url, index) => {
-    const normalized = url.trim();
-    if (normalized.length === 0) {
-      throw createTaggedError(VALIDATION_PREFIX, `imageUrls[${index}] must be a non-empty string`);
-    }
-
-    return normalized;
-  });
 };
 
 const normalizeVariantAttributeValue = (
@@ -331,6 +325,26 @@ const mapVariant = (variant: Doc<"productVariants">): ProductVariantDto => ({
   ...(variant.priceOverride !== undefined ? { priceOverride: variant.priceOverride } : {}),
 });
 
+const mapImage = (
+  image: {
+    id: string;
+    key: string;
+    contentType: string;
+    sizeBytes: number;
+    etag?: string;
+    alt?: string;
+    uploadedAt: number;
+  },
+): ProductImageDto => ({
+  id: image.id,
+  key: image.key,
+  contentType: image.contentType,
+  sizeBytes: image.sizeBytes,
+  ...(image.etag ? { etag: image.etag } : {}),
+  ...(image.alt ? { alt: image.alt } : {}),
+  uploadedAt: image.uploadedAt,
+});
+
 const mapProduct = (product: Doc<"products">): ProductListItemDto => ({
   id: product._id,
   companyId: product.companyId,
@@ -342,7 +356,7 @@ const mapProduct = (product: Doc<"products">): ProductListItemDto => ({
   ...(product.specifications ? { specifications: product.specifications } : {}),
   ...(product.basePrice !== undefined ? { basePrice: product.basePrice } : {}),
   ...(product.baseCurrency ? { baseCurrency: product.baseCurrency } : {}),
-  ...(product.imageUrls ? { imageUrls: product.imageUrls } : {}),
+  images: (product.images ?? []).map(mapImage),
 });
 
 const mapProductDetail = (
@@ -363,7 +377,6 @@ const toWriteState = (product: Doc<"products">): ProductWriteState => ({
   ...(product.specifications ? { specifications: product.specifications } : {}),
   ...(product.basePrice !== undefined ? { basePrice: product.basePrice } : {}),
   ...(product.baseCurrency ? { baseCurrency: product.baseCurrency } : {}),
-  ...(product.imageUrls ? { imageUrls: product.imageUrls } : {}),
 });
 
 const toVariantWriteState = (variant: ProductVariantDto): ProductVariantWriteState => ({
@@ -700,7 +713,6 @@ const normalizeCreateState = (args: {
   specifications?: ProductSpecifications;
   basePrice?: number;
   baseCurrency?: string;
-  imageUrls?: string[];
 }): ProductWriteState => ({
   companyId: args.companyId,
   categoryId: args.categoryId,
@@ -719,7 +731,6 @@ const normalizeCreateState = (args: {
   ...(normalizeOptionalString(args.baseCurrency)
     ? { baseCurrency: normalizeOptionalString(args.baseCurrency) }
     : {}),
-  ...(normalizeImageUrls(args.imageUrls) ? { imageUrls: normalizeImageUrls(args.imageUrls) } : {}),
 });
 
 const mergeUpdateState = (
@@ -760,9 +771,6 @@ const mergeUpdateState = (
       ? { baseCurrency: normalizeOptionalString(patch.baseCurrency) }
       : {})
     : (existingProduct.baseCurrency ? { baseCurrency: existingProduct.baseCurrency } : {})),
-  ...(patch.imageUrls !== undefined
-    ? (normalizeImageUrls(patch.imageUrls) ? { imageUrls: normalizeImageUrls(patch.imageUrls) } : {})
-    : (existingProduct.imageUrls ? { imageUrls: existingProduct.imageUrls } : {})),
 });
 
 const createProductPatch = (
@@ -776,7 +784,6 @@ const createProductPatch = (
   specifications?: ProductSpecifications | undefined;
   basePrice?: number | undefined;
   baseCurrency?: string | undefined;
-  imageUrls?: string[] | undefined;
 } => {
   const patch: {
     categoryId?: Id<"categories">;
@@ -787,7 +794,6 @@ const createProductPatch = (
     specifications?: ProductSpecifications | undefined;
     basePrice?: number | undefined;
     baseCurrency?: string | undefined;
-    imageUrls?: string[] | undefined;
   } = {};
 
   if (args.categoryId !== undefined) {
@@ -820,10 +826,6 @@ const createProductPatch = (
 
   if (args.baseCurrency !== undefined) {
     patch.baseCurrency = normalizeOptionalString(args.baseCurrency);
-  }
-
-  if (args.imageUrls !== undefined) {
-    patch.imageUrls = normalizeImageUrls(args.imageUrls);
   }
 
   return patch;
@@ -980,7 +982,6 @@ export const insertProductWithEmbeddings = internalMutation({
     specifications: v.optional(flexRecord),
     basePrice: v.optional(v.number()),
     baseCurrency: v.optional(v.string()),
-    imageUrls: v.optional(v.array(v.string())),
     englishEmbedding: v.array(v.float64()),
     arabicEmbedding: v.array(v.float64()),
     englishText: v.string(),
@@ -1009,7 +1010,7 @@ export const insertProductWithEmbeddings = internalMutation({
       ...(productState.specifications ? { specifications: productState.specifications } : {}),
       ...(productState.basePrice !== undefined ? { basePrice: productState.basePrice } : {}),
       ...(productState.baseCurrency ? { baseCurrency: productState.baseCurrency } : {}),
-      ...(productState.imageUrls ? { imageUrls: productState.imageUrls } : {}),
+      images: [],
     });
 
     await insertEmbeddings(ctx, {
@@ -1042,7 +1043,6 @@ export const patchProductWithEmbeddings = internalMutation({
     specifications: v.optional(v.union(flexRecord, v.null())),
     basePrice: v.optional(v.union(v.number(), v.null())),
     baseCurrency: v.optional(v.union(v.string(), v.null())),
-    imageUrls: v.optional(v.union(v.array(v.string()), v.null())),
     expectedRevision: v.number(),
     englishEmbedding: v.optional(v.array(v.float64())),
     arabicEmbedding: v.optional(v.array(v.float64())),
@@ -1251,7 +1251,6 @@ export const create = internalAction({
     specifications: v.optional(flexRecord),
     basePrice: v.optional(v.number()),
     baseCurrency: v.optional(v.string()),
-    imageUrls: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args): Promise<ProductDetailDto> => {
     const createContext = await ctx.runQuery(internal.products.getCreateContext, {
@@ -1289,7 +1288,6 @@ export const update = internalAction({
     specifications: v.optional(v.union(flexRecord, v.null())),
     basePrice: v.optional(v.union(v.number(), v.null())),
     baseCurrency: v.optional(v.union(v.string(), v.null())),
-    imageUrls: v.optional(v.union(v.array(v.string()), v.null())),
   },
   handler: async (ctx, args): Promise<ProductDetailDto | null> => {
     const existingProduct = await ctx.runQuery(internal.products.getUpdateSnapshot, {
@@ -1398,7 +1396,7 @@ export const updateVariant = internalAction({
     const embeddings = await buildProductEmbeddings(
       snapshot,
       sortVariants(
-        snapshot.variants.map((variant) =>
+        snapshot.variants.map((variant: ProductVariantDto) =>
           variant.id === args.variantId ? nextVariant : toVariantWriteState(variant)
         ),
       ),
@@ -1436,7 +1434,7 @@ export const removeVariant = internalAction({
     const embeddings = await buildProductEmbeddings(
       snapshot,
       snapshot.variants
-        .filter((variant) => variant.id !== args.variantId)
+        .filter((variant: ProductVariantDto) => variant.id !== args.variantId)
         .map(toVariantWriteState),
     );
 
@@ -1473,6 +1471,16 @@ export const remove = internalMutation({
       .collect();
     for (const embedding of embeddings) {
       await ctx.db.delete(embedding._id);
+    }
+
+    for (const image of product.images ?? []) {
+      await enqueueCleanupJobInMutation(ctx, {
+        companyId: args.companyId,
+        productId: args.productId,
+        imageId: image.id,
+        objectKey: image.key,
+        reason: "product_deleted",
+      });
     }
 
     await ctx.db.delete(args.productId);

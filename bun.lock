@@ -24,6 +24,7 @@
         "@cs/config": "*",
         "@cs/core": "*",
         "@cs/db": "*",
+        "@cs/storage": "*",
         "@hono/node-server": "1.19.9",
         "hono": "4.12.4",
       },
@@ -56,12 +57,14 @@
       "dependencies": {
         "@cs/core": "*",
         "@cs/db": "*",
+        "@cs/storage": "*",
       },
     },
     "convex": {
       "name": "@cs/convex",
       "dependencies": {
-        "@cs/ai": "*",
+        "@cs/ai": "workspace:*",
+        "@cs/storage": "workspace:*",
         "convex": "1.32.0",
       },
       "devDependencies": {
@@ -127,6 +130,14 @@
       "name": "@cs/shared",
       "version": "0.0.0",
     },
+    "packages/storage": {
+      "name": "@cs/storage",
+      "version": "0.0.0",
+      "dependencies": {
+        "@cs/config": "*",
+        "@cs/shared": "*",
+      },
+    },
   },
   "packages": {
     "@borewit/text-codec": ["@borewit/text-codec@0.2.1", "", {}, "sha512-k7vvKPbf7J2fZ5klGRD9AeKfUvojuZIQ3BT5u7Jfv+puwXkUBUT5PVyMDfJZpy30CBDXGMgw7fguK/lpOMBvgw=="],
@@ -152,6 +163,8 @@
     "@cs/rag": ["@cs/rag@workspace:packages/rag"],
 
     "@cs/shared": ["@cs/shared@workspace:packages/shared"],
+
+    "@cs/storage": ["@cs/storage@workspace:packages/storage"],
 
     "@edge-runtime/primitives": ["@edge-runtime/primitives@6.0.0", "", {}, "sha512-FqoxaBT+prPBHBwE1WXS1ocnu/VLTQyZ6NMUBAdbP7N2hsFTTxMC/jMu2D/8GAlMQfxeuppcPuCUk/HO3fpIvA=="],
 

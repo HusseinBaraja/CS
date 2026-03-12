@@ -3,21 +3,28 @@ import { ERROR_CODES } from '@cs/shared';
 import { createErrorResponse } from '../responses';
 import {
   parseCreateProductBody,
+  parseCreateProductImageUploadBody,
   parseCreateVariantBody,
   parseListProductsQuery,
   parseUpdateProductBody,
   parseUpdateVariantBody,
 } from './productSchemas';
+import type { ProductMediaService } from '../services/productMedia';
+import { ProductMediaServiceError } from '../services/productMedia';
 import type { ProductsService } from '../services/products';
 import { ProductsServiceError } from '../services/products';
 import { parseJsonBody } from './parserUtils';
 
 export interface ProductsRoutesOptions {
   productsService: ProductsService;
+  productMediaService: ProductMediaService;
 }
 
 const isServiceError = (error: unknown): error is ProductsServiceError =>
   error instanceof ProductsServiceError;
+
+const isProductMediaServiceError = (error: unknown): error is ProductMediaServiceError =>
+  error instanceof ProductMediaServiceError;
 
 const requireParam = (value: string | undefined): string => {
   if (!value) {
@@ -163,6 +170,86 @@ export const createProductsRoutes = (
       });
     } catch (error) {
       if (isServiceError(error)) {
+        return c.json(createErrorResponse(error.code, error.message), error.status);
+      }
+
+      throw error;
+    }
+  });
+
+  app.post("/:id/images/uploads", async (c) => {
+    const companyId = requireParam(c.req.param("companyId"));
+    const productId = requireParam(c.req.param("id"));
+    const parsedJson = await parseJsonBody(c.req.raw);
+    if (!parsedJson.ok) {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
+    }
+
+    const parsedBody = parseCreateProductImageUploadBody(parsedJson.value);
+    if (!parsedBody.ok) {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);
+    }
+
+    try {
+      const upload = await options.productMediaService.createUpload(companyId, productId, parsedBody.value);
+      if (!upload) {
+        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
+      }
+
+      return c.json({
+        ok: true,
+        upload,
+      }, 201);
+    } catch (error) {
+      if (isProductMediaServiceError(error)) {
+        return c.json(createErrorResponse(error.code, error.message), error.status);
+      }
+
+      throw error;
+    }
+  });
+
+  app.post("/:id/images/uploads/:uploadId/complete", async (c) => {
+    const companyId = requireParam(c.req.param("companyId"));
+    const productId = requireParam(c.req.param("id"));
+    const uploadId = requireParam(c.req.param("uploadId"));
+
+    try {
+      const image = await options.productMediaService.completeUpload(companyId, productId, uploadId);
+      if (!image) {
+        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Upload session not found"), 404);
+      }
+
+      return c.json({
+        ok: true,
+        image,
+      });
+    } catch (error) {
+      if (isProductMediaServiceError(error)) {
+        return c.json(createErrorResponse(error.code, error.message), error.status);
+      }
+
+      throw error;
+    }
+  });
+
+  app.delete("/:id/images/:imageId", async (c) => {
+    const companyId = requireParam(c.req.param("companyId"));
+    const productId = requireParam(c.req.param("id"));
+    const imageId = requireParam(c.req.param("imageId"));
+
+    try {
+      const deleted = await options.productMediaService.deleteImage(companyId, productId, imageId);
+      if (!deleted) {
+        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
+      }
+
+      return c.json({
+        ok: true,
+        deleted,
+      });
+    } catch (error) {
+      if (isProductMediaServiceError(error)) {
         return c.json(createErrorResponse(error.code, error.message), error.status);
       }
 

@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { parseCreateProductBody, parseUpdateProductBody } from "./productSchemas";
+import { describe, expect, test } from 'bun:test';
+import { parseCreateProductBody, parseCreateProductImageUploadBody, parseUpdateProductBody } from './productSchemas';
 
 describe("product schema parsers", () => {
   test("parseCreateProductBody trims unique specification keys", () => {
@@ -52,6 +52,23 @@ describe("product schema parsers", () => {
     expect(result).toEqual({
       ok: false,
       message: "specifications keys must be unique after trimming: size",
+    });
+  });
+
+  test("parseCreateProductImageUploadBody trims optional alt text", () => {
+    const result = parseCreateProductImageUploadBody({
+      contentType: " image/jpeg ",
+      sizeBytes: 1024,
+      alt: " Front view ",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        contentType: "image/jpeg",
+        sizeBytes: 1024,
+        alt: "Front view",
+      },
     });
   });
 });

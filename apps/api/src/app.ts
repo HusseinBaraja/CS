@@ -25,6 +25,8 @@ import type { OffersService } from './services/offers';
 import { createConvexOffersService } from './services/convexOffersService';
 import type { ProductsService } from './services/products';
 import { createConvexProductsService } from './services/convexProductsService';
+import type { ProductMediaService } from './services/productMedia';
+import { createConvexProductMediaService } from './services/convexProductMediaService';
 
 export interface ApiAppOptions {
   createDbConnection?: () => DbConnection;
@@ -33,6 +35,7 @@ export interface ApiAppOptions {
   companiesService?: CompaniesService;
   categoriesService?: CategoriesService;
   productsService?: ProductsService;
+  productMediaService?: ProductMediaService;
   offersService?: OffersService;
   currencyRatesService?: CurrencyRatesService;
   logger?: {
@@ -134,6 +137,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const companiesService = options.companiesService ?? createConvexCompaniesService();
   const categoriesService = options.categoriesService ?? createConvexCategoriesService();
   const productsService = options.productsService ?? createConvexProductsService();
+  const productMediaService = options.productMediaService ?? createConvexProductMediaService();
   const offersService = options.offersService ?? createConvexOffersService();
   const currencyRatesService = options.currencyRatesService ?? createConvexCurrencyRatesService();
   const rateLimitMiddleware = createRateLimitMiddleware({
@@ -232,7 +236,8 @@ export const createApp = (options: ApiAppOptions = {}) => {
   app.route(
     "/api/companies/:companyId/products",
     createProductsRoutes({
-      productsService
+      productsService,
+      productMediaService
     })
   );
 

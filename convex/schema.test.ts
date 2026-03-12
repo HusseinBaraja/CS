@@ -128,7 +128,15 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
           specifications: { size: "8oz", material: "paper" },
           basePrice: 0.15,
           baseCurrency: "SAR",
-          imageUrls: ["https://r2.example.com/cup.jpg"],
+          images: [
+            {
+              id: "image-1",
+              key: "companies/company-1/products/product-1/image-1.jpg",
+              contentType: "image/jpeg",
+              sizeBytes: 1024,
+              uploadedAt: Date.UTC(2026, 2, 12, 0, 0, 0),
+            },
+          ],
         }),
       );
 
@@ -138,7 +146,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
         basePrice: 0.15,
         baseCurrency: "SAR",
       });
-      expect(doc?.imageUrls).toHaveLength(1);
+      expect(doc?.images).toHaveLength(1);
     });
   });
 

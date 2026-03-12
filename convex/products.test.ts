@@ -115,9 +115,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       search: "PaPeR",
     });
 
-    expect(allProducts?.map((product) => product.nameEn)).toEqual(["Burger Box", "Soup Cup"]);
-    expect(categoryProducts?.map((product) => product.nameEn)).toEqual(["Soup Cup"]);
-    expect(searchedProducts?.map((product) => product.nameEn)).toEqual(["Burger Box"]);
+    expect(allProducts?.map((product: { nameEn: string }) => product.nameEn)).toEqual(["Burger Box", "Soup Cup"]);
+    expect(categoryProducts?.map((product: { nameEn: string }) => product.nameEn)).toEqual(["Soup Cup"]);
+    expect(searchedProducts?.map((product: { nameEn: string }) => product.nameEn)).toEqual(["Burger Box"]);
   });
 
   it("gets a product with variants nested and hides out-of-scope products", async () => {
@@ -174,6 +174,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       companyId,
       categoryId,
       nameEn: "Burger Box",
+      images: [],
       variants: [
         {
           id: variantId,
@@ -238,7 +239,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       productId,
     });
 
-    expect(variants?.map((variant) => variant.variantLabel)).toEqual(["Family Pack", "Large"]);
+    expect(variants?.map((variant: { variantLabel: string }) => variant.variantLabel)).toEqual(["Family Pack", "Large"]);
     expect(hiddenVariants).toBeNull();
   });
 

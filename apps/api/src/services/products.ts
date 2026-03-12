@@ -22,6 +22,18 @@ export interface ProductVariantDto {
   priceOverride?: number;
 }
 
+export interface ProductImageDto {
+  id: string;
+  key: string;
+  contentType: string;
+  sizeBytes: number;
+  etag?: string;
+  alt?: string;
+  uploadedAt: number;
+  downloadUrl?: string;
+  downloadUrlExpiresAt?: string;
+}
+
 export interface ProductListItemDto {
   id: string;
   companyId: string;
@@ -33,7 +45,7 @@ export interface ProductListItemDto {
   specifications?: ProductSpecifications;
   basePrice?: number;
   baseCurrency?: string;
-  imageUrls?: string[];
+  images: ProductImageDto[];
 }
 
 export interface ProductDetailDto extends ProductListItemDto {
@@ -54,7 +66,6 @@ export interface CreateProductInput {
   specifications?: ProductSpecifications;
   basePrice?: number;
   baseCurrency?: string;
-  imageUrls?: string[];
 }
 
 export interface UpdateProductInput {
@@ -66,7 +77,6 @@ export interface UpdateProductInput {
   specifications?: ProductSpecifications | null;
   basePrice?: number | null;
   baseCurrency?: string | null;
-  imageUrls?: string[] | null;
 }
 
 export interface DeleteProductResult {

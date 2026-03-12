@@ -98,12 +98,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
       now,
     });
 
-    expect(offers?.map((offer) => offer.contentEn)).toEqual([
+    expect(offers?.map((offer: { contentEn: string }) => offer.contentEn)).toEqual([
       "Newest",
       "Middle",
       "Oldest",
     ]);
-    expect(offers?.map((offer) => offer.isCurrentlyActive)).toEqual([
+    expect(offers?.map((offer: { isCurrentlyActive: boolean }) => offer.isCurrentlyActive)).toEqual([
       true,
       false,
       false,

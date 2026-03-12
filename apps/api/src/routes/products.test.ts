@@ -8,6 +8,7 @@ import {
   type DeleteProductVariantResult,
   type ListProductsFilters,
   type ProductDetailDto,
+  type ProductImageDto,
   type ProductListItemDto,
   type ProductsService,
   ProductsServiceError,
@@ -15,8 +16,25 @@ import {
   type UpdateProductInput,
   type UpdateProductVariantInput,
 } from '../services/products';
+import {
+  type CreateProductImageUploadInput,
+  type DeleteProductImageResult,
+  type ProductMediaService,
+} from '../services/productMedia';
 
 const API_KEY = "test-api-key";
+
+const baseImage: ProductImageDto = {
+  id: "image-1",
+  key: "companies/company-1/products/product-1/image-1.jpg",
+  contentType: "image/jpeg",
+  sizeBytes: 1024,
+  etag: '"etag-1"',
+  alt: "Front view",
+  uploadedAt: Date.UTC(2026, 2, 12, 0, 0, 0),
+  downloadUrl: "https://signed.example/download",
+  downloadUrlExpiresAt: "2026-03-12T00:15:00.000Z",
+};
 
 const baseProduct: ProductListItemDto = {
   id: "product-1",
@@ -32,7 +50,7 @@ const baseProduct: ProductListItemDto = {
   },
   basePrice: 1.25,
   baseCurrency: "SAR",
-  imageUrls: ["https://cdn.example.com/burger-box.jpg"],
+  images: [baseImage],
 };
 
 const baseProductDetail: ProductDetailDto = {
@@ -64,6 +82,7 @@ const createStubProductsService = (
     id: "product-created",
     companyId: "company-1",
     ...input,
+    images: [],
     variants: [],
   }),
   update: async (_companyId: string, _productId: string, patch: UpdateProductInput) => ({
@@ -89,8 +108,6 @@ const createStubProductsService = (
       patch.baseCurrency === null
         ? undefined
         : patch.baseCurrency ?? baseProductDetail.baseCurrency,
-    imageUrls:
-      patch.imageUrls === null ? undefined : patch.imageUrls ?? baseProductDetail.imageUrls,
   }),
   delete: async () => ({
     productId: "product-1",
@@ -119,9 +136,38 @@ const createStubProductsService = (
   ...overrides,
 });
 
-const createTestApp = (productsService: ProductsService) =>
+const createStubProductMediaService = (
+  overrides: Partial<ProductMediaService> = {},
+): ProductMediaService => ({
+  createUpload: async (_companyId: string, _productId: string, input: CreateProductImageUploadInput) => ({
+    uploadId: "upload-1",
+    imageId: "image-2",
+    objectKey: "companies/company-1/products/product-1/image-2.jpg",
+    uploadUrl: "https://signed.example/upload",
+    expiresAt: "2026-03-12T00:15:00.000Z",
+    method: "PUT",
+    contentType: input.contentType,
+    maxSizeBytes: input.sizeBytes,
+  }),
+  completeUpload: async () => ({
+    ...baseImage,
+    id: "image-2",
+  }),
+  deleteImage: async (_companyId: string, productId: string, imageId: string) => ({
+    productId,
+    imageId,
+    objectKey: "companies/company-1/products/product-1/image-2.jpg",
+  }),
+  ...overrides,
+});
+
+const createTestApp = (
+  productsService: ProductsService,
+  productMediaService: ProductMediaService = createStubProductMediaService(),
+) =>
   createApp({
     productsService,
+    productMediaService,
     runtimeConfig: {
       apiKey: API_KEY,
     },
@@ -231,6 +277,7 @@ describe("product routes", () => {
           id: "product-created",
           companyId,
           ...input,
+          images: [],
           variants: [],
         };
       },
@@ -251,7 +298,6 @@ describe("product routes", () => {
         },
         basePrice: 1.25,
         baseCurrency: "  SAR  ",
-        imageUrls: [" https://cdn.example.com/burger-box.jpg "],
       }),
     });
     const body = await response.json();
@@ -270,7 +316,6 @@ describe("product routes", () => {
       },
       basePrice: 1.25,
       baseCurrency: "SAR",
-      imageUrls: ["https://cdn.example.com/burger-box.jpg"],
     });
     expect(body).toEqual({
       ok: true,
@@ -288,7 +333,7 @@ describe("product routes", () => {
         },
         basePrice: 1.25,
         baseCurrency: "SAR",
-        imageUrls: ["https://cdn.example.com/burger-box.jpg"],
+        images: [],
         variants: [],
       },
     });
@@ -376,11 +421,11 @@ describe("product routes", () => {
         receivedPatch = patch;
 
         return {
-          id: baseProductDetail.id,
-          companyId: baseProductDetail.companyId,
+          ...baseProductDetail,
           categoryId: patch.categoryId ?? baseProductDetail.categoryId,
           nameEn: patch.nameEn ?? baseProductDetail.nameEn,
           variants: baseProductDetail.variants,
+          images: baseProductDetail.images,
         };
       },
     }));
@@ -397,7 +442,6 @@ describe("product routes", () => {
         specifications: null,
         basePrice: null,
         baseCurrency: null,
-        imageUrls: null,
       }),
     });
     const body = await response.json();
@@ -412,7 +456,6 @@ describe("product routes", () => {
       specifications: null,
       basePrice: null,
       baseCurrency: null,
-      imageUrls: null,
     });
     expect(body).toEqual({
       ok: true,
@@ -423,6 +466,109 @@ describe("product routes", () => {
         nameEn: "Updated Burger Box",
         variants: baseProductDetail.variants,
       },
+    });
+  });
+
+  test("POST /api/companies/:companyId/products/:id/images/uploads creates a presigned upload", async () => {
+    let receivedInput: CreateProductImageUploadInput | undefined;
+    const productMediaService = createStubProductMediaService({
+      createUpload: async (_companyId, _productId, input) => {
+        receivedInput = input;
+        return {
+          uploadId: "upload-1",
+          imageId: "image-2",
+          objectKey: "companies/company-1/products/product-1/image-2.jpg",
+          uploadUrl: "https://signed.example/upload",
+          expiresAt: "2026-03-12T00:15:00.000Z",
+          method: "PUT",
+          contentType: input.contentType,
+          maxSizeBytes: input.sizeBytes,
+        };
+      },
+    });
+    const app = createTestApp(createStubProductsService(), productMediaService);
+
+    const response = await app.request("/api/companies/company-1/products/product-1/images/uploads", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        contentType: " image/jpeg ",
+        sizeBytes: 1024,
+        alt: " Front view ",
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(receivedInput).toEqual({
+      contentType: "image/jpeg",
+      sizeBytes: 1024,
+      alt: "Front view",
+    });
+    expect(body).toEqual({
+      ok: true,
+      upload: {
+        uploadId: "upload-1",
+        imageId: "image-2",
+        objectKey: "companies/company-1/products/product-1/image-2.jpg",
+        uploadUrl: "https://signed.example/upload",
+        expiresAt: "2026-03-12T00:15:00.000Z",
+        method: "PUT",
+        contentType: "image/jpeg",
+        maxSizeBytes: 1024,
+      },
+    });
+  });
+
+  test("POST /api/companies/:companyId/products/:id/images/uploads/:uploadId/complete finalizes an upload", async () => {
+    const app = createTestApp(createStubProductsService(), createStubProductMediaService());
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/images/uploads/upload-1/complete",
+      {
+        method: "POST",
+        headers: {
+          "x-api-key": API_KEY,
+        },
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      ok: true,
+      image: {
+        ...baseImage,
+        id: "image-2",
+      },
+    });
+  });
+
+  test("DELETE /api/companies/:companyId/products/:id/images/:imageId removes a product image", async () => {
+    const deletedResult: DeleteProductImageResult = {
+      productId: "product-1",
+      imageId: "image-2",
+      objectKey: "companies/company-1/products/product-1/image-2.jpg",
+    };
+    const app = createTestApp(createStubProductsService(), createStubProductMediaService({
+      deleteImage: async () => deletedResult,
+    }));
+
+    const response = await app.request(
+      "/api/companies/company-1/products/product-1/images/image-2",
+      {
+        method: "DELETE",
+        headers: {
+          "x-api-key": API_KEY,
+        },
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      ok: true,
+      deleted: deletedResult,
     });
   });
 

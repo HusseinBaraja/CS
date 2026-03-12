@@ -4,17 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun",
+    "dev": "bun --env-file=../../.env --watch src/index.ts",
+    "build": "bun --env-file=../../.env build src/index.ts --outdir dist --target bun",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "check": "bun run typecheck && bun run lint",
-    "test": "bun test --pass-with-no-tests"
+    "test": "bun --env-file=../../.env test --pass-with-no-tests"
   },
   "dependencies": {
     "@cs/config": "*",
     "@cs/core": "*",
     "@cs/db": "*",
+    "@cs/storage": "*",
     "@hono/node-server": "1.19.9",
     "hono": "4.12.4"
   }

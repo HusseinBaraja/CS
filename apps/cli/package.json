@@ -7,14 +7,14 @@
     "cs": "./src/index.ts"
   },
   "scripts": {
-    "dev": "bun --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun",
-    "seed": "bun src/index.ts seed",
-    "backup": "bun src/index.ts backup",
+    "dev": "bun --env-file=../../.env --watch src/index.ts",
+    "build": "bun --env-file=../../.env build src/index.ts --outdir dist --target bun",
+    "seed": "bun --env-file=../../.env src/index.ts seed",
+    "backup": "bun --env-file=../../.env src/index.ts backup",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "check": "bun run typecheck && bun run lint",
-    "test": "bun test --pass-with-no-tests"
+    "test": "bun --env-file=../../.env test --pass-with-no-tests"
   },
   "dependencies": {
     "@cs/config": "*",

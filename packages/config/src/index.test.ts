@@ -25,6 +25,10 @@ describe("config", () => {
     expect(config.API_RATE_LIMIT_WINDOW_MS).toBe(60_000);
     expect(config.API_RATE_LIMIT_MAX_ENTRIES).toBe(10_000);
     expect(config.CONVEX_URL).toBe("https://example.convex.cloud");
+    expect(config.R2_BUCKET_NAME).toBeUndefined();
+    expect(config.R2_ENDPOINT).toBeUndefined();
+    expect(config.R2_ACCESS_KEY_ID).toBeUndefined();
+    expect(config.R2_SECRET_ACCESS_KEY).toBeUndefined();
   });
 
   test("parses API CORS origins from a comma-separated env value", () => {
@@ -250,10 +254,14 @@ describe("config", () => {
     expect((thrown as ConfigError).message).toContain("CONVEX_URL:");
   });
 
-  test("treats empty optional API auth, Gemini, and CORS env vars as unset values", () => {
+  test("treats empty optional API auth, Gemini, storage, and CORS env vars as unset values", () => {
     const config = createConfig({
       API_KEY: "",
       GEMINI_API_KEY: "",
+      R2_BUCKET_NAME: "",
+      R2_ENDPOINT: "",
+      R2_ACCESS_KEY_ID: "",
+      R2_SECRET_ACCESS_KEY: "",
       API_CORS_ORIGINS: "",
       CONVEX_URL: "https://example.convex.cloud"
     });
@@ -262,28 +270,46 @@ describe("config", () => {
     expect(config.GEMINI_API_KEY).toBeUndefined();
     expect(config.API_CORS_ORIGINS).toEqual(["*"]);
     expect(config.CONVEX_ADMIN_KEY).toBeUndefined();
+    expect(config.R2_BUCKET_NAME).toBeUndefined();
+    expect(config.R2_ENDPOINT).toBeUndefined();
+    expect(config.R2_ACCESS_KEY_ID).toBeUndefined();
+    expect(config.R2_SECRET_ACCESS_KEY).toBeUndefined();
   });
 
   test("treats whitespace-only optional secrets as unset values", () => {
     const config = createConfig({
       API_KEY: "   ",
       GEMINI_API_KEY: "   ",
+      R2_BUCKET_NAME: "   ",
+      R2_ACCESS_KEY_ID: "   ",
+      R2_SECRET_ACCESS_KEY: "   ",
       CONVEX_URL: "https://example.convex.cloud"
     });
 
     expect(config.API_KEY).toBeUndefined();
     expect(config.GEMINI_API_KEY).toBeUndefined();
+    expect(config.R2_BUCKET_NAME).toBeUndefined();
+    expect(config.R2_ACCESS_KEY_ID).toBeUndefined();
+    expect(config.R2_SECRET_ACCESS_KEY).toBeUndefined();
   });
 
   test("trims optional secrets before returning them", () => {
     const config = createConfig({
       API_KEY: "  secret  ",
       GEMINI_API_KEY: "  gemini-secret  ",
+      R2_BUCKET_NAME: "  media  ",
+      R2_ENDPOINT: "  https://example.r2.cloudflarestorage.com  ",
+      R2_ACCESS_KEY_ID: "  access-key  ",
+      R2_SECRET_ACCESS_KEY: "  secret-key  ",
       CONVEX_URL: "https://example.convex.cloud"
     });
 
     expect(config.API_KEY).toBe("secret");
     expect(config.GEMINI_API_KEY).toBe("gemini-secret");
+    expect(config.R2_BUCKET_NAME).toBe("media");
+    expect(config.R2_ENDPOINT).toBe("https://example.r2.cloudflarestorage.com");
+    expect(config.R2_ACCESS_KEY_ID).toBe("access-key");
+    expect(config.R2_SECRET_ACCESS_KEY).toBe("secret-key");
   });
 
   test("treats empty CONVEX_ADMIN_KEY as an unset value", () => {

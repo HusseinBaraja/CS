@@ -54,18 +54,18 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
     });
 
     expect(categories).toHaveLength(3);
-    expect(categories?.map((category) => category.nameEn)).toEqual([
+    expect(categories?.map((category: { nameEn: string }) => category.nameEn)).toEqual([
       "Bags",
       "Containers",
       "Containers",
     ]);
-    expect(categories?.map((category) => category.id)).toEqual([
+    expect(categories?.map((category: { id: string }) => category.id)).toEqual([
       bagsCategoryId,
       ...[firstContainersCategoryId, secondContainersCategoryId].sort((left, right) =>
         left.localeCompare(right),
       ),
     ]);
-    expect(categories?.every((category) => category.companyId === companyId)).toBe(true);
+    expect(categories?.every((category: { companyId: string }) => category.companyId === companyId)).toBe(true);
   });
 
   it("returns null when listing a missing company", async () => {

@@ -8,6 +8,7 @@ import type {
   UpdateProductInput,
   UpdateProductVariantInput,
 } from '../services/products';
+import type { CreateProductImageUploadInput } from '../services/productMedia';
 import {
   isRecord,
   parseObject,
@@ -83,64 +84,6 @@ const parseSpecifications = (
   return {
     ok: true,
     value: specifications,
-  };
-};
-
-const parseImageUrls = (
-  value: unknown,
-  options: { allowNull?: boolean } = {},
-): ParseResult<string[] | null | undefined> => {
-  if (value === undefined) {
-    return {
-      ok: true,
-      value: undefined,
-    };
-  }
-
-  if (value === null) {
-    if (options.allowNull) {
-      return {
-        ok: true,
-        value: null,
-      };
-    }
-
-    return {
-      ok: false,
-      message: "imageUrls must be an array of strings",
-    };
-  }
-
-  if (!Array.isArray(value)) {
-    return {
-      ok: false,
-      message: "imageUrls must be an array of strings",
-    };
-  }
-
-  const imageUrls: string[] = [];
-  for (const [index, entryValue] of value.entries()) {
-    if (typeof entryValue !== "string") {
-      return {
-        ok: false,
-        message: `imageUrls[${index}] must be a string`,
-      };
-    }
-
-    const normalized = entryValue.trim();
-    if (normalized.length === 0) {
-      return {
-        ok: false,
-        message: `imageUrls[${index}] is required`,
-      };
-    }
-
-    imageUrls.push(normalized);
-  }
-
-  return {
-    ok: true,
-    value: imageUrls,
   };
 };
 
@@ -311,11 +254,6 @@ export const parseCreateProductBody = (value: unknown): ParseResult<CreateProduc
     return baseCurrency;
   }
 
-  const imageUrls = parseImageUrls(parsedObject.value.imageUrls);
-  if (!imageUrls.ok) {
-    return imageUrls;
-  }
-
   return {
     ok: true,
     value: {
@@ -336,9 +274,6 @@ export const parseCreateProductBody = (value: unknown): ParseResult<CreateProduc
         : {}),
       ...(baseCurrency.value !== undefined && baseCurrency.value !== null
         ? { baseCurrency: baseCurrency.value }
-        : {}),
-      ...(imageUrls.value !== undefined && imageUrls.value !== null
-        ? { imageUrls: imageUrls.value }
         : {}),
     },
   };
@@ -437,15 +372,6 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
     updates.baseCurrency = baseCurrency.value;
   }
 
-  if ("imageUrls" in parsedObject.value) {
-    const imageUrls = parseImageUrls(parsedObject.value.imageUrls, { allowNull: true });
-    if (!imageUrls.ok) {
-      return imageUrls;
-    }
-
-    updates.imageUrls = imageUrls.value;
-  }
-
   if (Object.keys(updates).length === 0) {
     return {
       ok: false,
@@ -456,6 +382,46 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
   return {
     ok: true,
     value: updates,
+  };
+};
+
+export const parseCreateProductImageUploadBody = (
+  value: unknown,
+): ParseResult<CreateProductImageUploadInput> => {
+  const parsedObject = parseObject(value);
+  if (!parsedObject.ok) {
+    return parsedObject;
+  }
+
+  const contentType = parseRequiredString(parsedObject.value.contentType, "contentType");
+  if (!contentType.ok) {
+    return contentType;
+  }
+
+  const sizeBytes = parseOptionalNumber(parsedObject.value.sizeBytes, "sizeBytes");
+  if (!sizeBytes.ok) {
+    return sizeBytes;
+  }
+
+  if (sizeBytes.value === undefined || sizeBytes.value === null) {
+    return {
+      ok: false,
+      message: "sizeBytes is required",
+    };
+  }
+
+  const alt = parseOptionalString(parsedObject.value.alt, "alt");
+  if (!alt.ok) {
+    return alt;
+  }
+
+  return {
+    ok: true,
+    value: {
+      contentType: contentType.value,
+      sizeBytes: sizeBytes.value,
+      ...(alt.value !== undefined && alt.value !== null ? { alt: alt.value } : {}),
+    },
   };
 };
 

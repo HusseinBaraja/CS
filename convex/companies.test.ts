@@ -177,14 +177,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     const companies = await t.query(internal.companies.list, {});
 
     expect(companies).toHaveLength(3);
-    expect(companies.map((company) => company.name)).toEqual([
+    expect(companies.map((company: { name: string }) => company.name)).toEqual([
       "Alpha Packaging",
       "Alpha Packaging",
       "Zulu Packaging",
     ]);
-    expect(companies.every((company) => !("_id" in company))).toBe(true);
-    expect(companies.every((company) => !("_creationTime" in company))).toBe(true);
-    expect(companies.every((company) => !("seedKey" in company))).toBe(true);
+    expect(companies.every((company: object) => !("_id" in company))).toBe(true);
+    expect(companies.every((company: object) => !("_creationTime" in company))).toBe(true);
+    expect(companies.every((company: object) => !("seedKey" in company))).toBe(true);
   });
 
   it("gets a single sanitized company", async () => {
