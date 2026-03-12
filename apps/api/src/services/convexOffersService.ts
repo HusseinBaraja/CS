@@ -128,35 +128,33 @@ export const createConvexOffersService = (
       }),
     create: (companyId, input) =>
       withClient(async (client) => {
+        const startDate = toEpochMillis(input.startDate, "startDate");
+        const endDate = toEpochMillis(input.endDate, "endDate");
+
         const offer = await client.mutation(convexInternal.offers.create, {
           companyId: toCompanyId(companyId),
           contentEn: input.contentEn,
           ...(input.contentAr !== undefined ? { contentAr: input.contentAr } : {}),
           active: input.active,
-          ...(input.startDate !== undefined
-            ? { startDate: toEpochMillis(input.startDate, "startDate") as number }
-            : {}),
-          ...(input.endDate !== undefined
-            ? { endDate: toEpochMillis(input.endDate, "endDate") as number }
-            : {}),
+          ...(startDate !== undefined && startDate !== null ? { startDate } : {}),
+          ...(endDate !== undefined && endDate !== null ? { endDate } : {}),
         });
 
         return offer ? mapOffer(offer as ConvexOfferDto) : null;
       }),
     update: (companyId, offerId, patch) =>
       withClient(async (client) => {
+        const startDate = toEpochMillis(patch.startDate, "startDate");
+        const endDate = toEpochMillis(patch.endDate, "endDate");
+
         const offer = await client.mutation(convexInternal.offers.update, {
           companyId: toCompanyId(companyId),
           offerId: toOfferId(offerId),
           ...(patch.contentEn !== undefined ? { contentEn: patch.contentEn } : {}),
           ...(patch.contentAr !== undefined ? { contentAr: patch.contentAr } : {}),
           ...(patch.active !== undefined ? { active: patch.active } : {}),
-          ...(patch.startDate !== undefined
-            ? { startDate: toEpochMillis(patch.startDate, "startDate") }
-            : {}),
-          ...(patch.endDate !== undefined
-            ? { endDate: toEpochMillis(patch.endDate, "endDate") }
-            : {}),
+          ...(patch.startDate !== undefined ? { startDate } : {}),
+          ...(patch.endDate !== undefined ? { endDate } : {}),
         });
 
         return offer ? mapOffer(offer as ConvexOfferDto) : null;

@@ -83,6 +83,77 @@ describe("createConvexOffersService", () => {
     });
   });
 
+  test("omits create date fields when they are not provided", async () => {
+    let receivedArgs: unknown;
+    const service = createService({
+      query: async () => {
+        throw new Error("query should not be called");
+      },
+      mutation: async (_reference, args) => {
+        receivedArgs = args;
+        return {
+          id: "offer-1",
+          companyId: "company-1",
+          contentEn: "Weekend sale",
+          active: true,
+          isCurrentlyActive: true,
+        };
+      },
+    });
+
+    await expect(service.create("company-1", {
+      contentEn: "Weekend sale",
+      active: true,
+    })).resolves.toEqual({
+      id: "offer-1",
+      companyId: "company-1",
+      contentEn: "Weekend sale",
+      active: true,
+      isCurrentlyActive: true,
+    });
+    expect(receivedArgs).toEqual({
+      companyId: "company-1",
+      contentEn: "Weekend sale",
+      active: true,
+    });
+  });
+
+  test("preserves null date fields when updating an offer", async () => {
+    let receivedArgs: unknown;
+    const service = createService({
+      query: async () => {
+        throw new Error("query should not be called");
+      },
+      mutation: async (_reference, args) => {
+        receivedArgs = args;
+        return {
+          id: "offer-1",
+          companyId: "company-1",
+          contentEn: "Weekend sale",
+          active: true,
+          isCurrentlyActive: true,
+        };
+      },
+    });
+
+    await expect(service.update("company-1", "offer-1", {
+      startDate: null,
+      endDate: null,
+    })).resolves.toEqual({
+      id: "offer-1",
+      companyId: "company-1",
+      contentEn: "Weekend sale",
+      active: true,
+      isCurrentlyActive: true,
+    });
+    expect(receivedArgs).toEqual({
+      companyId: "company-1",
+      offerId: "offer-1",
+      startDate: null,
+      endDate: null,
+    });
+  });
+
   test("rethrows existing OffersServiceError instances unchanged", async () => {
     const error = new OffersServiceError(
       ERROR_CODES.VALIDATION_FAILED,
