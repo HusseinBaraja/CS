@@ -1,9 +1,7 @@
-import { logger } from "@cs/core";
-import { mockChat } from "@cs/ai";
+import { logger } from '@cs/core';
 
 const main = async () => {
-  const reply = await mockChat("bot bootstrap");
-  logger.info({ provider: reply.provider }, reply.text);
+  logger.info("Bot bootstrap complete; AI orchestration is not wired yet.");
 };
 
 void main();

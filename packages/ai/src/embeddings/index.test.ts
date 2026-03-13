@@ -1,9 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import {
-  GEMINI_EMBEDDING_DIMENSIONS,
-  generateGeminiEmbedding,
-  generateGeminiEmbeddings,
-} from './index';
+import { GEMINI_EMBEDDING_DIMENSIONS, generateGeminiEmbedding, generateGeminiEmbeddings } from './index';
 import { setGeminiClientFactoryForTests } from './testUtils';
 
 const createEmbedding = (seed: number): number[] =>
@@ -22,7 +18,7 @@ afterEach(() => {
   }
 });
 
-describe("@cs/ai", () => {
+describe("@cs/ai embeddings", () => {
   test("generates 768-dimension Gemini embeddings", async () => {
     resetGeminiClientFactory = setGeminiClientFactoryForTests(() => ({
       models: {

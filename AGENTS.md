@@ -10,7 +10,7 @@
 - Run `bun generate` after any Convex schema change.
 - Do not run `bun dev` (assume it is already running).
 - Do not run `bun build` (CI only).
-- Suggest a commit message at the end of large changes.
+- Suggest a commit message at the end of large changes based on the commit message skill below.
 
 ## Commit Message Skill
 

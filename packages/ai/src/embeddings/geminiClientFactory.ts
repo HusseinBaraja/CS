@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import type { GeminiClientFactory, GeminiEmbeddingClient } from './index';
+import type { GeminiClientFactory, GeminiEmbeddingClient } from './types';
 
 const defaultGeminiClientFactory: GeminiClientFactory = (apiKey) =>
   new GoogleGenAI({ apiKey }) as GeminiEmbeddingClient;
