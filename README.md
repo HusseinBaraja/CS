@@ -47,6 +47,14 @@ bun run test
 bun run dev
 ```
 
+## Static analysis
+
+```bash
+bun run opengrep
+```
+
+See `docs/tooling/opengrep.md` for the CSCB-specific local workflow and CodeRabbit PR review behavior.
+
 ### Targeted development
 
 ```bash

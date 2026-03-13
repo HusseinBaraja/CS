@@ -3,6 +3,7 @@
 ## Task Completion Requirements
 
 - Run all repo scripts from the repository root with `bun`.
+- Run OpenGrep from the repository root with `bun run opengrep` when changes touch `apps/**`, `packages/**`, or `convex/**`.
 - `bun lint` and `bun typecheck` must pass before considering code tasks complete.
 - Follow test-driven development when making code changes: add or update tests as you go.
 - Use `bun test` for the Vitest workspace test run when tests are needed.

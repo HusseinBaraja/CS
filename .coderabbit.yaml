@@ -1,0 +1,6 @@
+reviews:
+  tools:
+    opengrep:
+      enabled: true
+    semgrep:
+      enabled: false
