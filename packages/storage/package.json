@@ -9,7 +9,7 @@
     "dev": "bun --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "bun x oxlint",
     "check": "bun run typecheck && bun run lint",
     "test": "bun test --pass-with-no-tests"
   },
