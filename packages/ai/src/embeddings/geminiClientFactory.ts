@@ -1,4 +1,1 @@
-export {
-  createGeminiClient,
-  setGeminiClientFactoryForTests,
-} from "../gemini/clientFactory";
+export { createGeminiClient } from "../gemini/clientFactory";
