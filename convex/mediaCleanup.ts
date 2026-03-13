@@ -10,7 +10,7 @@ const CLEANUP_JOB_RETRY_DELAYS_MS = [
 ] as const;
 const MEDIA_CLEANUP_PROCESSING_LEASE_MS = 5 * 60_000;
 
-const PENDING_UPLOAD_STATUS = "pending" as const;
+const PENDING_STATUS = "pending" as const;
 const RETRY_JOB_STATUS = "retry" as const;
 const PROCESSING_JOB_STATUS = "processing" as const;
 const COMPLETED_JOB_STATUS = "completed" as const;
@@ -24,7 +24,7 @@ const takeDueUploadSessions = async (
 ): Promise<Array<Doc<"productImageUploads">>> =>
   ctx.db
     .query("productImageUploads")
-    .withIndex("by_status_expires_at", (q) => q.eq("status", PENDING_UPLOAD_STATUS).lte("expiresAt", now))
+    .withIndex("by_status_expires_at", (q) => q.eq("status", PENDING_STATUS).lte("expiresAt", now))
     .take(limit);
 
 export const enqueueCleanupJobInMutation = async (
@@ -45,7 +45,7 @@ export const enqueueCleanupJobInMutation = async (
     ...(args.imageId ? { imageId: args.imageId } : {}),
     objectKey: args.objectKey,
     reason: args.reason,
-    status: PENDING_UPLOAD_STATUS,
+    status: PENDING_STATUS,
     attempts: 0,
     nextAttemptAt: now,
     leaseExpiresAt: now,
@@ -70,7 +70,7 @@ export const claimJob = internalMutation({
     if (
       (
         (
-          job.status !== PENDING_UPLOAD_STATUS &&
+          job.status !== PENDING_STATUS &&
           job.status !== RETRY_JOB_STATUS
         ) ||
         job.nextAttemptAt > args.now
@@ -180,7 +180,7 @@ export const markJobFailed = internalMutation({
 export const listDueJobIds = internalQuery({
   args: {
     status: v.union(
-      v.literal(PENDING_UPLOAD_STATUS),
+      v.literal(PENDING_STATUS),
       v.literal(PROCESSING_JOB_STATUS),
       v.literal(RETRY_JOB_STATUS),
     ),
