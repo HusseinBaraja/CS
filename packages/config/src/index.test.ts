@@ -281,6 +281,7 @@ describe("config", () => {
       API_KEY: "   ",
       GEMINI_API_KEY: "   ",
       R2_BUCKET_NAME: "   ",
+      R2_ENDPOINT: "   ",
       R2_ACCESS_KEY_ID: "   ",
       R2_SECRET_ACCESS_KEY: "   ",
       CONVEX_URL: "https://example.convex.cloud"
@@ -289,6 +290,7 @@ describe("config", () => {
     expect(config.API_KEY).toBeUndefined();
     expect(config.GEMINI_API_KEY).toBeUndefined();
     expect(config.R2_BUCKET_NAME).toBeUndefined();
+    expect(config.R2_ENDPOINT).toBeUndefined();
     expect(config.R2_ACCESS_KEY_ID).toBeUndefined();
     expect(config.R2_SECRET_ACCESS_KEY).toBeUndefined();
   });

@@ -166,4 +166,4 @@ Invoke-RestMethod `
 
 - The API scripts in this repo load the repo-root `.env` explicitly.
 - If Convex schema changes were made locally, run `convex dev --once` before using the media endpoints.
-- If secrets were pasted into terminals, screenshots, or chat, rotate them afterwards.
+- If secrets were pasted into terminals, screenshots, or chat, rotate them afterward.
