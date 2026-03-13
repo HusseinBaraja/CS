@@ -273,23 +273,28 @@ const normalizeVariantCreateState = (
 const mergeVariantUpdateState = (
   existingVariant: ProductVariantWriteState,
   patch: Pick<ProductVariantUpdateArgs, "variantLabel" | "attributes" | "priceOverride">,
-): ProductVariantWriteState => ({
-  id: existingVariant.id,
-  productId: existingVariant.productId,
-  variantLabel:
-    patch.variantLabel !== undefined
-      ? normalizeRequiredString(patch.variantLabel, "variantLabel")
-      : existingVariant.variantLabel,
-  attributes:
-    patch.attributes !== undefined
-      ? normalizeVariantAttributes(patch.attributes)
-      : existingVariant.attributes,
-  ...(patch.priceOverride !== undefined
-    ? (normalizeOptionalNumber(patch.priceOverride, "priceOverride") !== undefined
-      ? { priceOverride: normalizeOptionalNumber(patch.priceOverride, "priceOverride") }
-      : {})
-    : (existingVariant.priceOverride !== undefined ? { priceOverride: existingVariant.priceOverride } : {})),
-});
+): ProductVariantWriteState => {
+  const normalizedPriceOverride =
+    patch.priceOverride !== undefined
+      ? normalizeOptionalNumber(patch.priceOverride, "priceOverride")
+      : undefined;
+
+  return {
+    id: existingVariant.id,
+    productId: existingVariant.productId,
+    variantLabel:
+      patch.variantLabel !== undefined
+        ? normalizeRequiredString(patch.variantLabel, "variantLabel")
+        : existingVariant.variantLabel,
+    attributes:
+      patch.attributes !== undefined
+        ? normalizeVariantAttributes(patch.attributes)
+        : existingVariant.attributes,
+    ...(patch.priceOverride !== undefined
+      ? (normalizedPriceOverride !== undefined ? { priceOverride: normalizedPriceOverride } : {})
+      : (existingVariant.priceOverride !== undefined ? { priceOverride: existingVariant.priceOverride } : {})),
+  };
+};
 
 const createVariantPatch = (
   args: Pick<ProductVariantUpdateArgs, "variantLabel" | "attributes" | "priceOverride">,

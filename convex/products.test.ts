@@ -643,6 +643,90 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(embeddings.every((embedding) => embedding.textContent.includes("Extra Large"))).toBe(true);
   });
 
+  it("updates a variant without priceOverride and preserves the existing override", async () => {
+    installGeminiStub();
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId, variantId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000620",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        revision: 1,
+        nameEn: "Burger Box",
+      });
+      const variantId = await ctx.db.insert("productVariants", {
+        productId,
+        variantLabel: "Large",
+        attributes: {
+          size: "L",
+        },
+        priceOverride: 1.45,
+      });
+
+      for (const language of ["en", "ar"] as const) {
+        await ctx.db.insert("embeddings", {
+          companyId,
+          productId,
+          embedding: createEmbedding(language === "en" ? 86 : 87),
+          textContent: `${language} text before preserved update`,
+          language,
+          companyLanguage: `${companyId}:${language}`,
+        });
+      }
+
+      return {
+        companyId,
+        productId,
+        variantId,
+      };
+    });
+
+    const updatedVariant = await t.action(internal.products.updateVariant, {
+      companyId,
+      productId,
+      variantId,
+      variantLabel: "Extra Large",
+      attributes: {
+        size: "XL",
+      },
+    });
+    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
+    const storedVariant = await t.run(async (ctx) => ctx.db.get(variantId));
+    const embeddings = await t.run(async (ctx) =>
+      ctx.db
+        .query("embeddings")
+        .withIndex("by_product", (q) => q.eq("productId", productId))
+        .collect(),
+    );
+
+    expect(updatedVariant).toEqual({
+      id: variantId,
+      productId,
+      variantLabel: "Extra Large",
+      attributes: {
+        size: "XL",
+      },
+      priceOverride: 1.45,
+    });
+    expect(storedVariant).toMatchObject({
+      variantLabel: "Extra Large",
+      attributes: {
+        size: "XL",
+      },
+      priceOverride: 1.45,
+    });
+    expect(storedProduct?.revision).toBe(2);
+    expect(embeddings.every((embedding) => embedding.textContent.includes("Extra Large"))).toBe(true);
+  });
+
   it("deletes a variant, leaves other variants intact, and refreshes embeddings", async () => {
     installGeminiStub();
     const t = convexTest(schema, modules);
