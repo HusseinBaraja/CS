@@ -5,13 +5,16 @@ import { createChatRuntimeConfig } from './runtimeConfig';
 describe("createChatRuntimeConfig", () => {
   test("defaults come from env-backed config", () => {
     const config = createChatRuntimeConfig();
+    const expectedDeepSeekBaseUrl = env.DEEPSEEK_BASE_URL
+      ? new URL(env.DEEPSEEK_BASE_URL).toString()
+      : undefined;
 
     expect(config.providerOrder).toEqual(env.AI_PROVIDER_ORDER as typeof config.providerOrder);
     expect(config.requestTimeoutMs).toBe(env.AI_REQUEST_TIMEOUT_MS);
     expect(config.healthcheckTimeoutMs).toBe(env.AI_HEALTHCHECK_TIMEOUT_MS);
     expect(config.maxRetriesPerProvider).toBe(env.AI_MAX_RETRIES_PER_PROVIDER);
     expect(config.providers.deepseek.apiKey).toBe(env.DEEPSEEK_API_KEY);
-    expect(config.providers.deepseek.baseUrl).toBe(env.DEEPSEEK_BASE_URL);
+    expect(config.providers.deepseek.baseUrl).toBe(expectedDeepSeekBaseUrl);
     expect(config.providers.deepseek.model).toBe(env.DEEPSEEK_CHAT_MODEL);
     expect(config.providers.gemini.apiKey).toBe(env.GEMINI_API_KEY);
     expect(config.providers.gemini.model).toBe(env.GEMINI_CHAT_MODEL);

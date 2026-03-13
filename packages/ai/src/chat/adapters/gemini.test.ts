@@ -3,6 +3,8 @@ import { setGeminiClientFactoryForTests } from '../../gemini/clientFactory';
 import type { GeminiClient } from '../../gemini/types';
 import { geminiChatProviderAdapter } from './gemini';
 
+type GenerateContentParams = Parameters<NonNullable<GeminiClient["models"]["generateContent"]>>[0];
+
 const config = {
   apiKey: "gemini-key",
   model: "gemini-2.0-flash",
@@ -103,6 +105,71 @@ describe("geminiChatProviderAdapter", () => {
       },
       responseId: "gem_resp",
     });
+  });
+
+  test("preserves the Gemini models receiver when generateContent uses this", async () => {
+    type ModelsWithCalls = GeminiClient["models"] & {
+      calls: GenerateContentParams[];
+    };
+
+    const models: ModelsWithCalls = {
+      calls: [],
+      async embedContent() {
+        throw new Error("not used");
+      },
+      async generateContent(this: ModelsWithCalls, params: GenerateContentParams) {
+        this.calls.push(params);
+        return {
+          modelVersion: "gemini-2.0-flash",
+          text: "Bound method",
+          candidates: [
+            {
+              finishReason: "STOP",
+              content: {
+                parts: [{ text: "Bound method" }],
+              },
+            },
+          ],
+        };
+      },
+    };
+
+    resetGeminiFactory = setGeminiClientFactoryForTests(() => ({
+      models,
+    }));
+
+    const response = await geminiChatProviderAdapter.chat(
+      {
+        messages: [
+          {
+            role: "system",
+            content: [{ type: "text", text: "Use the model context." }],
+          },
+          {
+            role: "user",
+            content: [{ type: "text", text: "Hello" }],
+          },
+        ],
+      },
+      config,
+    );
+
+    expect(models.calls).toEqual([
+      {
+        model: "gemini-2.0-flash",
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: "Hello" }],
+          },
+        ],
+        config: {
+          systemInstruction: "Use the model context.",
+        },
+        abortSignal: expect.any(AbortSignal),
+      },
+    ]);
+    expect(response.text).toBe("Bound method");
   });
 
   test("rejects system-only requests as invalid", async () => {

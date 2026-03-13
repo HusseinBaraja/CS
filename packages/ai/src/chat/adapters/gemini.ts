@@ -68,10 +68,10 @@ const runChatRequest = async (
   allowEmptyText = false,
 ): Promise<ChatResponse> => {
   const client = createGeminiClient(config.apiKey);
-  const generateContent = client.models.generateContent;
+  const models = client.models;
   const payload = assertGeminiRequest(request);
 
-  if (!generateContent) {
+  if (!models.generateContent) {
     throw createChatProviderError({
       provider: PROVIDER,
       kind: "configuration",
@@ -89,7 +89,7 @@ const runChatRequest = async (
     options?.signal,
     (error) => classifyGeminiError(PROVIDER, error, config.model),
     async (signal) => {
-      const response = await generateContent({
+      const response = await models.generateContent!({
         model: config.model,
         contents: payload.contents,
         config: {
