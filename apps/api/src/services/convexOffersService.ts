@@ -157,6 +157,7 @@ export const createConvexOffersService = (
           ...(patch.active !== undefined ? { active: patch.active } : {}),
           ...(patch.startDate !== undefined ? { startDate } : {}),
           ...(patch.endDate !== undefined ? { endDate } : {}),
+          now: now(),
         });
 
         return offer ? mapOffer(offer as ConvexOfferDto) : null;

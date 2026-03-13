@@ -190,6 +190,7 @@ export const update = internalMutation({
     active: v.optional(v.boolean()),
     startDate: v.optional(v.union(v.number(), v.null())),
     endDate: v.optional(v.union(v.number(), v.null())),
+    now: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<OfferDto | null> => {
     const existingOffer = await getScopedOffer(ctx, args.companyId, args.offerId);
@@ -197,6 +198,7 @@ export const update = internalMutation({
       return null;
     }
 
+    const now = args.now ?? Date.now();
     const nextStartDate =
       args.startDate !== undefined
         ? normalizeOptionalTimestamp(args.startDate, "startDate")
@@ -242,7 +244,7 @@ export const update = internalMutation({
       throw new Error("Updated offer could not be loaded");
     }
 
-    return mapOffer(updatedOffer, Date.now());
+    return mapOffer(updatedOffer, now);
   },
 });
 

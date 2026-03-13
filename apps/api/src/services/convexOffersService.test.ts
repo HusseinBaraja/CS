@@ -146,6 +146,8 @@ describe("createConvexOffersService", () => {
           isCurrentlyActive: true,
         };
       },
+    }, {
+      now: () => 789,
     });
 
     await expect(service.update("company-1", "offer-1", {
@@ -163,6 +165,7 @@ describe("createConvexOffersService", () => {
       offerId: "offer-1",
       startDate: null,
       endDate: null,
+      now: 789,
     });
   });
 

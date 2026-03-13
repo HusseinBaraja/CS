@@ -192,6 +192,46 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
     });
   });
 
+  it("uses the injected now value when returning an updated offer", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, offerId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000709",
+      });
+      const offerId = await ctx.db.insert("offers", {
+        companyId,
+        contentEn: "Sale",
+        active: true,
+        startDate: 100,
+        endDate: 200,
+      });
+
+      return {
+        companyId,
+        offerId,
+      };
+    });
+
+    const offer = await t.mutation(internal.offers.update, {
+      companyId,
+      offerId,
+      contentEn: "Updated sale",
+      now: 150,
+    });
+
+    expect(offer).toEqual({
+      id: offerId,
+      companyId,
+      contentEn: "Updated sale",
+      active: true,
+      startDate: 100,
+      endDate: 200,
+      isCurrentlyActive: true,
+    });
+  });
+
   it("rejects invalid date ranges", async () => {
     const t = convexTest(schema, modules);
 
