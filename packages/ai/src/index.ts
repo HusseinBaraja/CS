@@ -5,6 +5,7 @@ export {
   generateGeminiEmbeddings,
 } from "./embeddings";
 
+export { getChatProviderAdapter } from "./chat/adapters";
 export { createChatRuntimeConfig } from "./chat/runtimeConfig";
 export { ChatProviderError } from "./chat/errors";
 

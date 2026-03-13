@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { env } from '@cs/config';
-import { createChatRuntimeConfig } from './runtimeConfig';
+import { createChatRuntimeConfig } from '@cs/ai';
 
 describe("createChatRuntimeConfig", () => {
   test("defaults come from env-backed config", () => {

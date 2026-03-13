@@ -1,8 +1,6 @@
-import type { ChatCallOptions, ChatProviderAdapter, ChatResponse, NormalizedChatRequest } from '../contracts';
+import type { ChatCallOptions, ChatProviderAdapter, ChatResponse, NormalizedChatRequest } from '@cs/ai';
 import type { GeminiChatContent } from '../../gemini/types';
 import type { ResolvedProviderConfig } from './shared';
-import { createChatProviderError } from '../errors';
-import { createGeminiClient } from '../../gemini/clientFactory';
 import {
   assertProviderConfig,
   classifyGeminiError,
@@ -15,6 +13,8 @@ import {
   runWithRetries,
   toHealthCheckError,
 } from './shared';
+import { createChatProviderError } from '../errors';
+import { createGeminiClient } from '../../gemini/clientFactory';
 
 const PROVIDER = "gemini" as const;
 

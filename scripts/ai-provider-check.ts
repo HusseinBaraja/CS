@@ -4,8 +4,8 @@ import {
   type ChatProviderName,
   type ChatRuntimeConfig,
   createChatRuntimeConfig,
+  getChatProviderAdapter,
 } from '@cs/ai';
-import { getChatProviderAdapter } from '../packages/ai/src/chat/adapters';
 
 const CHAT_PROVIDER_NAMES = ["deepseek", "gemini", "groq"] as const satisfies readonly ChatProviderName[];
 const CHAT_PROVIDER_NAME_SET = new Set<ChatProviderName>(CHAT_PROVIDER_NAMES);

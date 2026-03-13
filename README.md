@@ -83,8 +83,8 @@ bun run dev:worker
 
 ## Operations Guides
 
-- AI provider setup and smoke tests: [`docs/operations/ai-provider-setup.md`](/C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/docs/operations/ai-provider-setup.md)
-- Product image upload flow: [`docs/operations/product-image-upload-api.md`](/C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/docs/operations/product-image-upload-api.md)
+- AI provider setup and smoke tests: [`docs/operations/ai-provider-setup.md`](docs/operations/ai-provider-setup.md)
+- Product image upload flow: [`docs/operations/product-image-upload-api.md`](docs/operations/product-image-upload-api.md)
 
 ## Backups
 
