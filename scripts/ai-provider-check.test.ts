@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { ChatProviderHealth, ChatProviderName, ChatRuntimeConfig } from '@cs/ai';
+import { CHAT_PROVIDER_NAMES } from '../packages/ai/src/chat/adapters';
 import {
   type AdapterResolver,
   AIProviderCheckArgumentError,
@@ -60,7 +61,11 @@ describe("resolveRequestedProviders", () => {
   test("throws for unknown providers", () => {
     expect(() =>
       resolveRequestedProviders(["openai"], runtimeConfig.providerOrder),
-    ).toThrow(AIProviderCheckArgumentError);
+    ).toThrow(
+      new AIProviderCheckArgumentError(
+        `Unknown AI provider "openai". Expected one of: ${CHAT_PROVIDER_NAMES.join(", ")}`,
+      ),
+    );
   });
 });
 
@@ -188,5 +193,15 @@ describe("formatProviderHealth", () => {
         errorMessage: "socket failed",
       }),
     ).toBe("FAIL groq message=\"socket failed\"");
+  });
+
+  test("escapes backslashes, quotes, and control characters in messages", () => {
+    expect(
+      formatProviderHealth({
+        provider: "groq",
+        ok: false,
+        errorMessage: "path\\to\nrow\rcol\t\"quoted\"",
+      }),
+    ).toBe("FAIL groq message=\"path\\\\to\\nrow\\rcol\\t\\\"quoted\\\"\"");
   });
 });

@@ -6,8 +6,8 @@ import {
   createChatRuntimeConfig,
   getChatProviderAdapter,
 } from '@cs/ai';
+import { CHAT_PROVIDER_NAMES } from '../packages/ai/src/chat/adapters';
 
-const CHAT_PROVIDER_NAMES = ["deepseek", "gemini", "groq"] as const satisfies readonly ChatProviderName[];
 const CHAT_PROVIDER_NAME_SET = new Set<ChatProviderName>(CHAT_PROVIDER_NAMES);
 
 export class AIProviderCheckArgumentError extends Error {
@@ -79,7 +79,12 @@ export const runProviderHealthChecks = async (
   );
 
 const quoteMessage = (message: string): string =>
-  `"${message.replaceAll('"', '\\"')}"`;
+  `"${message
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"')
+    .replaceAll("\n", "\\n")
+    .replaceAll("\r", "\\r")
+    .replaceAll("\t", "\\t")}"`;
 
 export const formatProviderHealth = (result: ProviderHealthCheckResult): string => {
   const status = result.ok ? "OK" : "FAIL";

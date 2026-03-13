@@ -9,6 +9,10 @@ export const chatProviderAdapters: Record<ChatProviderName, ChatProviderAdapter>
   groq: groqChatProviderAdapter,
 };
 
+export const CHAT_PROVIDER_NAMES = Object.freeze(
+  Object.keys(chatProviderAdapters) as ChatProviderName[],
+) satisfies readonly ChatProviderName[];
+
 export const getChatProviderAdapter = (
   provider: ChatProviderName,
 ): ChatProviderAdapter => chatProviderAdapters[provider];
