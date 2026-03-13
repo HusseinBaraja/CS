@@ -1,9 +1,14 @@
 import type {
   CreateProductInput,
+  CreateProductVariantInput,
   ListProductsFilters,
   ProductSpecifications,
+  ProductVariantAttributes,
+  ProductVariantAttributeValue,
   UpdateProductInput,
+  UpdateProductVariantInput,
 } from '../services/products';
+import type { CreateProductImageUploadInput } from '../services/productMedia';
 import {
   isRecord,
   parseObject,
@@ -82,61 +87,94 @@ const parseSpecifications = (
   };
 };
 
-const parseImageUrls = (
+const parseVariantAttributeValue = (
   value: unknown,
-  options: { allowNull?: boolean } = {},
-): ParseResult<string[] | null | undefined> => {
-  if (value === undefined) {
+  path: string,
+): ParseResult<ProductVariantAttributeValue> => {
+  if (value === null) {
     return {
       ok: true,
-      value: undefined,
+      value: null,
     };
   }
 
-  if (value === null) {
-    if (options.allowNull) {
-      return {
-        ok: true,
-        value: null,
-      };
+  if (
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return {
+      ok: true,
+      value,
+    };
+  }
+
+  if (Array.isArray(value)) {
+    const entries: ProductVariantAttributeValue[] = [];
+    for (const [index, entryValue] of value.entries()) {
+      const parsedEntry = parseVariantAttributeValue(entryValue, `${path}[${index}]`);
+      if (!parsedEntry.ok) {
+        return parsedEntry;
+      }
+
+      entries.push(parsedEntry.value);
     }
 
     return {
-      ok: false,
-      message: "imageUrls must be an array of strings",
+      ok: true,
+      value: entries,
     };
   }
 
-  if (!Array.isArray(value)) {
+  if (isRecord(value)) {
+    return parseVariantAttributes(value, path);
+  }
+
+  return {
+    ok: false,
+    message: `${path} must be a string, number, boolean, null, object, or array`,
+  };
+};
+
+const parseVariantAttributes = (
+  value: unknown,
+  path = "attributes",
+): ParseResult<ProductVariantAttributes> => {
+  if (!isRecord(value)) {
     return {
       ok: false,
-      message: "imageUrls must be an array of strings",
+      message: `${path} must be an object`,
     };
   }
 
-  const imageUrls: string[] = [];
-  for (const [index, entryValue] of value.entries()) {
-    if (typeof entryValue !== "string") {
+  const attributes: ProductVariantAttributes = {};
+  for (const [key, entryValue] of Object.entries(value)) {
+    const normalizedKey = key.trim();
+    if (normalizedKey.length === 0) {
       return {
         ok: false,
-        message: `imageUrls[${index}] must be a string`,
+        message: `${path} keys must be non-empty strings`,
       };
     }
 
-    const normalized = entryValue.trim();
-    if (normalized.length === 0) {
+    if (normalizedKey in attributes) {
       return {
         ok: false,
-        message: `imageUrls[${index}] is required`,
+        message: `${path} keys must be unique after trimming: ${normalizedKey}`,
       };
     }
 
-    imageUrls.push(normalized);
+    const parsedValue = parseVariantAttributeValue(entryValue, `${path}.${normalizedKey}`);
+    if (!parsedValue.ok) {
+      return parsedValue;
+    }
+
+    attributes[normalizedKey] = parsedValue.value;
   }
 
   return {
     ok: true,
-    value: imageUrls,
+    value: attributes,
   };
 };
 
@@ -216,11 +254,6 @@ export const parseCreateProductBody = (value: unknown): ParseResult<CreateProduc
     return baseCurrency;
   }
 
-  const imageUrls = parseImageUrls(parsedObject.value.imageUrls);
-  if (!imageUrls.ok) {
-    return imageUrls;
-  }
-
   return {
     ok: true,
     value: {
@@ -242,9 +275,6 @@ export const parseCreateProductBody = (value: unknown): ParseResult<CreateProduc
       ...(baseCurrency.value !== undefined && baseCurrency.value !== null
         ? { baseCurrency: baseCurrency.value }
         : {}),
-      ...(imageUrls.value !== undefined && imageUrls.value !== null
-        ? { imageUrls: imageUrls.value }
-        : {}),
     },
   };
 };
@@ -253,13 +283,6 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
   const parsedObject = parseObject(value);
   if (!parsedObject.ok) {
     return parsedObject;
-  }
-
-  if (Object.keys(parsedObject.value).length === 0) {
-    return {
-      ok: false,
-      message: "Request body must include at least one updatable field",
-    };
   }
 
   const updates: UpdateProductInput = {};
@@ -342,13 +365,137 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
     updates.baseCurrency = baseCurrency.value;
   }
 
-  if ("imageUrls" in parsedObject.value) {
-    const imageUrls = parseImageUrls(parsedObject.value.imageUrls, { allowNull: true });
-    if (!imageUrls.ok) {
-      return imageUrls;
+  if (Object.keys(updates).length === 0) {
+    const hasAnyFields = Object.keys(parsedObject.value).length > 0;
+    return {
+      ok: false,
+      message: hasAnyFields
+        ? "Request body must include at least one recognized updatable field"
+        : "Request body must include at least one recognized updatable field",
+    };
+  }
+
+  return {
+    ok: true,
+    value: updates,
+  };
+};
+
+export const parseCreateProductImageUploadBody = (
+  value: unknown,
+): ParseResult<CreateProductImageUploadInput> => {
+  const parsedObject = parseObject(value);
+  if (!parsedObject.ok) {
+    return parsedObject;
+  }
+
+  const contentType = parseRequiredString(parsedObject.value.contentType, "contentType");
+  if (!contentType.ok) {
+    return contentType;
+  }
+
+  const sizeBytes = parseOptionalNumber(parsedObject.value.sizeBytes, "sizeBytes");
+  if (!sizeBytes.ok) {
+    return sizeBytes;
+  }
+
+  if (sizeBytes.value === undefined || sizeBytes.value === null) {
+    return {
+      ok: false,
+      message: "sizeBytes is required",
+    };
+  }
+
+  const alt = parseOptionalString(parsedObject.value.alt, "alt");
+  if (!alt.ok) {
+    return alt;
+  }
+
+  return {
+    ok: true,
+    value: {
+      contentType: contentType.value,
+      sizeBytes: sizeBytes.value,
+      ...(alt.value !== undefined && alt.value !== null ? { alt: alt.value } : {}),
+    },
+  };
+};
+
+export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProductVariantInput> => {
+  const parsedObject = parseObject(value);
+  if (!parsedObject.ok) {
+    return parsedObject;
+  }
+
+  const variantLabel = parseRequiredString(parsedObject.value.variantLabel, "variantLabel");
+  if (!variantLabel.ok) {
+    return variantLabel;
+  }
+
+  const attributes = parseVariantAttributes(parsedObject.value.attributes);
+  if (!attributes.ok) {
+    return attributes;
+  }
+
+  const priceOverride = parseOptionalNumber(parsedObject.value.priceOverride, "priceOverride");
+  if (!priceOverride.ok) {
+    return priceOverride;
+  }
+
+  return {
+    ok: true,
+    value: {
+      variantLabel: variantLabel.value,
+      attributes: attributes.value,
+      ...(priceOverride.value !== undefined && priceOverride.value !== null
+        ? { priceOverride: priceOverride.value }
+        : {}),
+    },
+  };
+};
+
+export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProductVariantInput> => {
+  const parsedObject = parseObject(value);
+  if (!parsedObject.ok) {
+    return parsedObject;
+  }
+
+  if (Object.keys(parsedObject.value).length === 0) {
+    return {
+      ok: false,
+      message: "Request body must include at least one updatable field",
+    };
+  }
+
+  const updates: UpdateProductVariantInput = {};
+
+  if ("variantLabel" in parsedObject.value) {
+    const variantLabel = parseRequiredString(parsedObject.value.variantLabel, "variantLabel");
+    if (!variantLabel.ok) {
+      return variantLabel;
     }
 
-    updates.imageUrls = imageUrls.value;
+    updates.variantLabel = variantLabel.value;
+  }
+
+  if ("attributes" in parsedObject.value) {
+    const attributes = parseVariantAttributes(parsedObject.value.attributes);
+    if (!attributes.ok) {
+      return attributes;
+    }
+
+    updates.attributes = attributes.value;
+  }
+
+  if ("priceOverride" in parsedObject.value) {
+    const priceOverride = parseOptionalNumber(parsedObject.value.priceOverride, "priceOverride", {
+      allowNull: true,
+    });
+    if (!priceOverride.ok) {
+      return priceOverride;
+    }
+
+    updates.priceOverride = priceOverride.value;
   }
 
   if (Object.keys(updates).length === 0) {

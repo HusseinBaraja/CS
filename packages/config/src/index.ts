@@ -10,6 +10,10 @@ const OPTIONAL_EMPTY_ENV_KEYS = new Set([
   "API_CORS_ORIGINS",
   "CONVEX_ADMIN_KEY",
   "GEMINI_API_KEY",
+  "R2_ACCESS_KEY_ID",
+  "R2_BUCKET_NAME",
+  "R2_ENDPOINT",
+  "R2_SECRET_ACCESS_KEY",
 ]);
 const parseCsvEnv = (value: string): string[] =>
   value
@@ -130,7 +134,11 @@ const envSchema = {
   API_RATE_LIMIT_MAX_ENTRIES: z.coerce.number().int().positive().default(10_000),
   API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   CONVEX_ADMIN_KEY: z.string().min(1).optional(),
-  CONVEX_URL: z.string().min(1).url().optional()
+  CONVEX_URL: z.string().min(1).url().optional(),
+  R2_BUCKET_NAME: trimmedNonEmptyString.optional(),
+  R2_ENDPOINT: z.string().url().optional(),
+  R2_ACCESS_KEY_ID: trimmedNonEmptyString.optional(),
+  R2_SECRET_ACCESS_KEY: trimmedNonEmptyString.optional()
 };
 
 type EnvSchemaKey = keyof typeof envSchema;

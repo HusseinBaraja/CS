@@ -28,6 +28,8 @@ const assertPositiveInteger = (propertyName: string, value: number): number => {
 export const createApiRuntimeConfig = (
   config: Partial<ApiRuntimeConfig> = {}
 ): ApiRuntimeConfig => {
+  const hasRuntimeOverride = <TKey extends keyof ApiRuntimeConfig>(key: TKey): boolean =>
+    Object.prototype.hasOwnProperty.call(config, key);
   const rateLimitMax = assertPositiveInteger(
     "ApiRuntimeConfig.rateLimitMax",
     config.rateLimitMax ?? env.API_RATE_LIMIT_MAX,
@@ -42,7 +44,7 @@ export const createApiRuntimeConfig = (
   );
 
   return {
-    apiKey: normalizeOptionalSecret(config.apiKey ?? env.API_KEY),
+    apiKey: normalizeOptionalSecret(hasRuntimeOverride("apiKey") ? config.apiKey : env.API_KEY),
     corsOrigins: normalizeCorsOrigins(config.corsOrigins ?? env.API_CORS_ORIGINS),
     trustedProxyIps: config.trustedProxyIps ?? env.API_TRUSTED_PROXY_IPS,
     rateLimitMax,

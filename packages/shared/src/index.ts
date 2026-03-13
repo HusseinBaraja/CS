@@ -5,4 +5,5 @@ export interface HealthStatus {
   ok: true;
 }
 
+export * from "./analytics";
 export * from "./errors";

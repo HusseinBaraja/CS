@@ -3,6 +3,7 @@
 ## Task Completion Requirements
 
 - Run all repo scripts from the repository root with `bun`.
+- Run OpenGrep from the repository root with `bun run opengrep` when changes touch `apps/**`, `packages/**`, or `convex/**`.
 - `bun lint` and `bun typecheck` must pass before considering code tasks complete.
 - Follow test-driven development when making code changes: add or update tests as you go.
 - Use `bun test` for the Vitest workspace test run when tests are needed.
@@ -10,6 +11,15 @@
 - Do not run `bun dev` (assume it is already running).
 - Do not run `bun build` (CI only).
 - Suggest a commit message at the end of large changes.
+
+## Commit Message Skill
+
+- Use `.agents/skills/git-commit/SKILL.md` only for commit-related requests such as writing a commit message, preparing a commit, summarizing a diff as a commit, or executing `git commit`.
+- Inspect the actual git diff before proposing a commit message. Prefer the staged diff when staged changes exist; otherwise inspect the working tree diff.
+- Keep the commit scope narrow to the user's intended change and do not include unrelated modified files in the proposed commit message.
+- Do not auto-stage files unless the user explicitly asks. If staging is needed, suggest the specific files or commands instead of assuming all changes should be included.
+- Prefer conventional commit format and the workflow in `.github/skills/git-commit/SKILL.md`.
+- Preserve the existing non-destructive git rules in this file when handling commit requests.
 
 ## Project Snapshot
 

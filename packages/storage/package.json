@@ -1,0 +1,20 @@
+{
+  "name": "@cs/storage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "bun x oxlint",
+    "check": "bun run typecheck && bun run lint",
+    "test": "bun test --pass-with-no-tests"
+  },
+  "dependencies": {
+    "@cs/config": "*",
+    "@cs/shared": "*"
+  }
+}

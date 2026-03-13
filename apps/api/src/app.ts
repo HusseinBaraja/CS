@@ -2,27 +2,42 @@ import { type Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from '@cs/core';
 import { checkDbConnection, createDbConnection, DB_PROVIDER, type DbConnection, getDbConnectionInfo } from '@cs/db';
-import { ConfigError, ERROR_CODES } from '@cs/shared';
+import { ConfigError, ERROR_CODES, ValidationError } from '@cs/shared';
 import { createApiKeyAuthMiddleware } from './auth';
 import { createRateLimitMiddleware } from './rateLimit';
 import { createCustomErrorResponse, createErrorResponse } from './responses';
 import { createCategoriesRoutes } from './routes/categories';
+import { createAnalyticsRoutes } from './routes/analytics';
 import { createCompaniesRoutes } from './routes/companies';
+import { createCurrencyRatesRoutes } from './routes/currencyRates';
+import { createOffersRoutes } from './routes/offers';
 import { createProductsRoutes } from './routes/products';
 import { type ApiRuntimeConfig, createApiRuntimeConfig } from './runtimeConfig';
+import type { AnalyticsService } from './services/analytics';
+import { createConvexAnalyticsService } from './services/convexAnalyticsService';
 import type { CategoriesService } from './services/categories';
 import { createConvexCategoriesService } from './services/convexCategoriesService';
 import type { CompaniesService } from './services/companies';
 import { createConvexCompaniesService } from './services/convexCompaniesService';
+import type { CurrencyRatesService } from './services/currencyRates';
+import { createConvexCurrencyRatesService } from './services/convexCurrencyRatesService';
+import type { OffersService } from './services/offers';
+import { createConvexOffersService } from './services/convexOffersService';
 import type { ProductsService } from './services/products';
 import { createConvexProductsService } from './services/convexProductsService';
+import type { ProductMediaService } from './services/productMedia';
+import { createConvexProductMediaService } from './services/convexProductMediaService';
 
 export interface ApiAppOptions {
   createDbConnection?: () => DbConnection;
   checkDbReady?: (connection: DbConnection) => Promise<void> | void;
+  analyticsService?: AnalyticsService;
   companiesService?: CompaniesService;
   categoriesService?: CategoriesService;
   productsService?: ProductsService;
+  productMediaService?: ProductMediaService;
+  offersService?: OffersService;
+  currencyRatesService?: CurrencyRatesService;
   logger?: {
     warn: (payload: Record<string, unknown>, message: string) => void;
   };
@@ -118,9 +133,15 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const authMiddleware = createApiKeyAuthMiddleware({
     apiKey: runtimeConfig.apiKey
   });
+  const analyticsService = options.analyticsService ?? createConvexAnalyticsService();
   const companiesService = options.companiesService ?? createConvexCompaniesService();
   const categoriesService = options.categoriesService ?? createConvexCategoriesService();
   const productsService = options.productsService ?? createConvexProductsService();
+  const productMediaService = options.productMediaService ?? createConvexProductMediaService({
+    logger: appLogger,
+  });
+  const offersService = options.offersService ?? createConvexOffersService();
+  const currencyRatesService = options.currencyRatesService ?? createConvexCurrencyRatesService();
   const rateLimitMiddleware = createRateLimitMiddleware({
     max: runtimeConfig.rateLimitMax,
     maxEntries: runtimeConfig.rateLimitMaxEntries,
@@ -137,6 +158,13 @@ export const createApp = (options: ApiAppOptions = {}) => {
     if (error instanceof SyntaxError) {
       return c.json(
         createErrorResponse(ERROR_CODES.VALIDATION_FAILED, "Malformed JSON body"),
+        400
+      );
+    }
+
+    if (error instanceof ValidationError) {
+      return c.json(
+        createErrorResponse(ERROR_CODES.VALIDATION_FAILED, error.message),
         400
       );
     }
@@ -201,6 +229,13 @@ export const createApp = (options: ApiAppOptions = {}) => {
   });
 
   app.route(
+    "/api/companies/:companyId/analytics",
+    createAnalyticsRoutes({
+      analyticsService
+    })
+  );
+
+  app.route(
     "/api/companies/:companyId/categories",
     createCategoriesRoutes({
       categoriesService
@@ -210,7 +245,22 @@ export const createApp = (options: ApiAppOptions = {}) => {
   app.route(
     "/api/companies/:companyId/products",
     createProductsRoutes({
-      productsService
+      productsService,
+      productMediaService
+    })
+  );
+
+  app.route(
+    "/api/companies/:companyId/offers",
+    createOffersRoutes({
+      offersService
+    })
+  );
+
+  app.route(
+    "/api/companies/:companyId/currency-rates",
+    createCurrencyRatesRoutes({
+      currencyRatesService
     })
   );
 

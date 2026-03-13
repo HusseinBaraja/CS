@@ -1,5 +1,30 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "NODE_ENV"
+  ],
+  "globalPassThroughEnv": [
+    "LOG_LEVEL",
+    "LOG_DIR",
+    "LOG_RETENTION_DAYS",
+    "BACKUP_DIR",
+    "BACKUP_RETENTION_COUNT",
+    "API_PORT",
+    "API_KEY",
+    "API_CORS_ORIGINS",
+    "API_TRUSTED_PROXY_IPS",
+    "API_TRUST_PROXY_HOPS",
+    "API_RATE_LIMIT_MAX",
+    "API_RATE_LIMIT_MAX_ENTRIES",
+    "API_RATE_LIMIT_WINDOW_MS",
+    "CONVEX_URL",
+    "CONVEX_ADMIN_KEY",
+    "GEMINI_API_KEY",
+    "R2_BUCKET_NAME",
+    "R2_ENDPOINT",
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY"
+  ],
   "tasks": {
     "dev": {
       "cache": false,

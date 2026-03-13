@@ -3,6 +3,7 @@ export const ERROR_CODES = {
   CONFIG_INVALID: "CONFIG_INVALID",
   DB_CONNECTION_FAILED: "DB_CONNECTION_FAILED",
   DB_QUERY_FAILED: "DB_QUERY_FAILED",
+  STORAGE_FAILED: "STORAGE_FAILED",
   AI_PROVIDER_FAILED: "AI_PROVIDER_FAILED",
   AI_TIMEOUT: "AI_TIMEOUT",
   WHATSAPP_CONNECTION_FAILED: "WHATSAPP_CONNECTION_FAILED",
@@ -92,10 +93,15 @@ export class AppError extends Error {
   private readonly errorMessage: string;
 
   constructor(code: string, message: string, options: AppErrorOptions = {}) {
+    super(message);
+
     if (options.cause !== undefined) {
-      super(message, { cause: options.cause });
-    } else {
-      super(message);
+      Object.defineProperty(this, "cause", {
+        configurable: true,
+        enumerable: false,
+        value: options.cause,
+        writable: true,
+      });
     }
 
     this.name = new.target.name;

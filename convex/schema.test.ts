@@ -128,7 +128,15 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
           specifications: { size: "8oz", material: "paper" },
           basePrice: 0.15,
           baseCurrency: "SAR",
-          imageUrls: ["https://r2.example.com/cup.jpg"],
+          images: [
+            {
+              id: "image-1",
+              key: "companies/company-1/products/product-1/image-1.jpg",
+              contentType: "image/jpeg",
+              sizeBytes: 1024,
+              uploadedAt: Date.UTC(2026, 2, 12, 0, 0, 0),
+            },
+          ],
         }),
       );
 
@@ -138,7 +146,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
         basePrice: 0.15,
         baseCurrency: "SAR",
       });
-      expect(doc?.imageUrls).toHaveLength(1);
+      expect(doc?.images).toHaveLength(1);
     });
   });
 
@@ -176,6 +184,55 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
       expect(doc).toMatchObject({
         variantLabel: "Large White",
         attributes: { size: "L", color: "White" },
+      });
+    });
+
+    it("accepts nested object and array attribute values", async () => {
+      const t = convexTest(schema, modules);
+      const companyId = await t.run(async (ctx) =>
+        ctx.db.insert("companies", {
+          name: "Nested Test Co",
+          ownerPhone: "966500000099",
+        }),
+      );
+      const catId = await t.run(async (ctx) =>
+        ctx.db.insert("categories", { companyId, nameEn: "Containers" }),
+      );
+      const productId = await t.run(async (ctx) =>
+        ctx.db.insert("products", {
+          companyId,
+          categoryId: catId,
+          nameEn: "Meal Box",
+        }),
+      );
+
+      const variantId = await t.run(async (ctx) =>
+        ctx.db.insert("productVariants", {
+          productId,
+          variantLabel: "Family Pack",
+          attributes: {
+            size: "XL",
+            nested: {
+              materials: ["paper", "kraft"],
+              metadata: {
+                recyclable: true,
+                notes: null,
+              },
+            },
+          },
+        }),
+      );
+
+      const doc = await t.run(async (ctx) => ctx.db.get(variantId));
+      expect(doc?.attributes).toEqual({
+        size: "XL",
+        nested: {
+          materials: ["paper", "kraft"],
+          metadata: {
+            recyclable: true,
+            notes: null,
+          },
+        },
       });
     });
   });

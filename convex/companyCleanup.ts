@@ -8,10 +8,12 @@ export const CLEANUP_COUNT_KEYS = [
   "companies",
   "categories",
   "products",
+  "productImageUploads",
   "productVariants",
   "embeddings",
   "conversations",
   "messages",
+  "mediaCleanupJobs",
   "offers",
   "currencyRates",
   "analyticsEvents",
@@ -261,10 +263,12 @@ export const createEmptyCleanupCounts = (): CleanupCounts => ({
   companies: 0,
   categories: 0,
   products: 0,
+  productImageUploads: 0,
   productVariants: 0,
   embeddings: 0,
   conversations: 0,
   messages: 0,
+  mediaCleanupJobs: 0,
   offers: 0,
   currencyRates: 0,
   analyticsEvents: 0,
@@ -344,6 +348,32 @@ export const clearCompanyDataBatch = internalMutation({
     const analyticsEventsResult = await deleteBatchIfAny(ctx, "analyticsEvents", analyticsEventsBatch);
     if (analyticsEventsResult) {
       return analyticsEventsResult;
+    }
+
+    const productImageUploadsBatch = await takeDocumentIds(
+      ctx.db.query("productImageUploads").withIndex("by_company", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const productImageUploadsResult = await deleteBatchIfAny(
+      ctx,
+      "productImageUploads",
+      productImageUploadsBatch,
+    );
+    if (productImageUploadsResult) {
+      return productImageUploadsResult;
+    }
+
+    const mediaCleanupJobsBatch = await takeDocumentIds(
+      ctx.db.query("mediaCleanupJobs").withIndex("by_company", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const mediaCleanupJobsResult = await deleteBatchIfAny(
+      ctx,
+      "mediaCleanupJobs",
+      mediaCleanupJobsBatch,
+    );
+    if (mediaCleanupJobsResult) {
+      return mediaCleanupJobsResult;
     }
 
     const productsBatch = await takeDocumentIds(

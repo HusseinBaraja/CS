@@ -32,6 +32,17 @@ describe("createApiRuntimeConfig", () => {
     expect(config.trustProxyHops).toBe(2);
   });
 
+  test("treats an explicit undefined apiKey override as disabled auth instead of falling back to env", () => {
+    const config = createApiRuntimeConfig({
+      apiKey: undefined,
+      rateLimitMax: 100,
+      rateLimitMaxEntries: 1_000,
+      rateLimitWindowMs: 60_000,
+    });
+
+    expect(config.apiKey).toBeUndefined();
+  });
+
   test("throws when rateLimitMax is zero", () => {
     expect(() => createApiRuntimeConfig({ rateLimitMax: 0 })).toThrow(
       "Invalid ApiRuntimeConfig.rateLimitMax: expected a positive integer, received 0",

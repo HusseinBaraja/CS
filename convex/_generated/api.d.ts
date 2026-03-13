@@ -8,10 +8,15 @@
  * @module
  */
 
+import type * as analytics from "../analytics.js";
 import type * as categories from "../categories.js";
 import type * as companies from "../companies.js";
 import type * as companyCleanup from "../companyCleanup.js";
+import type * as currencyRates from "../currencyRates.js";
 import type * as helpers from "../helpers.js";
+import type * as mediaCleanup from "../mediaCleanup.js";
+import type * as offers from "../offers.js";
+import type * as productMedia from "../productMedia.js";
 import type * as products from "../products.js";
 import type * as seed from "../seed.js";
 import type * as seedData from "../seedData.js";
@@ -24,10 +29,15 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  analytics: typeof analytics;
   categories: typeof categories;
   companies: typeof companies;
   companyCleanup: typeof companyCleanup;
+  currencyRates: typeof currencyRates;
   helpers: typeof helpers;
+  mediaCleanup: typeof mediaCleanup;
+  offers: typeof offers;
+  productMedia: typeof productMedia;
   products: typeof products;
   seed: typeof seed;
   seedData: typeof seedData;

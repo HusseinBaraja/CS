@@ -1,0 +1,205 @@
+rules:
+  - id: cs-ts-no-eval
+    message: Avoid `eval(...)` in CSCB. Use explicit parsing or typed control flow instead of dynamic code execution.
+    severity: WARNING
+    languages:
+      - typescript
+      - javascript
+    pattern: eval(...)
+    metadata:
+      area:
+        - api
+        - convex
+        - tenant-safety
+      remediation: Replace `eval(...)` with explicit parsing or a typed dispatch path.
+    paths: &repo_source_paths
+      include:
+        - apps/**/*.ts
+        - packages/**/*.ts
+        - convex/**/*.ts
+      exclude: &repo_source_excludes
+        - "**/node_modules/**"
+        - ".turbo/**"
+        - "logs/**"
+        - "backups/**"
+        - "convex/_generated/**"
+        - "**/*.test.ts"
+        - "**/*.test.js"
+        - "**/vitest.config.ts"
+
+  - id: cs-ts-no-new-function
+    message: Avoid `new Function(...)` in CSCB. Prefer normal functions and typed control flow.
+    severity: WARNING
+    languages:
+      - typescript
+      - javascript
+    pattern: new Function(...)
+    metadata:
+      area:
+        - api
+        - convex
+        - tenant-safety
+      remediation: Replace dynamic function construction with a normal function or explicit dispatch.
+    paths: *repo_source_paths
+
+  - id: cs-ts-no-process-env-outside-approved-boundaries
+    message: Read environment variables through approved runtime boundaries. Prefer `@cs/config` helpers instead of direct `process.env` reads here.
+    severity: WARNING
+    languages:
+      - typescript
+      - javascript
+    pattern: process.env.$VAR
+    metadata:
+      area:
+        - config
+        - tenant-safety
+      remediation: Move this lookup into `packages/config`, an approved integration boundary, or thread the value in explicitly.
+    paths:
+      include:
+        - apps/**/*.ts
+        - packages/**/*.ts
+        - convex/**/*.ts
+        - scripts/**/*.ts
+      exclude:
+        - "**/node_modules/**"
+        - ".turbo/**"
+        - "logs/**"
+        - "backups/**"
+        - "convex/_generated/**"
+        - "**/*.test.ts"
+        - "**/*.test.js"
+        - "**/vitest.config.ts"
+        - "packages/config/src/**"
+        - "packages/ai/src/**"
+        - "packages/storage/src/**"
+        - "scripts/opengrep.ts"
+
+  - id: cs-ts-no-convex-browser-import-outside-db-boundary
+    message: Import `convex/browser` only inside `packages/db` so Convex transport details stay behind the shared DB boundary.
+    severity: WARNING
+    languages:
+      - typescript
+      - javascript
+    pattern-regex: (from|require\()\s*["']convex/browser["']
+    metadata:
+      area:
+        - config
+        - tenant-safety
+      remediation: Import Convex browser clients only in `packages/db/src/**` and re-export shared helpers from there.
+    paths:
+      include:
+        - apps/**/*.ts
+        - packages/**/*.ts
+        - convex/**/*.ts
+      exclude:
+        - "**/node_modules/**"
+        - ".turbo/**"
+        - "logs/**"
+        - "backups/**"
+        - "convex/_generated/**"
+        - "**/*.test.ts"
+        - "**/*.test.js"
+        - "**/vitest.config.ts"
+        - "packages/db/src/**"
+
+  - id: cs-db-set-admin-auth-only-in-db-client
+    message: Keep `setAdminAuth(...)` isolated to `packages/db/src/client.ts` so admin auth stays behind one audited boundary.
+    severity: ERROR
+    languages:
+      - typescript
+      - javascript
+    pattern: $CLIENT.setAdminAuth(...)
+    metadata:
+      area:
+        - config
+        - tenant-safety
+      remediation: Move admin auth setup into `packages/db/src/client.ts` and consume it through `createConvexAdminClient`.
+    paths:
+      include:
+        - apps/**/*.ts
+        - packages/**/*.ts
+        - convex/**/*.ts
+      exclude:
+        - "**/node_modules/**"
+        - ".turbo/**"
+        - "logs/**"
+        - "backups/**"
+        - "convex/_generated/**"
+        - "**/*.test.ts"
+        - "**/*.test.js"
+        - "**/vitest.config.ts"
+        - "packages/db/src/client.ts"
+
+  - id: cs-api-no-eager-convex-admin-client
+    message: Do not create a Convex admin client eagerly in API module scope. Keep config resolution lazy and request-time safe.
+    severity: ERROR
+    languages:
+      - typescript
+      - javascript
+    pattern-regex: (?m)^(?:export\s+)?(?:const|let|var)\s+\w+\s*=\s*createConvexAdminClient\s*\(
+    metadata:
+      area:
+        - api
+        - tenant-safety
+      remediation: Keep `createConvexAdminClient` as a factory reference and call it inside request-time helpers only.
+    paths:
+      include:
+        - apps/api/src/**/*.ts
+      exclude: *repo_source_excludes
+
+  - id: cs-convex-no-fetch-in-mutation
+    message: Avoid external network calls inside Convex mutations. Move side effects to an action and hand writes to an internal mutation.
+    severity: ERROR
+    languages:
+      - typescript
+      - javascript
+    pattern-regex: (?s)(?:internalMutation|mutation)\s*\(\s*\{.*?handler:\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{.*?\bfetch\s*\(
+    metadata:
+      area:
+        - convex
+        - tenant-safety
+      remediation: Perform external requests in an action, then pass validated results to an internal mutation.
+    paths:
+      include:
+        - convex/**/*.ts
+      exclude: *repo_source_excludes
+
+  - id: cs-convex-no-embedding-generation-in-mutation
+    message: Do not generate embeddings inside Convex mutations. Generate them in an action before handing writes to an internal mutation.
+    severity: ERROR
+    languages:
+      - typescript
+      - javascript
+    pattern-regex: (?s)(?:internalMutation|mutation)\s*\(\s*\{.*?handler:\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{.*?\bgenerateGeminiEmbeddings\s*\(
+    metadata:
+      area:
+        - convex
+        - tenant-safety
+      remediation: Generate embeddings in an action and keep the mutation pure with respect to external APIs.
+    paths:
+      include:
+        - convex/**/*.ts
+      exclude: *repo_source_excludes
+
+  - id: cs-api-products-service-must-use-actions-for-embedding-writes
+    message: Product embedding write flows must go through Convex actions, not direct mutations.
+    severity: ERROR
+    languages:
+      - typescript
+      - javascript
+    pattern-either:
+      - pattern: $CLIENT.mutation(convexInternal.products.create, ...)
+      - pattern: $CLIENT.mutation(convexInternal.products.update, ...)
+      - pattern: $CLIENT.mutation(convexInternal.products.createVariant, ...)
+      - pattern: $CLIENT.mutation(convexInternal.products.updateVariant, ...)
+      - pattern: $CLIENT.mutation(convexInternal.products.removeVariant, ...)
+    metadata:
+      area:
+        - api
+        - convex
+        - tenant-safety
+      remediation: Use the matching `client.action(convexInternal.products.*)` entrypoint so embedding generation can happen before the write.
+    paths:
+      include:
+        - apps/api/src/services/**/*.ts
+      exclude: *repo_source_excludes

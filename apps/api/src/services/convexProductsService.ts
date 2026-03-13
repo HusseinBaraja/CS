@@ -1,18 +1,23 @@
-import { convexInternal, createConvexAdminClient, type ConvexAdminClient } from '@cs/db';
+import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
+import { createR2Storage, type ObjectStorage, PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS } from '@cs/storage';
 import { ERROR_CODES } from '@cs/shared';
 import {
-  type DeleteProductResult,
-  type ProductsService,
   createAiServiceError,
   createConflictServiceError,
   createDatabaseServiceError,
   createNotFoundServiceError,
-  ProductsServiceError,
   createValidationServiceError,
+  type DeleteProductResult,
+  type ProductDetailDto,
+  type ProductImageDto,
+  type ProductListItemDto,
+  type ProductsService,
+  ProductsServiceError,
 } from './products';
 
 export interface ConvexProductsServiceOptions {
   createClient?: () => ConvexAdminClient;
+  createStorage?: () => ObjectStorage;
 }
 
 const ERROR_PREFIXES = new Map<string, (message: string) => ProductsServiceError>([
@@ -55,7 +60,7 @@ const normalizeServiceError = (error: unknown): ProductsServiceError => {
       error.message.includes("Invalid argument") ||
       error.message.includes("Unable to decode")
     ) {
-      return createValidationServiceError("Invalid product, company, or category identifier");
+      return createValidationServiceError("Invalid product, company, category, or variant identifier");
     }
   }
 
@@ -66,6 +71,13 @@ export const createConvexProductsService = (
   options: ConvexProductsServiceOptions = {},
 ): ProductsService => {
   const createClient = options.createClient ?? createConvexAdminClient;
+  const createStorage = options.createStorage ?? createR2Storage;
+  let storageClient: ObjectStorage | undefined;
+
+  const getStorage = (): ObjectStorage => {
+    storageClient ??= createStorage();
+    return storageClient;
+  };
 
   const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> => {
     try {
@@ -75,49 +87,111 @@ export const createConvexProductsService = (
     }
   };
 
+  const decorateImage = async (image: ProductImageDto): Promise<ProductImageDto> => {
+    try {
+      const download = await getStorage().createPresignedDownload({
+        key: image.key,
+        expiresIn: PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS,
+      });
+
+      return {
+        ...image,
+        downloadUrl: download.url,
+        downloadUrlExpiresAt: download.expiresAt,
+      };
+    } catch {
+      return image;
+    }
+  };
+
+  const decorateProduct = async <TProduct extends ProductListItemDto | ProductDetailDto>(
+    product: TProduct,
+  ): Promise<TProduct> => ({
+    ...product,
+    images: await Promise.all((product.images ?? []).map(decorateImage)),
+  });
+
   return {
     list: (companyId, filters) =>
-      withClient((client) =>
-        client.query(convexInternal.products.list, {
+      withClient(async (client) => {
+        const products = await client.query(convexInternal.products.list, {
           companyId: companyId as never,
           ...(filters.categoryId ? { categoryId: filters.categoryId as never } : {}),
           ...(filters.search ? { search: filters.search } : {}),
-        })
-      ),
+        });
+
+        return products ? Promise.all(products.map(decorateProduct)) : null;
+      }),
     get: (companyId, productId) =>
+      withClient(async (client) => {
+        const product = await client.query(convexInternal.products.get, {
+          companyId: companyId as never,
+          productId: productId as never,
+        });
+
+        return product ? decorateProduct(product) : null;
+      }),
+    listVariants: (companyId, productId) =>
       withClient((client) =>
-        client.query(convexInternal.products.get, {
+        client.query(convexInternal.products.listVariants, {
           companyId: companyId as never,
           productId: productId as never,
         })
       ),
     create: (companyId, input) =>
-      withClient((client) => {
+      withClient(async (client) => {
         const {
           categoryId,
           ...restInput
         } = input;
 
-        return client.action(convexInternal.products.create, {
+        return decorateProduct(await client.action(convexInternal.products.create, {
           companyId: companyId as never,
           ...restInput,
           categoryId: categoryId as never,
-        });
+        }));
       }),
     update: (companyId, productId, patch) =>
-      withClient((client) => {
+      withClient(async (client) => {
         const {
           categoryId,
           ...restPatch
         } = patch;
 
-        return client.action(convexInternal.products.update, {
+        const product = await client.action(convexInternal.products.update, {
           companyId: companyId as never,
           productId: productId as never,
           ...restPatch,
           ...(categoryId ? { categoryId: categoryId as never } : {}),
         });
+
+        return product ? decorateProduct(product) : null;
       }),
+    createVariant: (companyId, productId, input) =>
+      withClient((client) =>
+        client.action(convexInternal.products.createVariant, {
+          companyId: companyId as never,
+          productId: productId as never,
+          ...input,
+        })
+      ),
+    updateVariant: (companyId, productId, variantId, patch) =>
+      withClient((client) =>
+        client.action(convexInternal.products.updateVariant, {
+          companyId: companyId as never,
+          productId: productId as never,
+          variantId: variantId as never,
+          ...patch,
+        })
+      ),
+    deleteVariant: (companyId, productId, variantId) =>
+      withClient((client) =>
+        client.action(convexInternal.products.removeVariant, {
+          companyId: companyId as never,
+          productId: productId as never,
+          variantId: variantId as never,
+        })
+      ),
     delete: (companyId, productId) =>
       withClient((client) =>
         client.mutation(convexInternal.products.remove, {

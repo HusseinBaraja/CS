@@ -2,12 +2,36 @@ import { ERROR_CODES, type ErrorCode } from '@cs/shared';
 
 export type ProductSpecifications = Record<string, string | number | boolean>;
 
+export type ProductVariantAttributeValue =
+  | string
+  | number
+  | boolean
+  | null
+  | ProductVariantAttributeValue[]
+  | ProductVariantAttributes;
+
+export interface ProductVariantAttributes {
+  [key: string]: ProductVariantAttributeValue;
+}
+
 export interface ProductVariantDto {
   id: string;
   productId: string;
   variantLabel: string;
-  attributes: ProductSpecifications;
+  attributes: ProductVariantAttributes;
   priceOverride?: number;
+}
+
+export interface ProductImageDto {
+  id: string;
+  key: string;
+  contentType: string;
+  sizeBytes: number;
+  etag?: string;
+  alt?: string;
+  uploadedAt: number;
+  downloadUrl?: string;
+  downloadUrlExpiresAt?: string;
 }
 
 export interface ProductListItemDto {
@@ -21,7 +45,7 @@ export interface ProductListItemDto {
   specifications?: ProductSpecifications;
   basePrice?: number;
   baseCurrency?: string;
-  imageUrls?: string[];
+  images: ProductImageDto[];
 }
 
 export interface ProductDetailDto extends ProductListItemDto {
@@ -42,7 +66,6 @@ export interface CreateProductInput {
   specifications?: ProductSpecifications;
   basePrice?: number;
   baseCurrency?: string;
-  imageUrls?: string[];
 }
 
 export interface UpdateProductInput {
@@ -54,11 +77,27 @@ export interface UpdateProductInput {
   specifications?: ProductSpecifications | null;
   basePrice?: number | null;
   baseCurrency?: string | null;
-  imageUrls?: string[] | null;
 }
 
 export interface DeleteProductResult {
   productId: string;
+}
+
+export interface CreateProductVariantInput {
+  variantLabel: string;
+  attributes: ProductVariantAttributes;
+  priceOverride?: number;
+}
+
+export interface UpdateProductVariantInput {
+  variantLabel?: string;
+  attributes?: ProductVariantAttributes;
+  priceOverride?: number | null;
+}
+
+export interface DeleteProductVariantResult {
+  productId: string;
+  variantId: string;
 }
 
 export interface ProductsService {
@@ -67,6 +106,34 @@ export interface ProductsService {
   create(companyId: string, input: CreateProductInput): Promise<ProductDetailDto>;
   update(companyId: string, productId: string, patch: UpdateProductInput): Promise<ProductDetailDto | null>;
   delete(companyId: string, productId: string): Promise<DeleteProductResult | null>;
+  listVariants(companyId: string, productId: string): Promise<ProductVariantDto[] | null>;
+  /**
+   * Returns null when the parent product does not exist for the company scope.
+   */
+  createVariant(
+    companyId: string,
+    productId: string,
+    input: CreateProductVariantInput,
+  ): Promise<ProductVariantDto | null>;
+  /**
+   * Returns null when the parent product does not exist for the company scope.
+   * Throws ProductsServiceError(NOT_FOUND) when the variant is missing.
+   */
+  updateVariant(
+    companyId: string,
+    productId: string,
+    variantId: string,
+    patch: UpdateProductVariantInput,
+  ): Promise<ProductVariantDto | null>;
+  /**
+   * Returns null when the parent product does not exist for the company scope.
+   * Throws ProductsServiceError(NOT_FOUND) when the variant is missing.
+   */
+  deleteVariant(
+    companyId: string,
+    productId: string,
+    variantId: string,
+  ): Promise<DeleteProductVariantResult | null>;
 }
 
 export class ProductsServiceError extends Error {
