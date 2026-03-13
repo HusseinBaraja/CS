@@ -1,18 +1,11 @@
 import { v } from 'convex/values';
+import { PRODUCT_IMAGE_ALLOWED_MIME_TYPES, PRODUCT_IMAGE_MAX_SIZE_BYTES } from '@cs/storage';
 import { enqueueCleanupJobInMutation } from './mediaCleanup';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, internalQuery } from './_generated/server';
 
 const NOT_FOUND_PREFIX = "NOT_FOUND";
 const VALIDATION_PREFIX = "VALIDATION_FAILED";
-
-const PRODUCT_IMAGE_ALLOWED_MIME_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-] as const;
-
-const PRODUCT_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 
 type ProductImageContentType = (typeof PRODUCT_IMAGE_ALLOWED_MIME_TYPES)[number];
 
