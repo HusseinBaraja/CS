@@ -258,15 +258,17 @@ const normalizeVariantAttributes = (
 
 const normalizeVariantCreateState = (
   args: Pick<ProductVariantCreateArgs, "productId" | "variantLabel" | "attributes" | "priceOverride">,
-): ProductVariantWriteState => ({
-  id: "~new",
-  productId: args.productId,
-  variantLabel: normalizeRequiredString(args.variantLabel, "variantLabel"),
-  attributes: normalizeVariantAttributes(args.attributes),
-  ...(normalizeOptionalNumber(args.priceOverride, "priceOverride") !== undefined
-    ? { priceOverride: normalizeOptionalNumber(args.priceOverride, "priceOverride") }
-    : {}),
-});
+): ProductVariantWriteState => {
+  const normalizedPriceOverride = normalizeOptionalNumber(args.priceOverride, "priceOverride");
+
+  return {
+    id: "~new",
+    productId: args.productId,
+    variantLabel: normalizeRequiredString(args.variantLabel, "variantLabel"),
+    attributes: normalizeVariantAttributes(args.attributes),
+    ...(normalizedPriceOverride !== undefined ? { priceOverride: normalizedPriceOverride } : {}),
+  };
+};
 
 const mergeVariantUpdateState = (
   existingVariant: ProductVariantWriteState,
