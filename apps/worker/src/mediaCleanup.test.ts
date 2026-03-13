@@ -8,6 +8,11 @@ type StubCall = {
   args: unknown;
 };
 
+type LoggerCall = {
+  payload: Record<string, unknown>;
+  message: string;
+};
+
 const createClientStub = (overrides: Partial<{
   mutation: (reference: unknown, args: unknown) => Promise<unknown>;
   query: (reference: unknown, args: unknown) => Promise<unknown>;
@@ -32,11 +37,42 @@ const createClientStub = (overrides: Partial<{
   };
 };
 
-const createLoggerStub = () => ({
-  info: () => undefined,
-  warn: () => undefined,
-  error: () => undefined,
-});
+const createLoggerStub = () => {
+  const infoCalls: LoggerCall[] = [];
+  const warnCalls: LoggerCall[] = [];
+  const errorCalls: LoggerCall[] = [];
+
+  const captureCall = (calls: LoggerCall[], args: unknown[]) => {
+    const [payload = {}, message = ""] = args;
+    calls.push({
+      payload: (payload ?? {}) as Record<string, unknown>,
+      message: typeof message === "string" ? message : String(message),
+    });
+  };
+
+  return {
+    logger: {
+      info: (...args: unknown[]) => {
+        captureCall(infoCalls, args);
+      },
+      warn: (...args: unknown[]) => {
+        captureCall(warnCalls, args);
+      },
+      error: (...args: unknown[]) => {
+        captureCall(errorCalls, args);
+      },
+    },
+    infoCalls,
+    warnCalls,
+    errorCalls,
+  };
+};
+
+const flushMicrotasks = async (turns = 20) => {
+  for (let index = 0; index < turns; index += 1) {
+    await Promise.resolve();
+  }
+};
 
 describe("createMediaCleanupProcessor", () => {
   test("expires pending uploads and completes due cleanup jobs", async () => {
@@ -82,7 +118,7 @@ describe("createMediaCleanupProcessor", () => {
             deletedKey = key;
           },
         }) as never,
-      logger: createLoggerStub(),
+      logger: createLoggerStub().logger,
       now: () => Date.UTC(2026, 2, 12, 0, 0, 0),
     });
 
@@ -142,7 +178,7 @@ describe("createMediaCleanupProcessor", () => {
             throw new StorageError("temporary outage");
           },
         }) as never,
-      logger: createLoggerStub(),
+      logger: createLoggerStub().logger,
       now: () => Date.UTC(2026, 2, 12, 0, 0, 0),
     });
 
@@ -205,7 +241,7 @@ describe("createMediaCleanupProcessor", () => {
             throw new ConfigError("Missing required environment variable: R2_ACCESS_KEY_ID");
           },
         }) as never,
-      logger: createLoggerStub(),
+      logger: createLoggerStub().logger,
       now: () => Date.UTC(2026, 2, 12, 0, 0, 0),
     });
 
@@ -271,7 +307,7 @@ describe("createMediaCleanupProcessor", () => {
             deletedKeys.push(key);
           },
         }) as never,
-      logger: createLoggerStub(),
+      logger: createLoggerStub().logger,
       now: () => Date.UTC(2026, 2, 12, 0, 0, 0),
       batchSize: 3,
     });
@@ -305,5 +341,150 @@ describe("createMediaCleanupProcessor", () => {
       "companies/company-1/products/product-1/job-2.jpg",
       "companies/company-1/products/product-1/job-3.jpg",
     ]);
+  });
+
+  test("catches scheduled tick failures and logs them without leaking rejections", async () => {
+    const { client } = createClientStub({
+      mutation: async () => {
+        throw new Error("tick exploded");
+      },
+      query: async () => {
+        throw new Error("query should not be called");
+      },
+    });
+    const { logger, errorCalls } = createLoggerStub();
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    const scheduledCallbacks: Array<() => void> = [];
+    const clearedTimeouts: number[] = [];
+    let nextTimeoutId = 0;
+
+    globalThis.setTimeout = ((callback: TimerHandler) => {
+      if (typeof callback !== "function") {
+        throw new Error("Expected timer callback");
+      }
+
+      scheduledCallbacks.push(callback as () => void);
+      nextTimeoutId += 1;
+      return nextTimeoutId as unknown as ReturnType<typeof setTimeout>;
+    }) as unknown as typeof setTimeout;
+    globalThis.clearTimeout = ((timeoutId: ReturnType<typeof setTimeout>) => {
+      clearedTimeouts.push(timeoutId as unknown as number);
+    }) as typeof clearTimeout;
+
+    try {
+      const processor = createMediaCleanupProcessor({
+        createClient: () => client as never,
+        createStorage: () =>
+          ({
+            createPresignedUpload: async () => {
+              throw new Error("not used");
+            },
+            createPresignedDownload: async () => {
+              throw new Error("not used");
+            },
+            statObject: async () => {
+              throw new Error("not used");
+            },
+            deleteObject: async () => undefined,
+          }) as never,
+        logger,
+      });
+
+      const stop = processor.start();
+      expect(scheduledCallbacks).toHaveLength(1);
+
+      scheduledCallbacks.shift()?.();
+      await flushMicrotasks();
+
+      expect(errorCalls).toEqual([
+        {
+          payload: { error: "tick exploded" },
+          message: "media cleanup tick failed",
+        },
+      ]);
+      expect(scheduledCallbacks).toHaveLength(1);
+
+      stop();
+      expect(clearedTimeouts).toEqual([2]);
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+      globalThis.clearTimeout = originalClearTimeout;
+    }
+  });
+
+  test("logs reschedule failures from the scheduled callback and stops safely", async () => {
+    const { client } = createClientStub({
+      mutation: async (_reference, args) => {
+        if ("limit" in (args as Record<string, unknown>)) {
+          return [];
+        }
+
+        return null;
+      },
+      query: async () => [],
+    });
+    const { logger, errorCalls } = createLoggerStub();
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    const scheduledCallbacks: Array<() => void> = [];
+    const clearedTimeouts: number[] = [];
+    let timeoutCallCount = 0;
+
+    globalThis.setTimeout = ((callback: TimerHandler) => {
+      if (typeof callback !== "function") {
+        throw new Error("Expected timer callback");
+      }
+
+      timeoutCallCount += 1;
+      if (timeoutCallCount === 1) {
+        scheduledCallbacks.push(callback as () => void);
+        return 1 as unknown as ReturnType<typeof setTimeout>;
+      }
+
+      throw new Error("scheduler unavailable");
+    }) as unknown as typeof setTimeout;
+    globalThis.clearTimeout = ((timeoutId: ReturnType<typeof setTimeout>) => {
+      clearedTimeouts.push(timeoutId as unknown as number);
+    }) as typeof clearTimeout;
+
+    try {
+      const processor = createMediaCleanupProcessor({
+        createClient: () => client as never,
+        createStorage: () =>
+          ({
+            createPresignedUpload: async () => {
+              throw new Error("not used");
+            },
+            createPresignedDownload: async () => {
+              throw new Error("not used");
+            },
+            statObject: async () => {
+              throw new Error("not used");
+            },
+            deleteObject: async () => undefined,
+          }) as never,
+        logger,
+      });
+
+      const stop = processor.start();
+      expect(scheduledCallbacks).toHaveLength(1);
+
+      scheduledCallbacks.shift()?.();
+      await flushMicrotasks();
+
+      expect(errorCalls).toEqual([
+        {
+          payload: { error: "scheduler unavailable" },
+          message: "media cleanup tick failed",
+        },
+      ]);
+
+      expect(() => stop()).not.toThrow();
+      expect(clearedTimeouts).toEqual([1]);
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+      globalThis.clearTimeout = originalClearTimeout;
+    }
   });
 });

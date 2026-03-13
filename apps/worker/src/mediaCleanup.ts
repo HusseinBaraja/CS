@@ -192,26 +192,47 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
     let running = false;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
+    const logTickFailure = (error: unknown) => {
+      logger.error({ error: getErrorMessage(error) }, "media cleanup tick failed");
+    };
+
     const scheduleNext = () => {
       if (stopped) {
         return;
       }
 
-      timeoutId = setTimeout(async () => {
-        if (running) {
-          scheduleNext();
-          return;
-        }
+      const executeScheduledTick = async () => {
+        let acquiredRunning = false;
+        let shouldReschedule = false;
 
-        running = true;
         try {
+          shouldReschedule = true;
+          if (running) {
+            return;
+          }
+
+          running = true;
+          acquiredRunning = true;
           await runTick();
         } catch (error) {
-          logger.error({ error: getErrorMessage(error) }, "media cleanup tick failed");
+          logTickFailure(error);
         } finally {
-          running = false;
-          scheduleNext();
+          if (acquiredRunning) {
+            running = false;
+          }
+
+          if (shouldReschedule) {
+            try {
+              scheduleNext();
+            } catch (error) {
+              logTickFailure(error);
+            }
+          }
         }
+      };
+
+      timeoutId = setTimeout(() => {
+        void executeScheduledTick();
       }, intervalMs);
     };
 
