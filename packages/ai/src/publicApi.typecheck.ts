@@ -1,4 +1,4 @@
-import type { ChatProviderAdapter, ChatRequest, ChatResponse } from './index';
+import type { ChatCallOptions, ChatProviderAdapter, ChatRequest, ChatResponse } from './index';
 
 const request: ChatRequest = {
   messages: [
@@ -34,6 +34,12 @@ const adapter: ChatProviderAdapter = {
   },
 };
 
+const callOptions: ChatCallOptions = {
+  timeoutMs: 2_000,
+  maxRetries: 1,
+};
+
 void request;
 void response;
 void adapter;
+void callOptions;

@@ -47,7 +47,7 @@ export type ChatProviderHealth = {
   latencyMs?: number;
   error?: ChatProviderError;
 };
-export type ChatCallOptions = { signal?: AbortSignal; timeoutMs?: number };
+export type ChatCallOptions = { signal?: AbortSignal; timeoutMs?: number; maxRetries?: number };
 export type ChatProviderAdapter = {
   provider: ChatProviderName;
   chat(

@@ -18,6 +18,7 @@
     "lint": "turbo run lint",
     "test": "bun run test:root && turbo run test",
     "test:root": "bun test ./scripts --pass-with-no-tests",
+    "check:ai": "bun scripts/ai-provider-check.ts",
     "test:convex": "bun x vitest run",
     "check": "turbo run check",
     "opengrep": "bun scripts/opengrep.ts",
