@@ -148,6 +148,7 @@ export const create = internalMutation({
     active: v.boolean(),
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
+    now: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<OfferDto | null> => {
     const company = await getCompany(ctx, args.companyId);
@@ -155,6 +156,7 @@ export const create = internalMutation({
       return null;
     }
 
+    const now = args.now ?? Date.now();
     const contentEn = normalizeRequiredString(args.contentEn, "contentEn");
     const contentAr = normalizeOptionalString(args.contentAr);
     const startDate = normalizeOptionalTimestamp(args.startDate, "startDate");
@@ -175,7 +177,7 @@ export const create = internalMutation({
       throw new Error("Created offer could not be loaded");
     }
 
-    return mapOffer(offer, Date.now());
+    return mapOffer(offer, now);
   },
 });
 

@@ -112,6 +112,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
 
   it("creates an offer and trims strings", async () => {
     const t = convexTest(schema, modules);
+    const now = 150;
 
     const companyId = await t.run(async (ctx) =>
       ctx.db.insert("companies", {
@@ -125,6 +126,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
       contentEn: "  Weekend sale  ",
       contentAr: "  خصم نهاية الأسبوع  ",
       active: true,
+      startDate: 100,
+      endDate: 200,
+      now,
     });
 
     expect(offer).toEqual({
@@ -133,6 +137,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
       contentEn: "Weekend sale",
       contentAr: "خصم نهاية الأسبوع",
       active: true,
+      startDate: 100,
+      endDate: 200,
       isCurrentlyActive: true,
     });
   });

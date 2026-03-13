@@ -22,6 +22,7 @@ interface ConvexOfferDto {
 
 export interface ConvexOffersServiceOptions {
   createClient?: () => ConvexAdminClient;
+  now?: () => number;
 }
 
 const ERROR_PREFIXES = new Map<string, (message: string) => OffersServiceError>([
@@ -106,6 +107,7 @@ export const createConvexOffersService = (
   options: ConvexOffersServiceOptions = {},
 ): OffersService => {
   const createClient = options.createClient ?? createConvexAdminClient;
+  const now = options.now ?? Date.now;
 
   const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> => {
     try {
@@ -137,6 +139,7 @@ export const createConvexOffersService = (
           active: input.active,
           ...(startDate !== undefined && startDate !== null ? { startDate } : {}),
           ...(endDate !== undefined && endDate !== null ? { endDate } : {}),
+          now: now(),
         });
 
         return offer ? mapOffer(offer as ConvexOfferDto) : null;

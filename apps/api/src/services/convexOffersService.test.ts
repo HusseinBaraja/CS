@@ -10,9 +10,15 @@ type StubConvexClient = {
   mutation: (reference: unknown, args: unknown) => Promise<unknown>;
 };
 
-const createService = (client: StubConvexClient) =>
+const createService = (
+  client: StubConvexClient,
+  options: {
+    now?: () => number;
+  } = {},
+) =>
   createConvexOffersService({
     createClient: () => client as never,
+    now: options.now,
   });
 
 describe("createConvexOffersService", () => {
@@ -58,6 +64,8 @@ describe("createConvexOffersService", () => {
           isCurrentlyActive: true,
         };
       },
+    }, {
+      now: () => 123,
     });
 
     await expect(service.create("company-1", {
@@ -80,6 +88,7 @@ describe("createConvexOffersService", () => {
       active: true,
       startDate: Date.parse("2026-03-12T08:00:00.000Z"),
       endDate: Date.parse("2026-03-12T20:00:00.000Z"),
+      now: 123,
     });
   });
 
@@ -99,6 +108,8 @@ describe("createConvexOffersService", () => {
           isCurrentlyActive: true,
         };
       },
+    }, {
+      now: () => 456,
     });
 
     await expect(service.create("company-1", {
@@ -115,6 +126,7 @@ describe("createConvexOffersService", () => {
       companyId: "company-1",
       contentEn: "Weekend sale",
       active: true,
+      now: 456,
     });
   });
 
