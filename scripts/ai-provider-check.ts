@@ -1,4 +1,5 @@
 import {
+  CHAT_PROVIDER_NAMES,
   type ChatProviderAdapter,
   type ChatProviderHealth,
   type ChatProviderName,
@@ -6,7 +7,6 @@ import {
   createChatRuntimeConfig,
   getChatProviderAdapter,
 } from '@cs/ai';
-import { CHAT_PROVIDER_NAMES } from '../packages/ai/src/chat/adapters';
 
 const CHAT_PROVIDER_NAME_SET = new Set<ChatProviderName>(CHAT_PROVIDER_NAMES);
 

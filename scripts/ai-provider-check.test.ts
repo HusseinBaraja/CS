@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { ChatProviderHealth, ChatProviderName, ChatRuntimeConfig } from '@cs/ai';
-import { CHAT_PROVIDER_NAMES } from '../packages/ai/src/chat/adapters';
+import { CHAT_PROVIDER_NAMES, type ChatProviderHealth, type ChatProviderName, type ChatRuntimeConfig } from '@cs/ai';
 import {
   type AdapterResolver,
   AIProviderCheckArgumentError,
