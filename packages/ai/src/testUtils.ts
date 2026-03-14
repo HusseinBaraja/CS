@@ -1,1 +1,1 @@
-export { setGeminiClientFactoryForTests } from './geminiClientFactory';
+export { setGeminiClientFactoryForTests } from "./embeddings/testUtils";

@@ -9,7 +9,13 @@ const OPTIONAL_EMPTY_ENV_KEYS = new Set([
   "API_KEY",
   "API_CORS_ORIGINS",
   "CONVEX_ADMIN_KEY",
+  "DEEPSEEK_API_KEY",
+  "DEEPSEEK_BASE_URL",
+  "DEEPSEEK_CHAT_MODEL",
   "GEMINI_API_KEY",
+  "GEMINI_CHAT_MODEL",
+  "GROQ_API_KEY",
+  "GROQ_CHAT_MODEL",
   "R2_ACCESS_KEY_ID",
   "R2_BUCKET_NAME",
   "R2_ENDPOINT",
@@ -133,12 +139,25 @@ const envSchema = {
   API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
   API_RATE_LIMIT_MAX_ENTRIES: z.coerce.number().int().positive().default(10_000),
   API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  AI_PROVIDER_ORDER: z
+    .string()
+    .default("deepseek,gemini,groq")
+    .transform(parseCsvEnv),
+  AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  AI_HEALTHCHECK_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
+  AI_MAX_RETRIES_PER_PROVIDER: z.coerce.number().int().nonnegative().default(1),
   CONVEX_ADMIN_KEY: z.string().min(1).optional(),
   CONVEX_URL: z.string().min(1).url().optional(),
+  DEEPSEEK_API_KEY: trimmedNonEmptyString.optional(),
+  DEEPSEEK_BASE_URL: z.string().url().optional(),
+  DEEPSEEK_CHAT_MODEL: trimmedNonEmptyString.optional(),
   R2_BUCKET_NAME: trimmedNonEmptyString.optional(),
   R2_ENDPOINT: z.string().url().optional(),
   R2_ACCESS_KEY_ID: trimmedNonEmptyString.optional(),
-  R2_SECRET_ACCESS_KEY: trimmedNonEmptyString.optional()
+  R2_SECRET_ACCESS_KEY: trimmedNonEmptyString.optional(),
+  GEMINI_CHAT_MODEL: trimmedNonEmptyString.optional(),
+  GROQ_API_KEY: trimmedNonEmptyString.optional(),
+  GROQ_CHAT_MODEL: trimmedNonEmptyString.optional()
 };
 
 type EnvSchemaKey = keyof typeof envSchema;

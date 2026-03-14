@@ -24,7 +24,17 @@ describe("config", () => {
     expect(config.API_RATE_LIMIT_MAX).toBe(60);
     expect(config.API_RATE_LIMIT_WINDOW_MS).toBe(60_000);
     expect(config.API_RATE_LIMIT_MAX_ENTRIES).toBe(10_000);
+    expect(config.AI_PROVIDER_ORDER).toEqual(["deepseek", "gemini", "groq"]);
+    expect(config.AI_REQUEST_TIMEOUT_MS).toBe(15_000);
+    expect(config.AI_HEALTHCHECK_TIMEOUT_MS).toBe(5_000);
+    expect(config.AI_MAX_RETRIES_PER_PROVIDER).toBe(1);
     expect(config.CONVEX_URL).toBe("https://example.convex.cloud");
+    expect(config.DEEPSEEK_API_KEY).toBeUndefined();
+    expect(config.DEEPSEEK_BASE_URL).toBeUndefined();
+    expect(config.DEEPSEEK_CHAT_MODEL).toBeUndefined();
+    expect(config.GEMINI_CHAT_MODEL).toBeUndefined();
+    expect(config.GROQ_API_KEY).toBeUndefined();
+    expect(config.GROQ_CHAT_MODEL).toBeUndefined();
     expect(config.R2_BUCKET_NAME).toBeUndefined();
     expect(config.R2_ENDPOINT).toBeUndefined();
     expect(config.R2_ACCESS_KEY_ID).toBeUndefined();
@@ -113,6 +123,15 @@ describe("config", () => {
       "192.0.2.10",
       "::ffff:203.0.113.10"
     ]);
+  });
+
+  test("parses AI provider order from a comma-separated env value", () => {
+    const config = createConfig({
+      AI_PROVIDER_ORDER: "groq, gemini ,deepseek",
+      CONVEX_URL: "https://example.convex.cloud"
+    });
+
+    expect(config.AI_PROVIDER_ORDER).toEqual(["groq", "gemini", "deepseek"]);
   });
 
   test("throws ConfigError for invalid values", () => {
@@ -254,10 +273,16 @@ describe("config", () => {
     expect((thrown as ConfigError).message).toContain("CONVEX_URL:");
   });
 
-  test("treats empty optional API auth, Gemini, storage, and CORS env vars as unset values", () => {
+  test("treats empty optional API auth, AI, storage, and CORS env vars as unset values", () => {
     const config = createConfig({
       API_KEY: "",
+      DEEPSEEK_API_KEY: "",
+      DEEPSEEK_BASE_URL: "",
+      DEEPSEEK_CHAT_MODEL: "",
       GEMINI_API_KEY: "",
+      GEMINI_CHAT_MODEL: "",
+      GROQ_API_KEY: "",
+      GROQ_CHAT_MODEL: "",
       R2_BUCKET_NAME: "",
       R2_ENDPOINT: "",
       R2_ACCESS_KEY_ID: "",
@@ -267,7 +292,13 @@ describe("config", () => {
     });
 
     expect(config.API_KEY).toBeUndefined();
+    expect(config.DEEPSEEK_API_KEY).toBeUndefined();
+    expect(config.DEEPSEEK_BASE_URL).toBeUndefined();
+    expect(config.DEEPSEEK_CHAT_MODEL).toBeUndefined();
     expect(config.GEMINI_API_KEY).toBeUndefined();
+    expect(config.GEMINI_CHAT_MODEL).toBeUndefined();
+    expect(config.GROQ_API_KEY).toBeUndefined();
+    expect(config.GROQ_CHAT_MODEL).toBeUndefined();
     expect(config.API_CORS_ORIGINS).toEqual(["*"]);
     expect(config.CONVEX_ADMIN_KEY).toBeUndefined();
     expect(config.R2_BUCKET_NAME).toBeUndefined();
@@ -279,7 +310,13 @@ describe("config", () => {
   test("treats whitespace-only optional secrets as unset values", () => {
     const config = createConfig({
       API_KEY: "   ",
+      DEEPSEEK_API_KEY: "   ",
+      DEEPSEEK_BASE_URL: "   ",
+      DEEPSEEK_CHAT_MODEL: "   ",
       GEMINI_API_KEY: "   ",
+      GEMINI_CHAT_MODEL: "   ",
+      GROQ_API_KEY: "   ",
+      GROQ_CHAT_MODEL: "   ",
       R2_BUCKET_NAME: "   ",
       R2_ENDPOINT: "   ",
       R2_ACCESS_KEY_ID: "   ",
@@ -288,7 +325,13 @@ describe("config", () => {
     });
 
     expect(config.API_KEY).toBeUndefined();
+    expect(config.DEEPSEEK_API_KEY).toBeUndefined();
+    expect(config.DEEPSEEK_BASE_URL).toBeUndefined();
+    expect(config.DEEPSEEK_CHAT_MODEL).toBeUndefined();
     expect(config.GEMINI_API_KEY).toBeUndefined();
+    expect(config.GEMINI_CHAT_MODEL).toBeUndefined();
+    expect(config.GROQ_API_KEY).toBeUndefined();
+    expect(config.GROQ_CHAT_MODEL).toBeUndefined();
     expect(config.R2_BUCKET_NAME).toBeUndefined();
     expect(config.R2_ENDPOINT).toBeUndefined();
     expect(config.R2_ACCESS_KEY_ID).toBeUndefined();
@@ -298,7 +341,13 @@ describe("config", () => {
   test("trims optional secrets before returning them", () => {
     const config = createConfig({
       API_KEY: "  secret  ",
+      DEEPSEEK_API_KEY: "  deepseek-secret  ",
+      DEEPSEEK_BASE_URL: "  https://api.deepseek.example/v1  ",
+      DEEPSEEK_CHAT_MODEL: "  deepseek-chat  ",
       GEMINI_API_KEY: "  gemini-secret  ",
+      GEMINI_CHAT_MODEL: "  gemini-2.0-flash  ",
+      GROQ_API_KEY: "  groq-secret  ",
+      GROQ_CHAT_MODEL: "  llama-3.3  ",
       R2_BUCKET_NAME: "  media  ",
       R2_ENDPOINT: "  https://example.r2.cloudflarestorage.com  ",
       R2_ACCESS_KEY_ID: "  access-key  ",
@@ -307,7 +356,13 @@ describe("config", () => {
     });
 
     expect(config.API_KEY).toBe("secret");
+    expect(config.DEEPSEEK_API_KEY).toBe("deepseek-secret");
+    expect(config.DEEPSEEK_BASE_URL).toBe("https://api.deepseek.example/v1");
+    expect(config.DEEPSEEK_CHAT_MODEL).toBe("deepseek-chat");
     expect(config.GEMINI_API_KEY).toBe("gemini-secret");
+    expect(config.GEMINI_CHAT_MODEL).toBe("gemini-2.0-flash");
+    expect(config.GROQ_API_KEY).toBe("groq-secret");
+    expect(config.GROQ_CHAT_MODEL).toBe("llama-3.3");
     expect(config.R2_BUCKET_NAME).toBe("media");
     expect(config.R2_ENDPOINT).toBe("https://example.r2.cloudflarestorage.com");
     expect(config.R2_ACCESS_KEY_ID).toBe("access-key");

@@ -1,12 +1,12 @@
 import { GoogleGenAI } from '@google/genai';
-import type { GeminiClientFactory, GeminiEmbeddingClient } from './index';
+import type { GeminiClient, GeminiClientFactory } from './types';
 
 const defaultGeminiClientFactory: GeminiClientFactory = (apiKey) =>
-  new GoogleGenAI({ apiKey }) as GeminiEmbeddingClient;
+  new GoogleGenAI({ apiKey }) as GeminiClient;
 
 let geminiClientFactory: GeminiClientFactory = defaultGeminiClientFactory;
 
-export const createGeminiClient = (apiKey: string): GeminiEmbeddingClient =>
+export const createGeminiClient = (apiKey: string): GeminiClient =>
   geminiClientFactory(apiKey);
 
 export const setGeminiClientFactoryForTests = (factory: GeminiClientFactory): (() => void) => {
