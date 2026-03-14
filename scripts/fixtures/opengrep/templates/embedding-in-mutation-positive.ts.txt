@@ -1,0 +1,6 @@
+export const updateEmbedding = internalMutation({
+  args: {},
+  handler: async () => {
+    return generateGeminiEmbeddings("burger boxes");
+  },
+});

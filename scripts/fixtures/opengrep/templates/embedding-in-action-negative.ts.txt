@@ -1,0 +1,6 @@
+export const generateProductEmbedding = action({
+  args: {},
+  handler: async () => {
+    return generateGeminiEmbeddings("takeaway containers");
+  },
+});
