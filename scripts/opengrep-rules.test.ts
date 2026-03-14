@@ -1,14 +1,20 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 const REPO_ROOT = join(import.meta.dir, "..");
 const TEMPLATE_ROOT = join(import.meta.dir, "fixtures", "opengrep");
 const OPENGREP_CONFIG_PATH = join(REPO_ROOT, "opengrep.yml");
+const OPENGREP_SCAN_TIMEOUT_MS = 15_000;
 const hasOpenGrep = Boolean(Bun.which("opengrep"));
 const opengrepTest = hasOpenGrep ? test : test.skip;
 
 type OpenGrepReport = {
+  errors?: Array<{
+    message: string;
+    level?: string;
+    rule_id?: string;
+  }>;
   results: Array<{
     check_id: string;
     extra: {
@@ -22,8 +28,6 @@ type RuleCase = {
   destinationPath: string;
   templatePath: string;
 };
-
-const cleanupRoots = new Set<string>();
 
 const positiveCases: RuleCase[] = [
   {
@@ -136,15 +140,40 @@ const extractRuleIdsFromConfig = async (): Promise<string[]> => {
   return [...new Set([...matches].map((match) => match[1]))];
 };
 
-const createFixture = async (destinationPath: string, templatePath: string) => {
-  const fullDestinationPath = join(REPO_ROOT, destinationPath);
+const toFixtureKey = (ruleId: string): string => ruleId.replaceAll(/[^a-z0-9-]/giu, "-");
+
+const assertNoScanErrors = (report: OpenGrepReport, targetPath: string): void => {
+  if (!report.errors || report.errors.length === 0) {
+    return;
+  }
+
+  const formattedErrors = report.errors.map((error) =>
+    error.rule_id ? `${error.rule_id}: ${error.message}` : error.message
+  );
+
+  throw new Error(
+    `OpenGrep scan reported engine errors for ${targetPath}:\n${formattedErrors.join("\n")}`,
+  );
+};
+
+const createFixture = async (
+  ruleId: string,
+  destinationPath: string,
+  templatePath: string,
+): Promise<{ cleanupRoot: string; targetPath: string }> => {
+  const fixtureDirectory = join(dirname(destinationPath), toFixtureKey(ruleId));
+  const fixturePath = join(fixtureDirectory, basename(destinationPath));
+  const fullDestinationPath = join(REPO_ROOT, fixturePath);
   const fullTemplatePath = join(TEMPLATE_ROOT, templatePath);
-  cleanupRoots.add(fullDestinationPath.split(".opengrep-test-fixtures")[0] + ".opengrep-test-fixtures");
+  const cleanupRoot = join(REPO_ROOT, fixtureDirectory);
 
   await mkdir(dirname(fullDestinationPath), { recursive: true });
   await writeFile(fullDestinationPath, await readFile(fullTemplatePath, "utf8"));
 
-  return destinationPath.replaceAll("\\", "/");
+  return {
+    cleanupRoot,
+    targetPath: fixturePath.replaceAll("\\", "/"),
+  };
 };
 
 const runScan = async (targetPath: string): Promise<OpenGrepReport> => {
@@ -166,15 +195,11 @@ const runScan = async (targetPath: string): Promise<OpenGrepReport> => {
     throw new Error(`OpenGrep exited with code ${exitCode} while scanning ${targetPath}`);
   }
 
-  return JSON.parse(stdout) as OpenGrepReport;
-};
+  const report = JSON.parse(stdout) as OpenGrepReport;
+  assertNoScanErrors(report, targetPath);
 
-afterEach(async () => {
-  await Promise.all(
-    [...cleanupRoots].map((root) => rm(root, { recursive: true, force: true })),
-  );
-  cleanupRoots.clear();
-});
+  return report;
+};
 
 describe("OpenGrep rule regressions", () => {
   test("all referenced fixture templates exist", async () => {
@@ -200,25 +225,73 @@ describe("OpenGrep rule regressions", () => {
     expect(configuredRuleIds.every((ruleId) => negativeRuleIds.has(ruleId))).toBe(true);
   });
 
-  for (const ruleCase of positiveCases) {
-    opengrepTest(`${ruleCase.ruleId} matches its positive fixture`, async () => {
-      const targetPath = await createFixture(ruleCase.destinationPath, ruleCase.templatePath);
-      const report = await runScan(targetPath);
+  test("fails when a scan report contains engine errors", () => {
+    expect(() =>
+      assertNoScanErrors(
+        {
+          errors: [
+            {
+              message: "Rule parse failed",
+              rule_id: "cs-ts-no-eval",
+            },
+            {
+              message: "Scan timed out",
+            },
+          ],
+          results: [],
+        },
+        "apps/.opengrep-test-fixtures/eval-positive.ts",
+      ),
+    ).toThrow(
+      "OpenGrep scan reported engine errors for apps/.opengrep-test-fixtures/eval-positive.ts:\ncs-ts-no-eval: Rule parse failed\nScan timed out",
+    );
+  });
 
-      expect(
-        report.results.some((result) => result.check_id === ruleCase.ruleId),
-      ).toBe(true);
-    });
+  for (const ruleCase of positiveCases) {
+    opengrepTest(
+      `${ruleCase.ruleId} matches its positive fixture`,
+      { timeout: OPENGREP_SCAN_TIMEOUT_MS },
+      async () => {
+        const { cleanupRoot, targetPath } = await createFixture(
+          ruleCase.ruleId,
+          ruleCase.destinationPath,
+          ruleCase.templatePath,
+        );
+
+        try {
+          const report = await runScan(targetPath);
+
+          expect(
+            report.results.some((result) => result.check_id === ruleCase.ruleId),
+          ).toBe(true);
+        } finally {
+          await rm(cleanupRoot, { recursive: true, force: true });
+        }
+      },
+    );
   }
 
   for (const ruleCase of negativeCases) {
-    opengrepTest(`${ruleCase.ruleId} ignores its negative fixture`, async () => {
-      const targetPath = await createFixture(ruleCase.destinationPath, ruleCase.templatePath);
-      const report = await runScan(targetPath);
+    opengrepTest(
+      `${ruleCase.ruleId} ignores its negative fixture`,
+      { timeout: OPENGREP_SCAN_TIMEOUT_MS },
+      async () => {
+        const { cleanupRoot, targetPath } = await createFixture(
+          ruleCase.ruleId,
+          ruleCase.destinationPath,
+          ruleCase.templatePath,
+        );
 
-      expect(
-        report.results.some((result) => result.check_id === ruleCase.ruleId),
-      ).toBe(false);
-    });
+        try {
+          const report = await runScan(targetPath);
+
+          expect(
+            report.results.some((result) => result.check_id === ruleCase.ruleId),
+          ).toBe(false);
+        } finally {
+          await rm(cleanupRoot, { recursive: true, force: true });
+        }
+      },
+    );
   }
 });
