@@ -8,6 +8,7 @@ export {
 export { getChatProviderAdapter, CHAT_PROVIDER_NAMES, } from "./chat/adapters";
 export { createChatRuntimeConfig } from "./chat/runtimeConfig";
 export { ChatProviderError } from "./chat/errors";
+export { ChatProviderChainError, createChatProviderManager } from "./chat/manager";
 
 export type {
   ChatCallOptions,
@@ -28,6 +29,17 @@ export type {
   ChatProviderErrorDisposition,
   ChatProviderErrorKind,
 } from "./chat/errors";
+export type {
+  ChatManagerCallOptions,
+  ChatManagerLogContext,
+  ChatManagerLogger,
+  ChatProviderAdapterResolver,
+  ChatProviderAttemptFailure,
+  ChatProviderChainTerminalDisposition,
+  ChatProviderManager,
+  ChatProviderProbeOptions,
+  CreateChatProviderManagerOptions,
+} from "./chat/manager";
 export type {
   ChatProviderRuntimeConfig,
   ChatRuntimeConfig,

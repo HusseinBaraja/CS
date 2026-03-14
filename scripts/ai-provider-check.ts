@@ -1,10 +1,10 @@
 import {
-  type ChatProviderAdapter,
+  type ChatProviderAdapterResolver,
   type ChatProviderHealth,
   type ChatProviderName,
   type ChatRuntimeConfig,
+  createChatProviderManager,
   createChatRuntimeConfig,
-  getChatProviderAdapter,
 } from '@cs/ai';
 
 export class AIProviderCheckArgumentError extends Error {
@@ -14,15 +14,7 @@ export class AIProviderCheckArgumentError extends Error {
   }
 }
 
-export type AdapterResolver = (provider: ChatProviderName) => ChatProviderAdapter;
-
-type ProviderHealthCheckResult =
-  | ChatProviderHealth
-  | {
-    provider: ChatProviderName;
-    ok: false;
-    errorMessage: string;
-  };
+export type AdapterResolver = ChatProviderAdapterResolver;
 
 export const resolveRequestedProviders = (
   args: string[],
@@ -58,25 +50,12 @@ export const resolveRequestedProviders = (
 export const runProviderHealthChecks = async (
   providers: readonly ChatProviderName[],
   runtimeConfig: ChatRuntimeConfig,
-  resolveAdapter: AdapterResolver = getChatProviderAdapter,
-): Promise<ProviderHealthCheckResult[]> =>
-  Promise.all(
-    providers.map(async (provider) => {
-      try {
-        const adapter = resolveAdapter(provider);
-        return await adapter.healthCheck(runtimeConfig.providers[provider], {
-          timeoutMs: runtimeConfig.healthcheckTimeoutMs,
-          maxRetries: runtimeConfig.maxRetriesPerProvider,
-        });
-      } catch (error) {
-        return {
-          provider,
-          ok: false,
-          errorMessage: error instanceof Error ? error.message : String(error),
-        } satisfies ProviderHealthCheckResult;
-      }
-    }),
-  );
+  resolveAdapter?: AdapterResolver,
+): Promise<ChatProviderHealth[]> =>
+  createChatProviderManager({
+    runtimeConfig,
+    ...(resolveAdapter ? { resolveAdapter } : {}),
+  }).probeProviders({ providers });
 
 const quoteMessage = (message: string): string =>
   `"${message
@@ -86,7 +65,7 @@ const quoteMessage = (message: string): string =>
     .replaceAll("\r", "\\r")
     .replaceAll("\t", "\\t")}"`;
 
-export const formatProviderHealth = (result: ProviderHealthCheckResult): string => {
+export const formatProviderHealth = (result: ChatProviderHealth): string => {
   const status = result.ok ? "OK" : "FAIL";
   const parts = [status, result.provider];
 
@@ -103,10 +82,6 @@ export const formatProviderHealth = (result: ProviderHealthCheckResult): string 
     parts.push(`disposition=${result.error.disposition}`);
     parts.push(`message=${quoteMessage(result.error.message)}`);
     return parts.join(" ");
-  }
-
-  if (!result.ok && "errorMessage" in result) {
-    parts.push(`message=${quoteMessage(result.errorMessage)}`);
   }
 
   return parts.join(" ");

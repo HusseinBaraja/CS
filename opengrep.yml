@@ -12,12 +12,12 @@ rules:
         - convex
         - tenant-safety
       remediation: Replace `eval(...)` with explicit parsing or a typed dispatch path.
-    paths: &repo_source_paths
+    paths:
       include:
         - apps/**/*.ts
         - packages/**/*.ts
         - convex/**/*.ts
-      exclude: &repo_source_excludes
+      exclude:
         - "**/node_modules/**"
         - ".turbo/**"
         - "logs/**"
@@ -40,7 +40,20 @@ rules:
         - convex
         - tenant-safety
       remediation: Replace dynamic function construction with a normal function or explicit dispatch.
-    paths: *repo_source_paths
+    paths:
+      include:
+        - apps/**/*.ts
+        - packages/**/*.ts
+        - convex/**/*.ts
+      exclude:
+        - "**/node_modules/**"
+        - ".turbo/**"
+        - "logs/**"
+        - "backups/**"
+        - "convex/_generated/**"
+        - "**/*.test.ts"
+        - "**/*.test.js"
+        - "**/vitest.config.ts"
 
   - id: cs-ts-no-process-env-outside-approved-boundaries
     message: Read environment variables through approved runtime boundaries. Prefer `@cs/config` helpers instead of direct `process.env` reads here.
@@ -145,7 +158,15 @@ rules:
     paths:
       include:
         - apps/api/src/**/*.ts
-      exclude: *repo_source_excludes
+      exclude:
+        - "**/node_modules/**"
+        - ".turbo/**"
+        - "logs/**"
+        - "backups/**"
+        - "convex/_generated/**"
+        - "**/*.test.ts"
+        - "**/*.test.js"
+        - "**/vitest.config.ts"
 
   - id: cs-convex-no-fetch-in-mutation
     message: Avoid external network calls inside Convex mutations. Move side effects to an action and hand writes to an internal mutation.
@@ -162,7 +183,15 @@ rules:
     paths:
       include:
         - convex/**/*.ts
-      exclude: *repo_source_excludes
+      exclude:
+        - "**/node_modules/**"
+        - ".turbo/**"
+        - "logs/**"
+        - "backups/**"
+        - "convex/_generated/**"
+        - "**/*.test.ts"
+        - "**/*.test.js"
+        - "**/vitest.config.ts"
 
   - id: cs-convex-no-embedding-generation-in-mutation
     message: Do not generate embeddings inside Convex mutations. Generate them in an action before handing writes to an internal mutation.
@@ -179,7 +208,15 @@ rules:
     paths:
       include:
         - convex/**/*.ts
-      exclude: *repo_source_excludes
+      exclude:
+        - "**/node_modules/**"
+        - ".turbo/**"
+        - "logs/**"
+        - "backups/**"
+        - "convex/_generated/**"
+        - "**/*.test.ts"
+        - "**/*.test.js"
+        - "**/vitest.config.ts"
 
   - id: cs-api-products-service-must-use-actions-for-embedding-writes
     message: Product embedding write flows must go through Convex actions, not direct mutations.
@@ -202,4 +239,12 @@ rules:
     paths:
       include:
         - apps/api/src/services/**/*.ts
-      exclude: *repo_source_excludes
+      exclude:
+        - "**/node_modules/**"
+        - ".turbo/**"
+        - "logs/**"
+        - "backups/**"
+        - "convex/_generated/**"
+        - "**/*.test.ts"
+        - "**/*.test.js"
+        - "**/vitest.config.ts"

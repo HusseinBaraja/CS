@@ -1,4 +1,13 @@
-import type { ChatCallOptions, ChatProviderAdapter, ChatRequest, ChatResponse } from './index';
+import {
+  type ChatCallOptions,
+  type ChatManagerCallOptions,
+  type ChatProviderAdapter,
+  type ChatProviderAttemptFailure,
+  type ChatProviderProbeOptions,
+  type ChatRequest,
+  type ChatResponse,
+  createChatProviderManager,
+} from './index';
 
 const request: ChatRequest = {
   messages: [
@@ -39,7 +48,34 @@ const callOptions: ChatCallOptions = {
   maxRetries: 1,
 };
 
+const managerCallOptions: ChatManagerCallOptions = {
+  timeoutMs: 2_000,
+  maxRetriesPerProvider: 1,
+  logContext: {
+    companyId: "company-1",
+  },
+};
+
+const probeOptions: ChatProviderProbeOptions = {
+  providers: ["deepseek", "gemini"],
+  timeoutMs: 2_000,
+  maxRetries: 1,
+};
+
+const failure: ChatProviderAttemptFailure = {
+  provider: "gemini",
+  kind: "unavailable",
+  disposition: "failover_provider",
+  message: "provider unavailable",
+};
+
+const manager = createChatProviderManager();
+
 void request;
 void response;
 void adapter;
 void callOptions;
+void managerCallOptions;
+void probeOptions;
+void failure;
+void manager;
