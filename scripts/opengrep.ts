@@ -20,6 +20,49 @@ const DISALLOWED_OUTPUT_ARGS = new Set([
   "--vim-output",
   "-o",
 ]);
+const OPEN_GREP_FLAGS_WITH_VALUES = new Set([
+  "--baseline-commit",
+  "--diff-depth",
+  "-e",
+  "--pattern",
+  "--dynamic-timeout-max-multiplier",
+  "--dynamic-timeout-unit-kb",
+  "--exclude",
+  "--exclude-rule",
+  "-f",
+  "-c",
+  "--config",
+  "--emacs-output",
+  "--gitlab-sast-output",
+  "--gitlab-secrets-output",
+  "--include",
+  "-j",
+  "--jobs",
+  "--json-output",
+  "--junit-xml-output",
+  "-l",
+  "--lang",
+  "--max-chars-per-line",
+  "--max-lines-per-finding",
+  "--max-log-list-entries",
+  "--max-match-per-file",
+  "--max-memory",
+  "--max-target-bytes",
+  "-o",
+  "--output",
+  "--opengrep-ignore-pattern",
+  "--optimizations",
+  "--project-root",
+  "--remote",
+  "--replacement",
+  "--sarif-output",
+  "--semgrepignore-filename",
+  "--severity",
+  "--text-output",
+  "--timeout",
+  "--timeout-threshold",
+  "--vim-output",
+]);
 
 type OutputChannel = "stdout" | "stderr";
 type OpenGrepSeverity = "ERROR" | "WARNING" | "INFO";
@@ -81,6 +124,11 @@ type ParsedCliArgs =
     scanArgs: string[];
     targetMode: "default" | "explicit" | "changed" | "staged";
   };
+
+type SplitScanArgsResult = {
+  explicitTargets: string[];
+  forwardedFlagTokens: string[];
+};
 
 const defaultWriter: OutputWriter = {
   stdout: (chunk) => {
@@ -167,6 +215,43 @@ const emitFilteredOutput = (
   emitOutput(writer, channel, filterKnownOpenGrepNoise(content));
 };
 
+const splitScanArgs = (args: string[]): SplitScanArgsResult => {
+  const explicitTargets: string[] = [];
+  const forwardedFlagTokens: string[] = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index];
+
+    if (token === "--") {
+      explicitTargets.push(...args.slice(index + 1));
+      break;
+    }
+
+    if (token.startsWith("--") && token.includes("=")) {
+      forwardedFlagTokens.push(token);
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      forwardedFlagTokens.push(token);
+
+      if (OPEN_GREP_FLAGS_WITH_VALUES.has(token) && index + 1 < args.length) {
+        index += 1;
+        forwardedFlagTokens.push(args[index]);
+      }
+
+      continue;
+    }
+
+    explicitTargets.push(token);
+  }
+
+  return {
+    explicitTargets,
+    forwardedFlagTokens,
+  };
+};
+
 const parseCliArgs = (userArgs: string[]): ParsedCliArgs => {
   if (userArgs.length === 1 && (userArgs[0] === "--help" || userArgs[0] === "-h" || userArgs[0] === "--version")) {
     return {
@@ -195,9 +280,9 @@ const parseCliArgs = (userArgs: string[]): ParsedCliArgs => {
 
   if (hasChanged || hasStaged) {
     const scanArgs = userArgs.filter((arg) => arg !== "--changed" && arg !== "--staged");
-    const positionalArgs = scanArgs.filter((arg) => !arg.startsWith("-"));
+    const { explicitTargets } = splitScanArgs(scanArgs);
 
-    if (positionalArgs.length > 0) {
+    if (explicitTargets.length > 0) {
       throw new OpenGrepUsageError("Pass only OpenGrep flags with --changed or --staged, not explicit targets");
     }
 
@@ -211,13 +296,16 @@ const parseCliArgs = (userArgs: string[]): ParsedCliArgs => {
   return {
     mode: "scan",
     scanArgs: userArgs,
-    targetMode: userArgs.length > 0 ? "explicit" : "default",
+    targetMode: splitScanArgs(userArgs).explicitTargets.length > 0 ? "explicit" : "default",
   };
 };
 
 const assertAllowedScanArgs = (args: string[]): void => {
   for (const arg of args) {
-    if (DISALLOWED_OUTPUT_ARGS.has(arg)) {
+    const isDisallowedLongForm = arg.startsWith("--") && [...DISALLOWED_OUTPUT_ARGS].some((blockedArg) =>
+      blockedArg.startsWith("--") && arg.startsWith(`${blockedArg}=`));
+
+    if (DISALLOWED_OUTPUT_ARGS.has(arg) || isDisallowedLongForm) {
       throw new OpenGrepUsageError(
         `The wrapper manages output formatting itself. Remove the unsupported flag: ${arg}`,
       );
@@ -226,14 +314,15 @@ const assertAllowedScanArgs = (args: string[]): void => {
 };
 
 export const resolveOpenGrepArgs = (userArgs: string[]): string[] => {
-  assertAllowedScanArgs(userArgs);
+  const { explicitTargets, forwardedFlagTokens } = splitScanArgs(userArgs);
+  assertAllowedScanArgs(forwardedFlagTokens);
 
   return [
     "scan",
     "--config",
     OPEN_GREP_CONFIG_PATH,
     "--json",
-    ...(userArgs.length > 0 ? userArgs : DEFAULT_SCAN_TARGETS),
+    ...(explicitTargets.length > 0 ? userArgs : [...forwardedFlagTokens, ...DEFAULT_SCAN_TARGETS]),
   ];
 };
 

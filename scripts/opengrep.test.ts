@@ -91,6 +91,20 @@ describe("resolveOpenGrepArgs", () => {
     ]);
   });
 
+  test("appends default targets when only flags are provided", () => {
+    expect(resolveOpenGrepArgs(["--severity", "WARNING"])).toEqual([
+      "scan",
+      "--config",
+      OPEN_GREP_CONFIG_PATH,
+      "--json",
+      "--severity",
+      "WARNING",
+      "apps",
+      "packages",
+      "convex",
+    ]);
+  });
+
   test("forwards user-supplied targets and flags", () => {
     expect(resolveOpenGrepArgs(["apps/api/src", "--severity", "WARNING"])).toEqual([
       "scan",
@@ -100,6 +114,19 @@ describe("resolveOpenGrepArgs", () => {
       "apps/api/src",
       "--severity",
       "WARNING",
+    ]);
+  });
+
+  test("keeps inline flag values and still appends default targets when no explicit target is provided", () => {
+    expect(resolveOpenGrepArgs(["--severity=WARNING"])).toEqual([
+      "scan",
+      "--config",
+      OPEN_GREP_CONFIG_PATH,
+      "--json",
+      "--severity=WARNING",
+      "apps",
+      "packages",
+      "convex",
     ]);
   });
 });
@@ -366,6 +393,57 @@ describe("runOpenGrepCli", () => {
     ]);
   });
 
+  test("allows flag values with changed mode and appends resolved targets", async () => {
+    const invocations: string[][] = [];
+
+    await expect(
+      runOpenGrepCli(
+        ["--changed", "--severity", "WARNING"],
+        createRunCommand((args) => {
+          invocations.push(args);
+          const command = args.join(" ");
+
+          switch (command) {
+            case "opengrep --version":
+              return { exitCode: 0, stdout: "1.16.4", stderr: "" };
+            case "git diff --name-only --diff-filter=ACMR":
+              return {
+                exitCode: 0,
+                stdout: "apps/api/src/app.ts\n",
+                stderr: "",
+              };
+            case "git diff --cached --name-only --diff-filter=ACMR":
+            case "git ls-files --others --exclude-standard":
+              return {
+                exitCode: 0,
+                stdout: "",
+                stderr: "",
+              };
+            case "opengrep validate opengrep.yml":
+              return { exitCode: 0, stdout: "", stderr: "" };
+            default:
+              return {
+                exitCode: 0,
+                stdout: createScanResult(),
+                stderr: "",
+              };
+          }
+        }),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(invocations.at(-1)).toEqual([
+      "opengrep",
+      "scan",
+      "--config",
+      OPEN_GREP_CONFIG_PATH,
+      "--json",
+      "--severity",
+      "WARNING",
+      "apps/api/src/app.ts",
+    ]);
+  });
+
   test("resolves staged files only", async () => {
     const invocations: string[][] = [];
 
@@ -406,6 +484,66 @@ describe("runOpenGrepCli", () => {
       "--json",
       "apps/api/src/routes/products.ts",
     ]);
+  });
+
+  test("allows flag values with staged mode and appends resolved targets", async () => {
+    const invocations: string[][] = [];
+
+    await expect(
+      runOpenGrepCli(
+        ["--staged", "--severity", "WARNING"],
+        createRunCommand((args) => {
+          invocations.push(args);
+          const command = args.join(" ");
+
+          switch (command) {
+            case "opengrep --version":
+              return { exitCode: 0, stdout: "1.16.4", stderr: "" };
+            case "git diff --cached --name-only --diff-filter=ACMR":
+              return {
+                exitCode: 0,
+                stdout: "apps/api/src/routes/products.ts\n",
+                stderr: "",
+              };
+            case "opengrep validate opengrep.yml":
+              return { exitCode: 0, stdout: "", stderr: "" };
+            default:
+              return {
+                exitCode: 0,
+                stdout: createScanResult(),
+                stderr: "",
+              };
+          }
+        }),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(invocations.at(-1)).toEqual([
+      "opengrep",
+      "scan",
+      "--config",
+      OPEN_GREP_CONFIG_PATH,
+      "--json",
+      "--severity",
+      "WARNING",
+      "apps/api/src/routes/products.ts",
+    ]);
+  });
+
+  test("still rejects explicit targets in changed mode", async () => {
+    await expect(
+      runOpenGrepCli(
+        ["--changed", "apps/api/src"],
+        createRunCommand(() => ({
+          exitCode: 0,
+          stdout: "1.16.4",
+          stderr: "",
+        })),
+      ),
+    ).rejects.toMatchObject({
+      message: "Pass only OpenGrep flags with --changed or --staged, not explicit targets",
+      name: "OpenGrepUsageError",
+    });
   });
 
   test("returns early when no relevant changed files exist", async () => {
