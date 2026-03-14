@@ -14,7 +14,7 @@
 
 ## Commit Message Skill
 
-- Use `.agents/skills/conventional-commit/SKILL.md` for any commit-related request and for any agent-initiated commit-message suggestion, including the automatic suggestion at the end of a large change.
+- Use `.agent/skills/conventional-commit/SKILL.md` for any commit-related request and for any agent-initiated commit-message suggestion, including the automatic suggestion at the end of a large change.
 - Inspect the actual git diff before proposing a commit message. Prefer the staged diff when staged changes exist; otherwise inspect the working tree diff.
 - Keep the commit scope narrow to the user's intended change and do not include unrelated modified files in the proposed commit message.
 - Do not auto-stage files unless the user explicitly asks. If staging is needed, suggest the specific files or commands instead of assuming all changes should be included.
