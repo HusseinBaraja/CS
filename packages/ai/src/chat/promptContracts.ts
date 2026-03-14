@@ -11,6 +11,10 @@ export interface AssistantStructuredOutput {
   };
 }
 
+export interface ParseAssistantStructuredOutputOptions {
+  allowedActions?: readonly AssistantActionType[];
+}
+
 export interface GroundingContextBlock {
   id: string;
   heading: string;

@@ -4,6 +4,7 @@ import {
   createChatProviderManager,
   detectChatLanguage,
   getChatProviderAdapter,
+  parseAssistantStructuredOutput,
   resolveChatResponseLanguage,
 } from './index';
 
@@ -25,5 +26,9 @@ describe("@cs/ai public API", () => {
 
   test("exports prompt policy helpers", () => {
     expect(typeof buildGroundedChatPrompt).toBe("function");
+  });
+
+  test("exports structured output helpers", () => {
+    expect(typeof parseAssistantStructuredOutput).toBe("function");
   });
 });

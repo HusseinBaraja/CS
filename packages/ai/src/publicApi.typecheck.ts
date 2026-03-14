@@ -15,10 +15,12 @@ import {
   type GroundingContextBlock,
   type LanguageDetectionResult,
   type LanguageResolutionOptions,
+  type ParseAssistantStructuredOutputOptions,
   type PromptHistoryTurn,
   buildGroundedChatPrompt,
   createChatProviderManager,
   detectChatLanguage,
+  parseAssistantStructuredOutput,
   resolveChatResponseLanguage,
 } from './index';
 
@@ -122,6 +124,13 @@ const structuredOutput: AssistantStructuredOutput = {
     type: actionType,
   },
 };
+const parseOptions: ParseAssistantStructuredOutputOptions = {
+  allowedActions: ["clarify"],
+};
+const parsedStructuredOutput: AssistantStructuredOutput = parseAssistantStructuredOutput(
+  '{"schemaVersion":"v1","text":"Please clarify which size you need.","action":{"type":"clarify"}}',
+  parseOptions,
+);
 
 const manager = createChatProviderManager();
 
@@ -143,4 +152,6 @@ void conversationHistory;
 void promptInput;
 void builtPrompt;
 void structuredOutput;
+void parseOptions;
+void parsedStructuredOutput;
 void manager;
