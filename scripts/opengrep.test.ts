@@ -3,6 +3,7 @@ import {
   assertOpenGrepInstalled,
   type CommandResult,
   filterKnownOpenGrepNoise,
+  handleOpenGrepCliError,
   OPEN_GREP_CONFIG_PATH,
   OPEN_GREP_INSTALL_MESSAGE,
   OpenGrepCommandError,
@@ -194,6 +195,7 @@ describe("runOpenGrepCli", () => {
 
   test("stops on invalid config before scanning", async () => {
     const invocations: string[][] = [];
+    const output = createOutputCapture();
 
     await expect(
       runOpenGrepCli(
@@ -211,6 +213,7 @@ describe("runOpenGrepCli", () => {
             stderr: "Configuration is invalid",
           };
         }),
+        output.writer,
       ),
     ).rejects.toMatchObject({
       message: "OpenGrep config validation failed",
@@ -221,6 +224,7 @@ describe("runOpenGrepCli", () => {
       ["opengrep", "--version"],
       ["opengrep", "validate", OPEN_GREP_CONFIG_PATH],
     ]);
+    expect(output.stderr()).toBe("Configuration is invalid");
   });
 
   test("does not fail on warning-only findings", async () => {
@@ -439,5 +443,89 @@ describe("runOpenGrepCli", () => {
       ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
       ["git", "ls-files", "--others", "--exclude-standard"],
     ]);
+  });
+
+  test("emits git stderr when resolving changed files fails", async () => {
+    const output = createOutputCapture();
+
+    await expect(
+      runOpenGrepCli(
+        ["--changed"],
+        createRunCommand((args) => {
+          const command = args.join(" ");
+
+          switch (command) {
+            case "opengrep --version":
+              return { exitCode: 0, stdout: "1.16.4", stderr: "" };
+            case "git diff --name-only --diff-filter=ACMR":
+              return {
+                exitCode: 128,
+                stdout: "",
+                stderr: "fatal: not a git repository\n",
+              };
+            case "git diff --cached --name-only --diff-filter=ACMR":
+            case "git ls-files --others --exclude-standard":
+              return {
+                exitCode: 0,
+                stdout: "",
+                stderr: "",
+              };
+            default:
+              throw new Error(`Unexpected command: ${command}`);
+          }
+        }),
+        output.writer,
+      ),
+    ).rejects.toMatchObject({
+      message: "Failed to resolve git paths: git diff --name-only --diff-filter=ACMR",
+      exitCode: 128,
+    } satisfies Partial<OpenGrepCommandError>);
+
+    expect(output.stderr()).toContain("fatal: not a git repository");
+  });
+
+  test("emits git stderr when resolving staged files fails", async () => {
+    const output = createOutputCapture();
+
+    await expect(
+      runOpenGrepCli(
+        ["--staged"],
+        createRunCommand((args) => {
+          const command = args.join(" ");
+
+          switch (command) {
+            case "opengrep --version":
+              return { exitCode: 0, stdout: "1.16.4", stderr: "" };
+            case "git diff --cached --name-only --diff-filter=ACMR":
+              return {
+                exitCode: 1,
+                stdout: "",
+                stderr: "git error\n",
+              };
+            default:
+              throw new Error(`Unexpected command: ${command}`);
+          }
+        }),
+        output.writer,
+      ),
+    ).rejects.toMatchObject({
+      message: "Failed to resolve git paths: git diff --cached --name-only --diff-filter=ACMR",
+      exitCode: 1,
+    } satisfies Partial<OpenGrepCommandError>);
+
+    expect(output.stderr()).toBe("git error\n");
+  });
+});
+
+describe("handleOpenGrepCliError", () => {
+  test("writes the command error message and preserves the exit code", () => {
+    const output = createOutputCapture();
+    const exitCode = handleOpenGrepCliError(
+      new OpenGrepCommandError("OpenGrep scan failed with exit code 2", 2),
+      output.writer,
+    );
+
+    expect(exitCode).toBe(2);
+    expect(output.stderr()).toBe("OpenGrep scan failed with exit code 2\n");
   });
 });

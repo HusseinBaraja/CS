@@ -23,7 +23,6 @@ const DISALLOWED_OUTPUT_ARGS = new Set([
 
 type OutputChannel = "stdout" | "stderr";
 type OpenGrepSeverity = "ERROR" | "WARNING" | "INFO";
-type OpenGrepCliMode = "scan" | "validate" | "passthrough";
 
 export interface CommandResult {
   exitCode: number;
@@ -326,9 +325,11 @@ const getBlockingFindingCount = (report: OpenGrepReport): number =>
 const getGitPaths = async (
   args: string[],
   runCommand: RunCommandLike,
+  writer: OutputWriter,
 ): Promise<string[]> => {
   const result = await runCommand(["git", ...args]);
   if (result.exitCode !== 0) {
+    emitOutput(writer, "stderr", result.stderr);
     throw new OpenGrepCommandError(`Failed to resolve git paths: git ${args.join(" ")}`, result.exitCode);
   }
 
@@ -339,11 +340,12 @@ const getGitPaths = async (
 
 const resolveChangedTargets = async (
   runCommand: RunCommandLike,
+  writer: OutputWriter,
 ): Promise<string[]> => {
   const [unstaged, staged, untracked] = await Promise.all([
-    getGitPaths(["diff", "--name-only", "--diff-filter=ACMR"], runCommand),
-    getGitPaths(["diff", "--cached", "--name-only", "--diff-filter=ACMR"], runCommand),
-    getGitPaths(["ls-files", "--others", "--exclude-standard"], runCommand),
+    getGitPaths(["diff", "--name-only", "--diff-filter=ACMR"], runCommand, writer),
+    getGitPaths(["diff", "--cached", "--name-only", "--diff-filter=ACMR"], runCommand, writer),
+    getGitPaths(["ls-files", "--others", "--exclude-standard"], runCommand, writer),
   ]);
 
   return [...new Set([...unstaged, ...staged, ...untracked])];
@@ -351,8 +353,9 @@ const resolveChangedTargets = async (
 
 const resolveStagedTargets = async (
   runCommand: RunCommandLike,
+  writer: OutputWriter,
 ): Promise<string[]> => {
-  const staged = await getGitPaths(["diff", "--cached", "--name-only", "--diff-filter=ACMR"], runCommand);
+  const staged = await getGitPaths(["diff", "--cached", "--name-only", "--diff-filter=ACMR"], runCommand, writer);
   return [...new Set(staged)];
 };
 
@@ -423,9 +426,9 @@ export const runOpenGrepCli = async (
 
   const targets =
     parsedArgs.targetMode === "changed"
-      ? await resolveChangedTargets(runCommand)
+      ? await resolveChangedTargets(runCommand, writer)
       : parsedArgs.targetMode === "staged"
-        ? await resolveStagedTargets(runCommand)
+        ? await resolveStagedTargets(runCommand, writer)
         : null;
 
   if (targets && targets.length === 0) {
@@ -461,12 +464,20 @@ export const runOpenGrepCli = async (
   }
 };
 
+export const handleOpenGrepCliError = (
+  error: OpenGrepCommandError,
+  writer: OutputWriter = defaultWriter,
+): number => {
+  emitOutput(writer, "stderr", `${error.message}\n`);
+  return error.exitCode;
+};
+
 const main = async (): Promise<void> => {
   try {
     await runOpenGrepCli(Bun.argv.slice(2));
   } catch (error) {
     if (error instanceof OpenGrepCommandError) {
-      process.exitCode = error.exitCode;
+      process.exitCode = handleOpenGrepCliError(error, defaultWriter);
       return;
     }
 
