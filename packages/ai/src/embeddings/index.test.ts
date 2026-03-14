@@ -129,4 +129,48 @@ describe("@cs/ai embeddings", () => {
     expect(receivedApiKey).toBe("lazy-key");
     expect(embedding).toHaveLength(768);
   });
+
+  test("trims GEMINI_API_KEY from the environment before creating the client", async () => {
+    let receivedApiKey: string | undefined;
+    resetGeminiClientFactory = setGeminiClientFactoryForTests((apiKey) => {
+      receivedApiKey = apiKey;
+
+      return {
+        models: {
+          embedContent: async () => ({
+            embeddings: [{ values: createEmbedding(4) }],
+          }),
+        },
+      };
+    });
+
+    process.env.GEMINI_API_KEY = "  padded-env-key  ";
+
+    const embedding = await generateGeminiEmbedding("Needs trimmed env key");
+
+    expect(receivedApiKey).toBe("padded-env-key");
+    expect(embedding).toHaveLength(768);
+  });
+
+  test("trims an explicitly provided Gemini API key before creating the client", async () => {
+    let receivedApiKey: string | undefined;
+    resetGeminiClientFactory = setGeminiClientFactoryForTests((apiKey) => {
+      receivedApiKey = apiKey;
+
+      return {
+        models: {
+          embedContent: async () => ({
+            embeddings: [{ values: createEmbedding(5) }],
+          }),
+        },
+      };
+    });
+
+    const embedding = await generateGeminiEmbedding("Needs trimmed explicit key", {
+      apiKey: "  padded-explicit-key  ",
+    });
+
+    expect(receivedApiKey).toBe("padded-explicit-key");
+    expect(embedding).toHaveLength(768);
+  });
 });

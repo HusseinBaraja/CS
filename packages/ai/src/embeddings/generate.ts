@@ -8,13 +8,23 @@ import {
 
 const DEFAULT_OUTPUT_DIMENSIONALITY = GEMINI_EMBEDDING_DIMENSIONS;
 
-const resolveGeminiApiKey = (apiKey?: string): string => {
-  if (apiKey) {
-    return apiKey;
+const normalizeApiKey = (apiKey?: string): string | undefined => {
+  if (typeof apiKey !== "string") {
+    return undefined;
   }
 
-  const runtimeApiKey = process.env.GEMINI_API_KEY;
-  if (typeof runtimeApiKey === "string" && runtimeApiKey.trim().length > 0) {
+  const trimmedApiKey = apiKey.trim();
+  return trimmedApiKey.length > 0 ? trimmedApiKey : undefined;
+};
+
+const resolveGeminiApiKey = (apiKey?: string): string => {
+  const explicitApiKey = normalizeApiKey(apiKey);
+  if (explicitApiKey) {
+    return explicitApiKey;
+  }
+
+  const runtimeApiKey = normalizeApiKey(process.env.GEMINI_API_KEY);
+  if (runtimeApiKey) {
     return runtimeApiKey;
   }
 
