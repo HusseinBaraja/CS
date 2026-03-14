@@ -1,8 +1,18 @@
 import {
+  type AssistantActionType,
+  type AssistantStructuredOutput,
   type ChatLanguage,
+  type ChatProviderManager,
+  type ChatResponse,
   GEMINI_EMBEDDING_DIMENSIONS,
+  buildGroundedChatPrompt,
+  createChatProviderManager,
+  detectChatLanguage,
   generateGeminiEmbedding,
   type GroundingContextBlock,
+  type LanguageDetectionResult,
+  parseAssistantStructuredOutput,
+  type PromptHistoryTurn,
 } from '@cs/ai';
 import { convexInternal, createConvexAdminClient } from '@cs/db';
 
@@ -63,6 +73,12 @@ type HydratedProductRecord = {
 };
 
 export type { ChatLanguage, GroundingContextBlock } from '@cs/ai';
+export type {
+  AssistantActionType,
+  AssistantStructuredOutput,
+  LanguageDetectionResult,
+  PromptHistoryTurn,
+} from '@cs/ai';
 
 export type RetrievalOutcome = "grounded" | "empty" | "low_signal";
 
@@ -133,6 +149,65 @@ export interface ProductRetrievalServiceOptions {
   createClient?: () => RetrievalClient;
   generateEmbedding?: RetrievalEmbeddingGenerator;
 }
+
+export interface CatalogChatTenantContext {
+  companyId: string;
+  preferredLanguage?: ChatLanguage;
+  defaultLanguage?: ChatLanguage;
+}
+
+export interface CatalogChatConversationContext {
+  conversationId?: string;
+  history?: PromptHistoryTurn[];
+  allowedActions?: readonly AssistantActionType[];
+}
+
+export interface CatalogChatInput {
+  tenant: CatalogChatTenantContext;
+  conversation?: CatalogChatConversationContext;
+  userMessage: string;
+  requestId?: string;
+  signal?: AbortSignal;
+  retrieval?: {
+    maxResults?: number;
+    maxContextBlocks?: number;
+    minScore?: number;
+  };
+  provider?: {
+    timeoutMs?: number;
+    maxRetriesPerProvider?: number;
+  };
+}
+
+export type CatalogChatOutcome =
+  | "provider_response"
+  | "empty_query_fallback"
+  | "no_hits_fallback"
+  | "low_signal_fallback"
+  | "provider_failure_fallback"
+  | "invalid_model_output_fallback";
+
+export interface CatalogChatResult {
+  outcome: CatalogChatOutcome;
+  assistant: AssistantStructuredOutput;
+  language: LanguageDetectionResult;
+  retrieval: RetrieveCatalogContextResult;
+  provider?: Pick<ChatResponse, "provider" | "model" | "finishReason" | "usage" | "responseId">;
+}
+
+export interface CatalogChatOrchestrator {
+  respond(input: CatalogChatInput): Promise<CatalogChatResult>;
+}
+
+export interface CreateCatalogChatOrchestratorOptions {
+  retrievalService?: ProductRetrievalService;
+  chatManager?: ChatProviderManager;
+  detectLanguage?: typeof detectChatLanguage;
+  buildPrompt?: typeof buildGroundedChatPrompt;
+  parseStructuredOutput?: typeof parseAssistantStructuredOutput;
+}
+
+const DEFAULT_ALLOWED_ACTIONS: readonly AssistantActionType[] = ["none", "clarify", "handoff"];
 
 const normalizePositiveInteger = (value: number | undefined, fallback: number): number => {
   if (value === undefined) {
@@ -411,6 +486,182 @@ export const createProductRetrievalService = (
           .slice(0, maxContextBlocks)
           .map((candidate) => candidate.contextBlock),
       };
+    },
+  };
+};
+
+const getAllowedActions = (
+  allowedActions: readonly AssistantActionType[] | undefined,
+): readonly AssistantActionType[] =>
+  allowedActions && allowedActions.length > 0 ? Array.from(new Set(allowedActions)) : DEFAULT_ALLOWED_ACTIONS;
+
+const pickProviderMetadata = (
+  response: ChatResponse,
+): Pick<ChatResponse, "provider" | "model" | "finishReason" | "usage" | "responseId"> => ({
+  provider: response.provider,
+  model: response.model,
+  finishReason: response.finishReason,
+  usage: response.usage,
+  responseId: response.responseId,
+});
+
+const buildAssistantFallback = (
+  responseLanguage: ChatLanguage,
+  type: "empty_query" | "no_hits" | "low_signal" | "handoff",
+): AssistantStructuredOutput => {
+  switch (type) {
+    case "empty_query":
+      return responseLanguage === "ar"
+        ? {
+          schemaVersion: "v1",
+          text: "ما المنتج الذي تريد أن أساعِدك به؟",
+          action: { type: "clarify" },
+        }
+        : {
+          schemaVersion: "v1",
+          text: "Which product can I help you with?",
+          action: { type: "clarify" },
+        };
+    case "no_hits":
+      return responseLanguage === "ar"
+        ? {
+          schemaVersion: "v1",
+          text: "لم أجد منتجًا مطابقًا في الكتالوج الحالي.",
+          action: { type: "none" },
+        }
+        : {
+          schemaVersion: "v1",
+          text: "I couldn't find a matching product in the current catalog.",
+          action: { type: "none" },
+        };
+    case "low_signal":
+      return responseLanguage === "ar"
+        ? {
+          schemaVersion: "v1",
+          text: "لم أتمكن من مطابقة طلبك بثقة مع الكتالوج الحالي.",
+          action: { type: "none" },
+        }
+        : {
+          schemaVersion: "v1",
+          text: "I couldn't confidently match your request to the current catalog.",
+          action: { type: "none" },
+        };
+    case "handoff":
+      return responseLanguage === "ar"
+        ? {
+          schemaVersion: "v1",
+          text: "لا أستطيع المساعدة بأمان الآن، لذا سأحوّلك إلى الفريق.",
+          action: { type: "handoff" },
+        }
+        : {
+          schemaVersion: "v1",
+          text: "I can't help safely right now, so I'll connect you with the team.",
+          action: { type: "handoff" },
+        };
+  }
+};
+
+export const createCatalogChatOrchestrator = (
+  options: CreateCatalogChatOrchestratorOptions = {},
+): CatalogChatOrchestrator => {
+  const retrievalService = options.retrievalService ?? createProductRetrievalService();
+  const chatManager = options.chatManager ?? createChatProviderManager();
+  const detectLanguage = options.detectLanguage ?? detectChatLanguage;
+  const buildPrompt = options.buildPrompt ?? buildGroundedChatPrompt;
+  const parseStructuredOutput = options.parseStructuredOutput ?? parseAssistantStructuredOutput;
+
+  return {
+    async respond(input: CatalogChatInput): Promise<CatalogChatResult> {
+      const language = detectLanguage(input.userMessage, {
+        preferredLanguage: input.tenant.preferredLanguage,
+        defaultLanguage: input.tenant.defaultLanguage,
+      });
+      const allowedActions = getAllowedActions(input.conversation?.allowedActions);
+      const retrieval = await retrievalService.retrieveCatalogContext({
+        companyId: input.tenant.companyId,
+        query: input.userMessage,
+        language: language.responseLanguage,
+        maxResults: input.retrieval?.maxResults,
+        maxContextBlocks: input.retrieval?.maxContextBlocks,
+        minScore: input.retrieval?.minScore,
+      });
+
+      if (retrieval.outcome === "empty") {
+        const assistant = buildAssistantFallback(
+          language.responseLanguage,
+          retrieval.reason === "empty_query" ? "empty_query" : "no_hits",
+        );
+
+        return {
+          outcome: retrieval.reason === "empty_query" ? "empty_query_fallback" : "no_hits_fallback",
+          assistant,
+          language,
+          retrieval,
+        };
+      }
+
+      if (retrieval.outcome === "low_signal") {
+        return {
+          outcome: "low_signal_fallback",
+          assistant: buildAssistantFallback(language.responseLanguage, "low_signal"),
+          language,
+          retrieval,
+        };
+      }
+
+      const prompt = buildPrompt({
+        responseLanguage: language.responseLanguage,
+        customerMessage: input.userMessage,
+        conversationHistory: input.conversation?.history,
+        groundingContext: retrieval.contextBlocks,
+        allowedActions,
+      });
+
+      let providerResponse: ChatResponse;
+      try {
+        providerResponse = await chatManager.chat(prompt.request, {
+          signal: input.signal,
+          timeoutMs: input.provider?.timeoutMs,
+          maxRetriesPerProvider: input.provider?.maxRetriesPerProvider,
+          logContext: {
+            companyId: input.tenant.companyId,
+            ...(input.conversation?.conversationId
+              ? { conversationId: input.conversation.conversationId }
+              : {}),
+            ...(input.requestId ? { requestId: input.requestId } : {}),
+            feature: "catalog_chat",
+          },
+        });
+      } catch {
+        return {
+          outcome: "provider_failure_fallback",
+          assistant: buildAssistantFallback(language.responseLanguage, "handoff"),
+          language,
+          retrieval,
+        };
+      }
+
+      try {
+        const assistant = parseStructuredOutput(providerResponse.text, {
+          allowedActions,
+        });
+
+        return {
+          outcome: "provider_response",
+          assistant,
+          language,
+          retrieval,
+          provider: pickProviderMetadata(providerResponse),
+        };
+      } catch {
+        return {
+          outcome: "invalid_model_output_fallback",
+          assistant: buildAssistantFallback(language.responseLanguage, "handoff"),
+          language,
+          retrieval,
+          provider: pickProviderMetadata(providerResponse),
+        };
+      }
     },
   };
 };

@@ -1,4 +1,9 @@
 import type {
+  AssistantStructuredOutput,
+  CatalogChatInput,
+  CatalogChatOrchestrator,
+  CatalogChatResult,
+  CatalogChatTenantContext,
   ChatLanguage,
   GroundingContextBlock,
   ProductRetrievalService,
@@ -9,7 +14,12 @@ import type {
   RetrievedProductCandidate,
   RetrievedProductContext,
 } from './index';
-import { buildRetrievalQueryText, createProductRetrievalService, generateRetrievalQueryEmbedding } from './index';
+import {
+  buildRetrievalQueryText,
+  createCatalogChatOrchestrator,
+  createProductRetrievalService,
+  generateRetrievalQueryEmbedding,
+} from './index';
 
 const language: ChatLanguage = "en";
 const queryText = buildRetrievalQueryText({
@@ -26,6 +36,10 @@ const serviceOptions: ProductRetrievalServiceOptions = {
 };
 
 const service: ProductRetrievalService = createProductRetrievalService(serviceOptions);
+const tenant: CatalogChatTenantContext = {
+  companyId: "company-1",
+  preferredLanguage: "en",
+};
 
 const input: RetrieveCatalogContextInput = {
   companyId: "company-1",
@@ -71,8 +85,49 @@ const embeddingPromise: Promise<number[]> = generateRetrievalQueryEmbedding({
   language,
   query: "Burger Box",
 });
+const catalogChatInput: CatalogChatInput = {
+  tenant,
+  conversation: {
+    conversationId: "conversation-1",
+    history: [
+      {
+        role: "user",
+        text: "Hello",
+      },
+    ],
+    allowedActions: ["none", "clarify"],
+  },
+  userMessage: "Burger Box",
+  requestId: "request-1",
+  retrieval: {
+    maxResults: 3,
+  },
+  provider: {
+    timeoutMs: 2_000,
+  },
+};
+const orchestrator: CatalogChatOrchestrator = createCatalogChatOrchestrator({
+  retrievalService: service,
+  chatManager: {
+    chat: async () => ({
+      provider: "gemini",
+      text: '{"schemaVersion":"v1","text":"We have burger boxes.","action":{"type":"none"}}',
+      finishReason: "stop",
+    }),
+    probeProviders: async () => [],
+  },
+});
+const catalogChatResultPromise: Promise<CatalogChatResult> = orchestrator.respond(catalogChatInput);
+const assistant: AssistantStructuredOutput = {
+  schemaVersion: "v1",
+  text: "We have burger boxes.",
+  action: {
+    type: "none",
+  },
+};
 
 void language;
+void tenant;
 void queryText;
 void serviceOptions;
 void service;
@@ -83,3 +138,7 @@ void candidate;
 void outcome;
 void resultPromise;
 void embeddingPromise;
+void catalogChatInput;
+void orchestrator;
+void catalogChatResultPromise;
+void assistant;
