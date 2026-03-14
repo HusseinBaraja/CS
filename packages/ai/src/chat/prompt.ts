@@ -24,17 +24,24 @@ const serializeContextBlock = (block: GroundingContextBlock): string =>
     "</CONTEXT_BLOCK>",
   ].join("\n");
 
+const escapePromptXmlText = (value: string): string =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+
 const buildUserPrompt = (input: BuildGroundedChatPromptInput): string => {
   const serializedContext = input.groundingContext && input.groundingContext.length > 0
     ? input.groundingContext.map(serializeContextBlock).join("\n")
     : NO_GROUNDED_CONTEXT_AVAILABLE;
+  const customerMessage = escapePromptXmlText(input.customerMessage);
 
   return [
     "<GROUNDING_CONTEXT>",
     serializedContext,
     "</GROUNDING_CONTEXT>",
     "<CUSTOMER_MESSAGE>",
-    input.customerMessage,
+    customerMessage,
     "</CUSTOMER_MESSAGE>",
   ].join("\n");
 };
