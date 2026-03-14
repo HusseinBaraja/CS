@@ -9,6 +9,7 @@ export { getChatProviderAdapter, CHAT_PROVIDER_NAMES, } from "./chat/adapters";
 export { createChatRuntimeConfig } from "./chat/runtimeConfig";
 export { ChatProviderError } from "./chat/errors";
 export { ChatProviderChainError, createChatProviderManager } from "./chat/manager";
+export { detectChatLanguage, resolveChatResponseLanguage } from "./chat/language";
 
 export type {
   ChatCallOptions,
@@ -25,6 +26,13 @@ export type {
   NormalizedChatMessage,
   NormalizedChatRequest,
 } from "./chat/contracts";
+export type {
+  ChatLanguage,
+  DetectedChatLanguage,
+  LanguageDetectionResult,
+  LanguageResolutionOptions,
+  ResolveChatResponseLanguageInput,
+} from "./chat/language";
 export type {
   ChatProviderErrorDisposition,
   ChatProviderErrorKind,

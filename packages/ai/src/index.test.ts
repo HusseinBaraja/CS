@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { createChatProviderManager, getChatProviderAdapter } from './index';
+import {
+  createChatProviderManager,
+  detectChatLanguage,
+  getChatProviderAdapter,
+  resolveChatResponseLanguage,
+} from './index';
 
 describe("@cs/ai public API", () => {
   test("exports getChatProviderAdapter for all supported providers", () => {
@@ -10,5 +15,10 @@ describe("@cs/ai public API", () => {
 
   test("exports createChatProviderManager", () => {
     expect(typeof createChatProviderManager).toBe("function");
+  });
+
+  test("exports language policy helpers", () => {
+    expect(typeof detectChatLanguage).toBe("function");
+    expect(typeof resolveChatResponseLanguage).toBe("function");
   });
 });

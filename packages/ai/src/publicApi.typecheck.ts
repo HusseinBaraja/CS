@@ -1,12 +1,18 @@
 import {
   type ChatCallOptions,
+  type ChatLanguage,
   type ChatManagerCallOptions,
   type ChatProviderAdapter,
   type ChatProviderAttemptFailure,
   type ChatProviderProbeOptions,
   type ChatRequest,
   type ChatResponse,
+  type DetectedChatLanguage,
+  type LanguageDetectionResult,
+  type LanguageResolutionOptions,
   createChatProviderManager,
+  detectChatLanguage,
+  resolveChatResponseLanguage,
 } from './index';
 
 const request: ChatRequest = {
@@ -69,6 +75,19 @@ const failure: ChatProviderAttemptFailure = {
   message: "provider unavailable",
 };
 
+const language: ChatLanguage = "ar";
+const detectedLanguage: DetectedChatLanguage = "mixed";
+const languageOptions: LanguageResolutionOptions = {
+  preferredLanguage: "en",
+};
+const detectionResult: LanguageDetectionResult = detectChatLanguage("hello", languageOptions);
+const responseLanguage = resolveChatResponseLanguage({
+  classification: detectedLanguage,
+  arabicCharCount: 1,
+  englishCharCount: 2,
+  preferredLanguage: language,
+});
+
 const manager = createChatProviderManager();
 
 void request;
@@ -78,4 +97,9 @@ void callOptions;
 void managerCallOptions;
 void probeOptions;
 void failure;
+void language;
+void detectedLanguage;
+void languageOptions;
+void detectionResult;
+void responseLanguage;
 void manager;
