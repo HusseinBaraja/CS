@@ -52,7 +52,6 @@ const buildSystemPrompt = (input: BuildGroundedChatPromptInput): string => {
     ? input.allowedActions
     : DEFAULT_ALLOWED_ACTIONS;
   const allowedActions = Array.from(new Set(resolvedAllowedActions));
-  const actionTypeContract = allowedActions.map((action) => `"${action}"`).join(" | ");
 
   return [
     "You are a tenant-scoped customer-service assistant for CSCB.",
@@ -64,7 +63,7 @@ const buildSystemPrompt = (input: BuildGroundedChatPromptInput): string => {
     "Keep customer-facing text concise and in the target language.",
     getTargetLanguageInstruction(input.responseLanguage),
     "Return raw JSON only with no markdown fences and no extra prose.",
-    `Use this schema exactly: {"schemaVersion":"v1","text":"<customer-facing reply>","action":{"type":${actionTypeContract}}}`,
+    'Use this schema exactly: {"schemaVersion":"v1","text":"<customer-facing reply>","action":{"type":"<allowed-action-type>"}}',
     `Allowed action types: ${allowedActions.join(", ")}.`,
   ].join("\n");
 };

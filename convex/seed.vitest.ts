@@ -7,7 +7,7 @@ import { seedCategories, seedCompany, seedCurrencyRate, seedOffers, seedProducts
 
 const modules =
   typeof import.meta.glob === "function"
-    ? import.meta.glob(["./**/*.ts", "!./**/*.test.ts", "!./vitest.config.ts"])
+    ? import.meta.glob(["./**/*.ts", "!./**/*.vitest.ts", "!./vitest.config.ts"])
     : ({} as Record<string, () => Promise<any>>);
 
 const collectCounts = async (t: ReturnType<typeof convexTest>) =>

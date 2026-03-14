@@ -25,6 +25,8 @@ rules:
         - "convex/_generated/**"
         - "**/*.test.ts"
         - "**/*.test.js"
+        - "**/*.vitest.ts"
+        - "**/*.vitest.js"
         - "**/vitest.config.ts"
 
   - id: cs-ts-no-new-function
@@ -53,6 +55,8 @@ rules:
         - "convex/_generated/**"
         - "**/*.test.ts"
         - "**/*.test.js"
+        - "**/*.vitest.ts"
+        - "**/*.vitest.js"
         - "**/vitest.config.ts"
 
   - id: cs-ts-no-process-env-outside-approved-boundaries
@@ -81,6 +85,8 @@ rules:
         - "convex/_generated/**"
         - "**/*.test.ts"
         - "**/*.test.js"
+        - "**/*.vitest.ts"
+        - "**/*.vitest.js"
         - "**/vitest.config.ts"
         - "packages/config/src/**"
         - "packages/ai/src/**"
@@ -112,6 +118,8 @@ rules:
         - "convex/_generated/**"
         - "**/*.test.ts"
         - "**/*.test.js"
+        - "**/*.vitest.ts"
+        - "**/*.vitest.js"
         - "**/vitest.config.ts"
         - "packages/db/src/**"
 
@@ -140,6 +148,8 @@ rules:
         - "convex/_generated/**"
         - "**/*.test.ts"
         - "**/*.test.js"
+        - "**/*.vitest.ts"
+        - "**/*.vitest.js"
         - "**/vitest.config.ts"
         - "packages/db/src/client.ts"
 
@@ -166,6 +176,8 @@ rules:
         - "convex/_generated/**"
         - "**/*.test.ts"
         - "**/*.test.js"
+        - "**/*.vitest.ts"
+        - "**/*.vitest.js"
         - "**/vitest.config.ts"
 
   - id: cs-convex-no-fetch-in-mutation
@@ -191,6 +203,8 @@ rules:
         - "convex/_generated/**"
         - "**/*.test.ts"
         - "**/*.test.js"
+        - "**/*.vitest.ts"
+        - "**/*.vitest.js"
         - "**/vitest.config.ts"
 
   - id: cs-convex-no-embedding-generation-in-mutation
@@ -216,6 +230,8 @@ rules:
         - "convex/_generated/**"
         - "**/*.test.ts"
         - "**/*.test.js"
+        - "**/*.vitest.ts"
+        - "**/*.vitest.js"
         - "**/vitest.config.ts"
 
   - id: cs-api-products-service-must-use-actions-for-embedding-writes
@@ -247,4 +263,6 @@ rules:
         - "convex/_generated/**"
         - "**/*.test.ts"
         - "**/*.test.js"
+        - "**/*.vitest.ts"
+        - "**/*.vitest.js"
         - "**/vitest.config.ts"

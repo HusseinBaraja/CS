@@ -38,9 +38,12 @@ describe("buildGroundedChatPrompt", () => {
       customerMessage: "hello",
     });
 
-    expect(prompt.systemPrompt).toContain('"schemaVersion":"v1"');
-    expect(prompt.systemPrompt).toContain('"type":"none" | "clarify" | "handoff"');
+    expect(prompt.systemPrompt).toContain(
+      '{"schemaVersion":"v1","text":"<customer-facing reply>","action":{"type":"<allowed-action-type>"}}',
+    );
     expect(prompt.systemPrompt).toContain("Return raw JSON only");
+    expect(prompt.systemPrompt).toContain("Allowed action types: none, clarify, handoff.");
+    expect(prompt.systemPrompt).not.toContain('"type":"none" | "clarify" | "handoff"');
   });
 
   test("falls back to default actions when an empty allowedActions list is provided", () => {
@@ -50,8 +53,22 @@ describe("buildGroundedChatPrompt", () => {
       allowedActions: [],
     });
 
-    expect(prompt.systemPrompt).toContain('"type":"none" | "clarify" | "handoff"');
+    expect(prompt.systemPrompt).toContain("Allowed action types: none, clarify, handoff.");
     expect(prompt.systemPrompt).not.toContain("undefined");
+  });
+
+  test("keeps the schema shape generic when custom allowed actions are provided", () => {
+    const prompt = buildGroundedChatPrompt({
+      responseLanguage: "en",
+      customerMessage: "hello",
+      allowedActions: ["handoff"],
+    });
+
+    expect(prompt.systemPrompt).toContain(
+      '{"schemaVersion":"v1","text":"<customer-facing reply>","action":{"type":"<allowed-action-type>"}}',
+    );
+    expect(prompt.systemPrompt).toContain("Allowed action types: handoff.");
+    expect(prompt.systemPrompt).not.toContain('"type":"handoff"');
   });
 
   test("adds the no-context sentinel when grounding context is empty", () => {
