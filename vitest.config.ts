@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
@@ -7,7 +7,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "convex",
-          include: ["convex/**/*.test.{ts,js}"],
+          include: ["convex/**/*.vitest.{ts,js}"],
           environment: "edge-runtime",
         },
       },

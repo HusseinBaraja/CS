@@ -888,6 +888,34 @@ export const get = internalQuery({
   },
 });
 
+export const getManyForRag = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    productIds: v.array(v.id("products")),
+  },
+  handler: async (ctx, args): Promise<ProductDetailDto[]> => {
+    const results: ProductDetailDto[] = [];
+    const seenProductIds = new Set<string>();
+
+    for (const productId of args.productIds) {
+      if (seenProductIds.has(productId)) {
+        continue;
+      }
+      seenProductIds.add(productId);
+
+      const product = await getScopedProduct(ctx, args.companyId, productId);
+      if (!product) {
+        continue;
+      }
+
+      const variants = await getProductVariants(ctx, productId);
+      results.push(mapProductDetail(product, variants));
+    }
+
+    return results;
+  },
+});
+
 export const listVariants = internalQuery({
   args: {
     companyId: v.id("companies"),

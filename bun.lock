@@ -124,6 +124,7 @@
       "name": "@cs/rag",
       "version": "0.0.0",
       "dependencies": {
+        "@cs/ai": "*",
         "@cs/db": "*",
       },
     },

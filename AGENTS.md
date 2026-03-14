@@ -10,22 +10,18 @@
 - Run `bun generate` after any Convex schema change.
 - Do not run `bun dev` (assume it is already running).
 - Do not run `bun build` (CI only).
-- Suggest a commit message at the end of large changes by invoking the `conventional-commit` skill below and inspecting the actual diff first.
+- Suggest a commit message at the end of large changes by inspecting the diff first. Then invoking the `conventional-commit` skill and commit it to the current branch. 
 
 ## Commit Message Skill
 
-- Use `.agent/skills/conventional-commit/SKILL.md` for any commit-related request and for any agent-initiated commit-message suggestion, including the automatic suggestion at the end of a large change.
-- Inspect the actual git diff before proposing a commit message. Prefer the staged diff when staged changes exist; otherwise inspect the working tree diff.
-- Keep the commit scope narrow to the user's intended change and do not include unrelated modified files in the proposed commit message.
-- Do not auto-stage files unless the user explicitly asks. If staging is needed, suggest the specific files or commands instead of assuming all changes should be included.
 - Follow the `conventional-commit` skill workflow instead of inventing a commit message ad hoc.
 - Preserve the existing non-destructive git rules in this file when handling commit requests.
 
 ## Project Snapshot
 
-CSCB is a very early-stage multi-tenant WhatsApp customer service platform for small and mid-size businesses. It combines a Hono REST API, a Baileys WhatsApp bot, Convex-backed data and vector search, and low-cost AI provider orchestration to answer product questions in Arabic and English, send catalogs and images, support human handoff, and track analytics.
+CSCB is an early-stage multi-tenant WhatsApp customer service platform for small and mid-size businesses. It combines a Hono REST API, a Baileys WhatsApp bot, Convex-backed data and vector search, and low-cost AI provider orchestration to answer product questions in Arabic and English, send catalogs and images, support human handoff, and track analytics.
 
-The roadmap in `docs/project_roadmap` was written before the current codebase existed. Treat it as intent, not as an exact description of what should be built today.
+The roadmap in `docs/project_roadmap` was written before the current codebase existed. Treat it as intent, not as an exact description of what should be built today. When working from the roadmap, align the implementation with the current codebase and the documents above rather than following stale steps literally.
 
 ## Core Priorities
 
@@ -34,6 +30,7 @@ The roadmap in `docs/project_roadmap` was written before the current codebase ex
 - Keep responses grounded in real data; avoid architecture that encourages hallucinated or partial state.
 - Preserve low operational cost without trading away robustness.
 - Prefer small, focused modular programming techniques over large monolithic systems.
+- When planning a step in the roadmap, split it to distinct mini-steps, run required bun commands at the end of each mini-step, then commit each one separately
 
 ## Maintainability
 
@@ -47,7 +44,7 @@ The roadmap in `docs/project_roadmap` was written before the current codebase ex
 
 - Read `docs/PROJECT_CHARTER_AND_VISION.md`.
 - Read `docs/SRS.md`.
-- When working from the roadmap, align the implementation with the current codebase and the documents above rather than following stale steps literally.
+
 
 ## Workspace Roles
 
@@ -67,10 +64,9 @@ The roadmap in `docs/project_roadmap` was written before the current codebase ex
 ## Working Rules
 
 - Keep code modular and files focused.
-- Prefer extending existing shared packages over app-local duplication.
 - Preserve strict type safety and existing test coverage expectations.
 - After schema-affecting Convex changes, regenerate code before finishing.
-- When planning a step in the roadmap, split it to distinct mini-steps, run required bun commands at the end of each mini-step, then commit each one separately
+
 
 ## Known Pitfalls
 
@@ -80,4 +76,5 @@ The roadmap in `docs/project_roadmap` was written before the current codebase ex
 - real product embedding regeneration in this repo cannot live inside a plain Convex mutation. Because Gemini embedding generation is an external API call, product create and update need an action that generates embeddings first and then hands the writes to an internal mutation so failed embeddings do not leave partial product state behind.
 - keep [scripts/opengrep-rules.test.ts](scripts/opengrep-rules.test.ts), [opengrep.yml](opengrep.yml), and [scripts/fixtures/opengrep/templates](scripts/fixtures/opengrep/templates) in sync. The regression suite now assumes every configured rule has matching positive and negative fixture templates.
 - keep Convex Vitest files on the `*.vitest.ts` suffix. If they use Bun's default `*.test.ts` pattern, raw root `bun test` will discover them and produce misleading cross-runner failures.
+- keep the root `test:convex` script pointed at [convex/vitest.config.ts](convex/vitest.config.ts). The root [vitest.config.ts](vitest.config.ts) does not carry the Convex alias setup, so switching `bun run test:convex` back to the root config will either miss `*.vitest.ts` files or fail module resolution for `@cs/*` imports.
 - when a shared package is imported by Vitest or edge-runtime code, do not eagerly runtime-import Bun-only APIs like `S3Client` from `'bun'`. Resolve them lazily at call time so non-Bun runners can still import shared constants and types.
