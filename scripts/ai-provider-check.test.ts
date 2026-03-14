@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { CHAT_PROVIDER_NAMES, type ChatProviderHealth, type ChatProviderName, type ChatRuntimeConfig } from '@cs/ai';
+import { type ChatProviderHealth, type ChatProviderName, type ChatRuntimeConfig } from '@cs/ai';
 import {
   type AdapterResolver,
   AIProviderCheckArgumentError,
@@ -62,7 +62,17 @@ describe("resolveRequestedProviders", () => {
       resolveRequestedProviders(["openai"], runtimeConfig.providerOrder),
     ).toThrow(
       new AIProviderCheckArgumentError(
-        `Unknown AI provider "openai". Expected one of: ${CHAT_PROVIDER_NAMES.join(", ")}`,
+        `Unknown AI provider "openai". Expected one of: ${runtimeConfig.providerOrder.join(", ")}`,
+      ),
+    );
+  });
+
+  test("throws for providers outside the configured allowlist", () => {
+    expect(() =>
+      resolveRequestedProviders(["groq"], ["gemini"]),
+    ).toThrow(
+      new AIProviderCheckArgumentError(
+        'Unknown AI provider "groq". Expected one of: gemini',
       ),
     );
   });

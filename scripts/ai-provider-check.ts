@@ -1,5 +1,4 @@
 import {
-  CHAT_PROVIDER_NAMES,
   type ChatProviderAdapter,
   type ChatProviderHealth,
   type ChatProviderName,
@@ -7,8 +6,6 @@ import {
   createChatRuntimeConfig,
   getChatProviderAdapter,
 } from '@cs/ai';
-
-const CHAT_PROVIDER_NAME_SET = new Set<ChatProviderName>(CHAT_PROVIDER_NAMES);
 
 export class AIProviderCheckArgumentError extends Error {
   constructor(message: string) {
@@ -31,6 +28,8 @@ export const resolveRequestedProviders = (
   args: string[],
   providerOrder: readonly ChatProviderName[],
 ): ChatProviderName[] => {
+  const allowedProviders = new Set<ChatProviderName>(providerOrder);
+
   if (args.length === 0) {
     return [...providerOrder];
   }
@@ -39,13 +38,14 @@ export const resolveRequestedProviders = (
   const seenProviders = new Set<ChatProviderName>();
 
   for (const provider of args) {
-    if (!CHAT_PROVIDER_NAME_SET.has(provider as ChatProviderName)) {
+    const normalizedProvider = provider as ChatProviderName;
+
+    if (!allowedProviders.has(normalizedProvider)) {
       throw new AIProviderCheckArgumentError(
-        `Unknown AI provider "${provider}". Expected one of: ${CHAT_PROVIDER_NAMES.join(", ")}`,
+        `Unknown AI provider "${provider}". Expected one of: ${providerOrder.join(", ")}`,
       );
     }
 
-    const normalizedProvider = provider as ChatProviderName;
     if (!seenProviders.has(normalizedProvider)) {
       seenProviders.add(normalizedProvider);
       uniqueProviders.push(normalizedProvider);
