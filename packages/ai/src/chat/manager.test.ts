@@ -482,6 +482,64 @@ describe("createChatProviderManager", () => {
     expect(calls).toEqual([]);
   });
 
+  test("prefers abort over request normalization when the caller signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort(new Error("caller aborted before normalization"));
+
+    const manager = createChatProviderManager({ runtimeConfig });
+
+    await expect(
+      manager.chat({ messages: [] }, { signal: controller.signal }),
+    ).rejects.toThrow("caller aborted before normalization");
+  });
+
+  test("does not resolve runtime config when the caller signal is already aborted", async () => {
+    let runtimeConfigCalls = 0;
+    const controller = new AbortController();
+    controller.abort(new Error("caller aborted before runtime config"));
+
+    const manager = createChatProviderManager({
+      runtimeConfig: () => {
+        runtimeConfigCalls += 1;
+        return runtimeConfig;
+      },
+    });
+
+    await expect(
+      manager.chat(request, { signal: controller.signal }),
+    ).rejects.toThrow("caller aborted before runtime config");
+    expect(runtimeConfigCalls).toBe(0);
+  });
+
+  test("rethrows caller aborts after a provider returns", async () => {
+    const calls: Array<{ provider: ChatProviderName; kind: "chat" | "healthCheck" }> = [];
+    const controller = new AbortController();
+    const manager = createChatProviderManager({
+      runtimeConfig,
+      resolveAdapter: createResolver(
+        {
+          deepseek: {
+            async chat() {
+              controller.abort(new Error("caller aborted during provider call"));
+              return createResponse("deepseek", "deepseek-chat");
+            },
+          },
+          gemini: {
+            async chat() {
+              return createResponse("gemini", "gemini-2.0-flash");
+            },
+          },
+        },
+        calls,
+      ),
+    });
+
+    await expect(
+      manager.chat(request, { signal: controller.signal }),
+    ).rejects.toThrow("caller aborted during provider call");
+    expect(calls).toEqual([{ provider: "deepseek", kind: "chat" }]);
+  });
+
   test("logs failover metadata without leaking prompts or secrets", async () => {
     const calls: Array<{ provider: ChatProviderName; kind: "chat" | "healthCheck" }> = [];
     const { logger, infoCalls, warnCalls } = createLoggerStub();
@@ -532,6 +590,117 @@ describe("createChatProviderManager", () => {
     expect(serializedLogs).not.toContain("deepseek-secret-key");
     expect(serializedLogs).toContain("company-1");
     expect(serializedLogs).toContain("conversation-1");
+  });
+
+  test("continues chat success flow when info logging throws", async () => {
+    const consoleWarnCalls: unknown[][] = [];
+    const originalConsoleWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      consoleWarnCalls.push(args);
+    };
+
+    try {
+      const manager = createChatProviderManager({
+        runtimeConfig,
+        logger: {
+          info() {
+            throw new Error("logger info failed");
+          },
+          warn() {
+            throw new Error("unexpected warn call");
+          },
+          error() {
+            throw new Error("unexpected error call");
+          },
+        },
+        resolveAdapter: createResolver(
+          {
+            deepseek: {
+              async chat() {
+                return createResponse("deepseek", "deepseek-chat");
+              },
+            },
+          },
+          [],
+        ),
+      });
+
+      await expect(manager.chat(request)).resolves.toEqual(
+        createResponse("deepseek", "deepseek-chat"),
+      );
+      expect(consoleWarnCalls).toEqual([
+        [
+          "chat manager logging failed",
+          {
+            level: "info",
+            message: "ai provider request succeeded",
+            error: "logger info failed",
+          },
+        ],
+      ]);
+    } finally {
+      console.warn = originalConsoleWarn;
+    }
+  });
+
+  test("continues failover flow when warn logging throws", async () => {
+    const consoleWarnCalls: unknown[][] = [];
+    const originalConsoleWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      consoleWarnCalls.push(args);
+    };
+
+    try {
+      const manager = createChatProviderManager({
+        runtimeConfig,
+        logger: {
+          info() {
+            return undefined;
+          },
+          warn() {
+            throw new Error("logger warn failed");
+          },
+          error() {
+            throw new Error("unexpected error call");
+          },
+        },
+        resolveAdapter: createResolver(
+          {
+            deepseek: {
+              async chat() {
+                throw createChatProviderError({
+                  provider: "deepseek",
+                  kind: "rate_limit",
+                  message: "DeepSeek throttled",
+                });
+              },
+            },
+            gemini: {
+              async chat() {
+                return createResponse("gemini", "gemini-2.0-flash");
+              },
+            },
+          },
+          [],
+        ),
+      });
+
+      await expect(manager.chat(request)).resolves.toEqual(
+        createResponse("gemini", "gemini-2.0-flash"),
+      );
+      expect(consoleWarnCalls).toEqual([
+        [
+          "chat manager logging failed",
+          {
+            level: "warn",
+            message: "ai provider request failed; failing over to next provider",
+            error: "logger warn failed",
+          },
+        ],
+      ]);
+    } finally {
+      console.warn = originalConsoleWarn;
+    }
   });
 
   test("returns provider probes in the requested order and warns when any are unhealthy", async () => {
@@ -607,6 +776,201 @@ describe("createChatProviderManager", () => {
         context: { feature: "startup-check" },
       },
     });
+  });
+
+  test("continues probe flow when logging throws", async () => {
+    const consoleWarnCalls: unknown[][] = [];
+    const originalConsoleWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      consoleWarnCalls.push(args);
+    };
+
+    try {
+      const manager = createChatProviderManager({
+        runtimeConfig,
+        logger: {
+          info() {
+            throw new Error("unexpected info call");
+          },
+          warn() {
+            throw new Error("logger warn failed");
+          },
+          error() {
+            throw new Error("unexpected error call");
+          },
+        },
+        resolveAdapter: createResolver(
+          {
+            gemini: {
+              async healthCheck() {
+                return {
+                  provider: "gemini",
+                  ok: false,
+                  model: "gemini-2.0-flash",
+                  error: createChatProviderError({
+                    provider: "gemini",
+                    kind: "unavailable",
+                    message: "Gemini unavailable",
+                    disposition: "failover_provider",
+                  }),
+                };
+              },
+            },
+          },
+          [],
+        ),
+      });
+
+      await expect(
+        manager.probeProviders({ providers: ["gemini"] }),
+      ).resolves.toEqual([
+        {
+          provider: "gemini",
+          ok: false,
+          model: "gemini-2.0-flash",
+          error: expect.objectContaining({
+            message: "Gemini unavailable",
+          }),
+        },
+      ]);
+      expect(consoleWarnCalls).toEqual([
+        [
+          "chat manager logging failed",
+          {
+            level: "warn",
+            message: "ai provider probes completed with unhealthy providers",
+            error: "logger warn failed",
+          },
+        ],
+      ]);
+    } finally {
+      console.warn = originalConsoleWarn;
+    }
+  });
+
+  test("continues terminal error flow when error logging throws", async () => {
+    const consoleWarnCalls: unknown[][] = [];
+    const originalConsoleWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      consoleWarnCalls.push(args);
+    };
+
+    try {
+      const manager = createChatProviderManager({
+        runtimeConfig,
+        logger: {
+          info() {
+            throw new Error("unexpected info call");
+          },
+          warn() {
+            throw new Error("unexpected warn call");
+          },
+          error() {
+            throw new Error("logger error failed");
+          },
+        },
+        resolveAdapter: createResolver(
+          {
+            deepseek: {
+              async chat() {
+                throw createChatProviderError({
+                  provider: "deepseek",
+                  kind: "authentication",
+                  message: "DeepSeek key rejected",
+                });
+              },
+            },
+          },
+          [],
+        ),
+      });
+
+      await expect(manager.chat(request)).rejects.toMatchObject({
+        name: "ChatProviderChainError",
+        terminalProvider: "deepseek",
+        terminalDisposition: "do_not_retry",
+      });
+      expect(consoleWarnCalls).toEqual([
+        [
+          "chat manager logging failed",
+          {
+            level: "error",
+            message: "ai provider request failed",
+            error: "logger error failed",
+          },
+        ],
+      ]);
+    } finally {
+      console.warn = originalConsoleWarn;
+    }
+  });
+
+  test("stops probeProviders before launching health checks when the caller signal is already aborted", async () => {
+    const calls: Array<{ provider: ChatProviderName; kind: "chat" | "healthCheck" }> = [];
+    const controller = new AbortController();
+    controller.abort(new Error("probe aborted"));
+    const manager = createChatProviderManager({
+      runtimeConfig,
+      resolveAdapter: createResolver(
+        {
+          deepseek: {
+            async healthCheck() {
+              return {
+                provider: "deepseek",
+                ok: true,
+                model: "deepseek-chat",
+              };
+            },
+          },
+        },
+        calls,
+      ),
+    });
+
+    await expect(
+      manager.probeProviders({ signal: controller.signal }),
+    ).rejects.toThrow("probe aborted");
+    expect(calls).toEqual([]);
+  });
+
+  test("rethrows probe aborts after a health check returns", async () => {
+    const calls: Array<{ provider: ChatProviderName; kind: "chat" | "healthCheck" }> = [];
+    const controller = new AbortController();
+    const manager = createChatProviderManager({
+      runtimeConfig,
+      resolveAdapter: createResolver(
+        {
+          deepseek: {
+            async healthCheck() {
+              controller.abort(new Error("probe aborted during health check"));
+              return {
+                provider: "deepseek",
+                ok: true,
+                model: "deepseek-chat",
+              };
+            },
+          },
+          gemini: {
+            async healthCheck() {
+              return {
+                provider: "gemini",
+                ok: true,
+                model: "gemini-2.0-flash",
+              };
+            },
+          },
+        },
+        calls,
+      ),
+    });
+
+    await expect(
+      manager.probeProviders({
+        providers: ["deepseek", "gemini"],
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow("probe aborted during health check");
+    expect(calls).toContainEqual({ provider: "deepseek", kind: "healthCheck" });
   });
 
   test("throws for invalid probe provider names", async () => {
