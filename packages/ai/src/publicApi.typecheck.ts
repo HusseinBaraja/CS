@@ -1,4 +1,26 @@
-import type { ChatCallOptions, ChatProviderAdapter, ChatRequest, ChatResponse } from './index';
+import {
+  type AssistantActionType,
+  type AssistantStructuredOutput,
+  type BuildGroundedChatPromptInput,
+  type BuiltGroundedChatPrompt,
+  type ChatCallOptions,
+  type ChatLanguage,
+  type ChatManagerCallOptions,
+  type ChatProviderAdapter,
+  type ChatProviderAttemptFailure,
+  type ChatProviderProbeOptions,
+  type ChatRequest,
+  type ChatResponse,
+  type DetectedChatLanguage,
+  type GroundingContextBlock,
+  type LanguageDetectionResult,
+  type LanguageResolutionOptions,
+  type PromptHistoryTurn,
+  buildGroundedChatPrompt,
+  createChatProviderManager,
+  detectChatLanguage,
+  resolveChatResponseLanguage,
+} from './index';
 
 const request: ChatRequest = {
   messages: [
@@ -39,7 +61,86 @@ const callOptions: ChatCallOptions = {
   maxRetries: 1,
 };
 
+const managerCallOptions: ChatManagerCallOptions = {
+  timeoutMs: 2_000,
+  maxRetriesPerProvider: 1,
+  logContext: {
+    companyId: "company-1",
+  },
+};
+
+const probeOptions: ChatProviderProbeOptions = {
+  providers: ["deepseek", "gemini"],
+  timeoutMs: 2_000,
+  maxRetries: 1,
+};
+
+const failure: ChatProviderAttemptFailure = {
+  provider: "gemini",
+  kind: "unavailable",
+  disposition: "failover_provider",
+  message: "provider unavailable",
+};
+
+const language: ChatLanguage = "ar";
+const detectedLanguage: DetectedChatLanguage = "mixed";
+const languageOptions: LanguageResolutionOptions = {
+  preferredLanguage: "en",
+};
+const detectionResult: LanguageDetectionResult = detectChatLanguage("hello", languageOptions);
+const responseLanguage = resolveChatResponseLanguage({
+  classification: detectedLanguage,
+  arabicCharCount: 1,
+  englishCharCount: 2,
+  preferredLanguage: language,
+});
+const actionType: AssistantActionType = "clarify";
+const groundingContext: GroundingContextBlock[] = [
+  {
+    id: "product-1",
+    heading: "Burger Box",
+    body: "Sizes: S, M, L",
+  },
+];
+const conversationHistory: PromptHistoryTurn[] = [
+  {
+    role: "user",
+    text: "hello",
+  },
+];
+const promptInput: BuildGroundedChatPromptInput = {
+  responseLanguage: "en",
+  customerMessage: "Need burger boxes",
+  groundingContext,
+  conversationHistory,
+};
+const builtPrompt: BuiltGroundedChatPrompt = buildGroundedChatPrompt(promptInput);
+const structuredOutput: AssistantStructuredOutput = {
+  schemaVersion: "v1",
+  text: "Please clarify which size you need.",
+  action: {
+    type: actionType,
+  },
+};
+
+const manager = createChatProviderManager();
+
 void request;
 void response;
 void adapter;
 void callOptions;
+void managerCallOptions;
+void probeOptions;
+void failure;
+void language;
+void detectedLanguage;
+void languageOptions;
+void detectionResult;
+void responseLanguage;
+void actionType;
+void groundingContext;
+void conversationHistory;
+void promptInput;
+void builtPrompt;
+void structuredOutput;
+void manager;

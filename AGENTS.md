@@ -70,6 +70,7 @@ The roadmap in `docs/project_roadmap` was written before the current codebase ex
 - Prefer extending existing shared packages over app-local duplication.
 - Preserve strict type safety and existing test coverage expectations.
 - After schema-affecting Convex changes, regenerate code before finishing.
+- When planning a step in the roadmap, split it to distinct mini-steps, run required bun commands at the end of each mini-step, then commit each one separately
 
 ## Known Pitfalls
 
@@ -77,4 +78,6 @@ The roadmap in `docs/project_roadmap` was written before the current codebase ex
 - on the current Convex version in this repo, `ctx.vectorSearch(...).filter(...)` supports `q.eq(...)` and `q.or(...)`, but not multi-field `AND`. If you need exact ANN filtering across multiple dimensions like `companyId + language`, add a combined filter field such as `companyLanguage` and register that as the vector index `filterField`.
 - on Convex `1.32.0` in this repo there is no schema-level unique index or constraint API for `defineTable(...)`. If you need singleton semantics, enforce them with a narrow indexed query inside a mutation plus an explicit lock or lease document, rather than assuming `.index(...)` can guarantee uniqueness.
 - real product embedding regeneration in this repo cannot live inside a plain Convex mutation. Because Gemini embedding generation is an external API call, product create and update need an action that generates embeddings first and then hands the writes to an internal mutation so failed embeddings do not leave partial product state behind.
-- keep [scripts/opengrep-rules.test.ts](/Users/Hussein/Desktop/Things/Zerone/Projects/CS/scripts/opengrep-rules.test.ts), [opengrep.yml](/Users/Hussein/Desktop/Things/Zerone/Projects/CS/opengrep.yml), and [scripts/fixtures/opengrep/templates](/Users/Hussein/Desktop/Things/Zerone/Projects/CS/scripts/fixtures/opengrep/templates) in sync. The regression suite now assumes every configured rule has matching positive and negative fixture templates.
+- keep [scripts/opengrep-rules.test.ts](scripts/opengrep-rules.test.ts), [opengrep.yml](opengrep.yml), and [scripts/fixtures/opengrep/templates](scripts/fixtures/opengrep/templates) in sync. The regression suite now assumes every configured rule has matching positive and negative fixture templates.
+- keep Convex Vitest files on the `*.vitest.ts` suffix. If they use Bun's default `*.test.ts` pattern, raw root `bun test` will discover them and produce misleading cross-runner failures.
+- when a shared package is imported by Vitest or edge-runtime code, do not eagerly runtime-import Bun-only APIs like `S3Client` from `'bun'`. Resolve them lazily at call time so non-Bun runners can still import shared constants and types.

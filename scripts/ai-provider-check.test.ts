@@ -145,7 +145,7 @@ describe("runProviderHealthChecks", () => {
     ]);
   });
 
-  test("captures unexpected thrown errors as unhealthy results", async () => {
+  test("captures unexpected thrown errors as unhealthy probe results", async () => {
     const results = await runProviderHealthChecks(
       ["groq"],
       runtimeConfig,
@@ -158,7 +158,12 @@ describe("runProviderHealthChecks", () => {
       {
         provider: "groq",
         ok: false,
-        errorMessage: "socket failed",
+        model: "llama-3.3-70b-versatile",
+        error: expect.objectContaining({
+          kind: "unknown",
+          disposition: "do_not_retry",
+          message: "socket failed",
+        }),
       },
     ]);
   });
@@ -193,24 +198,20 @@ describe("formatProviderHealth", () => {
       "FAIL deepseek model=deepseek-chat errorKind=configuration disposition=do_not_retry message=\"Missing API key for deepseek\"",
     );
   });
-
-  test("formats fallback unhealthy results from unexpected exceptions", () => {
-    expect(
-      formatProviderHealth({
-        provider: "groq",
-        ok: false,
-        errorMessage: "socket failed",
-      }),
-    ).toBe("FAIL groq message=\"socket failed\"");
-  });
-
   test("escapes backslashes, quotes, and control characters in messages", () => {
     expect(
       formatProviderHealth({
         provider: "groq",
         ok: false,
-        errorMessage: "path\\to\nrow\rcol\t\"quoted\"",
+        error: {
+          name: "ChatProviderError",
+          message: "path\\to\nrow\rcol\t\"quoted\"",
+          kind: "unknown",
+          disposition: "do_not_retry",
+        } as ChatProviderHealth["error"],
       }),
-    ).toBe("FAIL groq message=\"path\\\\to\\nrow\\rcol\\t\\\"quoted\\\"\"");
+    ).toBe(
+      "FAIL groq errorKind=unknown disposition=do_not_retry message=\"path\\\\to\\nrow\\rcol\\t\\\"quoted\\\"\"",
+    );
   });
 });

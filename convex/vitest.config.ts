@@ -18,7 +18,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["**/*.test.{ts,js}"],
+    include: ["**/*.vitest.{ts,js}"],
     environment: "edge-runtime",
   },
 });

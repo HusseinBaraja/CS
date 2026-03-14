@@ -155,11 +155,14 @@ These model ids are examples already used in this repo’s tests and docs. Treat
 - A provider left in `AI_PROVIDER_ORDER` but missing its API key or model will report as misconfigured.
 - Leaving a provider fully blank is fine if you also remove it from `AI_PROVIDER_ORDER`.
 - `DEEPSEEK_BASE_URL` should usually stay blank unless you know you need to override it.
+- These health checks now run through the shared AI provider manager probes used by the failover layer.
+- Probe results are informational only. They do not automatically reorder providers or disable a provider for later chat calls.
+- Actual chat requests still follow the deterministic order from `AI_PROVIDER_ORDER`.
 - This check only verifies provider authentication and request acceptance. It does not verify retrieval, prompting, or bot orchestration.
 
 ## How To Test Provider Connections
 
-The repo now includes a smoke-test command that calls the internal provider health checks directly:
+The repo now includes a smoke-test command that calls the shared AI provider manager probes directly:
 
 ```powershell
 bun run check:ai

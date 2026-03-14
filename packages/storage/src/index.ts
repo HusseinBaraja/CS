@@ -1,4 +1,3 @@
-import { S3Client } from 'bun';
 import { createConfig, requireConfigValue } from '@cs/config';
 import { AppError, ERROR_CODES } from '@cs/shared';
 
@@ -32,6 +31,31 @@ export interface StoredObjectStat {
   lastModified?: Date;
 }
 
+interface R2StorageFile {
+  presign(options: Record<string, unknown>): string;
+  exists(): Promise<boolean>;
+  stat(): Promise<{
+    etag?: string;
+    size: number;
+    type?: string;
+    lastModified?: Date;
+  }>;
+  delete(): Promise<void>;
+}
+
+interface R2StorageClient {
+  file(key: string): R2StorageFile;
+}
+
+interface BunGlobalLike {
+  S3Client: new (options: {
+    bucket: string;
+    endpoint: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+  }) => R2StorageClient;
+}
+
 export interface ObjectStorage {
   createPresignedUpload(request: PresignedUploadRequest): Promise<{ url: string; expiresAt: string }>;
   createPresignedDownload(
@@ -47,7 +71,7 @@ export interface R2StorageOptions {
     endpoint: string;
     accessKeyId: string;
     secretAccessKey: string;
-  }) => S3Client;
+  }) => R2StorageClient;
   now?: () => number;
 }
 
@@ -59,10 +83,20 @@ export class StorageError extends AppError {
 
 const toIsoExpiry = (now: number, expiresIn: number) => new Date(now + expiresIn * 1000).toISOString();
 
+const createDefaultStorageClient: NonNullable<R2StorageOptions["createClient"]> = (options) => {
+  const bunGlobal = (globalThis as typeof globalThis & { Bun?: BunGlobalLike }).Bun;
+  const S3Client = bunGlobal?.S3Client;
+  if (!S3Client) {
+    throw new Error("Bun S3Client is unavailable in this runtime");
+  }
+
+  return new S3Client(options);
+};
+
 const createStorageClient = (
   runtimeEnv: Record<string, string | number | boolean | undefined> = process.env,
-  createClient: NonNullable<R2StorageOptions["createClient"]> = (options) => new S3Client(options),
-): S3Client => {
+  createClient: NonNullable<R2StorageOptions["createClient"]> = createDefaultStorageClient,
+): R2StorageClient => {
   const config = createConfig(runtimeEnv);
 
   return createClient({
@@ -86,7 +120,7 @@ const normalizeStorageFailure = (
 
 export const createR2Storage = (options: R2StorageOptions = {}): ObjectStorage => {
   const now = options.now ?? Date.now;
-  let client: S3Client | undefined;
+  let client: R2StorageClient | undefined;
 
   const getClient = () => {
     client ??= createStorageClient(process.env, options.createClient);
