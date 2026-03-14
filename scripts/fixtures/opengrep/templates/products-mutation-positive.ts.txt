@@ -1,0 +1,7 @@
+export const saveProduct = async (client: {
+  mutation: (...args: unknown[]) => Promise<unknown>;
+}) => {
+  return client.mutation(convexInternal.products.create, {
+    name: "Burger Box",
+  });
+};
