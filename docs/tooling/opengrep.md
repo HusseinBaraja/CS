@@ -13,12 +13,12 @@ The initial ruleset focuses on:
 
 ## What It Checks in This Repo
 
-The root [`opengrep.yml`](/C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/opengrep.yml) ruleset currently looks for:
+The root [`opengrep.yml`](opengrep.yml) ruleset currently looks for:
 
 - `eval(...)` and `new Function(...)`
 - direct `process.env` reads outside approved boundaries
-- `convex/browser` imports outside [`packages/db/src`](/C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/packages/db/src)
-- `setAdminAuth(...)` outside [`packages/db/src/client.ts`](/C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/packages/db/src/client.ts)
+- `convex/browser` imports outside [`packages/db/src`](packages/db/src)
+- `setAdminAuth(...)` outside [`packages/db/src/client.ts`](packages/db/src/client.ts)
 - eager `createConvexAdminClient(...)` setup in API module scope
 - `fetch(...)` inside Convex mutations
 - `generateGeminiEmbeddings(...)` inside Convex mutations
@@ -77,11 +77,11 @@ Run it immediately after editing any of these areas:
 - environment or config loading
 - database or storage client boundaries
 
-Docs-only changes usually do not need OpenGrep unless they also touch [`opengrep.yml`](/C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/opengrep.yml), [`.coderabbit.yaml`](/C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/.coderabbit.yaml), or this guide.
+Docs-only changes usually do not need OpenGrep unless they also touch [`opengrep.yml`](opengrep.yml), [`.coderabbit.yaml`](.coderabbit.yaml), or this guide.
 
 ## CodeRabbit PR Behavior
 
-CodeRabbit reads the root [`.coderabbit.yaml`](/C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/.coderabbit.yaml) file during PR review. That configuration enables the OpenGrep tool, and CodeRabbit then uses the repo’s root [`opengrep.yml`](/C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/opengrep.yml) ruleset when reviewing pull requests.
+CodeRabbit reads the root [`.coderabbit.yaml`](.coderabbit.yaml) file during PR review. That configuration enables the OpenGrep tool, and CodeRabbit then uses the repo’s root [`opengrep.yml`](opengrep.yml) ruleset when reviewing pull requests.
 
 Use the local command before pushing to reduce avoidable PR review churn:
 
