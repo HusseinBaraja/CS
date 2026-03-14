@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  buildGroundedChatPrompt,
   createChatProviderManager,
   detectChatLanguage,
   getChatProviderAdapter,
@@ -20,5 +21,9 @@ describe("@cs/ai public API", () => {
   test("exports language policy helpers", () => {
     expect(typeof detectChatLanguage).toBe("function");
     expect(typeof resolveChatResponseLanguage).toBe("function");
+  });
+
+  test("exports prompt policy helpers", () => {
+    expect(typeof buildGroundedChatPrompt).toBe("function");
   });
 });

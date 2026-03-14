@@ -10,6 +10,7 @@ export { createChatRuntimeConfig } from "./chat/runtimeConfig";
 export { ChatProviderError } from "./chat/errors";
 export { ChatProviderChainError, createChatProviderManager } from "./chat/manager";
 export { detectChatLanguage, resolveChatResponseLanguage } from "./chat/language";
+export { buildGroundedChatPrompt } from "./chat/prompt";
 
 export type {
   ChatCallOptions,
@@ -33,6 +34,14 @@ export type {
   LanguageResolutionOptions,
   ResolveChatResponseLanguageInput,
 } from "./chat/language";
+export type {
+  AssistantActionType,
+  AssistantStructuredOutput,
+  BuildGroundedChatPromptInput,
+  BuiltGroundedChatPrompt,
+  GroundingContextBlock,
+  PromptHistoryTurn,
+} from "./chat/promptContracts";
 export type {
   ChatProviderErrorDisposition,
   ChatProviderErrorKind,

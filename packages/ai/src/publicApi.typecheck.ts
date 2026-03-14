@@ -1,4 +1,8 @@
 import {
+  type AssistantActionType,
+  type AssistantStructuredOutput,
+  type BuildGroundedChatPromptInput,
+  type BuiltGroundedChatPrompt,
   type ChatCallOptions,
   type ChatLanguage,
   type ChatManagerCallOptions,
@@ -8,8 +12,11 @@ import {
   type ChatRequest,
   type ChatResponse,
   type DetectedChatLanguage,
+  type GroundingContextBlock,
   type LanguageDetectionResult,
   type LanguageResolutionOptions,
+  type PromptHistoryTurn,
+  buildGroundedChatPrompt,
   createChatProviderManager,
   detectChatLanguage,
   resolveChatResponseLanguage,
@@ -87,6 +94,34 @@ const responseLanguage = resolveChatResponseLanguage({
   englishCharCount: 2,
   preferredLanguage: language,
 });
+const actionType: AssistantActionType = "clarify";
+const groundingContext: GroundingContextBlock[] = [
+  {
+    id: "product-1",
+    heading: "Burger Box",
+    body: "Sizes: S, M, L",
+  },
+];
+const conversationHistory: PromptHistoryTurn[] = [
+  {
+    role: "user",
+    text: "hello",
+  },
+];
+const promptInput: BuildGroundedChatPromptInput = {
+  responseLanguage: "en",
+  customerMessage: "Need burger boxes",
+  groundingContext,
+  conversationHistory,
+};
+const builtPrompt: BuiltGroundedChatPrompt = buildGroundedChatPrompt(promptInput);
+const structuredOutput: AssistantStructuredOutput = {
+  schemaVersion: "v1",
+  text: "Please clarify which size you need.",
+  action: {
+    type: actionType,
+  },
+};
 
 const manager = createChatProviderManager();
 
@@ -102,4 +137,10 @@ void detectedLanguage;
 void languageOptions;
 void detectionResult;
 void responseLanguage;
+void actionType;
+void groundingContext;
+void conversationHistory;
+void promptInput;
+void builtPrompt;
+void structuredOutput;
 void manager;

@@ -1,11 +1,13 @@
 import type {
+  BuildGroundedChatPromptInput,
+  BuiltGroundedChatPrompt,
   ChatLanguage,
   ChatProviderAdapter,
   ChatRequest,
   ChatResponse,
   LanguageDetectionResult,
 } from '@cs/ai';
-import { detectChatLanguage } from '@cs/ai';
+import { buildGroundedChatPrompt, detectChatLanguage } from '@cs/ai';
 
 const request: ChatRequest = {
   messages: [
@@ -43,9 +45,16 @@ const language: ChatLanguage = "ar";
 const detection: LanguageDetectionResult = detectChatLanguage("مرحبا", {
   preferredLanguage: language,
 });
+const promptInput: BuildGroundedChatPromptInput = {
+  responseLanguage: language,
+  customerMessage: "مرحبا",
+};
+const prompt: BuiltGroundedChatPrompt = buildGroundedChatPrompt(promptInput);
 
 void request;
 void response;
 void adapter;
 void language;
 void detection;
+void promptInput;
+void prompt;

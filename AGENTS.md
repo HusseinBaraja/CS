@@ -70,6 +70,7 @@ The roadmap in `docs/project_roadmap` was written before the current codebase ex
 - Prefer extending existing shared packages over app-local duplication.
 - Preserve strict type safety and existing test coverage expectations.
 - After schema-affecting Convex changes, regenerate code before finishing.
+- When planning a step in the roadmap, split it to distinct mini-steps, run required bun commands at the end of each mini-step, then commit each one separately
 
 ## Known Pitfalls
 
