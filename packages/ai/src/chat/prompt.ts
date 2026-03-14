@@ -16,25 +16,26 @@ const getTargetLanguageInstruction = (
     ? "Respond to the customer in Arabic."
     : "Respond to the customer in English.";
 
-const serializeContextBlock = (block: GroundingContextBlock): string =>
-  [
-    `<CONTEXT_BLOCK id="${block.id}">`,
-    `<HEADING>${block.heading}</HEADING>`,
-    `<BODY>${block.body}</BODY>`,
-    "</CONTEXT_BLOCK>",
-  ].join("\n");
-
-const escapePromptXmlText = (value: string): string =>
+const escapeForDelimiter = (value: string): string =>
   value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+
+const serializeContextBlock = (block: GroundingContextBlock): string =>
+  [
+    `<CONTEXT_BLOCK id="${escapeForDelimiter(block.id)}">`,
+    `<HEADING>${escapeForDelimiter(block.heading)}</HEADING>`,
+    `<BODY>${escapeForDelimiter(block.body)}</BODY>`,
+    "</CONTEXT_BLOCK>",
+  ].join("\n");
 
 const buildUserPrompt = (input: BuildGroundedChatPromptInput): string => {
   const serializedContext = input.groundingContext && input.groundingContext.length > 0
     ? input.groundingContext.map(serializeContextBlock).join("\n")
     : NO_GROUNDED_CONTEXT_AVAILABLE;
-  const customerMessage = escapePromptXmlText(input.customerMessage);
+  const customerMessage = escapeForDelimiter(input.customerMessage);
 
   return [
     "<GROUNDING_CONTEXT>",
