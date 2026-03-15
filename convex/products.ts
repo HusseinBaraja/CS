@@ -906,12 +906,14 @@ export const getManyForRag = internalQuery({
 
     const results = await Promise.all(
       uniqueProductIds.map(async (productId): Promise<ProductDetailDto | null> => {
-        const product = await getScopedProduct(ctx, args.companyId, productId);
+        const [product, variants] = await Promise.all([
+          getScopedProduct(ctx, args.companyId, productId),
+          getProductVariants(ctx, productId),
+        ]);
         if (!product) {
           return null;
         }
 
-        const variants = await getProductVariants(ctx, productId);
         return mapProductDetail(product, variants);
       }),
     );

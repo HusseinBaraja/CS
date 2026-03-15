@@ -3,18 +3,7 @@ import type {
   AssistantStructuredOutput,
   ParseAssistantStructuredOutputOptions,
 } from './promptContracts';
-
-const DEFAULT_ALLOWED_ACTIONS: readonly AssistantActionType[] = ["none", "clarify", "handoff"];
-
-const getAllowedActions = (
-  options: ParseAssistantStructuredOutputOptions | undefined,
-): readonly AssistantActionType[] => {
-  if (!options?.allowedActions || options.allowedActions.length === 0) {
-    return DEFAULT_ALLOWED_ACTIONS;
-  }
-
-  return Array.from(new Set(options.allowedActions));
-};
+import { getAllowedActions } from './actions';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -54,7 +43,7 @@ export const parseAssistantStructuredOutput = (
     throw new Error("Assistant structured output action must be an object");
   }
 
-  const allowedActions = getAllowedActions(options);
+  const allowedActions = getAllowedActions(options?.allowedActions);
   if (
     typeof parsed.action.type !== "string" ||
     !allowedActions.includes(parsed.action.type as AssistantActionType)

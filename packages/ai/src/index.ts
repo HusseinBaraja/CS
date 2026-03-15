@@ -11,6 +11,7 @@ export { ChatProviderError } from "./chat/errors";
 export { ChatProviderChainError, createChatProviderManager } from "./chat/manager";
 export { detectChatLanguage, resolveChatResponseLanguage } from "./chat/language";
 export { buildGroundedChatPrompt } from "./chat/prompt";
+export { DEFAULT_ALLOWED_ACTIONS, getAllowedActions } from "./chat/actions";
 export { parseAssistantStructuredOutput } from "./chat/output";
 
 export type {

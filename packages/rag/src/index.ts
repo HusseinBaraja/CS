@@ -4,11 +4,12 @@ import {
   type ChatLanguage,
   type ChatProviderManager,
   type ChatResponse,
-  GEMINI_EMBEDDING_DIMENSIONS,
   buildGroundedChatPrompt,
   createChatProviderManager,
   detectChatLanguage,
   generateGeminiEmbedding,
+  getAllowedActions,
+  GEMINI_EMBEDDING_DIMENSIONS,
   type GroundingContextBlock,
   type LanguageDetectionResult,
   parseAssistantStructuredOutput,
@@ -212,7 +213,6 @@ export interface CreateCatalogChatOrchestratorOptions {
   logger?: CatalogChatLogger;
 }
 
-const DEFAULT_ALLOWED_ACTIONS: readonly AssistantActionType[] = ["none", "clarify", "handoff"];
 const MAX_PROVIDER_TEXT_PREVIEW_LENGTH = 500;
 
 const normalizePositiveInteger = (value: number | undefined, fallback: number): number => {
@@ -534,11 +534,6 @@ export const createProductRetrievalService = (
     },
   };
 };
-
-const getAllowedActions = (
-  allowedActions: readonly AssistantActionType[] | undefined,
-): readonly AssistantActionType[] =>
-  allowedActions && allowedActions.length > 0 ? Array.from(new Set(allowedActions)) : DEFAULT_ALLOWED_ACTIONS;
 
 const buildProviderTextPreview = (text: string): string =>
   text.length <= MAX_PROVIDER_TEXT_PREVIEW_LENGTH

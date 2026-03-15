@@ -157,6 +157,30 @@ describe("@cs/rag", () => {
     });
   });
 
+  test("passes a non-default maxResults through to Convex vector search", async () => {
+    const { client, calls } = createClientStub({
+      action: async () => [],
+    });
+    const service = createProductRetrievalService({
+      createClient: () => client,
+      generateEmbedding: async () => Array.from({ length: 768 }, () => 1),
+    });
+
+    await service.retrieveCatalogContext({
+      companyId: COMPANY_ID,
+      query: "burger",
+      language: "en",
+      maxResults: 3,
+    });
+
+    expect(calls.actions[0]?.args).toEqual({
+      companyId: COMPANY_ID,
+      language: "en",
+      embedding: Array.from({ length: 768 }, () => 1),
+      count: 3,
+    });
+  });
+
   test("returns grounded English retrieval with deterministic context blocks", async () => {
     const { client, calls } = createClientStub({
       action: async () => [

@@ -5,7 +5,7 @@ describe("parseAssistantStructuredOutput", () => {
   test("accepts valid minimal v1 structured output", () => {
     expect(
       parseAssistantStructuredOutput(
-        '{"schemaVersion":"v1","text":"We have burger boxes available.","action":{"type":"none"}}',
+        '{"schemaVersion":"v1","text":"  We have burger boxes available.  ","action":{"type":"none"}}',
       ),
     ).toEqual({
       schemaVersion: "v1",

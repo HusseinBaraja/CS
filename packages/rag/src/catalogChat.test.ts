@@ -239,9 +239,17 @@ describe("createCatalogChatOrchestrator", () => {
         companyId: COMPANY_ID,
       },
       userMessage: "عندكم علب برجر؟",
+      retrieval: {
+        maxResults: 2,
+        maxContextBlocks: 1,
+        minScore: 0.8,
+      },
     });
 
     expect((retrievalCalls[0] as { language: string }).language).toBe("ar");
+    expect((retrievalCalls[0] as { maxResults: number }).maxResults).toBe(2);
+    expect((retrievalCalls[0] as { maxContextBlocks: number }).maxContextBlocks).toBe(1);
+    expect((retrievalCalls[0] as { minScore: number }).minScore).toBe(0.8);
     expect(promptInput?.responseLanguage).toBe("ar");
     expect(result.language.responseLanguage).toBe("ar");
   });

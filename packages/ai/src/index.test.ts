@@ -3,6 +3,7 @@ import {
   buildGroundedChatPrompt,
   createChatProviderManager,
   detectChatLanguage,
+  getAllowedActions,
   getChatProviderAdapter,
   parseAssistantStructuredOutput,
   resolveChatResponseLanguage,
@@ -30,5 +31,6 @@ describe("@cs/ai public API", () => {
 
   test("exports structured output helpers", () => {
     expect(typeof parseAssistantStructuredOutput).toBe("function");
+    expect(typeof getAllowedActions).toBe("function");
   });
 });

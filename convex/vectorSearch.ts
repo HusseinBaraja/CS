@@ -1,3 +1,4 @@
+import { GEMINI_EMBEDDING_DIMENSIONS } from '@cs/ai';
 import { internal } from './_generated/api';
 import { action, internalAction, internalQuery } from './_generated/server';
 import { v } from 'convex/values';
@@ -84,9 +85,9 @@ const runVectorSearchByEmbedding: (
   if (args.count <= 0) {
     throw new Error("count must be positive");
   }
-  if (args.embedding.length !== 768) {
+  if (args.embedding.length !== GEMINI_EMBEDDING_DIMENSIONS) {
     throw new Error(
-      `embedding must have 768 dimensions, got ${args.embedding.length}`,
+      `embedding must have ${GEMINI_EMBEDDING_DIMENSIONS} dimensions, got ${args.embedding.length}`,
     );
   }
   const results = await ctx.vectorSearch("embeddings", "by_embedding", {

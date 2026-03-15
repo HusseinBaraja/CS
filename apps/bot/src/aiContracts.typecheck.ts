@@ -135,7 +135,9 @@ const catalogChatInput: CatalogChatInput = {
   userMessage: "مرحبا",
   requestId: "request-1",
 };
-const catalogChatResultPromise: Promise<CatalogChatResult> = orchestrator.respond(catalogChatInput);
+const createCatalogChatPromise = (): Promise<CatalogChatResult> => orchestrator.respond(catalogChatInput);
+const catalogChatResultPromise: Promise<CatalogChatResult> =
+  undefined as unknown as ReturnType<typeof createCatalogChatPromise>;
 const assistant: AssistantStructuredOutput = {
   schemaVersion: "v1",
   text: "ready",
@@ -156,5 +158,6 @@ void retrievalService;
 void chatManager;
 void orchestrator;
 void catalogChatInput;
+void createCatalogChatPromise;
 void catalogChatResultPromise;
 void assistant;
