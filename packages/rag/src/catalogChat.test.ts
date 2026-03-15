@@ -6,8 +6,11 @@ import {
   type ChatResponse,
   type ChatRuntimeConfig,
 } from '@cs/ai';
-import type { ProductRetrievalService, RetrieveCatalogContextResult } from './index';
+import type { Id } from '@cs/db';
+import type { CatalogChatLogger, ProductRetrievalService, RetrieveCatalogContextResult } from './index';
 import { createCatalogChatOrchestrator } from './index';
+
+const COMPANY_ID = "company-1" as Id<"companies">;
 
 const groundedRetrievalResult = (
   overrides: Partial<RetrieveCatalogContextResult> = {},
@@ -70,6 +73,22 @@ const createChatManagerStub = (
   },
   probeProviders: async (): Promise<ChatProviderHealth[]> => [],
 });
+
+const createLoggerStub = (): {
+  logger: CatalogChatLogger;
+  errorCalls: Array<{ payload: Record<string, unknown>; message: string }>;
+} => {
+  const errorCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
+
+  return {
+    logger: {
+      error(payload, message) {
+        errorCalls.push({ payload, message });
+      },
+    },
+    errorCalls,
+  };
+};
 
 const runtimeConfig: ChatRuntimeConfig = {
   providerOrder: ["deepseek", "gemini"],
@@ -141,7 +160,7 @@ describe("createCatalogChatOrchestrator", () => {
 
     const result = await orchestrator.respond({
       tenant: {
-        companyId: "company-1",
+        companyId: COMPANY_ID,
       },
       userMessage: "Do you have burger boxes?",
     });
@@ -217,7 +236,7 @@ describe("createCatalogChatOrchestrator", () => {
 
     const result = await orchestrator.respond({
       tenant: {
-        companyId: "company-1",
+        companyId: COMPANY_ID,
       },
       userMessage: "عندكم علب برجر؟",
     });
@@ -245,7 +264,7 @@ describe("createCatalogChatOrchestrator", () => {
 
     const result = await orchestrator.respond({
       tenant: {
-        companyId: "company-1",
+        companyId: COMPANY_ID,
       },
       userMessage: "   ",
     });
@@ -297,7 +316,7 @@ describe("createCatalogChatOrchestrator", () => {
 
     const result = await orchestrator.respond({
       tenant: {
-        companyId: "company-1",
+        companyId: COMPANY_ID,
       },
       userMessage: "bottle",
     });
@@ -332,7 +351,7 @@ describe("createCatalogChatOrchestrator", () => {
 
     const result = await orchestrator.respond({
       tenant: {
-        companyId: "company-1",
+        companyId: COMPANY_ID,
       },
       userMessage: "container",
     });
@@ -357,7 +376,7 @@ describe("createCatalogChatOrchestrator", () => {
 
     const result = await orchestrator.respond({
       tenant: {
-        companyId: "company-1",
+        companyId: COMPANY_ID,
       },
       userMessage: "Burger Box",
     });
@@ -372,8 +391,10 @@ describe("createCatalogChatOrchestrator", () => {
   });
 
   test("returns a handoff fallback when all providers fail", async () => {
+    const { logger, errorCalls } = createLoggerStub();
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
+      logger,
       chatManager: createChatManagerStub(async () => {
         throw new Error("all providers failed");
       }),
@@ -381,8 +402,12 @@ describe("createCatalogChatOrchestrator", () => {
 
     const result = await orchestrator.respond({
       tenant: {
-        companyId: "company-1",
+        companyId: COMPANY_ID,
       },
+      conversation: {
+        conversationId: "conversation-1",
+      },
+      requestId: "request-1",
       userMessage: "Burger Box",
     });
 
@@ -396,15 +421,40 @@ describe("createCatalogChatOrchestrator", () => {
         },
       },
     });
+    expect(errorCalls).toHaveLength(1);
+    expect(errorCalls[0]).toEqual({
+      message: "catalog chat provider call failed",
+      payload: {
+        companyId: COMPANY_ID,
+        conversationId: "conversation-1",
+        requestId: "request-1",
+        responseLanguage: "en",
+        retrieval: {
+          outcome: "grounded",
+          topScore: 0.92,
+          candidateCount: 1,
+          contextBlockCount: 1,
+          language: "en",
+        },
+        error: {
+          name: "Error",
+          message: "all providers failed",
+          stack: expect.any(String),
+        },
+      },
+    });
   });
 
   test("returns a handoff fallback when provider text is invalid JSON", async () => {
+    const { logger, errorCalls } = createLoggerStub();
+    const invalidText = "{".repeat(600);
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
+      logger,
       chatManager: createChatManagerStub(async () => ({
         provider: "gemini",
         model: "gemini-2.0-flash",
-        text: "not json",
+        text: invalidText,
         finishReason: "stop",
         responseId: "resp-invalid",
       })),
@@ -412,7 +462,7 @@ describe("createCatalogChatOrchestrator", () => {
 
     const result = await orchestrator.respond({
       tenant: {
-        companyId: "company-1",
+        companyId: COMPANY_ID,
       },
       userMessage: "Burger Box",
     });
@@ -432,6 +482,31 @@ describe("createCatalogChatOrchestrator", () => {
         responseId: "resp-invalid",
       },
     });
+    expect(errorCalls).toHaveLength(1);
+    expect(errorCalls[0]?.message).toBe("catalog chat structured output parsing failed");
+    expect(errorCalls[0]?.payload).toMatchObject({
+      companyId: COMPANY_ID,
+      responseLanguage: "en",
+      retrieval: {
+        outcome: "grounded",
+        topScore: 0.92,
+        candidateCount: 1,
+        contextBlockCount: 1,
+        language: "en",
+      },
+      provider: {
+        provider: "gemini",
+        model: "gemini-2.0-flash",
+        finishReason: "stop",
+        responseId: "resp-invalid",
+      },
+      providerTextPreview: invalidText.slice(0, 500),
+      error: {
+        name: "Error",
+        message: "Assistant structured output must be valid JSON",
+      },
+    });
+    expect((errorCalls[0]?.payload.providerTextPreview as string).length).toBe(500);
   });
 
   test("forwards conversation and request metadata into the chat-manager log context", async () => {
@@ -447,7 +522,7 @@ describe("createCatalogChatOrchestrator", () => {
 
     await orchestrator.respond({
       tenant: {
-        companyId: "company-1",
+        companyId: COMPANY_ID,
       },
       conversation: {
         conversationId: "conversation-1",
@@ -465,7 +540,7 @@ describe("createCatalogChatOrchestrator", () => {
       timeoutMs: 2_500,
       maxRetriesPerProvider: 2,
       logContext: {
-        companyId: "company-1",
+        companyId: COMPANY_ID,
         conversationId: "conversation-1",
         requestId: "request-1",
         feature: "catalog_chat",
@@ -515,7 +590,7 @@ describe("createCatalogChatOrchestrator", () => {
 
     const result = await orchestrator.respond({
       tenant: {
-        companyId: "company-1",
+        companyId: COMPANY_ID,
       },
       conversation: {
         history,

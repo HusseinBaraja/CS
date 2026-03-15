@@ -137,7 +137,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
     ]);
   });
 
-  it("hydrates products for RAG in the caller-supplied order and skips out-of-scope ids", async () => {
+  it("hydrates products for RAG in the caller-supplied order, dedupes duplicates, and skips out-of-scope ids", async () => {
     const t = convexTest(schema, modules);
 
     const { companyId, firstProductId, secondProductId, foreignProductId } = await t.run(async (ctx) => {
@@ -191,7 +191,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
 
     const products = await t.query(internal.products.getManyForRag, {
       companyId,
-      productIds: [secondProductId, foreignProductId, firstProductId],
+      productIds: [secondProductId, foreignProductId, secondProductId, firstProductId, secondProductId],
     });
 
     expect(products).toEqual([

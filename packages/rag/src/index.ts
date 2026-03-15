@@ -14,18 +14,18 @@ import {
   parseAssistantStructuredOutput,
   type PromptHistoryTurn,
 } from '@cs/ai';
-import { convexInternal, createConvexAdminClient } from '@cs/db';
+import {
+  type ConvexAdminClient,
+  type Id,
+  convexInternal,
+  createConvexAdminClient,
+} from '@cs/db';
 
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_MAX_CONTEXT_BLOCKS = 3;
 const DEFAULT_MIN_SCORE = 0.55;
 
 type RetrievalReason = "empty_query" | "no_hits" | "below_min_score";
-
-type RetrievalClient = {
-  action(reference: unknown, args: unknown): Promise<unknown>;
-  query(reference: unknown, args: unknown): Promise<unknown>;
-};
 
 type RetrievalEmbeddingGenerator = (
   text: string,
@@ -36,9 +36,9 @@ type RetrievalEmbeddingGenerator = (
 ) => Promise<number[]>;
 
 type VectorSearchHit = {
-  _id: string;
+  _id: Id<"embeddings">;
   _score: number;
-  productId: string;
+  productId: Id<"products">;
   textContent: string;
   language: ChatLanguage;
 };
@@ -83,7 +83,7 @@ export type {
 export type RetrievalOutcome = "grounded" | "empty" | "low_signal";
 
 export interface RetrieveCatalogContextInput {
-  companyId: string;
+  companyId: Id<"companies">;
   query: string;
   language: ChatLanguage;
   maxResults?: number;
@@ -146,12 +146,12 @@ export interface ProductRetrievalService {
 }
 
 export interface ProductRetrievalServiceOptions {
-  createClient?: () => RetrievalClient;
+  createClient?: () => ConvexAdminClient;
   generateEmbedding?: RetrievalEmbeddingGenerator;
 }
 
 export interface CatalogChatTenantContext {
-  companyId: string;
+  companyId: Id<"companies">;
   preferredLanguage?: ChatLanguage;
   defaultLanguage?: ChatLanguage;
 }
@@ -199,15 +199,21 @@ export interface CatalogChatOrchestrator {
   respond(input: CatalogChatInput): Promise<CatalogChatResult>;
 }
 
+export interface CatalogChatLogger {
+  error(payload: Record<string, unknown>, message: string): void;
+}
+
 export interface CreateCatalogChatOrchestratorOptions {
   retrievalService?: ProductRetrievalService;
   chatManager?: ChatProviderManager;
   detectLanguage?: typeof detectChatLanguage;
   buildPrompt?: typeof buildGroundedChatPrompt;
   parseStructuredOutput?: typeof parseAssistantStructuredOutput;
+  logger?: CatalogChatLogger;
 }
 
 const DEFAULT_ALLOWED_ACTIONS: readonly AssistantActionType[] = ["none", "clarify", "handoff"];
+const MAX_PROVIDER_TEXT_PREVIEW_LENGTH = 500;
 
 const normalizePositiveInteger = (value: number | undefined, fallback: number): number => {
   if (value === undefined) {
@@ -225,6 +231,45 @@ const normalizeNonNegativeInteger = (value: number | undefined, fallback: number
 
   const normalized = Math.trunc(value);
   return normalized >= 0 ? normalized : fallback;
+};
+
+const serializeUnknown = (value: unknown): unknown => {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => serializeUnknown(entry));
+  }
+
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, serializeUnknown(entry)]),
+    );
+  }
+
+  return String(value);
+};
+
+const serializeError = (error: unknown): Record<string, unknown> => {
+  if (error instanceof Error) {
+    const cause = (error as Error & { cause?: unknown }).cause;
+    return {
+      name: error.name,
+      message: error.message,
+      ...(error.stack ? { stack: error.stack } : {}),
+      ...(cause !== undefined ? { cause: serializeUnknown(cause) } : {}),
+    };
+  }
+
+  return {
+    name: "UnknownError",
+    value: serializeUnknown(error),
+  };
 };
 
 const serializeValue = (value: unknown): string => {
@@ -410,12 +455,12 @@ export const createProductRetrievalService = (
           generateEmbedding,
         },
       );
-      const hits = await client.action(convexInternal.vectorSearch.vectorSearchByEmbeddingInternal, {
-        companyId: input.companyId as never,
+      const hits: VectorSearchHit[] = await client.action(convexInternal.vectorSearch.vectorSearchByEmbeddingInternal, {
+        companyId: input.companyId,
         language: input.language,
         embedding,
         count: maxResults,
-      }) as VectorSearchHit[];
+      });
 
       if (hits.length === 0) {
         return {
@@ -429,10 +474,10 @@ export const createProductRetrievalService = (
       }
 
       const dedupedHits = dedupeHitsByProduct(hits);
-      const hydratedProducts = await client.query(convexInternal.products.getManyForRag, {
-        companyId: input.companyId as never,
-        productIds: dedupedHits.map((hit) => hit.productId as never),
-      }) as HydratedProductRecord[];
+      const hydratedProducts: HydratedProductRecord[] = await client.query(convexInternal.products.getManyForRag, {
+        companyId: input.companyId,
+        productIds: dedupedHits.map((hit) => hit.productId),
+      });
       const productsById = new Map(hydratedProducts.map((product) => [product.id, product] as const));
       const candidates = dedupedHits.flatMap((hit) => {
         const product = productsById.get(hit.productId);
@@ -494,6 +539,22 @@ const getAllowedActions = (
   allowedActions: readonly AssistantActionType[] | undefined,
 ): readonly AssistantActionType[] =>
   allowedActions && allowedActions.length > 0 ? Array.from(new Set(allowedActions)) : DEFAULT_ALLOWED_ACTIONS;
+
+const buildProviderTextPreview = (text: string): string =>
+  text.length <= MAX_PROVIDER_TEXT_PREVIEW_LENGTH
+    ? text
+    : text.slice(0, MAX_PROVIDER_TEXT_PREVIEW_LENGTH);
+
+const buildRetrievalLogContext = (
+  retrieval: RetrieveCatalogContextResult,
+): Record<string, unknown> => ({
+  outcome: retrieval.outcome,
+  ...(retrieval.reason ? { reason: retrieval.reason } : {}),
+  ...(retrieval.topScore !== undefined ? { topScore: retrieval.topScore } : {}),
+  candidateCount: retrieval.candidates.length,
+  contextBlockCount: retrieval.contextBlocks.length,
+  language: retrieval.language,
+});
 
 const pickProviderMetadata = (
   response: ChatResponse,
@@ -561,6 +622,24 @@ const buildAssistantFallback = (
   }
 };
 
+const defaultCatalogChatLogger: CatalogChatLogger = {
+  error(payload, message) {
+    globalThis.console?.error?.(message, payload);
+  },
+};
+
+const safeLogError = (
+  logger: CatalogChatLogger,
+  payload: Record<string, unknown>,
+  message: string,
+): void => {
+  try {
+    logger.error(payload, message);
+  } catch {
+    // Logging must never interfere with catalog chat fallbacks.
+  }
+};
+
 export const createCatalogChatOrchestrator = (
   options: CreateCatalogChatOrchestratorOptions = {},
 ): CatalogChatOrchestrator => {
@@ -569,6 +648,7 @@ export const createCatalogChatOrchestrator = (
   const detectLanguage = options.detectLanguage ?? detectChatLanguage;
   const buildPrompt = options.buildPrompt ?? buildGroundedChatPrompt;
   const parseStructuredOutput = options.parseStructuredOutput ?? parseAssistantStructuredOutput;
+  const logger = options.logger ?? defaultCatalogChatLogger;
 
   return {
     async respond(input: CatalogChatInput): Promise<CatalogChatResult> {
@@ -632,7 +712,21 @@ export const createCatalogChatOrchestrator = (
             feature: "catalog_chat",
           },
         });
-      } catch {
+      } catch (error) {
+        safeLogError(
+          logger,
+          {
+            companyId: input.tenant.companyId,
+            ...(input.conversation?.conversationId
+              ? { conversationId: input.conversation.conversationId }
+              : {}),
+            ...(input.requestId ? { requestId: input.requestId } : {}),
+            responseLanguage: language.responseLanguage,
+            retrieval: buildRetrievalLogContext(retrieval),
+            error: serializeError(error),
+          },
+          "catalog chat provider call failed",
+        );
         return {
           outcome: "provider_failure_fallback",
           assistant: buildAssistantFallback(language.responseLanguage, "handoff"),
@@ -653,7 +747,23 @@ export const createCatalogChatOrchestrator = (
           retrieval,
           provider: pickProviderMetadata(providerResponse),
         };
-      } catch {
+      } catch (error) {
+        safeLogError(
+          logger,
+          {
+            companyId: input.tenant.companyId,
+            ...(input.conversation?.conversationId
+              ? { conversationId: input.conversation.conversationId }
+              : {}),
+            ...(input.requestId ? { requestId: input.requestId } : {}),
+            responseLanguage: language.responseLanguage,
+            retrieval: buildRetrievalLogContext(retrieval),
+            provider: pickProviderMetadata(providerResponse),
+            providerTextPreview: buildProviderTextPreview(providerResponse.text),
+            error: serializeError(error),
+          },
+          "catalog chat structured output parsing failed",
+        );
         return {
           outcome: "invalid_model_output_fallback",
           assistant: buildAssistantFallback(language.responseLanguage, "handoff"),

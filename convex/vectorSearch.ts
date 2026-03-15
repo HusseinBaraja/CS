@@ -80,23 +80,7 @@ const runVectorSearchByEmbedding: (
     embedding: number[];
     count: number;
   },
-) => Promise<EnrichedVectorSearchHit[]> = async (
-  ctx: {
-    vectorSearch: (...args: any[]) => Promise<Array<{ _id: Id<"embeddings">; _score: number }>>;
-    runQuery: (...args: any[]) => Promise<Array<{
-      _id: Id<"embeddings">;
-      productId: Id<"products">;
-      textContent: string;
-      language: RetrievalLanguage;
-    }>>;
-  },
-  args: {
-    companyId: Id<"companies">;
-    language: RetrievalLanguage;
-    embedding: number[];
-    count: number;
-  },
-): Promise<EnrichedVectorSearchHit[]> => {
+) => Promise<EnrichedVectorSearchHit[]> = async (ctx, args): Promise<EnrichedVectorSearchHit[]> => {
   if (args.count <= 0) {
     throw new Error("count must be positive");
   }

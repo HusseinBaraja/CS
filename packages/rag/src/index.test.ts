@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import type { GroundingContextBlock } from '@cs/ai';
+import type { ConvexAdminClient, Id } from '@cs/db';
 import { buildRetrievalQueryText, createProductRetrievalService, generateRetrievalQueryEmbedding } from './index';
+
+const COMPANY_ID = "company-1" as Id<"companies">;
 
 const createClientStub = (overrides: Partial<{
   action: (reference: unknown, args: unknown) => Promise<unknown>;
@@ -17,11 +20,14 @@ const createClientStub = (overrides: Partial<{
         calls.actions.push({ reference, args });
         return overrides.action?.(reference, args);
       },
+      mutation: async () => {
+        throw new Error("mutation should not be called in retrieval tests");
+      },
       query: async (reference: unknown, args: unknown) => {
         calls.queries.push({ reference, args });
         return overrides.query?.(reference, args);
       },
-    },
+    } as ConvexAdminClient,
     calls,
   };
 };
@@ -40,7 +46,7 @@ const createProduct = (overrides: Partial<{
   variants: Array<{ id: string; productId: string; variantLabel: string; attributes: Record<string, unknown>; priceOverride?: number }>;
 }> = {}) => ({
   id: overrides.id ?? "product-1",
-  companyId: "company-1",
+  companyId: COMPANY_ID,
   categoryId: overrides.categoryId ?? "category-1",
   nameEn: overrides.nameEn ?? "Burger Box",
   ...(overrides.nameAr ? { nameAr: overrides.nameAr } : {}),
@@ -102,7 +108,7 @@ describe("@cs/rag", () => {
     });
 
     const result = await service.retrieveCatalogContext({
-      companyId: "company-1",
+      companyId: COMPANY_ID,
       query: "   ",
       language: "en",
     });
@@ -130,7 +136,7 @@ describe("@cs/rag", () => {
     });
 
     const result = await service.retrieveCatalogContext({
-      companyId: "company-1",
+      companyId: COMPANY_ID,
       query: "burger",
       language: "en",
     });
@@ -144,7 +150,7 @@ describe("@cs/rag", () => {
       contextBlocks: [],
     });
     expect(calls.actions[0]?.args).toEqual({
-      companyId: "company-1",
+      companyId: COMPANY_ID,
       language: "en",
       embedding: Array.from({ length: 768 }, () => 1),
       count: 5,
@@ -213,7 +219,7 @@ describe("@cs/rag", () => {
     });
 
     const result = await service.retrieveCatalogContext({
-      companyId: "company-1",
+      companyId: COMPANY_ID,
       query: "Burger Box",
       language: "en",
     });
@@ -242,7 +248,7 @@ describe("@cs/rag", () => {
       ].join("\n"),
     });
     expect(calls.queries[0]?.args).toEqual({
-      companyId: "company-1",
+      companyId: COMPANY_ID,
       productIds: ["product-1"],
     });
   });
@@ -274,7 +280,7 @@ describe("@cs/rag", () => {
     });
 
     const result = await service.retrieveCatalogContext({
-      companyId: "company-1",
+      companyId: COMPANY_ID,
       query: "كوب شوربة",
       language: "ar",
     });
@@ -316,7 +322,7 @@ describe("@cs/rag", () => {
     });
 
     const result = await service.retrieveCatalogContext({
-      companyId: "company-1",
+      companyId: COMPANY_ID,
       query: "tray",
       language: "en",
       minScore: 0.55,
@@ -375,7 +381,7 @@ describe("@cs/rag", () => {
     });
 
     const result = await service.retrieveCatalogContext({
-      companyId: "company-1",
+      companyId: COMPANY_ID,
       query: "boxes",
       language: "en",
       maxContextBlocks: 2,
@@ -399,7 +405,7 @@ describe("@cs/rag", () => {
       },
     ]);
     expect(calls.queries[0]?.args).toEqual({
-      companyId: "company-1",
+      companyId: COMPANY_ID,
       productIds: ["product-1", "product-2"],
     });
   });
@@ -429,7 +435,7 @@ describe("@cs/rag", () => {
     });
 
     await service.retrieveCatalogContext({
-      companyId: "company-1",
+      companyId: COMPANY_ID,
       query: "كوب",
       language: "ar",
     });

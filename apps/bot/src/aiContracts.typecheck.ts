@@ -11,6 +11,7 @@ import type {
   LanguageDetectionResult,
 } from '@cs/ai';
 import { buildGroundedChatPrompt, detectChatLanguage } from '@cs/ai';
+import type { Id } from '@cs/db';
 import type {
   CatalogChatInput,
   CatalogChatOrchestrator,
@@ -19,6 +20,7 @@ import type {
 } from '@cs/rag';
 import { createCatalogChatOrchestrator } from '@cs/rag';
 
+const companyId = "company-1" as Id<"companies">;
 const request: ChatRequest = {
   messages: [
     {
@@ -117,7 +119,7 @@ const orchestrator: CatalogChatOrchestrator = createCatalogChatOrchestrator({
 });
 const catalogChatInput: CatalogChatInput = {
   tenant: {
-    companyId: "company-1",
+    companyId,
     preferredLanguage: language,
   },
   conversation: {
@@ -145,6 +147,7 @@ const assistant: AssistantStructuredOutput = {
 void request;
 void response;
 void adapter;
+void companyId;
 void language;
 void detection;
 void promptInput;

@@ -14,6 +14,7 @@ import type {
   RetrievedProductCandidate,
   RetrievedProductContext,
 } from './index';
+import type { ConvexAdminClient, Id } from '@cs/db';
 import {
   buildRetrievalQueryText,
   createCatalogChatOrchestrator,
@@ -22,6 +23,7 @@ import {
 } from './index';
 
 const language: ChatLanguage = "en";
+const companyId = "company-1" as Id<"companies">;
 const queryText = buildRetrievalQueryText({
   language,
   query: "Burger Box",
@@ -30,19 +32,22 @@ const queryText = buildRetrievalQueryText({
 const serviceOptions: ProductRetrievalServiceOptions = {
   createClient: () => ({
     action: async () => [],
+    mutation: async () => {
+      throw new Error("mutation not used in public API typecheck");
+    },
     query: async () => [],
-  }),
+  }) as ConvexAdminClient,
   generateEmbedding: async () => Array.from({ length: 768 }, () => 1),
 };
 
 const service: ProductRetrievalService = createProductRetrievalService(serviceOptions);
 const tenant: CatalogChatTenantContext = {
-  companyId: "company-1",
+  companyId,
   preferredLanguage: "en",
 };
 
 const input: RetrieveCatalogContextInput = {
-  companyId: "company-1",
+  companyId,
   query: "Burger Box",
   language,
 };
@@ -127,6 +132,7 @@ const assistant: AssistantStructuredOutput = {
 };
 
 void language;
+void companyId;
 void tenant;
 void queryText;
 void serviceOptions;
