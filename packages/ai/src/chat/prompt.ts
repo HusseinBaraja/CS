@@ -1,12 +1,10 @@
 import type { ChatRequest } from './contracts';
 import type {
-  AssistantActionType,
   BuildGroundedChatPromptInput,
   BuiltGroundedChatPrompt,
   GroundingContextBlock,
 } from './promptContracts';
-
-const DEFAULT_ALLOWED_ACTIONS: readonly AssistantActionType[] = ["none", "clarify", "handoff"];
+import { getAllowedActions } from './actions';
 const NO_GROUNDED_CONTEXT_AVAILABLE = "NO_GROUNDED_CONTEXT_AVAILABLE";
 
 const getTargetLanguageInstruction = (
@@ -48,10 +46,7 @@ const buildUserPrompt = (input: BuildGroundedChatPromptInput): string => {
 };
 
 const buildSystemPrompt = (input: BuildGroundedChatPromptInput): string => {
-  const resolvedAllowedActions = input.allowedActions && input.allowedActions.length > 0
-    ? input.allowedActions
-    : DEFAULT_ALLOWED_ACTIONS;
-  const allowedActions = Array.from(new Set(resolvedAllowedActions));
+  const allowedActions = getAllowedActions(input.allowedActions);
 
   return [
     "You are a tenant-scoped customer-service assistant for CSCB.",
