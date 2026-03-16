@@ -6,4 +6,5 @@ export interface HealthStatus {
 }
 
 export * from "./analytics";
+export * from "./companyRuntime";
 export * from "./errors";

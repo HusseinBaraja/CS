@@ -31,6 +31,15 @@ describe("createBotRuntimeConfig", () => {
     expect(config.authDir).toBe(absoluteAuthDir);
   });
 
+  test("allows overriding the session key", () => {
+    const config = createBotRuntimeConfig({
+      moduleDirectory: "/repo/apps/bot/src",
+      sessionKey: "company-Y29tcGFueS0x",
+    });
+
+    expect(config.sessionKey).toBe("company-Y29tcGFueS0x");
+  });
+
   test("fails early for invalid timing overrides", () => {
     expect(() =>
       createBotRuntimeConfig({

@@ -27,6 +27,16 @@ const mediaCleanupStatusValidator = v.union(
   v.literal("completed"),
   v.literal("failed"),
 );
+const botRuntimeSessionStateValidator = v.union(
+  v.literal("initializing"),
+  v.literal("connecting"),
+  v.literal("awaiting_pairing"),
+  v.literal("open"),
+  v.literal("reconnecting"),
+  v.literal("closed"),
+  v.literal("logged_out"),
+  v.literal("failed"),
+);
 
 export default defineSchema({
   // ── Companies ────────────────────────────────────────────────────────────
@@ -46,6 +56,23 @@ export default defineSchema({
     acquiredAt: v.number(),
     expiresAt: v.number(),
   }).index("by_key", ["key"]),
+
+  botRuntimeSessions: defineTable({
+    companyId: v.id("companies"),
+    runtimeOwnerId: v.string(),
+    sessionKey: v.string(),
+    state: botRuntimeSessionStateValidator,
+    attempt: v.number(),
+    hasQr: v.boolean(),
+    disconnectCode: v.optional(v.number()),
+    isNewLogin: v.optional(v.boolean()),
+    updatedAt: v.number(),
+    leaseExpiresAt: v.number(),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_runtime_owner", ["runtimeOwnerId"])
+    .index("by_state", ["state"])
+    .index("by_lease_expires_at", ["leaseExpiresAt"]),
 
   // ── Categories ──────────────────────────────────────────────────────────
   categories: defineTable({

@@ -26,6 +26,7 @@ export interface UpdateCompanyInput {
 
 export interface DeleteCompanyCounts {
   companies: number;
+  botRuntimeSessions: number;
   categories: number;
   products: number;
   productImageUploads: number;

@@ -18,6 +18,7 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
     const products = await ctx.db.query("products").collect();
     const productImageUploads = await ctx.db.query("productImageUploads").collect();
     const mediaCleanupJobs = await ctx.db.query("mediaCleanupJobs").collect();
+    const botRuntimeSessions = await ctx.db.query("botRuntimeSessions").collect();
     const productVariants = await ctx.db.query("productVariants").collect();
     const offers = await ctx.db.query("offers").collect();
     const currencyRates = await ctx.db.query("currencyRates").collect();
@@ -29,6 +30,7 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
     return {
       analyticsEvents,
       categories,
+      botRuntimeSessions,
       companies,
       conversations,
       currencyRates,
@@ -176,6 +178,17 @@ const createTenantFixture = async (
       leaseExpiresAt: Date.UTC(2026, 2, 12, 0, 0, 0),
       createdAt: Date.UTC(2026, 2, 12, 0, 0, 0),
       updatedAt: Date.UTC(2026, 2, 12, 0, 0, 0),
+    });
+
+    await ctx.db.insert("botRuntimeSessions", {
+      companyId,
+      runtimeOwnerId: "runtime-owner-1",
+      sessionKey: `company-${companyId}`,
+      state: "open",
+      attempt: 0,
+      hasQr: false,
+      updatedAt: Date.UTC(2026, 2, 12, 0, 0, 0),
+      leaseExpiresAt: Date.UTC(2026, 2, 12, 0, 1, 0),
     });
 
     return {
@@ -350,6 +363,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       counts: {
         companies: 1,
         categories: 1,
+        botRuntimeSessions: 1,
         products: 1,
         productImageUploads: 1,
         productVariants: 2,
@@ -364,6 +378,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     });
     expect(counts.companies).toHaveLength(0);
     expect(counts.categories).toHaveLength(0);
+    expect(counts.botRuntimeSessions).toHaveLength(0);
     expect(counts.products).toHaveLength(0);
     expect(counts.productImageUploads).toHaveLength(0);
     expect(counts.productVariants).toHaveLength(0);
@@ -396,6 +411,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     expect(result?.counts).toEqual({
       companies: 1,
       categories: 1,
+      botRuntimeSessions: 1,
       products: 3,
       productImageUploads: 1,
       productVariants: oversizedBatchCount,
@@ -409,6 +425,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     });
     expect(counts.companies).toHaveLength(0);
     expect(counts.categories).toHaveLength(0);
+    expect(counts.botRuntimeSessions).toHaveLength(0);
     expect(counts.products).toHaveLength(0);
     expect(counts.productImageUploads).toHaveLength(0);
     expect(counts.productVariants).toHaveLength(0);

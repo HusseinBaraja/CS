@@ -158,6 +158,51 @@ describe("startBot", () => {
     });
   });
 
+  test("emits status updates to the optional status callback", async () => {
+    const { logger } = createLoggerStub();
+    const socketStub = createSocketStub();
+    const statusChanges: Array<{ sessionKey: string; state: string }> = [];
+
+    await startBot({
+      logger,
+      runtimeConfig: createBotRuntimeConfig({
+        moduleDirectory: "/repo/apps/bot/src",
+        sessionKey: "company-Y29tcGFueS0x",
+      }),
+      onStatusChange: (status) => {
+        statusChanges.push({
+          sessionKey: status.sessionKey,
+          state: status.state,
+        });
+      },
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/company-Y29tcGFueS0x",
+      }),
+      createSocket: () => socketStub.socket,
+    });
+
+    socketStub.emitConnectionUpdate({ connection: "connecting" });
+    socketStub.emitConnectionUpdate({ connection: "open" });
+    await flushPromises();
+
+    expect(statusChanges).toEqual([
+      {
+        sessionKey: "company-Y29tcGFueS0x",
+        state: "initializing",
+      },
+      {
+        sessionKey: "company-Y29tcGFueS0x",
+        state: "connecting",
+      },
+      {
+        sessionKey: "company-Y29tcGFueS0x",
+        state: "open",
+      },
+    ]);
+  });
+
   test("tracks connecting, pairing, and open lifecycle transitions without logging raw QR data", async () => {
     const { logger, infoCalls } = createLoggerStub();
     const runtimeConfig = createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" });
@@ -400,6 +445,26 @@ describe("startBot", () => {
     await handlers.get("beforeExit")?.();
 
     expect(socketStub.endCalls).toEqual([undefined]);
+  });
+
+  test("skips process signal registration when requested", async () => {
+    const { logger } = createLoggerStub();
+    const { process, handlers } = createProcessStub();
+
+    await startBot({
+      logger,
+      botProcess: process,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      registerProcessHandlers: false,
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => createSocketStub().socket,
+    });
+
+    expect(handlers.size).toBe(0);
   });
 
   test("fails startup when auth state loading fails", async () => {

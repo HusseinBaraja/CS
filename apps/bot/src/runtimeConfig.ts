@@ -11,7 +11,7 @@ const DEFAULT_RECONNECT_INITIAL_DELAY_MS = 1_000;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 30_000;
 
 export interface BotRuntimeConfig {
-  sessionKey: typeof BOT_SESSION_KEY;
+  sessionKey: string;
   authDir: string;
   browser: [string, string, string];
   connectTimeoutMs: number;
@@ -26,6 +26,7 @@ export interface BotRuntimeConfig {
 }
 
 export interface CreateBotRuntimeConfigOverrides {
+  sessionKey?: string;
   authDir?: string;
   moduleDirectory?: string;
   connectTimeoutMs?: number;
@@ -82,7 +83,7 @@ export const createBotRuntimeConfig = (
   }
 
   return {
-    sessionKey: BOT_SESSION_KEY,
+    sessionKey: overrides.sessionKey?.trim() || BOT_SESSION_KEY,
     authDir: resolveAuthDir(overrides.authDir ?? env.BOT_AUTH_DIR, overrides.moduleDirectory),
     browser: Browsers.windows("CSCB Bot"),
     connectTimeoutMs: assertPositiveInteger(

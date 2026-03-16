@@ -1,19 +1,12 @@
 import type { UserFacingSocketConfig } from '@whiskeysockets/baileys';
 import makeWASocket from '@whiskeysockets/baileys';
 import { logger as defaultLogger } from '@cs/core';
+import type { BotRuntimeSessionState } from '@cs/shared';
 import { createLocalAuthState, type LocalAuthState } from './authState';
 import { getDisconnectCode, shouldReconnectForDisconnectCode, toClosedLifecycleState } from './disconnect';
 import { type BotRuntimeConfig, createBotRuntimeConfig } from './runtimeConfig';
 
-export type BotLifecycleState =
-  | "initializing"
-  | "connecting"
-  | "awaiting_pairing"
-  | "open"
-  | "reconnecting"
-  | "closed"
-  | "logged_out"
-  | "failed";
+export type BotLifecycleState = BotRuntimeSessionState;
 
 export interface BotSessionStatus {
   sessionKey: string;
@@ -78,7 +71,9 @@ export interface StartBotOptions {
     authDir: string;
     sessionKey: string;
   }) => Promise<LocalAuthState>;
+  onStatusChange?: (status: BotSessionStatus) => void | Promise<void>;
   botProcess?: BotProcess;
+  registerProcessHandlers?: boolean;
   timer?: BotTimer;
 }
 
@@ -144,30 +139,46 @@ export const startBot = async (
   const runtimeConfig = options.runtimeConfig ?? createBotRuntimeConfig();
   const createSocket = options.createSocket ?? defaultCreateSocket;
   const loadAuthState = options.loadAuthState ?? ((authOptions) => createLocalAuthState(authOptions));
+  const onStatusChange = options.onStatusChange;
   const botProcess = options.botProcess ?? process;
+  const registerProcessHandlers = options.registerProcessHandlers ?? true;
   const timer = options.timer ?? defaultTimer;
 
-  let status: BotSessionStatus = {
+  const initialStatus: BotSessionStatus = {
     sessionKey: runtimeConfig.sessionKey,
     state: "initializing",
     attempt: 0,
     hasQr: false,
   };
+  let status: BotSessionStatus | undefined;
   let currentSocket: BotSocket | undefined;
   let reconnectTimeoutId: unknown;
   let reconnectAttempt = 0;
   let shuttingDown = false;
 
   const setStatus = (nextStatus: BotSessionStatus): void => {
-    if (statusEquals(status, nextStatus)) {
+    if (status && statusEquals(status, nextStatus)) {
       return;
     }
 
     status = nextStatus;
     botLogger.info(toStatusLogPayload(nextStatus), "bot session state changed");
+    if (onStatusChange) {
+      void Promise.resolve()
+        .then(() => onStatusChange(nextStatus))
+        .catch((error) => {
+          botLogger.error(
+            {
+              error,
+              sessionKey: nextStatus.sessionKey,
+            },
+            "bot status change callback failed",
+          );
+        });
+    }
   };
 
-  setStatus(status);
+  setStatus(initialStatus);
 
   const authState = await loadAuthState({
     authDir: runtimeConfig.authDir,
@@ -199,8 +210,9 @@ export const startBot = async (
   };
 
   const failRuntime = async (error: unknown, message: string): Promise<void> => {
+    const currentStatus = status ?? initialStatus;
     setStatus({
-      ...status,
+      ...currentStatus,
       state: "failed",
       hasQr: false,
     });
@@ -280,7 +292,7 @@ export const startBot = async (
         return;
       }
 
-      if (status.state === "awaiting_pairing" && update.isNewLogin === true) {
+      if ((status ?? initialStatus).state === "awaiting_pairing" && update.isNewLogin === true) {
         setStatus({
           sessionKey: runtimeConfig.sessionKey,
           state: "connecting",
@@ -332,12 +344,14 @@ export const startBot = async (
 
   connect();
 
-  for (const signal of ["SIGINT", "SIGTERM", "beforeExit"] as const) {
-    botProcess.once(signal, () => stop());
+  if (registerProcessHandlers) {
+    for (const signal of ["SIGINT", "SIGTERM", "beforeExit"] as const) {
+      botProcess.once(signal, () => stop());
+    }
   }
 
   return {
-    getStatus: () => status,
+    getStatus: () => status ?? initialStatus,
     stop,
   };
 };
