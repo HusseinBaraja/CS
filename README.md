@@ -31,6 +31,7 @@ CONVEX_ADMIN_KEY=your-admin-key
 - `LOG_RETENTION_DAYS`: optional, defaults to `14`
 - `BACKUP_DIR`: optional, defaults to `backups`
 - `BACKUP_RETENTION_COUNT`: optional, defaults to `5`
+- `BOT_AUTH_DIR`: optional, defaults to `data/bot/auth`
 - `API_PORT`: optional, defaults to `3000`
 - `AI_PROVIDER_ORDER`: optional, defaults to `deepseek,gemini,groq`
 - `AI_REQUEST_TIMEOUT_MS`: optional, defaults to `15000`
