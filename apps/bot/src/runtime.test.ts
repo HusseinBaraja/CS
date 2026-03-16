@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { AuthenticationState, UserFacingSocketConfig } from '@whiskeysockets/baileys';
+import type { AuthenticationState, BaileysEventMap, UserFacingSocketConfig } from '@whiskeysockets/baileys';
 import { type BotConnectionUpdate, type BotPairingStatus, type BotSocket, startBot } from './runtime';
 import { createBotRuntimeConfig } from './runtimeConfig';
 
@@ -82,6 +82,7 @@ const createAuthenticationState = (): AuthenticationState =>
 const createSocketStub = () => {
   const connectionHandlers: Array<(update: BotConnectionUpdate) => void> = [];
   const credsHandlers: Array<(update: unknown) => void> = [];
+  const messagesUpsertHandlers: Array<(update: BaileysEventMap["messages.upsert"]) => void> = [];
   const endCalls: unknown[] = [];
 
   const socket: BotSocket = {
@@ -89,6 +90,11 @@ const createSocketStub = () => {
       on: (event, handler) => {
         if (event === "connection.update") {
           connectionHandlers.push(handler as (update: BotConnectionUpdate) => void);
+          return;
+        }
+
+        if (event === "messages.upsert") {
+          messagesUpsertHandlers.push(handler as (update: BaileysEventMap["messages.upsert"]) => void);
           return;
         }
 
@@ -109,6 +115,11 @@ const createSocketStub = () => {
     },
     emitCredsUpdate: (update: unknown) => {
       for (const handler of credsHandlers) {
+        handler(update);
+      }
+    },
+    emitMessagesUpsert: (update: BaileysEventMap["messages.upsert"]) => {
+      for (const handler of messagesUpsertHandlers) {
         handler(update);
       }
     },
@@ -399,6 +410,110 @@ describe("startBot", () => {
     await flushPromises();
 
     expect(saveCredsCallCount).toBe(1);
+  });
+
+  test("forwards inbound message upserts to the optional callback", async () => {
+    const { logger } = createLoggerStub();
+    const socketStub = createSocketStub();
+    const messageEvents: BaileysEventMap["messages.upsert"][] = [];
+
+    await startBot({
+      logger,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      onMessagesUpsert: (event) => {
+        messageEvents.push(event);
+      },
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => socketStub.socket,
+    });
+
+    socketStub.emitMessagesUpsert({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "message-1",
+            remoteJid: "967700000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_000,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+    await flushPromises();
+
+    expect(messageEvents).toEqual([
+      {
+        type: "notify",
+        messages: [
+          {
+            key: {
+              id: "message-1",
+              remoteJid: "967700000001@s.whatsapp.net",
+              fromMe: false,
+            },
+            messageTimestamp: 1_700_000_000,
+            message: {
+              conversation: "hello",
+            },
+          },
+        ],
+      },
+    ]);
+  });
+
+  test("logs inbound callback failures without shutting down the runtime", async () => {
+    const { logger, errorCalls } = createLoggerStub();
+    const socketStub = createSocketStub();
+
+    const handle = await startBot({
+      logger,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      onMessagesUpsert: async () => {
+        throw new Error("inbound failed");
+      },
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => socketStub.socket,
+    });
+
+    socketStub.emitMessagesUpsert({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "message-1",
+            remoteJid: "967700000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_000,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+    await flushPromises();
+
+    expect(handle.getStatus().state).toBe("initializing");
+    expect(socketStub.endCalls).toEqual([]);
+    expect(errorCalls).toContainEqual({
+      payload: {
+        error: expect.any(Error),
+        sessionKey: "default",
+      },
+      message: "bot inbound message callback failed",
+    });
   });
 
   test("reconnects after transient close reasons with exponential backoff and resets after open", async () => {

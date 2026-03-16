@@ -1,4 +1,4 @@
-import type { UserFacingSocketConfig } from '@whiskeysockets/baileys';
+import type { BaileysEventMap, UserFacingSocketConfig } from '@whiskeysockets/baileys';
 import makeWASocket from '@whiskeysockets/baileys';
 import { logger as defaultLogger } from '@cs/core';
 import type { BotRuntimePairingState, BotRuntimeSessionState } from '@cs/shared';
@@ -48,9 +48,12 @@ export interface BotConnectionUpdate {
   qr?: string;
 }
 
+export type BotMessagesUpsert = BaileysEventMap["messages.upsert"];
+
 interface BotEventEmitter {
   on(event: "connection.update", listener: (update: BotConnectionUpdate) => void): void;
   on(event: "creds.update", listener: (update: unknown) => void): void;
+  on(event: "messages.upsert", listener: (update: BotMessagesUpsert) => void): void;
 }
 
 export interface BotSocket {
@@ -81,6 +84,7 @@ export interface StartBotOptions {
   }) => Promise<LocalAuthState>;
   onStatusChange?: (status: BotSessionStatus) => void | Promise<void>;
   onPairingChange?: (pairing: BotPairingStatus) => void | Promise<void>;
+  onMessagesUpsert?: (event: BotMessagesUpsert) => void | Promise<void>;
   botProcess?: BotProcess;
   registerProcessHandlers?: boolean;
   timer?: BotTimer;
@@ -158,6 +162,7 @@ export const startBot = async (
   const loadAuthState = options.loadAuthState ?? ((authOptions) => createLocalAuthState(authOptions));
   const onStatusChange = options.onStatusChange;
   const onPairingChange = options.onPairingChange;
+  const onMessagesUpsert = options.onMessagesUpsert;
   const botProcess = options.botProcess ?? process;
   const registerProcessHandlers = options.registerProcessHandlers ?? true;
   const timer = options.timer ?? defaultTimer;
@@ -345,6 +350,26 @@ export const startBot = async (
       void authState.saveCreds().catch((error) =>
         failRuntime(error, "bot auth state persistence failed")
       );
+    });
+
+    currentSocket.ev.on("messages.upsert", (event) => {
+      if (shuttingDown || !onMessagesUpsert) {
+        return;
+      }
+
+      void (async () => {
+        try {
+          await onMessagesUpsert(event);
+        } catch (error) {
+          botLogger.error(
+            {
+              error,
+              sessionKey: runtimeConfig.sessionKey,
+            },
+            "bot inbound message callback failed",
+          );
+        }
+      })();
     });
 
     currentSocket.ev.on("connection.update", (update) => {

@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import type {
+  IgnoredInboundEvent,
+  NormalizedInboundMessage,
   BotRuntimePairingArtifact,
   BotRuntimeSessionRecord,
   CompanyRuntimeProfile,
 } from '@cs/shared';
 import type { BotPairingStatus, BotRuntimeHandle, BotSessionStatus, StartBotOptions } from './runtime';
-import { startTenantSessionManager, type SessionManagerStore } from './sessionManager';
+import { startTenantSessionManager, type InboundMessageRouter, type SessionManagerStore } from './sessionManager';
 
 const createProfile = (
   companyId: string,
@@ -527,5 +529,187 @@ describe("startTenantSessionManager", () => {
     expect(intervals[0]?.cleared).toBe(true);
     expect(store.releasedOwners).toEqual(["runtime-owner-1"]);
     expect(store.releasedPairingOwners).toEqual(["runtime-owner-1"]);
+  });
+
+  test("normalizes tenant inbound messages and routes owner commands before customer conversation flow", async () => {
+    const profile = createProfile("company-1", {
+      ownerPhone: "+966 500 000 1",
+    });
+    const store = createStoreStub([profile]);
+    const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+    const routedOwnerCommands: NormalizedInboundMessage[] = [];
+    const routedConversations: NormalizedInboundMessage[] = [];
+    const ignoredEvents: IgnoredInboundEvent[] = [];
+    const router: InboundMessageRouter = {
+      handleCustomerConversation: async (message) => {
+        routedConversations.push(message);
+      },
+      handleIgnored: async (event) => {
+        ignoredEvents.push(event);
+      },
+      handleOwnerCommand: async (message) => {
+        routedOwnerCommands.push(message);
+      },
+    };
+
+    await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      inboundRouter: router,
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+        return {
+          getStatus: () => ({
+            sessionKey,
+            state: "open",
+            attempt: 0,
+            hasQr: false,
+          }),
+          stop: async () => undefined,
+        };
+      },
+    });
+
+    await messageCallbacks.get(profile.sessionKey)?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "owner-command",
+            remoteJid: "9665000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_000,
+          message: {
+            conversation: "!status",
+          },
+        },
+        {
+          key: {
+            id: "customer-text",
+            remoteJid: "967700000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_001,
+          message: {
+            conversation: "hello",
+          },
+        },
+        {
+          key: {
+            id: "ignored-group",
+            remoteJid: "12345@g.us",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_002,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+
+    expect(routedOwnerCommands.map((message) => message.messageId)).toEqual(["owner-command"]);
+    expect(routedConversations.map((message) => message.messageId)).toEqual(["customer-text"]);
+    expect(ignoredEvents).toEqual([
+      {
+        transport: "whatsapp",
+        companyId: "company-1",
+        sessionKey: profile.sessionKey,
+        reason: "group_chat",
+        source: {
+          upsertType: "notify",
+          rawMessageId: "ignored-group",
+          remoteJid: "12345@g.us",
+          fromMe: false,
+        },
+      },
+    ]);
+  });
+
+  test("continues processing tenant inbound events after router failures", async () => {
+    const profiles = [createProfile("company-1"), createProfile("company-2")];
+    const store = createStoreStub(profiles);
+    const { logger, errorCalls } = createLoggerStub();
+    const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+    const routedMessages: string[] = [];
+
+    await startTenantSessionManager({
+      logger,
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      inboundRouter: {
+        handleCustomerConversation: async (message) => {
+          if (message.companyId === "company-1") {
+            throw new Error("router failed");
+          }
+
+          routedMessages.push(message.messageId);
+        },
+        handleIgnored: () => undefined,
+        handleOwnerCommand: async (message) => {
+          routedMessages.push(message.messageId);
+        },
+      },
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+        return {
+          getStatus: () => ({
+            sessionKey,
+            state: "open",
+            attempt: 0,
+            hasQr: false,
+          }),
+          stop: async () => undefined,
+        };
+      },
+    });
+
+    await messageCallbacks.get("company-company-1")?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "company-1-message",
+            remoteJid: "967700000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_000,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+    await messageCallbacks.get("company-company-2")?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "company-2-message",
+            remoteJid: "967700000002@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_001,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+
+    expect(routedMessages).toEqual(["company-2-message"]);
+    expect(errorCalls).toContainEqual({
+      payload: {
+        companyId: "company-1",
+        error: expect.any(Error),
+        sessionKey: "company-company-1",
+      },
+      message: "tenant inbound message routing failed",
+    });
   });
 });

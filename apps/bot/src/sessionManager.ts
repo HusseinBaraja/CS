@@ -1,14 +1,18 @@
 import { env } from '@cs/config';
 import { logger as defaultLogger } from '@cs/core';
 import {
+  type IgnoredInboundEvent,
+  type IgnoredInboundEventReason,
   getBotRuntimeNextActionHint,
   getBotRuntimeOperatorState,
   getBotRuntimeOperatorSummary,
+  type NormalizedInboundMessage,
   type BotRuntimeOperatorSnapshot,
   type BotRuntimePairingArtifact,
   type BotRuntimeSessionRecord,
   type CompanyRuntimeProfile,
 } from '@cs/shared';
+import { normalizeInboundMessages } from './inbound';
 import { createBotRuntimeConfig, type BotRuntimeConfig } from './runtimeConfig';
 import {
   type BotPairingStatus,
@@ -56,6 +60,7 @@ export interface TenantSessionManagerHandle {
 
 export interface StartTenantSessionManagerOptions {
   botProcess?: BotProcess;
+  inboundRouter?: InboundMessageRouter;
   logger?: BotLogger;
   now?: () => number;
   runtimeOwnerId?: string;
@@ -66,12 +71,33 @@ export interface StartTenantSessionManagerOptions {
   createRuntimeConfig?: (overrides?: Parameters<typeof createBotRuntimeConfig>[0]) => BotRuntimeConfig;
 }
 
+export interface InboundMessageRouter {
+  handleOwnerCommand(message: NormalizedInboundMessage): Promise<void>;
+  handleCustomerConversation(message: NormalizedInboundMessage): Promise<void>;
+  handleIgnored(event: IgnoredInboundEvent): Promise<void> | void;
+}
+
 const defaultTimer: SessionManagerTimer = {
   setInterval: (handler, delayMs) => globalThis.setInterval(handler, delayMs),
   clearInterval: (intervalId) => globalThis.clearInterval(intervalId as ReturnType<typeof setInterval>),
 };
 
 const OPERATOR_SHELL_PATH = "/runtime/bot";
+
+const defaultInboundRouter: InboundMessageRouter = {
+  handleCustomerConversation: async () => undefined,
+  handleIgnored: async () => undefined,
+  handleOwnerCommand: async () => undefined,
+};
+
+const malformedIgnoredReasons = new Set<IgnoredInboundEventReason>([
+  "missing_message_id",
+  "missing_remote_jid",
+  "missing_sender_phone",
+  "missing_timestamp",
+  "unsupported_message_type",
+  "empty_payload",
+]);
 
 const cloneStatus = (status: BotSessionStatus): BotSessionStatus => ({
   sessionKey: status.sessionKey,
@@ -192,6 +218,7 @@ export const startTenantSessionManager = async (
   const now = options.now ?? Date.now;
   const registerProcessHandlers = options.registerProcessHandlers ?? true;
   const runtimeOwnerId = options.runtimeOwnerId ?? crypto.randomUUID();
+  const inboundRouter = options.inboundRouter ?? defaultInboundRouter;
   const startBot = options.startBot ?? defaultStartBot;
   const store = options.store ?? createConvexCompanyRuntimeStore();
   const timer = options.timer ?? defaultTimer;
@@ -216,6 +243,70 @@ export const startTenantSessionManager = async (
         },
         "tenant session pairing artifact cleanup failed",
       );
+    }
+  };
+
+  const logIgnoredInboundEvent = (profile: CompanyRuntimeProfile, event: IgnoredInboundEvent): void => {
+    const payload = {
+      companyId: profile.companyId,
+      reason: event.reason,
+      sessionKey: profile.sessionKey,
+      ...(event.source.rawMessageId !== undefined ? { messageId: event.source.rawMessageId } : {}),
+    };
+
+    if (malformedIgnoredReasons.has(event.reason)) {
+      const warn = botLogger.warn?.bind(botLogger) ?? botLogger.info.bind(botLogger);
+      warn(payload, "tenant inbound event ignored");
+      return;
+    }
+
+    const debug = botLogger.debug?.bind(botLogger) ?? botLogger.info.bind(botLogger);
+    debug(payload, "tenant inbound event ignored");
+  };
+
+  const routeInboundEvent = async (
+    profile: CompanyRuntimeProfile,
+    event: IgnoredInboundEvent | NormalizedInboundMessage,
+    route?: "owner_command" | "customer_conversation",
+  ): Promise<void> => {
+    try {
+      if (route === "owner_command") {
+        await inboundRouter.handleOwnerCommand(event as NormalizedInboundMessage);
+        return;
+      }
+
+      if (route === "customer_conversation") {
+        await inboundRouter.handleCustomerConversation(event as NormalizedInboundMessage);
+        return;
+      }
+
+      logIgnoredInboundEvent(profile, event as IgnoredInboundEvent);
+      await inboundRouter.handleIgnored(event as IgnoredInboundEvent);
+    } catch (error) {
+      botLogger.error(
+        {
+          companyId: profile.companyId,
+          error,
+          sessionKey: profile.sessionKey,
+        },
+        "tenant inbound message routing failed",
+      );
+    }
+  };
+
+  const handleMessagesUpsert = async (
+    profile: CompanyRuntimeProfile,
+    event: Parameters<typeof normalizeInboundMessages>[1],
+  ): Promise<void> => {
+    const dispatches = normalizeInboundMessages(profile, event);
+
+    for (const dispatch of dispatches) {
+      if (dispatch.kind === "ignored") {
+        await routeInboundEvent(profile, dispatch.event);
+        continue;
+      }
+
+      await routeInboundEvent(profile, dispatch.message, dispatch.route);
     }
   };
 
@@ -388,6 +479,7 @@ export const startTenantSessionManager = async (
               sessionKey: profile.sessionKey,
             })
             : botLogger,
+          onMessagesUpsert: (event) => handleMessagesUpsert(profile, event),
           onPairingChange: (pairing) => handlePairingChange(profile, pairing),
           onStatusChange: (status) => handleStatusChange(profile, status),
           registerProcessHandlers: false,
