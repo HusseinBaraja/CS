@@ -13,6 +13,11 @@ import {
   type CompanyRuntimeProfile,
 } from '@cs/shared';
 import { normalizeInboundMessages } from './inbound';
+import {
+  createOutboundMessenger as defaultCreateOutboundMessenger,
+  type CreateOutboundMessengerOptions,
+  type OutboundMessenger,
+} from './outbound';
 import { createBotRuntimeConfig, type BotRuntimeConfig } from './runtimeConfig';
 import {
   type BotPairingStatus,
@@ -37,6 +42,7 @@ export interface ManagedTenantSession {
 }
 
 interface ManagedTenantSessionInternal {
+  outbound?: OutboundMessenger;
   profile: CompanyRuntimeProfile;
   status: BotSessionStatus;
   pairing: BotPairingStatus | null;
@@ -54,6 +60,7 @@ export interface SessionManagerTimer {
 export interface TenantSessionManagerHandle {
   getRuntimeOwnerId(): string;
   getSession(companyId: string): ManagedTenantSession | undefined;
+  getOutbound(companyId: string): OutboundMessenger | undefined;
   listSessions(): ManagedTenantSession[];
   stop(): Promise<void>;
 }
@@ -69,6 +76,7 @@ export interface StartTenantSessionManagerOptions {
   store?: SessionManagerStore;
   timer?: SessionManagerTimer;
   createRuntimeConfig?: (overrides?: Parameters<typeof createBotRuntimeConfig>[0]) => BotRuntimeConfig;
+  createOutboundMessenger?: (options: CreateOutboundMessengerOptions) => OutboundMessenger;
 }
 
 export interface InboundMessageRouter {
@@ -223,6 +231,7 @@ export const startTenantSessionManager = async (
   const store = options.store ?? createConvexCompanyRuntimeStore();
   const timer = options.timer ?? defaultTimer;
   const createRuntimeConfig = options.createRuntimeConfig ?? createBotRuntimeConfig;
+  const createOutboundMessenger = options.createOutboundMessenger ?? defaultCreateOutboundMessenger;
   const sessions = new Map<string, ManagedTenantSessionInternal>();
   let heartbeatId: unknown;
   let stopping = false;
@@ -323,6 +332,7 @@ export const startTenantSessionManager = async (
         sessionKey: profile.sessionKey,
       }),
       status: nextStatus,
+      ...(existing?.outbound ? { outbound: existing.outbound } : {}),
       ...(existing?.handle ? { handle: existing.handle } : {}),
     });
 
@@ -487,7 +497,18 @@ export const startTenantSessionManager = async (
         });
 
         const currentStatus = cloneStatus(handle.getStatus());
+        const outbound = createOutboundMessenger({
+          logger: typeof botLogger.child === "function"
+            ? botLogger.child({
+              companyId: profile.companyId,
+              sessionKey: profile.sessionKey,
+              surface: "outbound",
+            })
+            : botLogger,
+          transport: handle,
+        });
         sessions.set(profile.companyId, {
+          outbound,
           profile,
           status: currentStatus,
           pairing: sessions.get(profile.companyId)?.pairing ?? null,
@@ -540,6 +561,7 @@ export const startTenantSessionManager = async (
 
   return {
     getRuntimeOwnerId: () => runtimeOwnerId,
+    getOutbound: (companyId) => sessions.get(companyId)?.outbound,
     getSession: (companyId) => {
       const session = sessions.get(companyId);
       if (!session) {

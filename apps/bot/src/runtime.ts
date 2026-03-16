@@ -4,6 +4,10 @@ import { logger as defaultLogger } from '@cs/core';
 import type { BotRuntimePairingState, BotRuntimeSessionState } from '@cs/shared';
 import { createLocalAuthState, type LocalAuthState } from './authState';
 import { getDisconnectCode, shouldReconnectForDisconnectCode, toClosedLifecycleState } from './disconnect';
+import {
+  OutboundTransportUnavailableError,
+  type OutboundTransport,
+} from './outbound';
 import { type BotRuntimeConfig, createBotRuntimeConfig } from './runtimeConfig';
 
 export type BotLifecycleState = BotRuntimeSessionState;
@@ -25,7 +29,7 @@ export interface BotPairingStatus {
   qrText?: string;
 }
 
-export interface BotRuntimeHandle {
+export interface BotRuntimeHandle extends OutboundTransport {
   getStatus(): BotSessionStatus;
   stop(): Promise<void>;
 }
@@ -59,6 +63,9 @@ interface BotEventEmitter {
 export interface BotSocket {
   ev: BotEventEmitter;
   end(error?: Error): void;
+  sendMessage(recipientJid: string, message: unknown): Promise<unknown>;
+  presenceSubscribe(recipientJid: string): Promise<void>;
+  sendPresenceUpdate(state: "composing" | "paused", recipientJid: string): Promise<void>;
 }
 
 export interface BotProcess {
@@ -494,6 +501,36 @@ export const startBot = async (
 
   return {
     getStatus: () => status ?? initialStatus,
+    async presenceSubscribe(recipientJid) {
+      const activeSocket = currentSocket;
+      if (!activeSocket || (status ?? initialStatus).state !== "open") {
+        throw new OutboundTransportUnavailableError(
+          "Bot socket is unavailable for presence subscription",
+        );
+      }
+
+      await activeSocket.presenceSubscribe(recipientJid);
+    },
+    async sendMessage(recipientJid, message) {
+      const activeSocket = currentSocket;
+      if (!activeSocket || (status ?? initialStatus).state !== "open") {
+        throw new OutboundTransportUnavailableError(
+          "Bot socket is unavailable for outbound sends",
+        );
+      }
+
+      return activeSocket.sendMessage(recipientJid, message);
+    },
+    async sendPresenceUpdate(state, recipientJid) {
+      const activeSocket = currentSocket;
+      if (!activeSocket || (status ?? initialStatus).state !== "open") {
+        throw new OutboundTransportUnavailableError(
+          "Bot socket is unavailable for presence updates",
+        );
+      }
+
+      await activeSocket.sendPresenceUpdate(state, recipientJid);
+    },
     stop,
   };
 };

@@ -8,6 +8,11 @@ import type {
 } from '@cs/shared';
 import type { BotPairingStatus, BotRuntimeHandle, BotSessionStatus, StartBotOptions } from './runtime';
 import { startTenantSessionManager, type InboundMessageRouter, type SessionManagerStore } from './sessionManager';
+import {
+  OutboundSequenceError,
+  type CreateOutboundMessengerOptions,
+  type OutboundMessenger,
+} from './outbound';
 
 const createProfile = (
   companyId: string,
@@ -120,6 +125,22 @@ const createStoreStub = (
   };
 };
 
+const createRuntimeHandle = (
+  getStatus: () => BotSessionStatus,
+  overrides: Partial<BotRuntimeHandle> = {},
+): BotRuntimeHandle => ({
+  getStatus,
+  presenceSubscribe: async () => undefined,
+  sendMessage: async () => ({
+    key: {
+      id: "sent",
+    },
+  }),
+  sendPresenceUpdate: async () => undefined,
+  stop: async () => undefined,
+  ...overrides,
+});
+
 describe("startTenantSessionManager", () => {
   test("starts only enabled tenant sessions and lists them independently", async () => {
     const profiles = [createProfile("company-1"), createProfile("company-2")];
@@ -131,15 +152,12 @@ describe("startTenantSessionManager", () => {
       store,
       startBot: async (options) => {
         startCalls.push(options.runtimeConfig?.sessionKey ?? "missing");
-        return {
-          getStatus: () => ({
-            sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
-            state: "initializing",
-            attempt: 0,
-            hasQr: false,
-          }),
-          stop: async () => undefined,
-        };
+        return createRuntimeHandle(() => ({
+          sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
+          state: "initializing",
+          attempt: 0,
+          hasQr: false,
+        }));
       },
     });
 
@@ -170,10 +188,7 @@ describe("startTenantSessionManager", () => {
           hasQr: false,
         };
 
-        return {
-          getStatus: () => currentStatus,
-          stop: async () => undefined,
-        } satisfies BotRuntimeHandle;
+        return createRuntimeHandle(() => currentStatus);
       },
     });
 
@@ -223,15 +238,12 @@ describe("startTenantSessionManager", () => {
         const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
         statusCallbacks.set(sessionKey, options.onStatusChange ?? (() => undefined));
 
-        return {
-          getStatus: () => ({
-            sessionKey,
-            state: "initializing",
-            attempt: 0,
-            hasQr: false,
-          }),
-          stop: async () => undefined,
-        };
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "initializing",
+          attempt: 0,
+          hasQr: false,
+        }));
       },
     });
 
@@ -300,15 +312,12 @@ describe("startTenantSessionManager", () => {
         const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
         pairingCallbacks.set(sessionKey, options.onPairingChange ?? (() => undefined));
 
-        return {
-          getStatus: () => ({
-            sessionKey,
-            state: "initializing",
-            attempt: 0,
-            hasQr: false,
-          }),
-          stop: async () => undefined,
-        };
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "initializing",
+          attempt: 0,
+          hasQr: false,
+        }));
       },
     });
 
@@ -355,15 +364,12 @@ describe("startTenantSessionManager", () => {
         statusCallbacks.set(sessionKey, options.onStatusChange ?? (() => undefined));
         pairingCallbacks.set(sessionKey, options.onPairingChange ?? (() => undefined));
 
-        return {
-          getStatus: () => ({
-            sessionKey,
-            state: "initializing",
-            attempt: 0,
-            hasQr: false,
-          }),
-          stop: async () => undefined,
-        };
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "initializing",
+          attempt: 0,
+          hasQr: false,
+        }));
       },
     });
 
@@ -474,15 +480,12 @@ describe("startTenantSessionManager", () => {
           throw new Error("startup failed");
         }
 
-        return {
-          getStatus: () => ({
-            sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
-            state: "open",
-            attempt: 0,
-            hasQr: false,
-          }),
-          stop: async () => undefined,
-        };
+        return createRuntimeHandle(() => ({
+          sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
       },
     });
 
@@ -510,13 +513,12 @@ describe("startTenantSessionManager", () => {
       runtimeOwnerId: "runtime-owner-1",
       store,
       timer,
-      startBot: async (options) => ({
-        getStatus: () => ({
-          sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
-          state: "open",
-          attempt: 0,
-          hasQr: false,
-        }),
+      startBot: async (options) => createRuntimeHandle(() => ({
+        sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
+        state: "open",
+        attempt: 0,
+        hasQr: false,
+      }), {
         stop: async () => {
           stopped.push(options.runtimeConfig?.sessionKey ?? "missing");
         },
@@ -560,15 +562,12 @@ describe("startTenantSessionManager", () => {
         const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
         messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
 
-        return {
-          getStatus: () => ({
-            sessionKey,
-            state: "open",
-            attempt: 0,
-            hasQr: false,
-          }),
-          stop: async () => undefined,
-        };
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
       },
     });
 
@@ -657,15 +656,12 @@ describe("startTenantSessionManager", () => {
         const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
         messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
 
-        return {
-          getStatus: () => ({
-            sessionKey,
-            state: "open",
-            attempt: 0,
-            hasQr: false,
-          }),
-          stop: async () => undefined,
-        };
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
       },
     });
 
@@ -711,5 +707,105 @@ describe("startTenantSessionManager", () => {
       },
       message: "tenant inbound message routing failed",
     });
+  });
+
+  test("exposes isolated tenant outbound messengers through the session manager", async () => {
+    const profiles = [createProfile("company-1"), createProfile("company-2")];
+    const store = createStoreStub(profiles);
+    const outboundBySessionKey = new Map<string, OutboundMessenger>();
+    const createdOutboundOptions: CreateOutboundMessengerOptions[] = [];
+
+    const manager = await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      createOutboundMessenger: (options) => {
+        const transport = options.transport as BotRuntimeHandle;
+        createdOutboundOptions.push(options);
+        const messenger: OutboundMessenger = {
+          sendMedia: async () => [],
+          sendSequence: async () => [],
+          sendText: async () => [{
+            attempts: 1,
+            kind: "text",
+            recipientJid: transport.getStatus().sessionKey,
+            stepIndex: 0,
+          }],
+        };
+        outboundBySessionKey.set(transport.getStatus().sessionKey, messenger);
+        return messenger;
+      },
+      startBot: async (options) => createRuntimeHandle(() => ({
+        sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
+        state: "open",
+        attempt: 0,
+        hasQr: false,
+      })),
+    });
+
+    const company1Outbound = manager.getOutbound("company-1");
+    const company2Outbound = manager.getOutbound("company-2");
+
+    expect(createdOutboundOptions).toHaveLength(2);
+    expect(company1Outbound).toBe(outboundBySessionKey.get("company-company-1"));
+    expect(company2Outbound).toBe(outboundBySessionKey.get("company-company-2"));
+    expect(company1Outbound).not.toBe(company2Outbound);
+  });
+
+  test("keeps tenant outbound lookup isolated when one tenant sender fails", async () => {
+    const profiles = [createProfile("company-1"), createProfile("company-2")];
+    const store = createStoreStub(profiles);
+    const manager = await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }), {
+          presenceSubscribe: async () => undefined,
+          sendMessage: async () => {
+            if (sessionKey === "company-company-1") {
+              throw new Error("send failed");
+            }
+
+            return { key: { id: "company-2-sent" } };
+          },
+          sendPresenceUpdate: async () => undefined,
+        });
+      },
+    });
+
+    await expect(manager.getOutbound("company-1")?.sendText({
+      recipientJid: "967700000001@s.whatsapp.net",
+      text: "hello",
+    }) ?? Promise.reject(new Error("missing outbound"))).rejects.toMatchObject({
+      classification: "unknown",
+      stepIndex: 0,
+      attempts: 1,
+      sentReceipts: [],
+      cause: expect.objectContaining({
+        message: "send failed",
+      }),
+    } satisfies Partial<OutboundSequenceError>);
+
+    await expect(manager.getOutbound("company-2")?.sendText({
+      recipientJid: "967700000002@s.whatsapp.net",
+      text: "hello",
+    }) ?? Promise.reject(new Error("missing outbound"))).resolves.toEqual([
+      {
+        attempts: 1,
+        kind: "text",
+        messageId: "company-2-sent",
+        recipientJid: "967700000002@s.whatsapp.net",
+        stepIndex: 0,
+      },
+    ]);
+
+    expect(manager.getOutbound("company-1")).toBeDefined();
+    expect(manager.getOutbound("company-2")).toBeDefined();
   });
 });

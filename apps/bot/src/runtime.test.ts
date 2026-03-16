@@ -84,6 +84,9 @@ const createSocketStub = () => {
   const credsHandlers: Array<(update: unknown) => void> = [];
   const messagesUpsertHandlers: Array<(update: BaileysEventMap["messages.upsert"]) => void> = [];
   const endCalls: unknown[] = [];
+  const sendCalls: Array<{ recipientJid: string; message: unknown }> = [];
+  const presenceSubscribeCalls: string[] = [];
+  const presenceUpdateCalls: Array<{ state: "composing" | "paused"; recipientJid: string }> = [];
 
   const socket: BotSocket = {
     ev: {
@@ -103,6 +106,20 @@ const createSocketStub = () => {
     },
     end: (error) => {
       endCalls.push(error);
+    },
+    presenceSubscribe: async (recipientJid) => {
+      presenceSubscribeCalls.push(recipientJid);
+    },
+    sendMessage: async (recipientJid, message) => {
+      sendCalls.push({ recipientJid, message });
+      return {
+        key: {
+          id: `sent-${sendCalls.length}`,
+        },
+      };
+    },
+    sendPresenceUpdate: async (state, recipientJid) => {
+      presenceUpdateCalls.push({ state, recipientJid });
     },
   };
 
@@ -124,6 +141,9 @@ const createSocketStub = () => {
       }
     },
     endCalls,
+    presenceSubscribeCalls,
+    presenceUpdateCalls,
+    sendCalls,
   };
 };
 
@@ -467,6 +487,77 @@ describe("startBot", () => {
         ],
       },
     ]);
+  });
+
+  test("exposes outbound transport methods while the socket is open", async () => {
+    const { logger } = createLoggerStub();
+    const socketStub = createSocketStub();
+
+    const handle = await startBot({
+      logger,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => socketStub.socket,
+    });
+
+    socketStub.emitConnectionUpdate({ connection: "open" });
+
+    await handle.presenceSubscribe("967700000001@s.whatsapp.net");
+    await handle.sendPresenceUpdate("composing", "967700000001@s.whatsapp.net");
+    const result = await handle.sendMessage("967700000001@s.whatsapp.net", {
+      text: "Hello",
+    });
+
+    expect(socketStub.presenceSubscribeCalls).toEqual(["967700000001@s.whatsapp.net"]);
+    expect(socketStub.presenceUpdateCalls).toEqual([
+      {
+        state: "composing",
+        recipientJid: "967700000001@s.whatsapp.net",
+      },
+    ]);
+    expect(socketStub.sendCalls).toEqual([
+      {
+        recipientJid: "967700000001@s.whatsapp.net",
+        message: {
+          text: "Hello",
+        },
+      },
+    ]);
+    expect(result).toEqual({
+      key: {
+        id: "sent-1",
+      },
+    });
+  });
+
+  test("rejects outbound transport calls when the socket is not open", async () => {
+    const { logger } = createLoggerStub();
+    const socketStub = createSocketStub();
+
+    const handle = await startBot({
+      logger,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => socketStub.socket,
+    });
+
+    await expect(handle.sendMessage("967700000001@s.whatsapp.net", { text: "Hello" })).rejects.toThrow(
+      "Bot socket is unavailable for outbound sends",
+    );
+    await expect(handle.presenceSubscribe("967700000001@s.whatsapp.net")).rejects.toThrow(
+      "Bot socket is unavailable for presence subscription",
+    );
+    await expect(handle.sendPresenceUpdate("paused", "967700000001@s.whatsapp.net")).rejects.toThrow(
+      "Bot socket is unavailable for presence updates",
+    );
   });
 
   test("logs inbound callback failures without shutting down the runtime", async () => {

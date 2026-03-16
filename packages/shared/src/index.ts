@@ -9,3 +9,4 @@ export * from "./analytics";
 export * from "./companyRuntime";
 export * from "./errors";
 export * from "./inbound";
+export * from "./outbound";
