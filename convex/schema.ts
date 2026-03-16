@@ -74,6 +74,18 @@ export default defineSchema({
     .index("by_state", ["state"])
     .index("by_lease_expires_at", ["leaseExpiresAt"]),
 
+  botRuntimePairingArtifacts: defineTable({
+    companyId: v.id("companies"),
+    runtimeOwnerId: v.string(),
+    sessionKey: v.string(),
+    qrText: v.string(),
+    updatedAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_runtime_owner", ["runtimeOwnerId"])
+    .index("by_expires_at", ["expiresAt"]),
+
   // ── Categories ──────────────────────────────────────────────────────────
   categories: defineTable({
     companyId: v.id("companies"),

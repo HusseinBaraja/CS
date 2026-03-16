@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { AuthenticationState, UserFacingSocketConfig } from '@whiskeysockets/baileys';
-import { type BotConnectionUpdate, type BotSocket, startBot } from './runtime';
+import { type BotConnectionUpdate, type BotPairingStatus, type BotSocket, startBot } from './runtime';
 import { createBotRuntimeConfig } from './runtimeConfig';
 
 type RegisteredHandler = () => void | Promise<void>;
@@ -246,6 +246,135 @@ describe("startBot", () => {
 
     const serializedLogs = JSON.stringify(infoCalls);
     expect(serializedLogs).not.toContain("raw-qr-value");
+  });
+
+  test("emits pairing callbacks when a QR is created and clears them after open", async () => {
+    const { logger } = createLoggerStub();
+    const socketStub = createSocketStub();
+    let currentNow = 1_000;
+    const pairingChanges: BotPairingStatus[] = [];
+
+    await startBot({
+      logger,
+      now: () => currentNow,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      onPairingChange: (pairing) => {
+        pairingChanges.push(pairing);
+      },
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => socketStub.socket,
+    });
+
+    socketStub.emitConnectionUpdate({ qr: "ready-qr" });
+    currentNow = 2_000;
+    socketStub.emitConnectionUpdate({ connection: "open" });
+    await flushPromises();
+
+    expect(pairingChanges).toEqual([
+      {
+        sessionKey: "default",
+        state: "ready",
+        qrText: "ready-qr",
+        updatedAt: 1_000,
+        expiresAt: 61_000,
+      },
+      {
+        sessionKey: "default",
+        state: "none",
+        updatedAt: 2_000,
+      },
+    ]);
+  });
+
+  test("expires QR pairing exactly once and marks the session as awaiting pairing without an active QR", async () => {
+    const { logger } = createLoggerStub();
+    const { timer, scheduled } = createTimerStub();
+    const socketStub = createSocketStub();
+    let currentNow = 5_000;
+    const pairingChanges: BotPairingStatus[] = [];
+
+    const handle = await startBot({
+      logger,
+      now: () => currentNow,
+      timer,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      onPairingChange: (pairing) => {
+        pairingChanges.push(pairing);
+      },
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => socketStub.socket,
+    });
+
+    socketStub.emitConnectionUpdate({ qr: "expiring-qr" });
+    currentNow = 66_000;
+    scheduled[0]?.callback();
+    scheduled[0]?.callback();
+    await flushPromises();
+
+    expect(handle.getStatus()).toEqual({
+      sessionKey: "default",
+      state: "awaiting_pairing",
+      attempt: 0,
+      hasQr: false,
+    });
+    expect(pairingChanges).toEqual([
+      {
+        sessionKey: "default",
+        state: "ready",
+        qrText: "expiring-qr",
+        updatedAt: 5_000,
+        expiresAt: 65_000,
+      },
+      {
+        sessionKey: "default",
+        state: "expired",
+        updatedAt: 66_000,
+        expiresAt: 65_000,
+        qrText: "expiring-qr",
+      },
+    ]);
+  });
+
+  test("dedupes identical QR updates", async () => {
+    const { logger } = createLoggerStub();
+    const socketStub = createSocketStub();
+    const pairingChanges: BotPairingStatus[] = [];
+
+    await startBot({
+      logger,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      onPairingChange: (pairing) => {
+        pairingChanges.push(pairing);
+      },
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => socketStub.socket,
+    });
+
+    socketStub.emitConnectionUpdate({ qr: "same-qr" });
+    socketStub.emitConnectionUpdate({ qr: "same-qr" });
+    await flushPromises();
+
+    expect(pairingChanges).toEqual([
+      {
+        sessionKey: "default",
+        state: "ready",
+        qrText: "same-qr",
+        updatedAt: expect.any(Number),
+        expiresAt: expect.any(Number),
+      },
+    ]);
   });
 
   test("persists creds on updates", async () => {

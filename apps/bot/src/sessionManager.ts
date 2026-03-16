@@ -1,7 +1,17 @@
+import { env } from '@cs/config';
 import { logger as defaultLogger } from '@cs/core';
-import type { BotRuntimeSessionRecord, CompanyRuntimeProfile } from '@cs/shared';
+import {
+  getBotRuntimeNextActionHint,
+  getBotRuntimeOperatorState,
+  getBotRuntimeOperatorSummary,
+  type BotRuntimeOperatorSnapshot,
+  type BotRuntimePairingArtifact,
+  type BotRuntimeSessionRecord,
+  type CompanyRuntimeProfile,
+} from '@cs/shared';
 import { createBotRuntimeConfig, type BotRuntimeConfig } from './runtimeConfig';
 import {
+  type BotPairingStatus,
   startBot as defaultStartBot,
   type BotLogger,
   type BotProcess,
@@ -22,7 +32,11 @@ export interface ManagedTenantSession {
   status: BotSessionStatus;
 }
 
-interface ManagedTenantSessionInternal extends ManagedTenantSession {
+interface ManagedTenantSessionInternal {
+  profile: CompanyRuntimeProfile;
+  status: BotSessionStatus;
+  pairing: BotPairingStatus | null;
+  runtimeConfig: BotRuntimeConfig;
   handle?: BotRuntimeHandle;
 }
 
@@ -57,6 +71,8 @@ const defaultTimer: SessionManagerTimer = {
   clearInterval: (intervalId) => globalThis.clearInterval(intervalId as ReturnType<typeof setInterval>),
 };
 
+const OPERATOR_SHELL_PATH = "/runtime/bot";
+
 const cloneStatus = (status: BotSessionStatus): BotSessionStatus => ({
   sessionKey: status.sessionKey,
   state: status.state,
@@ -84,6 +100,90 @@ const toSessionRecord = (
   leaseExpiresAt: now + SESSION_LEASE_MS,
 });
 
+const clonePairing = (pairing: BotPairingStatus): BotPairingStatus => ({
+  sessionKey: pairing.sessionKey,
+  state: pairing.state,
+  updatedAt: pairing.updatedAt,
+  ...(pairing.expiresAt !== undefined ? { expiresAt: pairing.expiresAt } : {}),
+  ...(pairing.qrText !== undefined ? { qrText: pairing.qrText } : {}),
+});
+
+const getOperatorShellUrl = (companyId: string): string => {
+  return `http://127.0.0.1:${env.API_PORT}${OPERATOR_SHELL_PATH}?companyId=${encodeURIComponent(companyId)}`;
+};
+
+const getReconnectDelayMs = (
+  attempt: number,
+  runtimeConfig: Pick<BotRuntimeConfig, "reconnectBackoff">,
+): number =>
+  Math.min(
+    runtimeConfig.reconnectBackoff.initialDelayMs * 2 ** Math.max(0, attempt - 1),
+    runtimeConfig.reconnectBackoff.maxDelayMs,
+  );
+
+const toOperatorSnapshot = (
+  runtimeOwnerId: string,
+  now: number,
+  session: ManagedTenantSessionInternal,
+): BotRuntimeOperatorSnapshot => ({
+  ...session.profile,
+  session: toSessionRecord(runtimeOwnerId, session.profile.companyId, now, session.status),
+  pairing: session.pairing
+    ? {
+      state: session.pairing.state,
+      ...(session.pairing.updatedAt !== undefined ? { updatedAt: session.pairing.updatedAt } : {}),
+      ...(session.pairing.expiresAt !== undefined ? { expiresAt: session.pairing.expiresAt } : {}),
+      ...(session.pairing.qrText !== undefined ? { qrText: session.pairing.qrText } : {}),
+    }
+    : {
+      state: "none",
+    },
+});
+
+const toOperatorLogPayload = (
+  snapshot: BotRuntimeOperatorSnapshot,
+  now: number,
+  nextRetryAt?: number,
+) => ({
+  companyId: snapshot.companyId,
+  companyName: snapshot.name,
+  sessionKey: snapshot.session?.sessionKey ?? snapshot.sessionKey,
+  state: snapshot.session?.state ?? "closed",
+  attempt: snapshot.session?.attempt ?? 0,
+  ...(snapshot.session?.disconnectCode !== undefined ? { disconnectCode: snapshot.session.disconnectCode } : {}),
+  pairingState: snapshot.pairing.state,
+  ...(snapshot.pairing.expiresAt !== undefined ? { expiresAt: snapshot.pairing.expiresAt } : {}),
+  ...(nextRetryAt !== undefined ? { nextRetryAt } : {}),
+  operatorState: getBotRuntimeOperatorState(snapshot, now),
+  summary: getBotRuntimeOperatorSummary(snapshot, now).text,
+  ...(getBotRuntimeNextActionHint(snapshot, now) !== undefined
+    ? { nextActionHint: getBotRuntimeNextActionHint(snapshot, now) }
+    : {}),
+});
+
+const toPairingArtifact = (
+  runtimeOwnerId: string,
+  companyId: string,
+  pairing: BotPairingStatus,
+): BotRuntimePairingArtifact => {
+  if (
+    (pairing.state !== "ready" && pairing.state !== "expired") ||
+    pairing.qrText === undefined ||
+    pairing.expiresAt === undefined
+  ) {
+    throw new Error("Expected a pairing status with QR data");
+  }
+
+  return {
+    companyId,
+    runtimeOwnerId,
+    sessionKey: pairing.sessionKey,
+    qrText: pairing.qrText,
+    updatedAt: pairing.updatedAt,
+    expiresAt: pairing.expiresAt,
+  };
+};
+
 export const startTenantSessionManager = async (
   options: StartTenantSessionManagerOptions = {},
 ): Promise<TenantSessionManagerHandle> => {
@@ -104,6 +204,21 @@ export const startTenantSessionManager = async (
     await store.upsertSession(toSessionRecord(runtimeOwnerId, companyId, now(), status));
   };
 
+  const clearPairingArtifact = async (profile: CompanyRuntimeProfile): Promise<void> => {
+    try {
+      await store.clearPairingArtifact(profile.companyId);
+    } catch (error) {
+      botLogger.error(
+        {
+          companyId: profile.companyId,
+          error,
+          sessionKey: profile.sessionKey,
+        },
+        "tenant session pairing artifact cleanup failed",
+      );
+    }
+  };
+
   const handleStatusChange = async (
     profile: CompanyRuntimeProfile,
     status: BotSessionStatus,
@@ -112,9 +227,27 @@ export const startTenantSessionManager = async (
     const existing = sessions.get(profile.companyId);
     sessions.set(profile.companyId, {
       profile,
+      pairing: existing?.pairing ?? null,
+      runtimeConfig: existing?.runtimeConfig ?? createRuntimeConfig({
+        sessionKey: profile.sessionKey,
+      }),
       status: nextStatus,
       ...(existing?.handle ? { handle: existing.handle } : {}),
     });
+
+    const currentSession = sessions.get(profile.companyId);
+    if (currentSession) {
+      const logNow = now();
+      const snapshot = toOperatorSnapshot(runtimeOwnerId, logNow, currentSession);
+
+      if (nextStatus.state === "reconnecting") {
+        const nextRetryAt = logNow + getReconnectDelayMs(nextStatus.attempt, currentSession.runtimeConfig);
+        botLogger.info(
+          toOperatorLogPayload(snapshot, logNow, nextRetryAt),
+          "bot reconnect scheduled",
+        );
+      }
+    }
 
     try {
       await upsertStatus(profile.companyId, nextStatus);
@@ -126,6 +259,61 @@ export const startTenantSessionManager = async (
           sessionKey: nextStatus.sessionKey,
         },
         "tenant session status persistence failed",
+      );
+    }
+  };
+
+  const handlePairingChange = async (
+    profile: CompanyRuntimeProfile,
+    pairing: BotPairingStatus,
+  ): Promise<void> => {
+    const nextPairing = clonePairing(pairing);
+    const existing = sessions.get(profile.companyId);
+    if (existing) {
+      sessions.set(profile.companyId, {
+        ...existing,
+        pairing: nextPairing,
+      });
+    }
+
+    const currentSession = sessions.get(profile.companyId);
+    if (currentSession) {
+      const logNow = now();
+      const snapshot = toOperatorSnapshot(runtimeOwnerId, logNow, currentSession);
+
+      if (nextPairing.state === "ready") {
+        botLogger.info(
+          {
+            ...toOperatorLogPayload(snapshot, logNow),
+            operatorUrl: getOperatorShellUrl(profile.companyId),
+          },
+          "bot pairing available",
+        );
+      }
+
+      if (nextPairing.state === "expired") {
+        botLogger.info(
+          toOperatorLogPayload(snapshot, logNow),
+          "bot pairing expired",
+        );
+      }
+    }
+
+    if (nextPairing.state === "none") {
+      await clearPairingArtifact(profile);
+      return;
+    }
+
+    try {
+      await store.upsertPairingArtifact(toPairingArtifact(runtimeOwnerId, profile.companyId, nextPairing));
+    } catch (error) {
+      botLogger.error(
+        {
+          companyId: profile.companyId,
+          error,
+          sessionKey: nextPairing.sessionKey,
+        },
+        "tenant session pairing artifact persistence failed",
       );
     }
   };
@@ -166,18 +354,30 @@ export const startTenantSessionManager = async (
     );
 
     await store.releaseSessionsByOwner(runtimeOwnerId);
+    await store.releasePairingArtifactsByOwner(runtimeOwnerId);
   };
 
   const profiles = await store.listEnabledCompanies();
 
   await Promise.allSettled(
     profiles.map(async (profile) => {
+      await clearPairingArtifact(profile);
+
       const initialStatus: BotSessionStatus = {
         sessionKey: profile.sessionKey,
         state: "initializing",
         attempt: 0,
         hasQr: false,
       };
+      const runtimeConfig = createRuntimeConfig({
+        sessionKey: profile.sessionKey,
+      });
+      sessions.set(profile.companyId, {
+        profile,
+        status: initialStatus,
+        pairing: null,
+        runtimeConfig,
+      });
       await handleStatusChange(profile, initialStatus);
 
       try {
@@ -188,17 +388,18 @@ export const startTenantSessionManager = async (
               sessionKey: profile.sessionKey,
             })
             : botLogger,
+          onPairingChange: (pairing) => handlePairingChange(profile, pairing),
           onStatusChange: (status) => handleStatusChange(profile, status),
           registerProcessHandlers: false,
-          runtimeConfig: createRuntimeConfig({
-            sessionKey: profile.sessionKey,
-          }),
+          runtimeConfig,
         });
 
         const currentStatus = cloneStatus(handle.getStatus());
         sessions.set(profile.companyId, {
           profile,
           status: currentStatus,
+          pairing: sessions.get(profile.companyId)?.pairing ?? null,
+          runtimeConfig,
           handle,
         });
         await upsertStatus(profile.companyId, currentStatus);
@@ -212,6 +413,8 @@ export const startTenantSessionManager = async (
         sessions.set(profile.companyId, {
           profile,
           status: failedStatus,
+          pairing: sessions.get(profile.companyId)?.pairing ?? null,
+          runtimeConfig,
         });
         await upsertStatus(profile.companyId, failedStatus).catch((persistError) => {
           botLogger.error(

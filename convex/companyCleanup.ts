@@ -7,6 +7,7 @@ export const CLEANUP_BATCH_SIZE = 64;
 export const CLEANUP_COUNT_KEYS = [
   "companies",
   "botRuntimeSessions",
+  "botRuntimePairingArtifacts",
   "categories",
   "products",
   "productImageUploads",
@@ -263,6 +264,7 @@ const deleteBatchIfAny = async <T extends TableNames>(
 export const createEmptyCleanupCounts = (): CleanupCounts => ({
   companies: 0,
   botRuntimeSessions: 0,
+  botRuntimePairingArtifacts: 0,
   categories: 0,
   products: 0,
   productImageUploads: 0,
@@ -363,6 +365,19 @@ export const clearCompanyDataBatch = internalMutation({
     );
     if (botRuntimeSessionsResult) {
       return botRuntimeSessionsResult;
+    }
+
+    const botRuntimePairingArtifactsBatch = await takeDocumentIds(
+      ctx.db.query("botRuntimePairingArtifacts").withIndex("by_company", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const botRuntimePairingArtifactsResult = await deleteBatchIfAny(
+      ctx,
+      "botRuntimePairingArtifacts",
+      botRuntimePairingArtifactsBatch,
+    );
+    if (botRuntimePairingArtifactsResult) {
+      return botRuntimePairingArtifactsResult;
     }
 
     const productImageUploadsBatch = await takeDocumentIds(

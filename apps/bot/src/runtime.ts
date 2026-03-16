@@ -1,7 +1,7 @@
 import type { UserFacingSocketConfig } from '@whiskeysockets/baileys';
 import makeWASocket from '@whiskeysockets/baileys';
 import { logger as defaultLogger } from '@cs/core';
-import type { BotRuntimeSessionState } from '@cs/shared';
+import type { BotRuntimePairingState, BotRuntimeSessionState } from '@cs/shared';
 import { createLocalAuthState, type LocalAuthState } from './authState';
 import { getDisconnectCode, shouldReconnectForDisconnectCode, toClosedLifecycleState } from './disconnect';
 import { type BotRuntimeConfig, createBotRuntimeConfig } from './runtimeConfig';
@@ -15,6 +15,14 @@ export interface BotSessionStatus {
   hasQr: boolean;
   disconnectCode?: number;
   isNewLogin?: boolean;
+}
+
+export interface BotPairingStatus {
+  sessionKey: string;
+  state: BotRuntimePairingState;
+  updatedAt: number;
+  expiresAt?: number;
+  qrText?: string;
 }
 
 export interface BotRuntimeHandle {
@@ -72,9 +80,11 @@ export interface StartBotOptions {
     sessionKey: string;
   }) => Promise<LocalAuthState>;
   onStatusChange?: (status: BotSessionStatus) => void | Promise<void>;
+  onPairingChange?: (pairing: BotPairingStatus) => void | Promise<void>;
   botProcess?: BotProcess;
   registerProcessHandlers?: boolean;
   timer?: BotTimer;
+  now?: () => number;
 }
 
 const createBaileysLogger = (botLogger: BotLogger) => {
@@ -123,6 +133,13 @@ const statusEquals = (left: BotSessionStatus, right: BotSessionStatus): boolean 
   left.disconnectCode === right.disconnectCode &&
   left.isNewLogin === right.isNewLogin;
 
+const pairingEquals = (left: BotPairingStatus, right: BotPairingStatus): boolean =>
+  left.sessionKey === right.sessionKey &&
+  left.state === right.state &&
+  left.updatedAt === right.updatedAt &&
+  left.expiresAt === right.expiresAt &&
+  left.qrText === right.qrText;
+
 const toStatusLogPayload = (status: BotSessionStatus) => ({
   sessionKey: status.sessionKey,
   state: status.state,
@@ -140,9 +157,11 @@ export const startBot = async (
   const createSocket = options.createSocket ?? defaultCreateSocket;
   const loadAuthState = options.loadAuthState ?? ((authOptions) => createLocalAuthState(authOptions));
   const onStatusChange = options.onStatusChange;
+  const onPairingChange = options.onPairingChange;
   const botProcess = options.botProcess ?? process;
   const registerProcessHandlers = options.registerProcessHandlers ?? true;
   const timer = options.timer ?? defaultTimer;
+  const now = options.now ?? Date.now;
 
   const initialStatus: BotSessionStatus = {
     sessionKey: runtimeConfig.sessionKey,
@@ -153,8 +172,10 @@ export const startBot = async (
   let status: BotSessionStatus | undefined;
   let currentSocket: BotSocket | undefined;
   let reconnectTimeoutId: unknown;
+  let qrExpiryTimeoutId: unknown;
   let reconnectAttempt = 0;
   let shuttingDown = false;
+  let pairing: BotPairingStatus | undefined;
 
   const setStatus = (nextStatus: BotSessionStatus): void => {
     if (status && statusEquals(status, nextStatus)) {
@@ -178,6 +199,27 @@ export const startBot = async (
     }
   };
 
+  const setPairing = (nextPairing: BotPairingStatus): void => {
+    if (pairing && pairingEquals(pairing, nextPairing)) {
+      return;
+    }
+
+    pairing = nextPairing;
+    if (onPairingChange) {
+      void Promise.resolve()
+        .then(() => onPairingChange(nextPairing))
+        .catch((error) => {
+          botLogger.error(
+            {
+              error,
+              sessionKey: nextPairing.sessionKey,
+            },
+            "bot pairing change callback failed",
+          );
+        });
+    }
+  };
+
   setStatus(initialStatus);
 
   const authState = await loadAuthState({
@@ -194,6 +236,60 @@ export const startBot = async (
     reconnectTimeoutId = undefined;
   };
 
+  const clearQrExpiryTimer = (): void => {
+    if (qrExpiryTimeoutId === undefined) {
+      return;
+    }
+
+    timer.clearTimeout(qrExpiryTimeoutId);
+    qrExpiryTimeoutId = undefined;
+  };
+
+  const clearPairing = (): void => {
+    clearQrExpiryTimer();
+    if (!pairing || pairing.state === "none") {
+      return;
+    }
+
+    setPairing({
+      sessionKey: runtimeConfig.sessionKey,
+      state: "none",
+      updatedAt: now(),
+    });
+  };
+
+  const schedulePairingExpiry = (qrText: string, expiresAt: number): void => {
+    clearQrExpiryTimer();
+    qrExpiryTimeoutId = timer.setTimeout(() => {
+      qrExpiryTimeoutId = undefined;
+
+      if (
+        shuttingDown ||
+        !pairing ||
+        pairing.state !== "ready" ||
+        pairing.qrText !== qrText
+      ) {
+        return;
+      }
+
+      setPairing({
+        sessionKey: runtimeConfig.sessionKey,
+        state: "expired",
+        updatedAt: now(),
+        expiresAt,
+        qrText,
+      });
+
+      const currentStatus = status ?? initialStatus;
+      if (currentStatus.state === "awaiting_pairing" && currentStatus.hasQr) {
+        setStatus({
+          ...currentStatus,
+          hasQr: false,
+        });
+      }
+    }, runtimeConfig.qrTimeoutMs);
+  };
+
   const stop = async (): Promise<void> => {
     if (shuttingDown) {
       return;
@@ -201,6 +297,7 @@ export const startBot = async (
 
     shuttingDown = true;
     clearReconnectTimer();
+    clearPairing();
 
     if (currentSocket) {
       const socketToClose = currentSocket;
@@ -216,6 +313,7 @@ export const startBot = async (
       state: "failed",
       hasQr: false,
     });
+    clearPairing();
     botLogger.error(
       {
         sessionKey: runtimeConfig.sessionKey,
@@ -255,6 +353,19 @@ export const startBot = async (
       }
 
       if (update.qr) {
+        if (pairing?.state === "ready" && pairing.qrText === update.qr) {
+          return;
+        }
+
+        const expiresAt = now() + runtimeConfig.qrTimeoutMs;
+        setPairing({
+          sessionKey: runtimeConfig.sessionKey,
+          state: "ready",
+          qrText: update.qr,
+          updatedAt: now(),
+          expiresAt,
+        });
+        schedulePairingExpiry(update.qr, expiresAt);
         setStatus({
           sessionKey: runtimeConfig.sessionKey,
           state: "awaiting_pairing",
@@ -267,6 +378,9 @@ export const startBot = async (
       }
 
       if (update.connection === "connecting") {
+        if (pairing?.state === "expired") {
+          clearPairing();
+        }
         setStatus({
           sessionKey: runtimeConfig.sessionKey,
           state: "connecting",
@@ -281,6 +395,7 @@ export const startBot = async (
       if (update.connection === "open") {
         clearReconnectTimer();
         reconnectAttempt = 0;
+        clearPairing();
         setStatus({
           sessionKey: runtimeConfig.sessionKey,
           state: "open",
@@ -293,6 +408,7 @@ export const startBot = async (
       }
 
       if ((status ?? initialStatus).state === "awaiting_pairing" && update.isNewLogin === true) {
+        clearPairing();
         setStatus({
           sessionKey: runtimeConfig.sessionKey,
           state: "connecting",
@@ -310,6 +426,7 @@ export const startBot = async (
 
       currentSocket = undefined;
       clearReconnectTimer();
+      clearPairing();
 
       const disconnectCode = getDisconnectCode(update.lastDisconnect?.error);
       if (shouldReconnectForDisconnectCode(disconnectCode)) {
