@@ -60,6 +60,7 @@ const createTimerStub = () => {
     timer: {
       setTimeout: (handler: () => void, delayMs: number) => {
         scheduled.push(delayMs);
+        // Tests run timers synchronously so send ordering stays deterministic.
         handler();
         return scheduled.length;
       },

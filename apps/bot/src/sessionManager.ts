@@ -3,6 +3,7 @@ import { logger as defaultLogger } from '@cs/core';
 import {
   type IgnoredInboundEvent,
   type IgnoredInboundEventReason,
+  getBotRuntimeReconnectDelayMs,
   getBotRuntimeNextActionHint,
   getBotRuntimeOperatorState,
   getBotRuntimeOperatorSummary,
@@ -145,15 +146,6 @@ const clonePairing = (pairing: BotPairingStatus): BotPairingStatus => ({
 const getOperatorShellUrl = (companyId: string): string => {
   return `http://127.0.0.1:${env.API_PORT}${OPERATOR_SHELL_PATH}?companyId=${encodeURIComponent(companyId)}`;
 };
-
-const getReconnectDelayMs = (
-  attempt: number,
-  runtimeConfig: Pick<BotRuntimeConfig, "reconnectBackoff">,
-): number =>
-  Math.min(
-    runtimeConfig.reconnectBackoff.initialDelayMs * 2 ** Math.max(0, attempt - 1),
-    runtimeConfig.reconnectBackoff.maxDelayMs,
-  );
 
 const toOperatorSnapshot = (
   runtimeOwnerId: string,
@@ -342,7 +334,10 @@ export const startTenantSessionManager = async (
       const snapshot = toOperatorSnapshot(runtimeOwnerId, logNow, currentSession);
 
       if (nextStatus.state === "reconnecting") {
-        const nextRetryAt = logNow + getReconnectDelayMs(nextStatus.attempt, currentSession.runtimeConfig);
+        const nextRetryAt = logNow + getBotRuntimeReconnectDelayMs(
+          nextStatus.attempt,
+          currentSession.runtimeConfig.reconnectBackoff,
+        );
         botLogger.info(
           toOperatorLogPayload(snapshot, logNow, nextRetryAt),
           "bot reconnect scheduled",
@@ -462,27 +457,30 @@ export const startTenantSessionManager = async (
 
   await Promise.allSettled(
     profiles.map(async (profile) => {
-      await clearPairingArtifact(profile);
-
-      const initialStatus: BotSessionStatus = {
-        sessionKey: profile.sessionKey,
-        state: "initializing",
-        attempt: 0,
-        hasQr: false,
-      };
-      const runtimeConfig = createRuntimeConfig({
-        sessionKey: profile.sessionKey,
-      });
-      sessions.set(profile.companyId, {
-        profile,
-        status: initialStatus,
-        pairing: null,
-        runtimeConfig,
-      });
-      await handleStatusChange(profile, initialStatus);
+      let handle: BotRuntimeHandle | undefined;
+      let runtimeConfig: BotRuntimeConfig | undefined;
 
       try {
-        const handle = await startBot({
+        await clearPairingArtifact(profile);
+
+        const initialStatus: BotSessionStatus = {
+          sessionKey: profile.sessionKey,
+          state: "initializing",
+          attempt: 0,
+          hasQr: false,
+        };
+        runtimeConfig = createRuntimeConfig({
+          sessionKey: profile.sessionKey,
+        });
+        sessions.set(profile.companyId, {
+          profile,
+          status: initialStatus,
+          pairing: null,
+          runtimeConfig,
+        });
+        await handleStatusChange(profile, initialStatus);
+
+        handle = await startBot({
           logger: typeof botLogger.child === "function"
             ? botLogger.child({
               companyId: profile.companyId,
@@ -517,6 +515,21 @@ export const startTenantSessionManager = async (
         });
         await upsertStatus(profile.companyId, currentStatus);
       } catch (error) {
+        if (handle) {
+          try {
+            await handle.stop();
+          } catch (stopError) {
+            botLogger.error(
+              {
+                companyId: profile.companyId,
+                error: stopError,
+                sessionKey: profile.sessionKey,
+              },
+              "tenant session shutdown after startup failure failed",
+            );
+          }
+        }
+
         const failedStatus: BotSessionStatus = {
           sessionKey: profile.sessionKey,
           state: "failed",
@@ -527,7 +540,9 @@ export const startTenantSessionManager = async (
           profile,
           status: failedStatus,
           pairing: sessions.get(profile.companyId)?.pairing ?? null,
-          runtimeConfig,
+          runtimeConfig: runtimeConfig ?? createBotRuntimeConfig({
+            sessionKey: profile.sessionKey,
+          }),
         });
         await upsertStatus(profile.companyId, failedStatus).catch((persistError) => {
           botLogger.error(

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { convexInternal } from '@cs/db';
 import { getFunctionName } from 'convex/server';
 import { createConvexBotRuntimeService } from './convexBotRuntimeService';
+import { ERROR_CODES } from '@cs/shared';
 import { createDatabaseServiceError } from './botRuntime';
 
 type StubConvexAdminClient = {
@@ -55,7 +56,15 @@ describe("createConvexBotRuntimeService", () => {
     });
 
     await expect(service.listOperatorSnapshots()).rejects.toEqual(
-      createDatabaseServiceError("Bot runtime data is temporarily unavailable"),
+      createDatabaseServiceError(new Error("socket hang up")),
     );
+  });
+
+  test("uses a client-safe message when normalizing database failures", async () => {
+    const error = createDatabaseServiceError(new Error("raw convex stack"));
+
+    expect(error.code).toBe(ERROR_CODES.DB_QUERY_FAILED);
+    expect(error.message).toBe("Bot runtime data is temporarily unavailable");
+    expect(error.cause).toBeInstanceOf(Error);
   });
 });

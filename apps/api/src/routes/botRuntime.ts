@@ -1,6 +1,8 @@
 import QRCode from 'qrcode';
 import { Hono } from 'hono';
 import {
+  DEFAULT_BOT_RUNTIME_RECONNECT_BACKOFF,
+  getBotRuntimeReconnectDelayMs,
   getBotRuntimeNextActionHint,
   getBotRuntimeOperatorState,
   getBotRuntimeOperatorSummary,
@@ -11,9 +13,6 @@ import { createErrorResponse } from '../responses';
 import type { BotRuntimeService } from '../services/botRuntime';
 import { BotRuntimeServiceError } from '../services/botRuntime';
 
-const RECONNECT_INITIAL_DELAY_MS = 1_000;
-const RECONNECT_MAX_DELAY_MS = 30_000;
-
 export interface BotRuntimeRoutesOptions {
   botRuntimeService: BotRuntimeService;
   now?: () => number;
@@ -21,12 +20,6 @@ export interface BotRuntimeRoutesOptions {
 
 const isServiceError = (error: unknown): error is BotRuntimeServiceError =>
   error instanceof BotRuntimeServiceError;
-
-const getReconnectDelayMs = (attempt: number): number =>
-  Math.min(
-    RECONNECT_INITIAL_DELAY_MS * 2 ** Math.max(0, attempt - 1),
-    RECONNECT_MAX_DELAY_MS,
-  );
 
 const getLastUpdatedAt = (snapshot: BotRuntimeOperatorSnapshot): number | undefined => {
   const timestamps = [
@@ -45,7 +38,10 @@ const toSessionView = async (
   const summary = getBotRuntimeOperatorSummary(snapshot, now);
   const nextRetryAt =
     snapshot.session?.state === "reconnecting"
-      ? snapshot.session.updatedAt + getReconnectDelayMs(snapshot.session.attempt)
+      ? snapshot.session.updatedAt + getBotRuntimeReconnectDelayMs(
+        snapshot.session.attempt,
+        DEFAULT_BOT_RUNTIME_RECONNECT_BACKOFF,
+      )
       : undefined;
   const pairingSvg =
     snapshot.pairing.state === "ready" && snapshot.pairing.qrText

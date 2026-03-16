@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
+import { BOT_RUNTIME_SESSION_STATES } from '@cs/shared';
 
 // ── Reusable field patterns ──────────────────────────────────────────────────
 const flexRecord = v.record(
@@ -27,15 +28,26 @@ const mediaCleanupStatusValidator = v.union(
   v.literal("completed"),
   v.literal("failed"),
 );
+const [
+  initializingState,
+  connectingState,
+  awaitingPairingState,
+  openState,
+  reconnectingState,
+  closedState,
+  loggedOutState,
+  failedState,
+] = BOT_RUNTIME_SESSION_STATES;
+
 const botRuntimeSessionStateValidator = v.union(
-  v.literal("initializing"),
-  v.literal("connecting"),
-  v.literal("awaiting_pairing"),
-  v.literal("open"),
-  v.literal("reconnecting"),
-  v.literal("closed"),
-  v.literal("logged_out"),
-  v.literal("failed"),
+  v.literal(initializingState),
+  v.literal(connectingState),
+  v.literal(awaitingPairingState),
+  v.literal(openState),
+  v.literal(reconnectingState),
+  v.literal(closedState),
+  v.literal(loggedOutState),
+  v.literal(failedState),
 );
 
 export default defineSchema({
@@ -46,6 +58,10 @@ export default defineSchema({
     seedKey: v.optional(v.string()),
     config: v.optional(flexRecord),
     timezone: v.optional(v.string()),
+    botRuntimePairingLeaseExpiresAt: v.optional(v.number()),
+    botRuntimePairingLeaseOwner: v.optional(v.string()),
+    botRuntimeSessionLeaseExpiresAt: v.optional(v.number()),
+    botRuntimeSessionLeaseOwner: v.optional(v.string()),
   })
     .index("by_owner_phone", ["ownerPhone"])
     .index("by_seed_key", ["seedKey"]),

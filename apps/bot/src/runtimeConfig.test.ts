@@ -40,6 +40,15 @@ describe("createBotRuntimeConfig", () => {
     expect(config.sessionKey).toBe("company-Y29tcGFueS0x");
   });
 
+  test("rejects blank session key overrides instead of falling back to the default", () => {
+    expect(() =>
+      createBotRuntimeConfig({
+        moduleDirectory: "/repo/apps/bot/src",
+        sessionKey: "   ",
+      })
+    ).toThrow("Invalid BotRuntimeConfig.sessionKey");
+  });
+
   test("fails early for invalid timing overrides", () => {
     expect(() =>
       createBotRuntimeConfig({

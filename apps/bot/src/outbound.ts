@@ -539,10 +539,11 @@ export const createOutboundMessenger = (
       attempt += 1;
       try {
         const result = await options.transport.sendMessage(recipientJid, message);
+        const messageId = extractMessageId(result);
         return {
           attempts: attempt,
           kind,
-          ...(extractMessageId(result) ? { messageId: extractMessageId(result) } : {}),
+          ...(messageId ? { messageId } : {}),
           recipientJid,
           stepIndex,
         };
@@ -564,6 +565,7 @@ export const createOutboundMessenger = (
       }
     }
 
+    // Defensive fallback: the retry loop should have thrown once attempts were exhausted.
     throw new OutboundSequenceError("Failed to send outbound sequence step", {
       attempts: MAX_SEND_ATTEMPTS,
       cause: lastError,

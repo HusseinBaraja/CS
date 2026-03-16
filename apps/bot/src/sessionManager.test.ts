@@ -503,6 +503,112 @@ describe("startTenantSessionManager", () => {
     ]);
   });
 
+  test("records and logs runtime config creation failures per tenant", async () => {
+    const profiles = [createProfile("company-1"), createProfile("company-2")];
+    const store = createStoreStub(profiles);
+    const { logger, errorCalls } = createLoggerStub();
+
+    const manager = await startTenantSessionManager({
+      logger,
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      createRuntimeConfig: (overrides) => {
+        if (overrides?.sessionKey === "company-company-1") {
+          throw new Error("invalid runtime config");
+        }
+
+        return {
+          sessionKey: overrides?.sessionKey ?? "missing",
+          authDir: "/repo/data/bot/auth",
+          browser: ["Windows", "CSCB Bot", "1.0.0"],
+          connectTimeoutMs: 20_000,
+          keepAliveIntervalMs: 30_000,
+          qrTimeoutMs: 60_000,
+          markOnlineOnConnect: false,
+          syncFullHistory: false,
+          reconnectBackoff: {
+            initialDelayMs: 1_000,
+            maxDelayMs: 30_000,
+          },
+        };
+      },
+      startBot: async (options) => createRuntimeHandle(() => ({
+        sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
+        state: "open",
+        attempt: 0,
+        hasQr: false,
+      })),
+    });
+
+    expect(manager.getSession("company-1")?.status).toEqual({
+      sessionKey: "company-company-1",
+      state: "failed",
+      attempt: 0,
+      hasQr: false,
+    });
+    expect(manager.getSession("company-2")?.status.state).toBe("open");
+    expect(store.upsertCalls).toContainEqual({
+      companyId: "company-1",
+      runtimeOwnerId: "runtime-owner-1",
+      sessionKey: "company-company-1",
+      state: "failed",
+      attempt: 0,
+      hasQr: false,
+      updatedAt: expect.any(Number),
+      leaseExpiresAt: expect.any(Number),
+    });
+    expect(errorCalls).toContainEqual({
+      payload: {
+        companyId: "company-1",
+        error: expect.any(Error),
+        sessionKey: "company-company-1",
+      },
+      message: "tenant session startup failed",
+    });
+  });
+
+  test("stops a started tenant handle when outbound setup fails after startup", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([profile]);
+    const { logger, errorCalls } = createLoggerStub();
+    const stopped: string[] = [];
+
+    const manager = await startTenantSessionManager({
+      logger,
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      createOutboundMessenger: () => {
+        throw new Error("outbound setup failed");
+      },
+      startBot: async (options) => createRuntimeHandle(() => ({
+        sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
+        state: "open",
+        attempt: 0,
+        hasQr: false,
+      }), {
+        stop: async () => {
+          stopped.push(options.runtimeConfig?.sessionKey ?? "missing");
+        },
+      }),
+    });
+
+    expect(manager.getSession("company-1")?.status).toEqual({
+      sessionKey: "company-company-1",
+      state: "failed",
+      attempt: 0,
+      hasQr: false,
+    });
+    expect(stopped).toEqual(["company-company-1"]);
+    expect(errorCalls).toContainEqual({
+      payload: {
+        companyId: "company-1",
+        error: expect.any(Error),
+        sessionKey: "company-company-1",
+      },
+      message: "tenant session startup failed",
+    });
+  });
+
   test("tears down tenant sessions and releases persisted runtime ownership", async () => {
     const profiles = [createProfile("company-1"), createProfile("company-2")];
     const store = createStoreStub(profiles);

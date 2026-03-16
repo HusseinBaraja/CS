@@ -19,7 +19,7 @@ const normalizeServiceError = (error: unknown): BotRuntimeServiceError => {
     return error;
   }
 
-  return createDatabaseServiceError("Bot runtime data is temporarily unavailable");
+  return createDatabaseServiceError(error);
 };
 
 export const createConvexBotRuntimeService = (

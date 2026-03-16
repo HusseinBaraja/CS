@@ -686,6 +686,139 @@ describe("startBot", () => {
     });
   });
 
+  test("ignores late events from a superseded socket after reconnecting", async () => {
+    const { logger } = createLoggerStub();
+    const { timer, scheduled } = createTimerStub();
+    const firstSocket = createSocketStub();
+    const secondSocket = createSocketStub();
+    let saveCredsCallCount = 0;
+
+    const handle = await startBot({
+      logger,
+      timer,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => {
+          saveCredsCallCount += 1;
+        },
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: (() => {
+        const sockets = [firstSocket.socket, secondSocket.socket];
+        return () => {
+          const nextSocket = sockets.shift();
+          if (!nextSocket) {
+            throw new Error("unexpected socket creation");
+          }
+
+          return nextSocket;
+        };
+      })(),
+    });
+
+    firstSocket.emitConnectionUpdate({
+      connection: "close",
+      lastDisconnect: {
+        error: {
+          output: { statusCode: 428 },
+        },
+      },
+    });
+    scheduled[0]?.callback();
+    secondSocket.emitConnectionUpdate({ connection: "open" });
+
+    firstSocket.emitConnectionUpdate({ connection: "close" });
+    firstSocket.emitConnectionUpdate({ connection: "open" });
+    firstSocket.emitCredsUpdate({ me: { id: "stale-user" } });
+    await flushPromises();
+
+    expect(handle.getStatus()).toEqual({
+      sessionKey: "default",
+      state: "open",
+      attempt: 0,
+      hasQr: false,
+    });
+    expect(saveCredsCallCount).toBe(0);
+  });
+
+  test("reschedules reconnect attempts when socket creation throws inside the reconnect timer", async () => {
+    const { logger, errorCalls } = createLoggerStub();
+    const { timer, scheduled } = createTimerStub();
+    const firstSocket = createSocketStub();
+    const secondSocket = createSocketStub();
+    let createSocketCalls = 0;
+
+    const handle = await startBot({
+      logger,
+      timer,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => {
+        createSocketCalls += 1;
+        if (createSocketCalls === 1) {
+          return firstSocket.socket;
+        }
+
+        if (createSocketCalls === 2) {
+          throw new Error("reconnect socket failed");
+        }
+
+        return secondSocket.socket;
+      },
+    });
+
+    firstSocket.emitConnectionUpdate({
+      connection: "close",
+      lastDisconnect: {
+        error: {
+          output: { statusCode: 428 },
+        },
+      },
+    });
+
+    expect(handle.getStatus()).toEqual({
+      sessionKey: "default",
+      state: "reconnecting",
+      attempt: 1,
+      hasQr: false,
+      disconnectCode: 428,
+    });
+    expect(scheduled[0]?.delayMs).toBe(1_000);
+
+    scheduled[0]?.callback();
+
+    expect(handle.getStatus()).toEqual({
+      sessionKey: "default",
+      state: "reconnecting",
+      attempt: 2,
+      hasQr: false,
+      disconnectCode: 428,
+    });
+    expect(scheduled[1]?.delayMs).toBe(2_000);
+    expect(errorCalls).toContainEqual({
+      payload: {
+        error: expect.any(Error),
+        sessionKey: "default",
+      },
+      message: "bot reconnect attempt failed",
+    });
+
+    scheduled[1]?.callback();
+    secondSocket.emitConnectionUpdate({ connection: "open" });
+
+    expect(handle.getStatus()).toEqual({
+      sessionKey: "default",
+      state: "open",
+      attempt: 0,
+      hasQr: false,
+    });
+  });
+
   test("does not reconnect for terminal close reasons", async () => {
     const { logger } = createLoggerStub();
     const { timer, scheduled } = createTimerStub();

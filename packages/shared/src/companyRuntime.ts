@@ -28,6 +28,7 @@ export const BOT_RUNTIME_OPERATOR_STATES = [
   "connecting",
   "awaiting_pairing",
   "reconnecting",
+  "closed",
   "logged_out",
   "failed",
   "stale",
@@ -91,6 +92,16 @@ export interface BotRuntimeOperatorSummary {
   text: string;
 }
 
+export interface BotRuntimeReconnectBackoff {
+  initialDelayMs: number;
+  maxDelayMs: number;
+}
+
+export const DEFAULT_BOT_RUNTIME_RECONNECT_BACKOFF: BotRuntimeReconnectBackoff = {
+  initialDelayMs: 1_000,
+  maxDelayMs: 30_000,
+};
+
 const hasLiveSessionLease = (
   session: BotRuntimeSessionRecord | null,
   now: number,
@@ -115,13 +126,23 @@ export const getBotRuntimeOperatorState = (
       return "awaiting_pairing";
     case "reconnecting":
       return "reconnecting";
+    case "closed":
+      return "closed";
     case "logged_out":
       return "logged_out";
-    case "closed":
     case "failed":
       return "failed";
   }
 };
+
+export const getBotRuntimeReconnectDelayMs = (
+  attempt: number,
+  reconnectBackoff: BotRuntimeReconnectBackoff = DEFAULT_BOT_RUNTIME_RECONNECT_BACKOFF,
+): number =>
+  Math.min(
+    reconnectBackoff.initialDelayMs * 2 ** Math.max(0, attempt - 1),
+    reconnectBackoff.maxDelayMs,
+  );
 
 export const getBotRuntimeOperatorSummary = (
   snapshot: BotRuntimeOperatorSnapshot,

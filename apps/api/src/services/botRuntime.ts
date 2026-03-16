@@ -13,13 +13,26 @@ export class BotRuntimeServiceError extends Error {
   constructor(
     code: ErrorCode,
     message: string,
+    options: { cause?: unknown } = {},
   ) {
     super(message);
     this.name = "BotRuntimeServiceError";
     this.code = code;
     this.status = 503;
+    if (options.cause !== undefined) {
+      Object.defineProperty(this, "cause", {
+        configurable: true,
+        enumerable: false,
+        value: options.cause,
+        writable: true,
+      });
+    }
   }
 }
 
-export const createDatabaseServiceError = (message: string): BotRuntimeServiceError =>
-  new BotRuntimeServiceError(ERROR_CODES.DB_QUERY_FAILED, message);
+export const createDatabaseServiceError = (cause?: unknown): BotRuntimeServiceError =>
+  new BotRuntimeServiceError(
+    ERROR_CODES.DB_QUERY_FAILED,
+    "Bot runtime data is temporarily unavailable",
+    { cause },
+  );

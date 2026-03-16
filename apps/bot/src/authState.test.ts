@@ -28,4 +28,14 @@ describe("createLocalAuthState", () => {
       sessionPath: resolve("/repo/data/bot/auth", "default"),
     });
   });
+
+  test("rejects session keys that would escape the auth directory", async () => {
+    await expect(createLocalAuthState({
+      authDir: "/repo/data/bot/auth",
+      sessionKey: "../outside",
+      loadAuthState: async () => {
+        throw new Error("loadAuthState should not be called");
+      },
+    })).rejects.toThrow("Invalid bot session key");
+  });
 });

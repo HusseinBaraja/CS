@@ -4,7 +4,7 @@ import {
   type BotRuntimeSessionRecord,
   type CompanyRuntimeProfile,
 } from '@cs/shared';
-import { convexInternal, createConvexAdminClient, type ConvexAdminClient } from '@cs/db';
+import { convexInternal, createConvexAdminClient, type ConvexAdminClient, type Id } from '@cs/db';
 
 export interface CompanyRuntimeStore {
   listEnabledCompanies(): Promise<CompanyRuntimeProfile[]>;
@@ -18,6 +18,15 @@ export interface CompanyRuntimeStore {
 export interface ConvexCompanyRuntimeStoreOptions {
   createClient?: () => ConvexAdminClient;
 }
+
+const toCompanyId = (companyId: string): Id<"companies"> => {
+  const normalizedCompanyId = companyId.trim();
+  if (normalizedCompanyId.length === 0) {
+    throw new Error("Invalid companyId: expected a non-empty Convex identifier");
+  }
+
+  return normalizedCompanyId as Id<"companies">;
+};
 
 export const createConvexCompanyRuntimeStore = (
   options: ConvexCompanyRuntimeStoreOptions = {},
@@ -55,7 +64,7 @@ export const createConvexCompanyRuntimeStore = (
       await withClient((client) =>
         client.mutation(convexInternal.companyRuntime.upsertBotRuntimeSession, {
           ...record,
-          companyId: record.companyId as never,
+          companyId: toCompanyId(record.companyId),
         })
       );
     },
@@ -63,14 +72,14 @@ export const createConvexCompanyRuntimeStore = (
       await withClient((client) =>
         client.mutation(convexInternal.companyRuntime.upsertBotRuntimePairingArtifact, {
           ...record,
-          companyId: record.companyId as never,
+          companyId: toCompanyId(record.companyId),
         })
       );
     },
     clearPairingArtifact: async (companyId) => {
       await withClient((client) =>
         client.mutation(convexInternal.companyRuntime.clearBotRuntimePairingArtifact, {
-          companyId: companyId as never,
+          companyId: toCompanyId(companyId),
         })
       );
     },

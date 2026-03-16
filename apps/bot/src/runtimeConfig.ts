@@ -2,6 +2,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Browsers } from '@whiskeysockets/baileys';
 import { env } from '@cs/config';
+import { normalizeSessionKey } from './sessionKey';
 
 export const BOT_SESSION_KEY = "default" as const;
 const DEFAULT_CONNECT_TIMEOUT_MS = 20_000;
@@ -82,8 +83,12 @@ export const createBotRuntimeConfig = (
     );
   }
 
+  const sessionKey = overrides.sessionKey === undefined
+    ? BOT_SESSION_KEY
+    : normalizeSessionKey(overrides.sessionKey, "BotRuntimeConfig.sessionKey");
+
   return {
-    sessionKey: overrides.sessionKey?.trim() || BOT_SESSION_KEY,
+    sessionKey,
     authDir: resolveAuthDir(overrides.authDir ?? env.BOT_AUTH_DIR, overrides.moduleDirectory),
     browser: Browsers.windows("CSCB Bot"),
     connectTimeoutMs: assertPositiveInteger(

@@ -108,4 +108,28 @@ describe("companyRuntime operator helpers", () => {
     expect(getBotRuntimeOperatorSummary(expiredSnapshot, 10_000).code).toBe("qr_expired");
     expect(getBotRuntimeNextActionHint(expiredSnapshot, 10_000)).toContain("refresh the QR code");
   });
+
+  test("treats closed sessions as a distinct operator state", () => {
+    const snapshot = createSnapshot({
+      session: {
+        companyId: "company-1",
+        runtimeOwnerId: "runtime-owner-1",
+        sessionKey: "company-Y29tcGFueS0x",
+        state: "closed",
+        attempt: 0,
+        hasQr: false,
+        updatedAt: 1_000,
+        leaseExpiresAt: 61_000,
+      },
+    });
+
+    expect(getBotRuntimeOperatorState(snapshot, 10_000)).toBe("closed");
+    expect(getBotRuntimeOperatorSummary(snapshot, 10_000)).toEqual({
+      code: "closed",
+      text: "Bot session closed without an active reconnect loop.",
+    });
+    expect(getBotRuntimeNextActionHint(snapshot, 10_000)).toBe(
+      "Inspect the runtime logs and restart or re-pair the tenant session as needed.",
+    );
+  });
 });

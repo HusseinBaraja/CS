@@ -1,7 +1,11 @@
 import type { BaileysEventMap, UserFacingSocketConfig } from '@whiskeysockets/baileys';
 import makeWASocket from '@whiskeysockets/baileys';
 import { logger as defaultLogger } from '@cs/core';
-import type { BotRuntimePairingState, BotRuntimeSessionState } from '@cs/shared';
+import {
+  getBotRuntimeReconnectDelayMs,
+  type BotRuntimePairingState,
+  type BotRuntimeSessionState,
+} from '@cs/shared';
 import { createLocalAuthState, type LocalAuthState } from './authState';
 import { getDisconnectCode, shouldReconnectForDisconnectCode, toClosedLifecycleState } from './disconnect';
 import {
@@ -126,15 +130,6 @@ const defaultTimer: BotTimer = {
   clearTimeout: (timeoutId) =>
     globalThis.clearTimeout(timeoutId as ReturnType<typeof globalThis.setTimeout>),
 };
-
-const getReconnectDelayMs = (
-  attempt: number,
-  runtimeConfig: Pick<BotRuntimeConfig, "reconnectBackoff">,
-): number =>
-  Math.min(
-    runtimeConfig.reconnectBackoff.initialDelayMs * 2 ** Math.max(0, attempt - 1),
-    runtimeConfig.reconnectBackoff.maxDelayMs,
-  );
 
 const statusEquals = (left: BotSessionStatus, right: BotSessionStatus): boolean =>
   left.sessionKey === right.sessionKey &&
@@ -337,12 +332,49 @@ export const startBot = async (
     await stop();
   };
 
+  const scheduleReconnect = (
+    disconnectCode: number | undefined,
+    isNewLogin: boolean | undefined,
+  ): void => {
+    reconnectAttempt += 1;
+    setStatus({
+      sessionKey: runtimeConfig.sessionKey,
+      state: "reconnecting",
+      attempt: reconnectAttempt,
+      disconnectCode,
+      hasQr: false,
+      ...(isNewLogin !== undefined ? { isNewLogin } : {}),
+    });
+
+    const delayMs = getBotRuntimeReconnectDelayMs(reconnectAttempt, runtimeConfig.reconnectBackoff);
+    reconnectTimeoutId = timer.setTimeout(() => {
+      reconnectTimeoutId = undefined;
+
+      if (shuttingDown) {
+        return;
+      }
+
+      try {
+        connect();
+      } catch (error) {
+        botLogger.error(
+          {
+            error,
+            sessionKey: runtimeConfig.sessionKey,
+          },
+          "bot reconnect attempt failed",
+        );
+        scheduleReconnect(disconnectCode, isNewLogin);
+      }
+    }, delayMs);
+  };
+
   const connect = (): void => {
     if (shuttingDown) {
       return;
     }
 
-    currentSocket = createSocket({
+    const socket = createSocket({
       auth: authState.state,
       browser: runtimeConfig.browser,
       connectTimeoutMs: runtimeConfig.connectTimeoutMs,
@@ -352,15 +384,20 @@ export const startBot = async (
       qrTimeout: runtimeConfig.qrTimeoutMs,
       syncFullHistory: runtimeConfig.syncFullHistory,
     } satisfies UserFacingSocketConfig);
+    currentSocket = socket;
 
-    currentSocket.ev.on("creds.update", () => {
+    socket.ev.on("creds.update", () => {
+      if (shuttingDown || currentSocket !== socket) {
+        return;
+      }
+
       void authState.saveCreds().catch((error) =>
         failRuntime(error, "bot auth state persistence failed")
       );
     });
 
-    currentSocket.ev.on("messages.upsert", (event) => {
-      if (shuttingDown || !onMessagesUpsert) {
+    socket.ev.on("messages.upsert", (event) => {
+      if (shuttingDown || currentSocket !== socket || !onMessagesUpsert) {
         return;
       }
 
@@ -379,8 +416,8 @@ export const startBot = async (
       })();
     });
 
-    currentSocket.ev.on("connection.update", (update) => {
-      if (shuttingDown) {
+    socket.ev.on("connection.update", (update) => {
+      if (shuttingDown || currentSocket !== socket) {
         return;
       }
 
@@ -461,22 +498,8 @@ export const startBot = async (
       clearPairing();
 
       const disconnectCode = getDisconnectCode(update.lastDisconnect?.error);
-      if (shouldReconnectForDisconnectCode(disconnectCode)) {
-        reconnectAttempt += 1;
-        setStatus({
-          sessionKey: runtimeConfig.sessionKey,
-          state: "reconnecting",
-          attempt: reconnectAttempt,
-          disconnectCode,
-          hasQr: false,
-          ...(update.isNewLogin !== undefined ? { isNewLogin: update.isNewLogin } : {}),
-        });
-
-        const delayMs = getReconnectDelayMs(reconnectAttempt, runtimeConfig);
-        reconnectTimeoutId = timer.setTimeout(() => {
-          reconnectTimeoutId = undefined;
-          connect();
-        }, delayMs);
+      if (shouldReconnectForDisconnectCode(disconnectCode, reconnectAttempt + 1)) {
+        scheduleReconnect(disconnectCode, update.isNewLogin);
         return;
       }
 

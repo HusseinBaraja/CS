@@ -38,8 +38,17 @@ export const getDisconnectCode = (error: unknown): number | undefined => {
   return undefined;
 };
 
-export const shouldReconnectForDisconnectCode = (disconnectCode: number | undefined): boolean =>
-  disconnectCode !== undefined && TRANSIENT_DISCONNECT_CODES.has(disconnectCode);
+export const shouldReconnectForDisconnectCode = (
+  disconnectCode: number | undefined,
+  attempt = 1,
+  maxAttempts = 3,
+): boolean => {
+  if (disconnectCode === undefined) {
+    return attempt <= maxAttempts;
+  }
+
+  return TRANSIENT_DISCONNECT_CODES.has(disconnectCode);
+};
 
 export const toClosedLifecycleState = (
   disconnectCode: number | undefined,

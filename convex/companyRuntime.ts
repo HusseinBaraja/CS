@@ -1,4 +1,5 @@
 import {
+  BOT_RUNTIME_SESSION_STATES,
   createCompanySessionKey,
   DEFAULT_COMPANY_TIMEZONE,
   type BotRuntimeOperatorSnapshot,
@@ -8,18 +9,122 @@ import {
   type CompanyRuntimeProfile,
 } from '@cs/shared';
 import { v } from 'convex/values';
-import { internalMutation, internalQuery } from './_generated/server';
+import type { Id } from './_generated/dataModel';
+import { internalMutation, internalQuery, type MutationCtx } from './_generated/server';
+
+const [
+  initializingState,
+  connectingState,
+  awaitingPairingState,
+  openState,
+  reconnectingState,
+  closedState,
+  loggedOutState,
+  failedState,
+] = BOT_RUNTIME_SESSION_STATES;
 
 const botRuntimeSessionStateValidator = v.union(
-  v.literal("initializing"),
-  v.literal("connecting"),
-  v.literal("awaiting_pairing"),
-  v.literal("open"),
-  v.literal("reconnecting"),
-  v.literal("closed"),
-  v.literal("logged_out"),
-  v.literal("failed"),
+  v.literal(initializingState),
+  v.literal(connectingState),
+  v.literal(awaitingPairingState),
+  v.literal(openState),
+  v.literal(reconnectingState),
+  v.literal(closedState),
+  v.literal(loggedOutState),
+  v.literal(failedState),
 );
+
+const BOT_RUNTIME_COMPANY_LEASE_MS = 5_000;
+
+type LeaseKind = "session" | "pairing";
+
+type RuntimeLeaseFieldNames = {
+  expiresAt: "botRuntimeSessionLeaseExpiresAt" | "botRuntimePairingLeaseExpiresAt";
+  owner: "botRuntimeSessionLeaseOwner" | "botRuntimePairingLeaseOwner";
+};
+
+const getLeaseFieldNames = (leaseKind: LeaseKind): RuntimeLeaseFieldNames =>
+  leaseKind === "session"
+    ? {
+      expiresAt: "botRuntimeSessionLeaseExpiresAt",
+      owner: "botRuntimeSessionLeaseOwner",
+    }
+    : {
+      expiresAt: "botRuntimePairingLeaseExpiresAt",
+      owner: "botRuntimePairingLeaseOwner",
+    };
+
+const acquireCompanyRuntimeLease = async (
+  ctx: MutationCtx,
+  companyId: Id<"companies">,
+  leaseKind: LeaseKind,
+  ownerToken: string,
+  now: number,
+): Promise<boolean> => {
+  const company = await ctx.db.get(companyId);
+  if (!company) {
+    throw new Error(`Company ${companyId} was not found`);
+  }
+
+  const fields = getLeaseFieldNames(leaseKind);
+  const activeLeaseOwner = company[fields.owner];
+  const activeLeaseExpiresAt = company[fields.expiresAt];
+
+  if (
+    typeof activeLeaseOwner === "string" &&
+    activeLeaseOwner !== ownerToken &&
+    typeof activeLeaseExpiresAt === "number" &&
+    activeLeaseExpiresAt > now
+  ) {
+    return false;
+  }
+
+  await ctx.db.patch(companyId, {
+    [fields.owner]: ownerToken,
+    [fields.expiresAt]: now + BOT_RUNTIME_COMPANY_LEASE_MS,
+  });
+  return true;
+};
+
+const releaseCompanyRuntimeLease = async (
+  ctx: MutationCtx,
+  companyId: Id<"companies">,
+  leaseKind: LeaseKind,
+  ownerToken: string,
+  now: number,
+): Promise<void> => {
+  const company = await ctx.db.get(companyId);
+  if (!company) {
+    return;
+  }
+
+  const fields = getLeaseFieldNames(leaseKind);
+  if (company[fields.owner] !== ownerToken) {
+    return;
+  }
+
+  await ctx.db.patch(companyId, {
+    [fields.expiresAt]: now,
+  });
+};
+
+const loadRuntimeSessionRows = async (
+  ctx: MutationCtx,
+  companyId: Id<"companies">,
+) =>
+  ctx.db
+    .query("botRuntimeSessions")
+    .withIndex("by_company", (q) => q.eq("companyId", companyId))
+    .collect();
+
+const loadPairingArtifactRows = async (
+  ctx: MutationCtx,
+  companyId: Id<"companies">,
+) =>
+  ctx.db
+    .query("botRuntimePairingArtifacts")
+    .withIndex("by_company", (q) => q.eq("companyId", companyId))
+    .collect();
 
 const isBotEnabled = (config: CompanyRuntimeConfig | undefined): boolean =>
   config?.botEnabled === true;
@@ -67,48 +172,76 @@ export const upsertBotRuntimeSession = internalMutation({
     leaseExpiresAt: v.number(),
   },
   handler: async (ctx, args): Promise<BotRuntimeSessionRecord> => {
-    const existingRows = await ctx.db
-      .query("botRuntimeSessions")
-      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
-      .collect();
+    const leaseAcquired = await acquireCompanyRuntimeLease(
+      ctx,
+      args.companyId,
+      "session",
+      args.runtimeOwnerId,
+      args.updatedAt,
+    );
+    if (!leaseAcquired) {
+      const existingRows = await loadRuntimeSessionRows(ctx, args.companyId);
+      if (existingRows[0]) {
+        return {
+          companyId: args.companyId,
+          runtimeOwnerId: existingRows[0].runtimeOwnerId,
+          sessionKey: existingRows[0].sessionKey,
+          state: existingRows[0].state,
+          attempt: existingRows[0].attempt,
+          hasQr: existingRows[0].hasQr,
+          ...(existingRows[0].disconnectCode !== undefined ? { disconnectCode: existingRows[0].disconnectCode } : {}),
+          ...(existingRows[0].isNewLogin !== undefined ? { isNewLogin: existingRows[0].isNewLogin } : {}),
+          updatedAt: existingRows[0].updatedAt,
+          leaseExpiresAt: existingRows[0].leaseExpiresAt,
+        };
+      }
 
-    if (existingRows.length > 1) {
-      throw new Error(`Expected at most one bot runtime session for company ${args.companyId}`);
+      throw new Error(`Bot runtime session lease is busy for company ${args.companyId}`);
     }
 
-    const patch = {
-      runtimeOwnerId: args.runtimeOwnerId,
-      sessionKey: args.sessionKey,
-      state: args.state,
-      attempt: args.attempt,
-      hasQr: args.hasQr,
-      updatedAt: args.updatedAt,
-      leaseExpiresAt: args.leaseExpiresAt,
-      disconnectCode: args.disconnectCode,
-      isNewLogin: args.isNewLogin,
-    };
+    try {
+      const existingRows = await loadRuntimeSessionRows(ctx, args.companyId);
 
-    if (existingRows[0]) {
-      await ctx.db.patch(existingRows[0]._id, patch);
-    } else {
-      await ctx.db.insert("botRuntimeSessions", {
+      if (existingRows.length > 1) {
+        throw new Error(`Expected at most one bot runtime session for company ${args.companyId}`);
+      }
+
+      const patch = {
+        runtimeOwnerId: args.runtimeOwnerId,
+        sessionKey: args.sessionKey,
+        state: args.state,
+        attempt: args.attempt,
+        hasQr: args.hasQr,
+        updatedAt: args.updatedAt,
+        leaseExpiresAt: args.leaseExpiresAt,
+        disconnectCode: args.disconnectCode,
+        isNewLogin: args.isNewLogin,
+      };
+
+      if (existingRows[0]) {
+        await ctx.db.patch(existingRows[0]._id, patch);
+      } else {
+        await ctx.db.insert("botRuntimeSessions", {
+          companyId: args.companyId,
+          ...patch,
+        });
+      }
+
+      return {
         companyId: args.companyId,
-        ...patch,
-      });
+        runtimeOwnerId: args.runtimeOwnerId,
+        sessionKey: args.sessionKey,
+        state: args.state,
+        attempt: args.attempt,
+        hasQr: args.hasQr,
+        ...(args.disconnectCode !== undefined ? { disconnectCode: args.disconnectCode } : {}),
+        ...(args.isNewLogin !== undefined ? { isNewLogin: args.isNewLogin } : {}),
+        updatedAt: args.updatedAt,
+        leaseExpiresAt: args.leaseExpiresAt,
+      };
+    } finally {
+      await releaseCompanyRuntimeLease(ctx, args.companyId, "session", args.runtimeOwnerId, args.updatedAt);
     }
-
-    return {
-      companyId: args.companyId,
-      runtimeOwnerId: args.runtimeOwnerId,
-      sessionKey: args.sessionKey,
-      state: args.state,
-      attempt: args.attempt,
-      hasQr: args.hasQr,
-      ...(args.disconnectCode !== undefined ? { disconnectCode: args.disconnectCode } : {}),
-      ...(args.isNewLogin !== undefined ? { isNewLogin: args.isNewLogin } : {}),
-      updatedAt: args.updatedAt,
-      leaseExpiresAt: args.leaseExpiresAt,
-    };
   },
 });
 
@@ -122,40 +255,64 @@ export const upsertBotRuntimePairingArtifact = internalMutation({
     expiresAt: v.number(),
   },
   handler: async (ctx, args): Promise<BotRuntimePairingArtifact> => {
-    const existingRows = await ctx.db
-      .query("botRuntimePairingArtifacts")
-      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
-      .collect();
+    const leaseAcquired = await acquireCompanyRuntimeLease(
+      ctx,
+      args.companyId,
+      "pairing",
+      args.runtimeOwnerId,
+      args.updatedAt,
+    );
+    if (!leaseAcquired) {
+      const existingRows = await loadPairingArtifactRows(ctx, args.companyId);
+      if (existingRows[0]) {
+        return {
+          companyId: args.companyId,
+          runtimeOwnerId: existingRows[0].runtimeOwnerId,
+          sessionKey: existingRows[0].sessionKey,
+          qrText: existingRows[0].qrText,
+          updatedAt: existingRows[0].updatedAt,
+          expiresAt: existingRows[0].expiresAt,
+        };
+      }
 
-    if (existingRows.length > 1) {
-      throw new Error(`Expected at most one bot runtime pairing artifact for company ${args.companyId}`);
+      throw new Error(`Bot runtime pairing lease is busy for company ${args.companyId}`);
     }
 
-    const patch = {
-      runtimeOwnerId: args.runtimeOwnerId,
-      sessionKey: args.sessionKey,
-      qrText: args.qrText,
-      updatedAt: args.updatedAt,
-      expiresAt: args.expiresAt,
-    };
+    try {
+      const existingRows = await loadPairingArtifactRows(ctx, args.companyId);
 
-    if (existingRows[0]) {
-      await ctx.db.patch(existingRows[0]._id, patch);
-    } else {
-      await ctx.db.insert("botRuntimePairingArtifacts", {
+      if (existingRows.length > 1) {
+        throw new Error(`Expected at most one bot runtime pairing artifact for company ${args.companyId}`);
+      }
+
+      const patch = {
+        runtimeOwnerId: args.runtimeOwnerId,
+        sessionKey: args.sessionKey,
+        qrText: args.qrText,
+        updatedAt: args.updatedAt,
+        expiresAt: args.expiresAt,
+      };
+
+      if (existingRows[0]) {
+        await ctx.db.patch(existingRows[0]._id, patch);
+      } else {
+        await ctx.db.insert("botRuntimePairingArtifacts", {
+          companyId: args.companyId,
+          ...patch,
+        });
+      }
+
+      return {
         companyId: args.companyId,
-        ...patch,
-      });
+        runtimeOwnerId: args.runtimeOwnerId,
+        sessionKey: args.sessionKey,
+        qrText: args.qrText,
+        updatedAt: args.updatedAt,
+        expiresAt: args.expiresAt,
+      };
+    } finally {
+      await releaseCompanyRuntimeLease(ctx, args.companyId, "pairing", args.runtimeOwnerId, args.updatedAt);
     }
-
-    return {
-      companyId: args.companyId,
-      runtimeOwnerId: args.runtimeOwnerId,
-      sessionKey: args.sessionKey,
-      qrText: args.qrText,
-      updatedAt: args.updatedAt,
-      expiresAt: args.expiresAt,
-    };
   },
 });
 
