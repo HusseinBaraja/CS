@@ -577,8 +577,8 @@ export const createOutboundMessenger = (
   };
 
   return {
-    async sendText(input): Promise<OutboundSendReceipt[]> {
-      return this.sendSequence({
+    sendText: async (input): Promise<OutboundSendReceipt[]> => {
+      return sendSequence({
         recipientJid: input.recipientJid,
         steps: [
           {
@@ -589,13 +589,16 @@ export const createOutboundMessenger = (
         ],
       });
     },
-    async sendMedia(input): Promise<OutboundSendReceipt[]> {
-      return this.sendSequence({
+    sendMedia: async (input): Promise<OutboundSendReceipt[]> => {
+      return sendSequence({
         recipientJid: input.recipientJid,
         steps: [input.step],
       });
     },
-    async sendSequence(input): Promise<OutboundSendReceipt[]> {
+    sendSequence,
+  };
+
+  async function sendSequence(input: SendSequenceInput): Promise<OutboundSendReceipt[]> {
       if (input.steps.length === 0) {
         throw new OutboundValidationError("steps must contain at least one outbound message");
       }
@@ -630,6 +633,5 @@ export const createOutboundMessenger = (
       }
 
       return sentReceipts;
-    },
-  };
+    }
 };

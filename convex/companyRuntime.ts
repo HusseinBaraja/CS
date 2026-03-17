@@ -177,7 +177,7 @@ export const upsertBotRuntimeSession = internalMutation({
       args.companyId,
       "session",
       args.runtimeOwnerId,
-      args.updatedAt,
+      Date.now(),
     );
     if (!leaseAcquired) {
       const existingRows = await loadRuntimeSessionRows(ctx, args.companyId);
@@ -240,7 +240,7 @@ export const upsertBotRuntimeSession = internalMutation({
         leaseExpiresAt: args.leaseExpiresAt,
       };
     } finally {
-      await releaseCompanyRuntimeLease(ctx, args.companyId, "session", args.runtimeOwnerId, args.updatedAt);
+      await releaseCompanyRuntimeLease(ctx, args.companyId, "session", args.runtimeOwnerId, Date.now());
     }
   },
 });
@@ -260,7 +260,7 @@ export const upsertBotRuntimePairingArtifact = internalMutation({
       args.companyId,
       "pairing",
       args.runtimeOwnerId,
-      args.updatedAt,
+      Date.now(),
     );
     if (!leaseAcquired) {
       const existingRows = await loadPairingArtifactRows(ctx, args.companyId);
@@ -311,7 +311,7 @@ export const upsertBotRuntimePairingArtifact = internalMutation({
         expiresAt: args.expiresAt,
       };
     } finally {
-      await releaseCompanyRuntimeLease(ctx, args.companyId, "pairing", args.runtimeOwnerId, args.updatedAt);
+      await releaseCompanyRuntimeLease(ctx, args.companyId, "pairing", args.runtimeOwnerId, Date.now());
     }
   },
 });

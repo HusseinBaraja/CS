@@ -449,8 +449,10 @@ export const startTenantSessionManager = async (
       Array.from(sessions.values()).map(async (session) => session.handle?.stop()),
     );
 
-    await store.releaseSessionsByOwner(runtimeOwnerId);
-    await store.releasePairingArtifactsByOwner(runtimeOwnerId);
+    await Promise.allSettled([
+      store.releaseSessionsByOwner(runtimeOwnerId),
+      store.releasePairingArtifactsByOwner(runtimeOwnerId),
+    ]);
   };
 
   const profiles = await store.listEnabledCompanies();
@@ -540,7 +542,7 @@ export const startTenantSessionManager = async (
           profile,
           status: failedStatus,
           pairing: sessions.get(profile.companyId)?.pairing ?? null,
-          runtimeConfig: runtimeConfig ?? createBotRuntimeConfig({
+          runtimeConfig: runtimeConfig ?? createRuntimeConfig({
             sessionKey: profile.sessionKey,
           }),
         });

@@ -8,17 +8,18 @@ export interface BotRuntimeService {
 
 export class BotRuntimeServiceError extends Error {
   readonly code: ErrorCode;
-  readonly status: 503;
+  readonly status: number;
 
   constructor(
     code: ErrorCode,
     message: string,
+    status: number = 503,
     options: { cause?: unknown } = {},
   ) {
     super(message);
     this.name = "BotRuntimeServiceError";
     this.code = code;
-    this.status = 503;
+    this.status = status;
     if (options.cause !== undefined) {
       Object.defineProperty(this, "cause", {
         configurable: true,
@@ -34,5 +35,6 @@ export const createDatabaseServiceError = (cause?: unknown): BotRuntimeServiceEr
   new BotRuntimeServiceError(
     ERROR_CODES.DB_QUERY_FAILED,
     "Bot runtime data is temporarily unavailable",
+    503,
     { cause },
   );

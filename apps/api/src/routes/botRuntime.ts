@@ -397,7 +397,7 @@ export const createBotRuntimeRoutes = (
       });
     } catch (error) {
       if (isServiceError(error)) {
-        return c.json(createErrorResponse(error.code, error.message), error.status);
+        return c.json(createErrorResponse(error.code, error.message), error.status as any);
       }
 
       throw error;
