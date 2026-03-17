@@ -154,16 +154,13 @@ const toOperatorSnapshot = (
 ): BotRuntimeOperatorSnapshot => ({
   ...session.profile,
   session: toSessionRecord(runtimeOwnerId, session.profile.companyId, now, session.status),
-  pairing: session.pairing
+  pairing: session.pairing && session.pairing.state !== "none"
     ? {
-      state: session.pairing.state,
-      ...(session.pairing.updatedAt !== undefined ? { updatedAt: session.pairing.updatedAt } : {}),
-      ...(session.pairing.expiresAt !== undefined ? { expiresAt: session.pairing.expiresAt } : {}),
+      updatedAt: session.pairing.updatedAt,
+      expiresAt: session.pairing.expiresAt!,
       ...(session.pairing.qrText !== undefined ? { qrText: session.pairing.qrText } : {}),
     }
-    : {
-      state: "none",
-    },
+    : null,
 });
 
 const toOperatorLogPayload = (
@@ -177,8 +174,8 @@ const toOperatorLogPayload = (
   state: snapshot.session?.state ?? "closed",
   attempt: snapshot.session?.attempt ?? 0,
   ...(snapshot.session?.disconnectCode !== undefined ? { disconnectCode: snapshot.session.disconnectCode } : {}),
-  pairingState: snapshot.pairing.state,
-  ...(snapshot.pairing.expiresAt !== undefined ? { expiresAt: snapshot.pairing.expiresAt } : {}),
+  pairingState: snapshot.pairing ? (snapshot.pairing.expiresAt > now ? "ready" : "expired") : "none",
+  ...(snapshot.pairing ? { expiresAt: snapshot.pairing.expiresAt } : {}),
   ...(nextRetryAt !== undefined ? { nextRetryAt } : {}),
   operatorState: getBotRuntimeOperatorState(snapshot, now),
   summary: getBotRuntimeOperatorSummary(snapshot, now).text,
@@ -538,13 +535,20 @@ export const startTenantSessionManager = async (
           attempt: 0,
           hasQr: false,
         };
+        let fallbackConfig = runtimeConfig;
+        if (!fallbackConfig) {
+          try {
+            fallbackConfig = createRuntimeConfig({ sessionKey: profile.sessionKey });
+          } catch {
+            fallbackConfig = createBotRuntimeConfig({ sessionKey: profile.sessionKey });
+          }
+        }
+
         sessions.set(profile.companyId, {
           profile,
           status: failedStatus,
           pairing: sessions.get(profile.companyId)?.pairing ?? null,
-          runtimeConfig: runtimeConfig ?? createRuntimeConfig({
-            sessionKey: profile.sessionKey,
-          }),
+          runtimeConfig: fallbackConfig,
         });
         await upsertStatus(profile.companyId, failedStatus).catch((persistError) => {
           botLogger.error(

@@ -365,10 +365,8 @@ export const releaseBotRuntimePairingArtifactsByOwner = internalMutation({
 });
 
 export const listBotRuntimeOperatorSnapshots = internalQuery({
-  args: {
-    now: v.number(),
-  },
-  handler: async (ctx, args): Promise<BotRuntimeOperatorSnapshot[]> => {
+  args: {},
+  handler: async (ctx): Promise<BotRuntimeOperatorSnapshot[]> => {
     const profiles = (await ctx.db.query("companies").collect())
       .filter((company) => isBotEnabled(company.config as CompanyRuntimeConfig | undefined))
       .map(mapProfile)
@@ -424,14 +422,11 @@ export const listBotRuntimeOperatorSnapshots = internalQuery({
         session,
         pairing: pairingArtifact
           ? {
-            state: pairingArtifact.expiresAt > args.now ? "ready" : "expired",
             updatedAt: pairingArtifact.updatedAt,
             expiresAt: pairingArtifact.expiresAt,
-            ...(pairingArtifact.expiresAt > args.now ? { qrText: pairingArtifact.qrText } : {}),
+            ...(pairingArtifact.qrText !== undefined ? { qrText: pairingArtifact.qrText } : {}),
           }
-          : {
-            state: "none",
-          },
+          : null,
       };
     });
   },

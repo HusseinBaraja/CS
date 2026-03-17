@@ -70,11 +70,10 @@ export interface BotRuntimePairingArtifact {
 export interface BotRuntimeOperatorSnapshot extends CompanyRuntimeProfile {
   session: BotRuntimeSessionRecord | null;
   pairing: {
-    state: BotRuntimePairingState;
-    updatedAt?: number;
-    expiresAt?: number;
+    updatedAt: number;
+    expiresAt: number;
     qrText?: string;
-  };
+  } | null;
 }
 
 export interface BotRuntimeOperatorSummary {
@@ -175,14 +174,14 @@ export const getBotRuntimeOperatorSummary = (
         text: "Bot session is connecting to WhatsApp.",
       };
     case "awaiting_pairing":
-      if (snapshot.pairing.state === "ready") {
-        return {
-          code: "qr_ready",
-          text: "A QR code is ready to be scanned for pairing.",
-        };
-      }
+      if (snapshot.pairing) {
+        if (snapshot.pairing.expiresAt > now) {
+          return {
+            code: "qr_ready",
+            text: "A QR code is ready to be scanned for pairing.",
+          };
+        }
 
-      if (snapshot.pairing.state === "expired") {
         return {
           code: "qr_expired",
           text: "The last QR code expired and the runtime is waiting for a fresh one.",
@@ -237,11 +236,11 @@ export const getBotRuntimeNextActionHint = (
     case "connecting":
       return "Wait for the WhatsApp connection to finish opening.";
     case "awaiting_pairing":
-      if (snapshot.pairing.state === "ready") {
-        return "Open the pairing page and scan the QR code with the tenant WhatsApp account.";
-      }
+      if (snapshot.pairing) {
+        if (snapshot.pairing.expiresAt > now) {
+          return "Open the pairing page and scan the QR code with the tenant WhatsApp account.";
+        }
 
-      if (snapshot.pairing.state === "expired") {
         return "Wait for the runtime to refresh the QR code, then scan the new code.";
       }
 

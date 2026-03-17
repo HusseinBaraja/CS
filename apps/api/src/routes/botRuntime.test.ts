@@ -23,9 +23,7 @@ const createSnapshot = (
     updatedAt: 1_000,
     leaseExpiresAt: 61_000,
   },
-  pairing: {
-    state: "none",
-  },
+  pairing: null,
   ...overrides,
 });
 
@@ -91,7 +89,6 @@ describe("bot runtime routes", () => {
           leaseExpiresAt: 61_000,
         },
         pairing: {
-          state: "ready",
           updatedAt: 1_500,
           expiresAt: 61_500,
           qrText: "qr-live",
@@ -113,7 +110,6 @@ describe("bot runtime routes", () => {
           leaseExpiresAt: 62_000,
         },
         pairing: {
-          state: "expired",
           updatedAt: 2_500,
           expiresAt: 2_400,
         },
@@ -134,9 +130,7 @@ describe("bot runtime routes", () => {
           updatedAt: 3_000,
           leaseExpiresAt: 63_000,
         },
-        pairing: {
-          state: "none",
-        },
+        pairing: null,
       }),
       createSnapshot({
         companyId: "company-stale",
@@ -153,9 +147,7 @@ describe("bot runtime routes", () => {
           updatedAt: 4_000,
           leaseExpiresAt: 9_000,
         },
-        pairing: {
-          state: "none",
-        },
+        pairing: null,
       }),
     ]));
 

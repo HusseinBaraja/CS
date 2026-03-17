@@ -24,7 +24,7 @@ const isServiceError = (error: unknown): error is BotRuntimeServiceError =>
 const getLastUpdatedAt = (snapshot: BotRuntimeOperatorSnapshot): number | undefined => {
   const timestamps = [
     snapshot.session?.updatedAt,
-    snapshot.pairing.updatedAt,
+    snapshot.pairing?.updatedAt,
   ].filter((value): value is number => value !== undefined);
 
   return timestamps.length > 0 ? Math.max(...timestamps) : undefined;
@@ -44,7 +44,7 @@ const toSessionView = async (
       )
       : undefined;
   const pairingSvg =
-    snapshot.pairing.state === "ready" && snapshot.pairing.qrText
+    snapshot.pairing && snapshot.pairing.expiresAt > now && snapshot.pairing.qrText
       ? await QRCode.toString(snapshot.pairing.qrText, {
         errorCorrectionLevel: "M",
         margin: 1,
@@ -68,10 +68,12 @@ const toSessionView = async (
     ...(nextRetryAt !== undefined ? { nextRetryAt } : {}),
     ...(getLastUpdatedAt(snapshot) !== undefined ? { lastUpdatedAt: getLastUpdatedAt(snapshot) } : {}),
     session: snapshot.session,
-    pairing: {
-      state: snapshot.pairing.state,
-      ...(snapshot.pairing.updatedAt !== undefined ? { updatedAt: snapshot.pairing.updatedAt } : {}),
-      ...(snapshot.pairing.expiresAt !== undefined ? { expiresAt: snapshot.pairing.expiresAt } : {}),
+    pairing: snapshot.pairing ? {
+      state: snapshot.pairing.expiresAt > now ? "ready" : "expired",
+      updatedAt: snapshot.pairing.updatedAt,
+      expiresAt: snapshot.pairing.expiresAt,
+    } : {
+      state: "none",
     },
     ...(pairingSvg !== undefined ? { pairingSvg } : {}),
   };

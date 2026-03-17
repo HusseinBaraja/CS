@@ -392,7 +392,7 @@ describe("startTenantSessionManager", () => {
       state: "expired",
       qrText: "tenant-qr",
       updatedAt: 73_000,
-      expiresAt: 72_000,
+      expiresAt: 9_000,
     });
 
     expect(infoCalls).toContainEqual({
@@ -439,7 +439,7 @@ describe("startTenantSessionManager", () => {
         attempt: 2,
         disconnectCode: 428,
         pairingState: "expired",
-        expiresAt: 72_000,
+        expiresAt: 9_000,
         operatorState: "reconnecting",
         summary: "Bot session is reconnecting after a transient disconnect.",
         nextActionHint: "Wait for the reconnect backoff window to elapse or inspect the disconnect code.",
@@ -461,7 +461,7 @@ describe("startTenantSessionManager", () => {
         sessionKey: profile.sessionKey,
         qrText: "tenant-qr",
         updatedAt: 73_000,
-        expiresAt: 72_000,
+        expiresAt: 9_000,
       },
     ]);
   });

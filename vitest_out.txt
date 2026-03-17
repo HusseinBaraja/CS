@@ -1,0 +1,137 @@
+bun test v1.3.9 (cf6cdbbb)
+
+apps\bot\src\sessionManager.test.ts:
+(pass) startTenantSessionManager > starts only enabled tenant sessions and lists them independently
+(pass) startTenantSessionManager > keeps tenant status isolated when one tenant reconnects and another logs out
+(pass) startTenantSessionManager > persists tenant status changes and heartbeat renewals with a lease
+(pass) startTenantSessionManager > persists ready QR artifacts and clears them when pairing is removed
+428 |       summary: "Bot session is reconnecting after a transient disconnect.",
+429 |       nextActionHint: "Wait for the reconnect backoff window to elapse or inspect the disconnect code.",
+430 |       operatorUrl: "http://127.0.0.1:3000/runtime/bot?companyId=company-1",
+431 |     });
+432 | 
+433 |     expect(infoCalls).toContainEqual({
+                            ^
+error: expect(received).toContainEqual(expected)
+
+Expected to contain: {
+  payload: {
+    companyId: "company-1",
+    companyName: "Tenant company-1",
+    sessionKey: "company-company-1",
+    state: "reconnecting",
+    attempt: 2,
+    disconnectCode: 428,
+    pairingState: "expired",
+    expiresAt: 72000,
+    operatorState: "reconnecting",
+    summary: "Bot session is reconnecting after a transient disconnect.",
+    nextActionHint: "Wait for the reconnect backoff window to elapse or inspect the disconnect code.",
+  },
+  message: "bot pairing expired",
+}
+Received: [
+  {
+    payload: {
+      companyId: "company-1",
+      companyName: "Tenant company-1",
+      sessionKey: "company-company-1",
+      state: "reconnecting",
+      attempt: 2,
+      disconnectCode: 428,
+      pairingState: "none",
+      nextRetryAt: 12000,
+      operatorState: "reconnecting",
+      summary: "Bot session is reconnecting after a transient disconnect.",
+      nextActionHint: "Wait for the reconnect backoff window to elapse or inspect the disconnect code.",
+    },
+    message: "bot reconnect scheduled",
+  }, {
+    payload: {
+      companyId: "company-1",
+      companyName: "Tenant company-1",
+      sessionKey: "company-company-1",
+      state: "reconnecting",
+      attempt: 2,
+      disconnectCode: 428,
+      pairingState: "ready",
+      expiresAt: 72000,
+      operatorState: "reconnecting",
+      summary: "Bot session is reconnecting after a transient disconnect.",
+      nextActionHint: "Wait for the reconnect backoff window to elapse or inspect the disconnect code.",
+      operatorUrl: "http://127.0.0.1:3000/runtime/bot?companyId=company-1",
+    },
+    message: "bot pairing available",
+  }, {
+    payload: {
+      companyId: "company-1",
+      companyName: "Tenant company-1",
+      sessionKey: "company-company-1",
+      state: "reconnecting",
+      attempt: 2,
+      disconnectCode: 428,
+      pairingState: "ready",
+      expiresAt: 72000,
+      operatorState: "reconnecting",
+      summary: "Bot session is reconnecting after a transient disconnect.",
+      nextActionHint: "Wait for the reconnect backoff window to elapse or inspect the disconnect code.",
+    },
+    message: "bot pairing expired",
+  }
+]
+
+      at <anonymous> (C:\Users\Hussein\Desktop\Things\Zerone\Projects\CS\apps\bot\src\sessionManager.test.ts:433:23)
+(fail) startTenantSessionManager > logs reconnect scheduling and pairing visibility with tenant context [15.00ms]
+(pass) startTenantSessionManager > isolates startup failures so one tenant does not block the others
+538 |         attempt: 0,
+539 |         hasQr: false,
+540 |       })),
+541 |     });
+542 | 
+543 |     expect(manager.getSession("company-1")?.status).toEqual({
+                                                          ^
+error: expect(received).toEqual(expected)
+
+- {
+-   "attempt": 0,
+-   "hasQr": false,
+-   "sessionKey": "company-company-1",
+-   "state": "failed",
+- }
++ undefined
+
+- Expected  - 6
++ Received  + 1
+
+      at <anonymous> (C:\Users\Hussein\Desktop\Things\Zerone\Projects\CS\apps\bot\src\sessionManager.test.ts:543:53)
+(fail) startTenantSessionManager > records and logs runtime config creation failures per tenant
+(pass) startTenantSessionManager > stops a started tenant handle when outbound setup fails after startup
+(pass) startTenantSessionManager > tears down tenant sessions and releases persisted runtime ownership
+(pass) startTenantSessionManager > normalizes tenant inbound messages and routes owner commands before customer conversation flow
+(pass) startTenantSessionManager > continues processing tenant inbound events after router failures
+(pass) startTenantSessionManager > exposes isolated tenant outbound messengers through the session manager
+(pass) startTenantSessionManager > keeps tenant outbound lookup isolated when one tenant sender fails
+
+packages\shared\src\companyRuntime.test.ts:
+(pass) companyRuntime operator helpers > treats open sessions with a live lease as healthy
+(pass) companyRuntime operator helpers > treats expired leases as stale even when the last stored state was open
+ 99 |     expect(getBotRuntimeOperatorState(readySnapshot, 10_000)).toBe("awaiting_pairing");
+100 |     expect(getBotRuntimeOperatorSummary(readySnapshot, 10_000).code).toBe("qr_ready");
+101 |     expect(getBotRuntimeNextActionHint(readySnapshot, 10_000)).toContain("scan the QR code");
+102 | 
+103 |     expect(getBotRuntimeOperatorState(expiredSnapshot, 10_000)).toBe("awaiting_pairing");
+104 |     expect(getBotRuntimeOperatorSummary(expiredSnapshot, 10_000).code).toBe("qr_expired");
+                                                                             ^
+error: expect(received).toBe(expected)
+
+Expected: "qr_expired"
+Received: "qr_ready"
+
+      at <anonymous> (C:\Users\Hussein\Desktop\Things\Zerone\Projects\CS\packages\shared\src\companyRuntime.test.ts:104:72)
+(fail) companyRuntime operator helpers > distinguishes ready and expired pairing states while the session awaits pairing
+(pass) companyRuntime operator helpers > treats closed sessions as a distinct operator state
+
+ 14 pass
+ 3 fail
+ 53 expect() calls
+Ran 17 tests across 2 files. [590.00ms]

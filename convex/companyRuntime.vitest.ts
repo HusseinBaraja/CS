@@ -331,9 +331,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
       expiresAt: 63_000,
     });
 
-    const activeSnapshots = await t.query(internal.companyRuntime.listBotRuntimeOperatorSnapshots, {
-      now: 4_000,
-    });
+    const activeSnapshots = await t.query(internal.companyRuntime.listBotRuntimeOperatorSnapshots, {});
 
     expect(activeSnapshots).toEqual([
       {
@@ -356,22 +354,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
           leaseExpiresAt: 62_000,
         },
         pairing: {
-          state: "ready",
           updatedAt: 3_000,
           expiresAt: 63_000,
           qrText: "active-qr",
         },
       },
     ]);
-
-    const expiredSnapshots = await t.query(internal.companyRuntime.listBotRuntimeOperatorSnapshots, {
-      now: 64_000,
-    });
-
-    expect(expiredSnapshots[0]?.pairing).toEqual({
-      state: "expired",
-      updatedAt: 3_000,
-      expiresAt: 63_000,
-    });
   });
 });

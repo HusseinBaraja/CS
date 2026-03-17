@@ -39,9 +39,7 @@ export const createConvexBotRuntimeService = (
   return {
     listOperatorSnapshots: () =>
       withClient((client) =>
-        client.query(convexInternal.companyRuntime.listBotRuntimeOperatorSnapshots, {
-          now: now(),
-        })
+        client.query(convexInternal.companyRuntime.listBotRuntimeOperatorSnapshots, {})
       ) as Promise<BotRuntimeOperatorSnapshot[]>,
   };
 };

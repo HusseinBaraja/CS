@@ -25,9 +25,7 @@ const createSnapshot = (
     updatedAt: 1_000,
     leaseExpiresAt: 61_000,
   },
-  pairing: {
-    state: "none",
-  },
+  pairing: null,
   ...overrides,
 });
 
@@ -76,7 +74,6 @@ describe("companyRuntime operator helpers", () => {
         leaseExpiresAt: 61_000,
       },
       pairing: {
-        state: "ready",
         updatedAt: 1_000,
         expiresAt: 61_000,
         qrText: "qr-ready",
@@ -94,9 +91,8 @@ describe("companyRuntime operator helpers", () => {
         leaseExpiresAt: 61_000,
       },
       pairing: {
-        state: "expired",
         updatedAt: 62_000,
-        expiresAt: 61_000,
+        expiresAt: 9_000,
       },
     });
 

@@ -39,7 +39,7 @@ describe("createConvexBotRuntimeService", () => {
     expect(getFunctionName(receivedReference as never)).toBe(
       getFunctionName(convexInternal.companyRuntime.listBotRuntimeOperatorSnapshots),
     );
-    expect(receivedArgs).toEqual({ now: 42_000 });
+    expect(receivedArgs).toEqual({});
   });
 
   test("maps unknown errors to a database unavailable service error", async () => {
