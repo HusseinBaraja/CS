@@ -127,6 +127,7 @@ const envSchema = {
   LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
   BACKUP_DIR: z.string().min(1).default("backups"),
   BACKUP_RETENTION_COUNT: z.coerce.number().int().positive().default(5),
+  BOT_AUTH_DIR: z.string().min(1).default("data/bot/auth"),
   API_PORT: z.coerce.number().int().positive().default(3000),
   API_KEY: trimmedNonEmptyString.optional(),
   GEMINI_API_KEY: trimmedNonEmptyString.optional(),

@@ -18,7 +18,10 @@
     "@cs/shared": "*",
     "@cs/storage": "*",
     "@hono/node-server": "1.19.9",
-    "hono": "4.12.4"
+    "hono": "4.12.4",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6"
   }
 }
-

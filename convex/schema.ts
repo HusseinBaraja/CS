@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
+import { BOT_RUNTIME_SESSION_STATES } from '@cs/shared';
 
 // ── Reusable field patterns ──────────────────────────────────────────────────
 const flexRecord = v.record(
@@ -27,6 +28,27 @@ const mediaCleanupStatusValidator = v.union(
   v.literal("completed"),
   v.literal("failed"),
 );
+const [
+  initializingState,
+  connectingState,
+  awaitingPairingState,
+  openState,
+  reconnectingState,
+  closedState,
+  loggedOutState,
+  failedState,
+] = BOT_RUNTIME_SESSION_STATES;
+
+const botRuntimeSessionStateValidator = v.union(
+  v.literal(initializingState),
+  v.literal(connectingState),
+  v.literal(awaitingPairingState),
+  v.literal(openState),
+  v.literal(reconnectingState),
+  v.literal(closedState),
+  v.literal(loggedOutState),
+  v.literal(failedState),
+);
 
 export default defineSchema({
   // ── Companies ────────────────────────────────────────────────────────────
@@ -36,6 +58,10 @@ export default defineSchema({
     seedKey: v.optional(v.string()),
     config: v.optional(flexRecord),
     timezone: v.optional(v.string()),
+    botRuntimePairingLeaseExpiresAt: v.optional(v.number()),
+    botRuntimePairingLeaseOwner: v.optional(v.string()),
+    botRuntimeSessionLeaseExpiresAt: v.optional(v.number()),
+    botRuntimeSessionLeaseOwner: v.optional(v.string()),
   })
     .index("by_owner_phone", ["ownerPhone"])
     .index("by_seed_key", ["seedKey"]),
@@ -46,6 +72,35 @@ export default defineSchema({
     acquiredAt: v.number(),
     expiresAt: v.number(),
   }).index("by_key", ["key"]),
+
+  botRuntimeSessions: defineTable({
+    companyId: v.id("companies"),
+    runtimeOwnerId: v.string(),
+    sessionKey: v.string(),
+    state: botRuntimeSessionStateValidator,
+    attempt: v.number(),
+    hasQr: v.boolean(),
+    disconnectCode: v.optional(v.number()),
+    isNewLogin: v.optional(v.boolean()),
+    updatedAt: v.number(),
+    leaseExpiresAt: v.number(),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_runtime_owner", ["runtimeOwnerId"])
+    .index("by_state", ["state"])
+    .index("by_lease_expires_at", ["leaseExpiresAt"]),
+
+  botRuntimePairingArtifacts: defineTable({
+    companyId: v.id("companies"),
+    runtimeOwnerId: v.string(),
+    sessionKey: v.string(),
+    qrText: v.string(),
+    updatedAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_runtime_owner", ["runtimeOwnerId"])
+    .index("by_expires_at", ["expiresAt"]),
 
   // ── Categories ──────────────────────────────────────────────────────────
   categories: defineTable({

@@ -9,6 +9,7 @@ import { createCustomErrorResponse, createErrorResponse } from './responses';
 import { createCategoriesRoutes } from './routes/categories';
 import { createAnalyticsRoutes } from './routes/analytics';
 import { createCompaniesRoutes } from './routes/companies';
+import { createBotRuntimeRoutes, renderBotRuntimeShell } from './routes/botRuntime';
 import { createCurrencyRatesRoutes } from './routes/currencyRates';
 import { createOffersRoutes } from './routes/offers';
 import { createProductsRoutes } from './routes/products';
@@ -18,7 +19,9 @@ import { createConvexAnalyticsService } from './services/convexAnalyticsService'
 import type { CategoriesService } from './services/categories';
 import { createConvexCategoriesService } from './services/convexCategoriesService';
 import type { CompaniesService } from './services/companies';
+import type { BotRuntimeService } from './services/botRuntime';
 import { createConvexCompaniesService } from './services/convexCompaniesService';
+import { createConvexBotRuntimeService } from './services/convexBotRuntimeService';
 import type { CurrencyRatesService } from './services/currencyRates';
 import { createConvexCurrencyRatesService } from './services/convexCurrencyRatesService';
 import type { OffersService } from './services/offers';
@@ -33,6 +36,7 @@ export interface ApiAppOptions {
   checkDbReady?: (connection: DbConnection) => Promise<void> | void;
   analyticsService?: AnalyticsService;
   companiesService?: CompaniesService;
+  botRuntimeService?: BotRuntimeService;
   categoriesService?: CategoriesService;
   productsService?: ProductsService;
   productMediaService?: ProductMediaService;
@@ -135,6 +139,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
   });
   const analyticsService = options.analyticsService ?? createConvexAnalyticsService();
   const companiesService = options.companiesService ?? createConvexCompaniesService();
+  const botRuntimeService = options.botRuntimeService ?? createConvexBotRuntimeService();
   const categoriesService = options.categoriesService ?? createConvexCategoriesService();
   const productsService = options.productsService ?? createConvexProductsService();
   const productMediaService = options.productMediaService ?? createConvexProductMediaService({
@@ -186,6 +191,10 @@ export const createApp = (options: ApiAppOptions = {}) => {
     })
   );
 
+  app.get("/runtime/bot", (c) =>
+    c.html(renderBotRuntimeShell(c.req.query("companyId")))
+  );
+
   app.get("/api", (c) =>
     c.json({
       ok: true,
@@ -227,6 +236,14 @@ export const createApp = (options: ApiAppOptions = {}) => {
       return c.json(failure.body, failure.status);
     }
   });
+
+  app.route(
+    "/api/runtime/bot",
+    createBotRuntimeRoutes({
+      botRuntimeService,
+      now: options.now,
+    })
+  );
 
   app.route(
     "/api/companies/:companyId/analytics",

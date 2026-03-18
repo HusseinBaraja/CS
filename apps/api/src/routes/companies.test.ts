@@ -26,6 +26,8 @@ const baseDeleteResult: DeleteCompanyResult = {
   companyId: "company-1",
   counts: {
     companies: 1,
+    botRuntimeSessions: 1,
+    botRuntimePairingArtifacts: 1,
     categories: 2,
     products: 3,
     productImageUploads: 1,

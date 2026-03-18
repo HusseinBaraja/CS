@@ -15,6 +15,7 @@ describe("config", () => {
     expect(config.LOG_RETENTION_DAYS).toBe(14);
     expect(config.BACKUP_DIR).toBe("backups");
     expect(config.BACKUP_RETENTION_COUNT).toBe(5);
+    expect(config.BOT_AUTH_DIR).toBe("data/bot/auth");
     expect(config.API_PORT).toBe(3000);
     expect(config.API_KEY).toBeUndefined();
     expect(config.GEMINI_API_KEY).toBeUndefined();
@@ -145,6 +146,15 @@ describe("config", () => {
         code: ERROR_CODES.CONFIG_INVALID
       })
     );
+  });
+
+  test("trims BOT_AUTH_DIR before returning it", () => {
+    const config = createConfig({
+      BOT_AUTH_DIR: "  data/custom-auth  ",
+      CONVEX_URL: "https://example.convex.cloud"
+    });
+
+    expect(config.BOT_AUTH_DIR).toBe("data/custom-auth");
   });
 
   test("rejects non-positive API rate limits", () => {

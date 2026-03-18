@@ -1,7 +1,9 @@
 import { logger } from '@cs/core';
+import { startTenantSessionManager } from './sessionManager';
 
-const main = async () => {
-  logger.info("Bot bootstrap complete; AI orchestration is not wired yet.");
-};
-
-void main();
+if (import.meta.main) {
+  startTenantSessionManager().catch((error) => {
+    logger.error({ error }, "bot startup failed");
+    process.exitCode = 1;
+  });
+}
