@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --font-arabic: "Tajawal", system-ui, sans-serif;
+  --color-primary: #1A2E27; /* Obsidian/Forest green */
+  --color-secondary: #E3B23C; /* Warm gold */
+  --color-bg-light: #F8F7F4; /* Warm alabaster */
+  --color-surface: #FFFFFF;
+}
+
+@layer base {
+  html, body {
+    @apply bg-[var(--color-bg-light)] text-[var(--color-primary)] font-arabic antialiased;
+    direction: rtl;
+  }
+}
+
+/* Custom Scrollbar for a premium feel */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
