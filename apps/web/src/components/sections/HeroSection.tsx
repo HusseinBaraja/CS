@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ArrowLeft, BarChart3, Bot, MessageCircle } from '../icons';
+import logoUrl from '../../assets/Reda_logo.svg';
 
 export function HeroSection() {
   const container = useRef<HTMLDivElement>(null);
@@ -79,9 +80,9 @@ export function HeroSection() {
         {/* Right Content (RTL) */}
         <div className="max-w-2xl">
           <h1 className="hero-text-anim text-5xl md:text-6xl lg:text-7xl font-black text-primary leading-[1.1] mb-6 tracking-tight">
-            خدمة عملاء عبر واتساب، <br />
+            خدمة عملاء عبر واتساب <br />
             <span className="text-[#115C42] relative inline-block">
-              بدقة عالية، على مدار الساعة.
+              بدقة عالية، على مدار الساعة
               <svg
                 className="absolute w-full h-3 -bottom-1 left-0 text-secondary/40"
                 fill="currentColor"
@@ -94,17 +95,13 @@ export function HeroSection() {
           </h1>
 
           <p className="hero-text-anim text-xl text-primary/70 mb-10 leading-relaxed font-medium">
-            اربط كتالوج منتجاتك، وسيقوم المساعد الذكي بالرد على عملائك، إرسال
-            الصور، وتحويل المحادثة إليك عند الحاجة.
+            اربط كتالوج منتجاتك، وسيقوم المساعد الذكي بالرد على عملائك، وتحويل المحادثة إليك عند الحاجة.
           </p>
 
           <div className="hero-text-anim flex flex-col sm:flex-row gap-4">
             <button className="bg-primary text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3 group">
               ابدأ الآن مجاناً
               <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-            </button>
-            <button className="bg-white text-primary border border-primary/10 px-8 py-4 rounded-xl font-bold text-lg hover:bg-bg-light transition-all shadow-sm flex items-center justify-center gap-3">
-              شاهد كيف يعمل
             </button>
           </div>
 
@@ -133,8 +130,8 @@ export function HeroSection() {
             {/* WhatsApp Header Mock */}
             <div className="bg-[#115C42] text-white px-5 py-4 flex items-center gap-4">
               <ArrowLeft className="w-5 h-5 opacity-80" />
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <Bot className="w-6 h-6" />
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center overflow-hidden">
+                <img src={logoUrl} alt="" className="h-6 w-6 object-contain brightness-0 invert" />
               </div>
               <div>
                 <div className="font-bold text-[15px]">
