@@ -11,299 +11,299 @@ export function TrustSection() {
 
   useGSAP(
     () => {
-      // Text side entrance
-      gsap.from(".trust-element", {
+      // Ambient slow rotation for background glow
+      gsap.to(".ambient-glow", {
+        rotate: 360,
+        duration: 25,
+        repeat: -1,
+        ease: "linear",
+      });
+
+      // Text section reveals
+      gsap.from(".trust-text-element", {
         scrollTrigger: {
           trigger: container.current,
           start: "top 75%",
         },
-        y: 40,
+        y: 45,
         opacity: 0,
-        duration: 0.8,
-        stagger: 0.15,
-        ease: "power3.out",
+        duration: 1,
+        stagger: 0.12,
+        ease: "power4.out",
       });
 
-      // Chat flow staggered entrance
+      // Chat orchestration sequence
       const flowTl = gsap.timeline({
         scrollTrigger: {
-          trigger: ".trust-flow-container",
-          start: "top 80%",
+          trigger: ".trust-visual-container",
+          start: "top 65%",
         },
       });
 
-      // 1. Customer bubble slides in
-      flowTl.from(".trust-bubble-customer", {
-        x: 40,
+      // 1. Light glass container drops in
+      flowTl.from(".trust-interface-bg", {
+        scale: 0.96,
         opacity: 0,
-        duration: 0.7,
-        ease: "power3.out",
+        duration: 1.2,
+        ease: "expo.out",
+        clearProps: "all"
       });
 
-      // 2. First connection line drawsmo
-      flowTl.from(
-        ".trust-line-1",
-        {
-          scaleY: 0,
-          transformOrigin: "top center",
-          duration: 0.5,
-          ease: "power2.inOut",
-        },
-        "-=0.2",
-      );
+      // 2. Customer message slides in with 3D tilt
+      flowTl.from(".message-customer", {
+        y: 25,
+        opacity: 0,
+        rotationX: -15,
+        transformOrigin: "bottom center",
+        duration: 0.8,
+        ease: "back.out(1.2)",
+      }, "-=0.6");
 
-      // 3. First pulse node appears
-      flowTl.from(
-        ".trust-node-1",
-        { scale: 0, opacity: 0, duration: 0.3, ease: "back.out(2)" },
-        "-=0.1",
-      );
+      // 3. First segment of data pipeline
+      flowTl.from(".pipeline-line-1", {
+        scaleY: 0,
+        transformOrigin: "top center",
+        duration: 0.6,
+        ease: "power2.inOut",
+      }, "-=0.2");
 
-      // 4. AI card scales up with slight rotation
-      flowTl.from(
-        ".trust-ai-card",
-        {
-          scale: 0.85,
-          opacity: 0,
-          rotateX: 8,
-          duration: 0.8,
-          ease: "power3.out",
-        },
-        "-=0.1",
-      );
+      flowTl.from(".pipeline-node-1", {
+        scale: 0,
+        opacity: 0,
+        duration: 0.4,
+        ease: "back.out(2.5)",
+      }, "-=0.2");
 
-      // 5. Second connection line draws
-      flowTl.from(
-        ".trust-line-2",
-        {
-          scaleY: 0,
-          transformOrigin: "top center",
-          duration: 0.5,
-          ease: "power2.inOut",
-        },
-        "-=0.3",
-      );
+      // 4. RAG Engine Card pop
+      flowTl.from(".data-card", {
+        y: 35,
+        opacity: 0,
+        scale: 0.92,
+        filter: "blur(8px)",
+        duration: 0.8,
+        ease: "power3.out",
+      }, "-=0.1");
 
-      // 6. Second pulse node appears
-      flowTl.from(
-        ".trust-node-2",
-        { scale: 0, opacity: 0, duration: 0.3, ease: "back.out(2)" },
-        "-=0.1",
-      );
+      // Intricate stagger for interior data items
+      flowTl.from(".data-card-item", {
+        opacity: 0,
+        x: -15,
+        duration: 0.5,
+        stagger: 0.1,
+        ease: "power2.out",
+      }, "-=0.4");
 
-      // 7. Bot bubble pops in
-      flowTl.from(
-        ".trust-bubble-bot",
-        {
-          x: -40,
-          opacity: 0,
-          duration: 0.7,
-          ease: "back.out(1.4)",
-        },
-        "-=0.1",
-      );
+      // 5. Second data pipeline
+      flowTl.from(".pipeline-line-2", {
+        scaleY: 0,
+        transformOrigin: "top center",
+        duration: 0.5,
+        ease: "power2.inOut",
+      }, "-=0.1");
+
+      flowTl.from(".pipeline-node-2", {
+        scale: 0,
+        opacity: 0,
+        duration: 0.4,
+        ease: "back.out(2.5)",
+      }, "-=0.2");
+
+      // 6. Bot Response appearance
+      flowTl.from(".message-bot", {
+        y: 25,
+        opacity: 0,
+        rotationX: 15,
+        transformOrigin: "top left",
+        duration: 0.8,
+        ease: "back.out(1.2)",
+      }, "-=0.1");
     },
-    { scope: container },
+    { scope: container }
   );
 
   return (
-    <section
-      ref={container}
-      className="py-24 md:py-32 bg-white relative overflow-hidden"
-      id="usecase"
-    >
-      <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-        {/* Right Content (RTL) - The Context */}
-        <div className="order-2 lg:order-1">
-          <h2 className="trust-element text-3xl md:text-5xl font-black text-primary mb-6 leading-tight">
+    <section ref={container} className="py-24 md:py-32 bg-white relative overflow-hidden" id="usecase">
+      <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+        
+        {/* Right Content - Editorial Typography */}
+        <div className="order-2 lg:order-1 relative z-10">
+          <div className="trust-text-element inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-primary/5 border border-primary/10 mb-8 shadow-sm">
+            <span className="w-2.5 h-2.5 rounded-full bg-secondary animate-pulse" />
+            <span className="text-sm font-bold text-primary/80 tracking-wide">محرك الفهم الدلالي</span>
+          </div>
+          
+          <h2 className="trust-text-element text-4xl md:text-5xl lg:text-5xl xl:text-6xl font-black text-primary mb-6 leading-[1.15] tracking-tight">
             مصمم لطبيعة الاستفسارات
-            <br /> <span className="text-secondary">في اليمن.</span>
+            <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-secondary via-amber-600 to-amber-700">في اليمن.</span>
           </h2>
-          <p className="trust-element text-xl text-primary/70 mb-8 leading-relaxed font-medium">
-            سواء كنت تبيع المواد الغذائية، الملابس، أو المواد البلاستيكية.
-            العميل يسأل عادة بطريقة غير مرتبة ("بكم المنتج الفلاني؟").
+          
+          <p className="trust-text-element text-[1.15rem] text-primary/75 mb-6 leading-relaxed font-semibold">
+            سواء كنت تبيع المواد الغذائية، الملابس، أو المواد البلاستيكية. العميل يسأل عادة بطريقة غير مرتبة <span className="text-primary font-black bg-primary/5 px-2 py-0.5 rounded-md">("بكم المنتج الفلاني؟").</span>
           </p>
-          <p className="trust-element text-xl text-primary/70 mb-10 leading-relaxed font-medium">
-            النظام مبرمج ليحلل قصد العميل بدقة، ثم يستخرج المنتج الصحيح من مئات
-            الأصناف لديك، ويعرض له السعر، الموصفات، وصورة حقيقية فوراً، مما يقلص
-            مدة دورة المبيعات من ساعات إلى ثوانٍ.
+          
+          <p className="trust-text-element text-lg text-primary/60 mb-12 leading-relaxed font-medium">
+            النظام مبرمج ليحلل قصد العميل بدقة، ثم يستخرج المنتج الصحيح من مئات الأصناف لديك، ويعرض له السعر، الموصفات، وصورة حقيقية فوراً، مما يقلص مدة دورة المبيعات من ساعات إلى ثوانٍ.
           </p>
 
-          <div className="trust-element flex items-center gap-6 pt-6 border-t border-primary/10">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-secondary" />
+          <div className="trust-text-element grid grid-cols-2 gap-8 pt-8 border-t border-primary/10">
+            <div className="flex flex-col gap-2 relative">
+              <div className="flex items-center gap-2 text-secondary mb-1">
+                <TrendingUp className="w-5 h-5 flex-shrink-0" />
+                <span className="text-xs font-bold uppercase tracking-wider">الأداء</span>
               </div>
-              <div>
-                <div className="font-bold text-2xl text-primary">+80%</div>
-                <div className="text-sm text-primary/60">أتمتة للردود</div>
-              </div>
+              <div className="font-black text-5xl lg:text-6xl text-primary tracking-tight" style={{ fontFeatureSettings: '"tnum"' }}>+80<span className="text-2xl lg:text-3xl text-primary/40 font-bold ml-1">%</span></div>
+              <div className="text-sm text-primary/60 font-semibold mt-1">أتمتة كاملة للردود</div>
+              
+              {/* Subtle divider for grid */}
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-px h-16 bg-primary/10 hidden md:block" />
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
-                <Bot className="w-6 h-6 text-white" />
+            
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 text-primary mb-1">
+                <Zap className="w-5 h-5 flex-shrink-0" />
+                <span className="text-xs font-bold uppercase tracking-wider">السرعة</span>
               </div>
-              <div>
-                <div className="font-bold text-2xl text-primary">&lt; 3ث</div>
-                <div className="text-sm text-primary/60">سرعة الرد</div>
-              </div>
+              <div className="font-black text-5xl lg:text-6xl text-primary tracking-tight" style={{ fontFeatureSettings: '"tnum"' }}>&lt; 3<span className="text-2xl lg:text-3xl text-primary/40 font-bold ml-1">ث</span></div>
+              <div className="text-sm text-primary/60 font-semibold mt-1">زمن الاستجابة</div>
             </div>
           </div>
         </div>
 
-        {/* Left Content - Premium Chat Flow Visualization */}
-        <div className="order-1 lg:order-2 trust-element relative min-h-[600px] w-full bg-bg-light rounded-[40px] border border-primary/5 overflow-hidden flex items-center justify-center p-8 md:p-12 lg:p-16">
-          {/* Subtle ambient background glow */}
-          <div className="absolute top-8 left-1/3 w-48 h-48 bg-secondary/8 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-12 right-1/4 w-36 h-36 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
+        {/* Left Content - Refined Light Mode SaaS Aesthetic */}
+        <div className="order-1 lg:order-2 trust-visual-container relative w-full aspect-square md:aspect-[4/3] lg:aspect-[4/5] xl:aspect-square max-w-lg mx-auto rounded-[2.5rem] flex items-center justify-center p-6 md:p-10 perspective-[1200px]">
+          
+          {/* Soft Light Background Container */}
+          <div className="trust-interface-bg absolute inset-0 bg-gradient-to-br from-[#FAFAFA] via-[#F3F4F6] to-[#E5E7EB] rounded-[2.5rem] border border-primary/5 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] overflow-hidden">
+            {/* Ambient Lighting Orbs */}
+            <div className="ambient-glow absolute -top-[30%] -left-[30%] w-[90%] h-[90%] rounded-full bg-secondary/20 blur-[120px] pointer-events-none" />
+            <div className="ambient-glow absolute -bottom-[20%] -right-[20%] w-[70%] h-[70%] rounded-full bg-emerald-500/15 blur-[100px] pointer-events-none" style={{ animationDirection: 'reverse', animationDuration: '30s' }} />
+            
+            {/* Engineer Grid Pattern */}
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_10%,transparent_100%)] opacity-80 pointer-events-none" />
+          </div>
 
-          <div className="trust-flow-container w-full max-w-sm flex flex-col items-center relative z-10">
-            {/* ─── Customer Message Bubble ─── */}
-            <div className="trust-bubble-customer self-end w-4/5 flex gap-3 items-start">
-              <div className="flex-1 relative">
-                <div
-                  className="bg-white p-4 rounded-2xl rounded-tr-sm leading-relaxed"
-                  style={{
-                    boxShadow:
-                      "0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.03)",
-                  }}
-                >
-                  <span className="font-semibold text-primary text-[15px]">
-                    بكم أكواب السفري؟
-                  </span>
-                  <div className="text-[10px] text-primary/35 mt-2 text-left font-medium">
-                    10:41
-                  </div>
-                </div>
-              </div>
-              {/* Avatar */}
-              <div className="w-9 h-9 rounded-full bg-primary/8 flex items-center justify-center shrink-0 ring-2 ring-primary/10">
+          {/* Chat Flow & Data Orchestration Stack */}
+          <div className="relative z-10 w-full max-w-sm xl:max-w-md flex flex-col items-center select-none" dir="rtl">
+            
+            {/* 1. Customer Message */}
+            <div className="message-customer self-start w-[88%] flex gap-3.5 items-end mb-2">
+              <div className="w-9 h-9 rounded-full bg-white border border-primary/10 flex items-center justify-center shrink-0 shadow-sm">
                 <UserCircle className="w-5 h-5 text-primary/50" />
               </div>
-            </div>
-
-            {/* ─── Connection Line 1 + Node ─── */}
-            <div className="flex flex-col items-center py-1">
-              <div className="trust-line-1 w-px h-8 bg-gradient-to-b from-primary/15 to-secondary/30" />
-              <div className="trust-node-1 pulse-node w-2.5 h-2.5 rounded-full bg-secondary" />
-              <div className="trust-line-1 w-px h-8 bg-gradient-to-b from-secondary/30 to-primary/15" />
-            </div>
-
-            {/* ─── AI Product Card (RAG Result) ─── */}
-            <div
-              className="trust-ai-card relative w-full rounded-2xl overflow-hidden"
-              style={{
-                background:
-                  "linear-gradient(145deg, #1A2E27 0%, #162822 50%, #1A2E27 100%)",
-                boxShadow:
-                  "0 8px 32px rgba(26,46,39,0.25), 0 2px 8px rgba(26,46,39,0.15), inset 0 1px 0 rgba(255,255,255,0.06)",
-              }}
-            >
-              <div className="p-5 flex gap-4 items-start relative z-10">
-                {/* Icon container */}
-                <div
-                  className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 float-subtle"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgba(227,178,60,0.15) 0%, rgba(227,178,60,0.05) 100%)",
-                    border: "1px solid rgba(227,178,60,0.2)",
-                  }}
-                >
-                  <Search className="w-7 h-7 text-secondary" />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  {/* Header row */}
-                  <div className="flex justify-between items-start gap-2 mb-2">
-                    <span className="text-white font-bold text-sm leading-snug">
-                      أكواب سفري باك (100 حبه)
-                    </span>
-                    {/* Confidence badge */}
-                    <span
-                      className="text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, rgba(227,178,60,0.2) 0%, rgba(227,178,60,0.1) 100%)",
-                        color: "#E3B23C",
-                        border: "1px solid rgba(227,178,60,0.25)",
-                        boxShadow: "0 0 10px rgba(227,178,60,0.2)",
-                      }}
-                    >
-                      <Zap className="w-3 h-3 inline-block ml-1 -mt-0.5" />
-                      مطابقة: 98%
-                    </span>
-                  </div>
-
-                  {/* Product details */}
-                  <div className="space-y-1 mt-2">
-                    <div className="flex items-center gap-2">
-                      <span className="w-1 h-1 rounded-full bg-secondary/60 shrink-0" />
-                      <span className="text-white/55 text-xs">
-                        الصنف: 8 أونص
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-1 h-1 rounded-full bg-secondary/60 shrink-0" />
-                      <span className="text-white/55 text-xs">
-                        السعر: 18,000 ريال للكرتون
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-1 h-1 rounded-full bg-emerald-400/60 shrink-0" />
-                      <span className="text-emerald-400/70 text-xs font-medium">
-                        متوفر بالمخزن ✓
-                      </span>
-                    </div>
+              <div className="flex-1">
+                <div className="bg-white/80 backdrop-blur-xl border border-primary/10 px-5 py-4 rounded-3xl rounded-br-sm shadow-[0_8px_32px_-8px_rgba(0,0,0,0.06)]">
+                  <p className="text-primary/95 font-semibold text-[15px] leading-snug">
+                    بكم أكواب السفري؟
+                  </p>
+                  <div className="text-[10px] text-primary/40 mt-1.5 text-left font-mono font-medium tracking-wide">
+                    10:41 ص
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* ─── Connection Line 2 + Node ─── */}
-            <div className="flex flex-col items-center py-1">
-              <div className="trust-line-2 w-px h-8 bg-gradient-to-b from-primary/15 to-secondary/30" />
-              <div
-                className="trust-node-2 pulse-node w-2.5 h-2.5 rounded-full bg-secondary"
-                style={{ animationDelay: "0.7s" }}
-              />
-              <div className="trust-line-2 w-px h-8 bg-gradient-to-b from-secondary/30 to-[#D9FDD3]/50" />
+            {/* Pipeline Segment 1 */}
+            <div className="flex flex-col items-center h-10 xl:h-12 w-full">
+              <div className="pipeline-line-1 w-px h-full bg-gradient-to-b from-primary/10 via-secondary/70 to-secondary/30 relative">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[2px] h-5 bg-secondary rounded-full filter blur-[1px] shadow-[0_0_8px_rgba(227,178,60,0.6)] animate-[flowPacket_1.6s_infinite_linear]" />
+              </div>
+            </div>
+            <div className="pipeline-node-1 relative z-10 flex items-center justify-center">
+              <div className="w-2.5 h-2.5 rounded-full bg-secondary shadow-[0_0_12px_rgba(227,178,60,0.6)]" />
+              <div className="absolute w-6 h-6 rounded-full border border-secondary/40 animate-ping opacity-60" style={{ animationDuration: '2s' }} />
             </div>
 
-            {/* ─── Bot Response Bubble ─── */}
-            <div className="trust-bubble-bot self-start w-[88%] flex gap-3 items-start">
-              {/* Bot avatar */}
-              <div
-                className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #115C42 0%, #0D4A35 100%)",
-                  boxShadow: "0 2px 8px rgba(17,92,66,0.3)",
-                }}
-              >
-                <Bot className="w-4 h-4 text-white" />
-              </div>
+            {/* 2. RAG Data Card (The Engine) */}
+            <div className="data-card relative w-full p-[1px] rounded-3xl bg-gradient-to-b from-white/60 to-white/20 mt-2.5 mb-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.06)]">
+              
+              <div className="relative bg-white/70 backdrop-blur-xl rounded-[23px] p-5 xl:p-6 overflow-hidden border border-white/50">
+                {/* Decoration ray */}
+                <div className="absolute top-0 right-10 w-32 h-[1px] bg-gradient-to-r from-transparent via-white to-transparent opacity-60" />
+                
+                {/* Card Header */}
+                <div className="flex justify-between items-start gap-4 mb-5">
+                  <div className="flex gap-3.5 items-center">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-secondary/15 to-secondary/5 border border-secondary/20 flex items-center justify-center shadow-sm shrink-0">
+                      <Search className="w-5 h-5 text-secondary" />
+                    </div>
+                    <div>
+                      <div className="text-primary/60 text-xs font-semibold mb-1">الصنف المستخرج</div>
+                      <h4 className="text-primary font-bold text-sm xl:text-[15px] leading-tight flex items-center gap-2">أكواب سفري باك</h4>
+                    </div>
+                  </div>
+                  
+                  {/* Match Badge */}
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/[0.08] border border-secondary/25 shadow-sm shrink-0 mt-0.5">
+                    <Zap className="w-3.5 h-3.5 text-secondary animate-[pulse_2s_infinite]" />
+                    <span className="text-xs font-mono font-bold text-secondary tracking-tight">98%</span>
+                  </div>
+                </div>
 
-              <div className="flex-1 relative">
-                <div
-                  className="bg-[#D9FDD3] p-4 rounded-2xl rounded-tl-sm leading-relaxed"
-                  style={{
-                    boxShadow:
-                      "0 1px 2px rgba(0,0,0,0.03), 0 4px 16px rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.02)",
-                  }}
-                >
-                  <span className="font-medium text-primary text-[14px] leading-[1.7]">
-                    أهلاً بك! سعر كرتون أكواب السفري (8 أونص) هو 18,000
-                    ريال. هل ترغب بصورة للمنتج؟
-                  </span>
-                  <div className="text-[10px] text-emerald-700/50 mt-2 text-left flex justify-end items-center gap-1 font-medium">
-                    ✓✓ 10:41
+                {/* Structured Data Grid */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="data-card-item bg-primary/[0.02] border border-primary/[0.04] rounded-xl p-3 flex flex-col justify-between">
+                    <div className="text-primary/60 text-xs font-semibold mb-1.5">النوع</div>
+                    <div className="text-primary/90 text-xs xl:text-[13px] font-bold">8 أونص (100 حبة)</div>
+                  </div>
+                  <div className="data-card-item bg-primary/[0.02] border border-primary/[0.04] rounded-xl p-3 flex flex-col justify-between">
+                    <div className="text-primary/60 text-xs font-semibold mb-1.5">السعر</div>
+                    <div className="text-emerald-600 text-xs xl:text-[13px] font-black" style={{ fontFeatureSettings: '"tnum"' }}>18,000 ريال</div>
+                  </div>
+                  <div className="data-card-item col-span-2 bg-gradient-to-r from-emerald-500/[0.05] to-transparent border border-emerald-500/[0.15] rounded-xl p-3.5 flex justify-between items-center relative overflow-hidden">
+                    {/* Tiny green accent line */}
+                    <div className="absolute top-0 right-0 w-1 h-full bg-emerald-500/40" />
+                    
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
+                      <span className="text-primary/60 text-xs font-medium uppercase tracking-wide">المخزون</span>
+                    </div>
+                    <span className="text-emerald-600 text-xs font-bold uppercase tracking-wide">متوفر ✓</span>
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* Pipeline Segment 2 */}
+            <div className="pipeline-node-2 relative z-10 flex items-center justify-center">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
+              <div className="absolute w-6 h-6 rounded-full border border-emerald-500/40 animate-ping opacity-60" style={{ animationDuration: '2s', animationDelay: '0.5s' }} />
+            </div>
+            <div className="flex flex-col items-center h-10 xl:h-12 w-full">
+              <div className="pipeline-line-2 w-px h-full bg-gradient-to-b from-emerald-500/50 to-emerald-500/10 relative">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[2px] h-5 bg-emerald-500 rounded-full filter blur-[1px] shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-[flowPacket_1.6s_infinite_linear_0.8s]" />
+              </div>
+            </div>
+
+            {/* 3. Bot Response Bubble */}
+            <div className="message-bot self-end w-[92%] flex gap-3.5 items-end mt-2">
+              <div className="flex-1">
+                <div className="bg-[#E8F8F1]/90 backdrop-blur-xl border border-emerald-500/20 px-5 py-4.5 rounded-3xl rounded-bl-sm shadow-[0_12px_32px_-8px_rgba(0,0,0,0.06)]">
+                  <p className="text-primary/90 font-semibold text-[14.5px] leading-relaxed">
+                    أهلاً بك! سعر كرتون أكواب السفري (8 أونص) هو <strong className="text-emerald-700 font-extrabold mx-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10">18,000 ريال</strong>. هل ترغب بصورة للمنتج؟
+                  </p>
+                  <div className="text-[10px] text-emerald-600/60 mt-2.5 flex justify-end items-center gap-1.5 font-mono font-medium">
+                    <span className="tracking-tighter font-black">✓✓</span> 10:41 ص
+                  </div>
+                </div>
+              </div>
+              <div className="w-9 h-9 rounded-full bg-gradient-to-b from-emerald-500 to-emerald-600 flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(16,185,129,0.3)] border border-emerald-400/40 relative">
+                <div className="absolute inset-0 rounded-full border border-white/40 mix-blend-overlay" />
+                <Bot className="w-4 h-4 text-white drop-shadow-sm" />
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
+      
+      <style>{`
+        @keyframes flowPacket {
+          0% { top: 0; opacity: 1; transform: translateX(-50%) scaleY(1); }
+          80% { top: 100%; opacity: 0.8; transform: translateX(-50%) scaleY(1.2); }
+          100% { top: 100%; opacity: 0; transform: translateX(-50%) scaleY(0.5); }
+        }
+      `}</style>
     </section>
   );
 }
