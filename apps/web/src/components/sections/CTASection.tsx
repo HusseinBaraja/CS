@@ -24,30 +24,44 @@ export function CTASection() {
   }, { scope: container });
 
   return (
-    <section ref={container} className="py-24 md:py-32 px-6">
-      <div className="max-w-5xl mx-auto cta-content bg-[#1A2E27] rounded-[40px] overflow-hidden relative">
+    <section ref={container} className="py-12 md:py-16 px-6 relative z-10">
+      <div className="max-w-5xl mx-auto cta-content bg-[#11231a] rounded-[32px] md:rounded-[40px] overflow-hidden relative border border-white/5 shadow-2xl">
         
-        {/* Decorative backdrop */}
-        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" 
-             style={{ 
-               backgroundImage: 'radial-gradient(circle at top right, #E3B23C 0%, transparent 60%), radial-gradient(circle at bottom left, #115C42 0%, transparent 60%)'
-             }} />
+        {/* Subtle dot pattern background (SVG instead of gradients) */}
+        <div 
+          className="absolute inset-0 opacity-[0.8]" 
+          style={{ 
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='2' cy='2' r='1' fill='rgba(255,255,255,0.03)'/%3E%3C/svg%3E")`,
+            backgroundSize: '24px 24px'
+          }} 
+        />
         
-        <div className="relative z-10 px-8 py-20 md:py-32 flex flex-col items-center text-center">
-          <h2 className="text-4xl md:text-6xl font-black text-white mb-8 leading-tight max-w-3xl">
-            دع الذكاء الاصطناعي <br/> 
-            <span className="text-[#E3B23C]">يتولى مهام الرد</span> بدءًا من اليوم.
+        {/* Decorative solid shapes with blur (no gradients) */}
+        <div className="absolute -top-32 -right-32 w-80 h-80 bg-[#E3B23C] rounded-full mix-blend-overlay opacity-10 blur-[80px] pointer-events-none" />
+        <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500 rounded-full mix-blend-overlay opacity-10 blur-[80px] pointer-events-none" />
+
+        <div className="relative z-10 px-6 py-14 md:py-20 flex flex-col items-center text-center">
+
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.2] max-w-4xl tracking-tight">
+            دع الذكاء الاصطناعي <br className="hidden md:block"/> 
+            <span className="text-[#E3B23C] relative inline-block group">
+              يتولى مهام الرد
+              {/* Solid underline accent */}
+              <span className="absolute -bottom-1 left-0 w-full h-1.5 bg-[#E3B23C]/30 rounded-full transform origin-left transition-transform duration-500 group-hover:bg-[#E3B23C]/60" />
+            </span> بدءًا من اليوم.
           </h2>
-          <p className="text-xl text-white/70 mb-12 max-w-2xl leading-relaxed">
+          
+          <p className="text-lg md:text-xl text-white/70 mb-10 max-w-2xl leading-relaxed font-medium">
             تكلفة تشغيلية منخفضة جداً، دقة متناهية مبنية على كتالوج منتجاتك، وراحة بال تامة لك ولفريقك.
           </p>
           
-          <button className="bg-[#E3B23C] text-[#1A2E27] px-10 py-5 rounded-full font-bold text-xl hover:bg-white transition-all shadow-xl hover:shadow-2xl flex items-center justify-center gap-3 group">
+          <button className="bg-[#E3B23C] text-[#11231a] px-8 md:px-10 py-4 md:py-5 rounded-full font-bold text-lg md:text-xl hover:bg-white transition-all duration-300 shadow-[0_8px_32px_rgba(227,178,60,0.25)] hover:shadow-[0_12px_40px_rgba(227,178,60,0.4)] flex items-center justify-center gap-3 group translate-y-0 hover:-translate-y-1">
             اطلب نسختك التجريبية
-            <ArrowLeft className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
+            <ArrowLeft className="w-6 h-6 transform group-hover:-translate-x-1.5 transition-transform duration-300" />
           </button>
-          <div className="mt-8 text-white/50 text-sm flex items-center gap-2">
-             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+
+          <div className="mt-8 text-white/40 text-sm font-medium flex items-center gap-2  px-4 py-2 rounded-full border border-white/5">
+             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 ring-[3px] ring-emerald-500/20 animate-pulse"></span>
              نعمل حالياً بنظام الدعوات المحدودة
           </div>
         </div>

@@ -116,7 +116,7 @@ export function HeroSection() {
         {/* Left Content - Abstract Phone UI Mockup */}
         <div className="hero-phone-anim relative h-150 w-full max-w-105 mx-auto lg:mr-auto lg:ml-0 perspective-[1000px]">
           {/* Main Device Box */}
-          <div className="absolute inset-0 bg-[#fefefe] rounded-[40px] shadow-2xl border-8 border-primary overflow-hidden flex flex-col transform lg:-rotate-y-12 lg:rotate-x-6 lg:translate-z-0 transition-transform duration-700 hover:rotate-y-0 hover:rotate-x-0">
+          <div className="absolute inset-0 bg-[#fefefe] rounded-[40px] shadow-2xl border-8 border-primary overflow-hidden flex flex-col transform lg:rotate-y-12 lg:rotate-x-6 lg:translate-z-0 transition-transform duration-700 hover:rotate-y-0 hover:rotate-x-0">
             {/* WhatsApp Header Mock */}
             <div className="bg-[#115C42] text-white px-5 py-4 flex items-center gap-4">
               <ArrowLeft className="w-5 h-5 opacity-80" />

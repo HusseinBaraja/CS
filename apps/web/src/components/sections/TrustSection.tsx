@@ -127,11 +127,6 @@ export function TrustSection() {
         
         {/* Right Content - Editorial Typography */}
         <div className="order-2 lg:order-1 relative z-10">
-          <div className="trust-text-element inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-primary/5 border border-primary/10 mb-8 shadow-sm">
-            <span className="w-2.5 h-2.5 rounded-full bg-secondary animate-pulse" />
-            <span className="text-sm font-bold text-primary/80 tracking-wide">محرك الفهم الدلالي</span>
-          </div>
-          
           <h2 className="trust-text-element text-4xl md:text-5xl lg:text-5xl xl:text-6xl font-black text-primary mb-6 leading-[1.15] tracking-tight">
             مصمم لطبيعة الاستفسارات
             <br />

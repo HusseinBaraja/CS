@@ -96,9 +96,6 @@ export function ProblemSection() {
       <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
         {/* Right Content (RTL) */}
         <div>
-          <div className="problem-text inline-flex items-center px-4 py-2 rounded-full bg-red-50 text-red-700 font-bold text-sm mb-6 border border-red-100">
-            الواقع الحالي
-          </div>
           <h2 className="problem-text text-4xl md:text-5xl font-black text-primary mb-6 leading-tight">
             الرد اليدوي يضيع وقتك
             <br /> <span className="text-red-600/80">ويخسرك مبيعات.</span>
