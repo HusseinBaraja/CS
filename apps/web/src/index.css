@@ -29,3 +29,44 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Trust section chat flow animations */
+@keyframes shimmer {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 4px var(--color-secondary); opacity: 0.7; }
+  50% { box-shadow: 0 0 14px var(--color-secondary); opacity: 1; }
+}
+
+@keyframes float-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.shimmer-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(227, 178, 60, 0.06) 45%,
+    rgba(227, 178, 60, 0.12) 50%,
+    rgba(227, 178, 60, 0.06) 55%,
+    transparent 100%
+  );
+  animation: shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.pulse-node {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.float-subtle {
+  animation: float-subtle 4s ease-in-out infinite;
+}

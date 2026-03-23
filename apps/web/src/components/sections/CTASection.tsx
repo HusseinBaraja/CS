@@ -36,7 +36,7 @@ export function CTASection() {
         <div className="relative z-10 px-8 py-20 md:py-32 flex flex-col items-center text-center">
           <h2 className="text-4xl md:text-6xl font-black text-white mb-8 leading-tight max-w-3xl">
             دع الذكاء الاصطناعي <br/> 
-            <span className="text-[#E3B23C]">يتولى مهام الرد</span> بدءاً من اليوم.
+            <span className="text-[#E3B23C]">يتولى مهام الرد</span> بدءًا من اليوم.
           </h2>
           <p className="text-xl text-white/70 mb-12 max-w-2xl leading-relaxed">
             تكلفة تشغيلية منخفضة جداً، دقة متناهية مبنية على كتالوج منتجاتك، وراحة بال تامة لك ولفريقك.

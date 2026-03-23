@@ -75,16 +75,10 @@ export function SolutionSection() {
 
       <div className="max-w-7xl mx-auto px-6 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="sol-header inline-flex items-center px-4 py-2 rounded-full bg-white/10 text-[#E3B23C] font-bold text-sm mb-6 border border-white/10">
-            الحل الذكي
-          </div>
           <h2 className="sol-header text-4xl md:text-5xl font-black mb-6 leading-tight">
             نظام <span className="text-[#E3B23C]">قوي ومعتمد</span><br />
             لمبيعات الجملة والتجزئة.
           </h2>
-          <p className="sol-header text-xl text-white/70 leading-relaxed max-w-2xl mx-auto font-medium">
-            نقلة نوعية في تجربة العميل. كل رسالة يتم الرد عليها بتفصيل دقيق، معتمد على الكتالوج الذي رفعته مسبقاً وبأقل تكلفة تشغيل ممكنة.
-          </p>
         </div>
 
         <div className="sol-grid grid grid-cols-1 md:grid-cols-2 gap-6 w-full">

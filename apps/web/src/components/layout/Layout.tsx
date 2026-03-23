@@ -32,7 +32,7 @@ export function Layout({ children }: LayoutProps) {
           <div>
             <div className="mb-4 flex items-center gap-3">
               <img src={logoUrl} alt="" className="h-10 w-auto brightness-0 invert" />
-              <div className="text-2xl font-black">CSCB</div>
+              <div className="text-2xl font-black">رضا</div>
             </div>
             <p className="text-bg-light/70 max-w-sm">
               مساعدك الذكي على واتساب. ردود مبنية على متجرك الخاص، 24/7، بدون تأخير.

@@ -7,14 +7,35 @@ import { Clock, Frown, MessageSquareOff } from '../icons';
 gsap.registerPlugin(ScrollTrigger);
 
 const CHAOS_MESSAGES = [
-  "متى تفتحون؟",
-  "عندكم توصيل لصنعاء؟",
-  "بكم ذا الكرتون؟",
-  "ممكن صوره واضحه؟",
-  "ردوا بسرعة لو سمحتم!",
-  "ألووو",
-  "كم سعر الجملة؟",
-];
+  {
+    text: "متى تفتحون؟",
+    style: { top: "34%", right: "6%" },
+  },
+  {
+    text: "عندكم توصيل لصنعاء؟",
+    style: { bottom: "16%", right: "14%" },
+  },
+  {
+    text: "بكم ذا الكرتون؟",
+    style: { bottom: "8%", left: "28%" },
+  },
+  {
+    text: "ممكن صوره واضحه؟",
+    style: { bottom: "32%", left: "4%" },
+  },
+  {
+    text: "ردوا بسرعة لو سمحتم!",
+    style: { top: "28%", left: "8%" },
+  },
+  {
+    text: "ألووو",
+    style: { top: "10%", left: "38%" },
+  },
+  {
+    text: "كم سعر الجملة؟",
+    style: { top: "18%", right: "18%" },
+  },
+] as const;
 
 export function ProblemSection() {
   const container = useRef<HTMLDivElement>(null);
@@ -79,7 +100,7 @@ export function ProblemSection() {
             الواقع الحالي
           </div>
           <h2 className="problem-text text-4xl md:text-5xl font-black text-primary mb-6 leading-tight">
-            الرد اليدوي يضيع وقتك،
+            الرد اليدوي يضيع وقتك
             <br /> <span className="text-red-600/80">ويخسرك مبيعات.</span>
           </h2>
           <p className="problem-text text-xl text-primary/70 mb-10 leading-relaxed font-medium">
@@ -101,7 +122,7 @@ export function ProblemSection() {
             <div className="pain-card bg-bg-light p-6 rounded-2xl border border-primary/5">
               <MessageSquareOff className="w-8 h-8 text-red-500 mb-4" />
               <h3 className="text-lg font-bold text-primary mb-2">
-                عملاء غاضبون
+                فرص ضائعة
               </h3>
               <p className="text-primary/60 text-sm leading-relaxed">
                 التأخير في الرد يعني غالباً فقدان العميل واهتزاز الثقة.
@@ -129,26 +150,18 @@ export function ProblemSection() {
             </div>
 
             {/* Floating random bubbles */}
-            {CHAOS_MESSAGES.map((msg, idx) => {
-              // Calculate positions roughly in a circle
-              const angle = (idx / CHAOS_MESSAGES.length) * Math.PI * 2;
-              const radius = 120 + Math.random() * 40;
-              const x = Math.cos(angle) * radius;
-              const y = Math.sin(angle) * radius;
-
-              return (
-                <div
-                  key={idx}
-                  className="chaos-bubble absolute bg-white px-4 py-3 rounded-2xl shadow-md text-[15px] font-bold text-primary whitespace-nowrap border border-black/5 z-20"
-                  style={{ transform: `translate(${x}px, ${y}px)` }}
-                >
-                  {msg}
-                  <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-[10px] text-white font-bold border-2 border-white shadow-sm">
-                    1
-                  </div>
+            {CHAOS_MESSAGES.map((message, idx) => (
+              <div
+                key={idx}
+                className="chaos-bubble absolute bg-white px-4 py-3 rounded-2xl shadow-md text-[15px] font-bold text-primary whitespace-nowrap border border-black/5 z-20"
+                style={message.style}
+              >
+                {message.text}
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-[10px] text-white font-bold border-2 border-white shadow-sm">
+                  1
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </div>
       </div>

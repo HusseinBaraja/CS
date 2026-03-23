@@ -98,11 +98,8 @@ export function FlowSection() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center max-w-2xl mx-auto mb-20">
           <h2 className="text-3xl md:text-5xl font-black text-[#1A2E27] mb-6">
-            كيف يعمل CSCB؟
+            كيف يعمل رضا؟
           </h2>
-          <p className="text-xl text-[#1A2E27]/70 font-medium">
-            سير عمل مصمم خصيصاً ليناسب سرعة التفاعل المطلوبة في السوق المحلي.
-          </p>
         </div>
 
         <div className="steps-container max-w-3xl mx-auto relative">

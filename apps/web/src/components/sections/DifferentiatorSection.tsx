@@ -56,7 +56,6 @@ export function DifferentiatorSection() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-5xl font-black text-[#1A2E27] mb-6">ما الذي يجعلنا مختلفين؟</h2>
-          <p className="text-xl text-[#1A2E27]/70">ليس مجرد رد آلي غبي، بل مساعد متكامل مدرك لأعمالك.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
