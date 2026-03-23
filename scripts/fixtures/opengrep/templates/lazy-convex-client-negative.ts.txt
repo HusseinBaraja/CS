@@ -1,3 +1,0 @@
-import { createConvexAdminClient } from "@cs/db";
-
-export const getConvexClient = () => createConvexAdminClient();

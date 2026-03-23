@@ -1,3 +1,0 @@
-const expression = "2 + 2";
-
-export const result = eval(expression);

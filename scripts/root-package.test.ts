@@ -14,6 +14,10 @@ describe("root package scripts", () => {
     expect(scripts["build:web"]).toBe("turbo run build --filter=web");
     expect(scripts["preview:web"]).toBe("bun --cwd apps/web run preview");
   });
+
+  test("does not expose the removed static analysis wrapper", () => {
+    expect(scripts.opengrep).toBeUndefined();
+  });
 });
 
 describe("web package scripts", () => {

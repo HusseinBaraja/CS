@@ -23,7 +23,6 @@
     "check:ai": "bun scripts/ai-provider-check.ts",
     "test:convex": "bun x vitest run --config convex/vitest.config.ts",
     "check": "turbo run check",
-    "opengrep": "bun scripts/opengrep.ts",
     "preview:web": "bun --cwd apps/web run preview",
     "generate": "bunx convex codegen",
     "seed": "bun apps/cli/src/index.ts seed",

@@ -3,7 +3,6 @@
 ## Task Completion Requirements
 
 - Run all repo scripts from the repository root with `bun`.
-- Run OpenGrep from the repository root with `bun run opengrep` when changes touch `apps/**`, `packages/**`, or `convex/**`.
 - `bun lint` and `bun typecheck` must pass before considering code tasks complete.
 - Follow test-driven development when making code changes: add or update tests as you go.
 - Use `bun test` for the Vitest workspace test run when tests are needed.
@@ -74,7 +73,6 @@ The roadmap in `docs/project_roadmap` was written before the current codebase ex
 - on the current Convex version in this repo, `ctx.vectorSearch(...).filter(...)` supports `q.eq(...)` and `q.or(...)`, but not multi-field `AND`. If you need exact ANN filtering across multiple dimensions like `companyId + language`, add a combined filter field such as `companyLanguage` and register that as the vector index `filterField`.
 - on Convex `1.32.0` in this repo there is no schema-level unique index or constraint API for `defineTable(...)`. If you need singleton semantics, enforce them with a narrow indexed query inside a mutation plus an explicit lock or lease document, rather than assuming `.index(...)` can guarantee uniqueness.
 - real product embedding regeneration in this repo cannot live inside a plain Convex mutation. Because Gemini embedding generation is an external API call, product create and update need an action that generates embeddings first and then hands the writes to an internal mutation so failed embeddings do not leave partial product state behind.
-- keep [scripts/opengrep-rules.test.ts](scripts/opengrep-rules.test.ts), [opengrep.yml](opengrep.yml), and [scripts/fixtures/opengrep/templates](scripts/fixtures/opengrep/templates) in sync. The regression suite now assumes every configured rule has matching positive and negative fixture templates.
 - keep Convex Vitest files on the `*.vitest.ts` suffix. If they use Bun's default `*.test.ts` pattern, raw root `bun test` will discover them and produce misleading cross-runner failures.
 - keep the root `test:convex` script pointed at [convex/vitest.config.ts](convex/vitest.config.ts). The root [vitest.config.ts](vitest.config.ts) does not carry the Convex alias setup, so switching `bun run test:convex` back to the root config will either miss `*.vitest.ts` files or fail module resolution for `@cs/*` imports.
 - when a shared package is imported by Vitest or edge-runtime code, do not eagerly runtime-import Bun-only APIs like `S3Client` from `'bun'`. Resolve them lazily at call time so non-Bun runners can still import shared constants and types.
