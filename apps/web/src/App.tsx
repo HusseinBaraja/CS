@@ -9,6 +9,7 @@ import { SolutionSection } from './components/sections/SolutionSection';
 import { FlowSection } from './components/sections/FlowSection';
 import { DifferentiatorSection } from './components/sections/DifferentiatorSection';
 import { TrustSection } from './components/sections/TrustSection';
+import { PricingSection } from './components/sections/PricingSection';
 import { CTASection } from './components/sections/CTASection';
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
@@ -22,6 +23,7 @@ function App() {
       <FlowSection />
       <DifferentiatorSection />
       <TrustSection />
+      <PricingSection />
       <CTASection />
     </Layout>
   );

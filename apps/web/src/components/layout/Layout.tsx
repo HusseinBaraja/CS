@@ -17,7 +17,7 @@ export function Layout({ children }: LayoutProps) {
           <div className="hidden md:flex gap-8 items-center text-primary/80 font-medium">
             <a href="#features" className="hover:text-primary transition-colors">المميزات</a>
             <a href="#how-it-works" className="hover:text-primary transition-colors">كيف يعمل</a>
-            <a href="#pricing" className="hover:text-primary transition-colors">التكلفة</a>
+            <a href="#pricing" className="hover:text-primary transition-colors">أسعارنا</a>
             <button className="bg-primary text-white px-6 py-2.5 rounded-full hover:bg-primary/90 transition-all font-semibold shadow-sm hover:shadow-md">
               تواصل معنا
             </button>
