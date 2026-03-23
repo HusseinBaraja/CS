@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Bot, PackageOpen, TrendingUp } from 'lucide-react';
+import { Bot, PackageOpen, TrendingUp } from '../icons';
 
 gsap.registerPlugin(ScrollTrigger);
 

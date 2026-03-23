@@ -77,10 +77,13 @@ See `docs/tooling/opengrep.md` for the CSCB-specific local workflow and CodeRabb
 ### Targeted development
 
 ```bash
+bun run dev:web
 bun run dev:api
 bun run dev:bot
 bun run dev:worker
 ```
+
+Use `bun run dev:web` from the repository root to start the frontend app without changing directories.
 
 ## Operations Guides
 

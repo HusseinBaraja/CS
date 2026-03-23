@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { ArrowLeft, BarChart3, Bot, MessageCircle } from 'lucide-react';
+import { ArrowLeft, BarChart3, Bot, MessageCircle } from '../icons';
 
 export function HeroSection() {
   const container = useRef<HTMLDivElement>(null);

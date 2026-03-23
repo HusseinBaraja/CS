@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Clock, Frown, MessageSquareOff } from 'lucide-react';
+import { Clock, Frown, MessageSquareOff } from '../icons';
 
 gsap.registerPlugin(ScrollTrigger);
 
