@@ -815,6 +815,132 @@ describe("startTenantSessionManager", () => {
     });
   });
 
+  test("passes tenant route context with profile and outbound messenger isolation", async () => {
+    const profiles = [createProfile("company-1"), createProfile("company-2")];
+    const store = createStoreStub(profiles);
+    const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+    const customerContexts: Array<{ companyId: string; hasOutbound: boolean; profileCompanyId: string }> = [];
+    const ownerContexts: Array<{ companyId: string; hasOutbound: boolean; profileCompanyId: string }> = [];
+    const ignoredContexts: Array<{ companyId: string; hasOutbound: boolean; profileCompanyId: string }> = [];
+
+    await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      inboundRouter: {
+        handleCustomerConversation: async (message, context) => {
+          customerContexts.push({
+            companyId: message.companyId,
+            hasOutbound: context.outbound !== undefined,
+            profileCompanyId: context.profile.companyId,
+          });
+        },
+        handleIgnored: async (event, context) => {
+          ignoredContexts.push({
+            companyId: event.companyId,
+            hasOutbound: context.outbound !== undefined,
+            profileCompanyId: context.profile.companyId,
+          });
+        },
+        handleOwnerCommand: async (message, context) => {
+          ownerContexts.push({
+            companyId: message.companyId,
+            hasOutbound: context.outbound !== undefined,
+            profileCompanyId: context.profile.companyId,
+          });
+        },
+      },
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
+      },
+    });
+
+    await messageCallbacks.get("company-company-1")?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "owner-command",
+            remoteJid: "9665000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_000,
+          message: {
+            conversation: "!status",
+          },
+        },
+        {
+          key: {
+            id: "customer-text",
+            remoteJid: "967700000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_001,
+          message: {
+            conversation: "hello",
+          },
+        },
+        {
+          key: {
+            id: "ignored-group",
+            remoteJid: "12345@g.us",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_002,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+    await messageCallbacks.get("company-company-2")?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "customer-text-company-2",
+            remoteJid: "967700000002@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_003,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+
+    expect(ownerContexts).toEqual([{
+      companyId: "company-1",
+      hasOutbound: true,
+      profileCompanyId: "company-1",
+    }]);
+    expect(customerContexts).toEqual([
+      {
+        companyId: "company-1",
+        hasOutbound: true,
+        profileCompanyId: "company-1",
+      },
+      {
+        companyId: "company-2",
+        hasOutbound: true,
+        profileCompanyId: "company-2",
+      },
+    ]);
+    expect(ignoredContexts).toEqual([{
+      companyId: "company-1",
+      hasOutbound: true,
+      profileCompanyId: "company-1",
+    }]);
+  });
+
   test("exposes isolated tenant outbound messengers through the session manager", async () => {
     const profiles = [createProfile("company-1"), createProfile("company-2")];
     const store = createStoreStub(profiles);
