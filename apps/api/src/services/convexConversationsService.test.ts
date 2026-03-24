@@ -5,6 +5,7 @@ import { createConvexConversationsService } from './convexConversationsService';
 type StubConvexAdminClient = {
   query: (reference: unknown, args: unknown) => Promise<unknown>;
   mutation: (reference: unknown, args: unknown) => Promise<unknown>;
+  action: (reference: unknown, args: unknown) => Promise<unknown>;
 };
 
 const createClientStub = (overrides: Partial<StubConvexAdminClient> = {}) => ({
@@ -22,6 +23,7 @@ const createClientStub = (overrides: Partial<StubConvexAdminClient> = {}) => ({
       muted: true,
       mutedAt: 1_000,
     }),
+    action: async () => undefined,
     ...overrides,
   } satisfies StubConvexAdminClient,
 });
