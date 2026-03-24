@@ -63,24 +63,20 @@ Provider semantics:
 bun install
 bun run check
 bun run test
-bun run dev
 ```
-
-## Static analysis
-
-```bash
-bun run opengrep
-```
-
-See `docs/tooling/opengrep.md` for the CSCB-specific local workflow and CodeRabbit PR review behavior.
 
 ### Targeted development
 
 ```bash
+bun run web
+bun run dev:web
 bun run dev:api
 bun run dev:bot
 bun run dev:worker
 ```
+
+Use `bun run web` from the repository root to start the frontend app on `0.0.0.0:5173` so other devices on the same LAN or hotspot can open it.
+Use `bun run dev:web` when you specifically want the Turbo workspace dev flow instead.
 
 ## Operations Guides
 

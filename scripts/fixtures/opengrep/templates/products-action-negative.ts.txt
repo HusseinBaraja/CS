@@ -1,7 +1,0 @@
-export const saveProduct = async (client: {
-  action: (...args: unknown[]) => Promise<unknown>;
-}) => {
-  return client.action(convexInternal.products.create, {
-    name: "Burger Box",
-  });
-};

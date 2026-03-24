@@ -1,7 +1,0 @@
-const client = {
-  setAdminAuth(token: string) {
-    return token;
-  },
-};
-
-client.setAdminAuth("secret");

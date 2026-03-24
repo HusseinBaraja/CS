@@ -1,3 +1,0 @@
-const companyName = "CSCB";
-
-export const getCompanyName = () => companyName;

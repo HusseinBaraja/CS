@@ -1,7 +1,0 @@
-export const syncCatalog = action({
-  args: {},
-  handler: async () => {
-    const response = await fetch("https://example.com/catalog");
-    return response.status;
-  },
-});
