@@ -190,7 +190,8 @@ export function FlowSection() {
             <path 
               id="base-map-path"
               fill="none" 
-              stroke="#F3F4F6" 
+              stroke="#1A2E27"
+              strokeOpacity="0.08"
               strokeWidth="4" 
               strokeDasharray="8 12" 
               strokeLinecap="round"
