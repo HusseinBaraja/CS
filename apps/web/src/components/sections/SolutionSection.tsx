@@ -2,95 +2,262 @@ import { useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { CheckCircle2, Globe2, ShieldCheck, Zap } from '../icons';
 
 gsap.registerPlugin(ScrollTrigger);
 
 const FEATURES = [
   {
-    icon: <Zap className="w-6 h-6 text-[#1A2E27]" />,
-    title: "مساعد يعمل على مدار الساعة",
-    desc: "لا مزيد من رسائل 'نحن خارج أوقات الدوام'. المساعد الذكي جاهز للرد في أي ثانية، نهاراً أو ليلاً."
-  },
-  {
-    icon: <ShieldCheck className="w-6 h-6 text-[#1A2E27]" />,
+    num: "02",
     title: "لا مجال للتأليف أو الخطأ",
-    desc: "نظامنا يعتمد مباشرة على منتجاتك المخزنة. إذا لم يجد المنتج، سيخبر العميل أو يحول المحادثة إليك."
+    desc: "نظامنا يعتمد مباشرة على منتجاتك المخزنة. إذا لم يجد المنتج، سيخبر العميل أو يحول المحادثة إليك.",
   },
   {
-    icon: <Globe2 className="w-6 h-6 text-[#1A2E27]" />,
+    num: "03",
     title: "يفهم العربية والإنجليزية",
-    desc: "يدرك السياق ويجيب بنفس لغة العميل. يدعم اللهجات المحلية بذكاء ودقة مبهرة."
+    desc: "يدرك السياق ويجيب بنفس لغة العميل. يدعم اللهجات المحلية بذكاء ودقة مبهرة.",
   },
   {
-    icon: <CheckCircle2 className="w-6 h-6 text-[#1A2E27]" />,
+    num: "04",
     title: "تحويل سلس للبشر",
-    desc: "عندما يطلب العميل التحدث لموظف مبيعات، يصمت البوت فوراً ويرسل إليك إشعاراً لتستكمل أنت المحادثة."
-  }
+    desc: "عندما يطلب العميل التحدث لموظف مبيعات، يصمت البوت فوراً ويرسل إليك إشعاراً لتستكمل أنت المحادثة.",
+  },
 ];
 
 export function SolutionSection() {
   const container = useRef<HTMLDivElement>(null);
   
   useGSAP(() => {
-    // Reveal header
-    gsap.from('.sol-header', {
+    // Ambient Background parallax & noise animation
+    gsap.to('.ambient-gradient', {
+      backgroundPosition: '100% 100%',
+      duration: 20,
+      repeat: -1,
+      yoyo: true,
+      ease: 'sine.inOut'
+    });
+
+    // Abstract Hero Animation
+    gsap.to('.ring-element', {
+      rotate: 360,
+      duration: 40,
+      repeat: -1,
+      ease: "linear"
+    });
+
+    // Abstract Floating Core
+    gsap.to('.floating-core', {
+      y: -25,
+      duration: 3,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+
+    // Main Header Reveal
+    gsap.from('.ed-header', {
       scrollTrigger: {
         trigger: container.current,
+        start: 'top 70%',
+      },
+      y: 50,
+      opacity: 0,
+      duration: 1,
+      ease: 'power4.out'
+    });
+
+    // Hero Section Reveal
+    gsap.from('.ed-hero', {
+      scrollTrigger: {
+        trigger: '.ed-hero',
         start: 'top 75%',
       },
-      y: 30,
+      y: 60,
       opacity: 0,
-      duration: 0.8,
-      stagger: 0.1,
+      duration: 1.2,
       ease: 'power3.out'
     });
 
-    // Reveal Grid Items
-    gsap.from('.sol-card', {
+    // Massive Number Parallax Effect
+    gsap.utils.toArray('.ed-number').forEach((num: any) => {
+      gsap.fromTo(
+        num,
+        { y: -30, opacity: 0 },
+        {
+          y: 40,
+          opacity: 0.1,
+          scrollTrigger: {
+            trigger: num.parentElement,
+            start: 'top bottom',
+            end: 'bottom top',
+            scrub: 1.5
+          }
+        }
+      );
+    });
+
+    // Secondary Features Staggered Entry
+    gsap.from('.ed-feature', {
       scrollTrigger: {
-        trigger: '.sol-grid',
-        start: 'top 80%',
+        trigger: '.ed-features-list',
+        start: 'top 85%'
       },
-      scale: 0.95,
       y: 40,
       opacity: 0,
-      duration: 0.8,
-      stagger: 0.1,
-      ease: 'back.out(1.2)'
+      duration: 1,
+      stagger: 0.2,
+      ease: 'power3.out'
+    });
+
+    // Decorative Lines
+    gsap.from('.ed-line', {
+      scrollTrigger: {
+        trigger: container.current,
+        start: 'top 60%',
+      },
+      scaleY: 0,
+      transformOrigin: 'top',
+      duration: 1.5,
+      ease: 'expo.inOut'
     });
 
   }, { scope: container });
 
   return (
-    <section ref={container} className="py-24 md:py-32 bg-[#1A2E27] relative overflow-hidden text-white" id="features">
-      
-      {/* Absolute graphic background element */}
-      <div className="absolute top-0 right-0 w-full h-full opacity-5 pointer-events-none" 
-           style={{ 
-             backgroundImage: 'linear-gradient(45deg, #E3B23C 25%, transparent 25%, transparent 75%, #E3B23C 75%, #E3B23C), linear-gradient(45deg, #E3B23C 25%, transparent 25%, transparent 75%, #E3B23C 75%, #E3B23C)',
-             backgroundSize: '80px 80px',
-             backgroundPosition: '0 0, 40px 40px'
-           }} />
+    <section
+      ref={container}
+      className="py-24 md:py-40 bg-[#0A110E] relative overflow-hidden text-white"
+      id="features"
+      dir="rtl"
+    >
+      {/* High-End Editorial Atmosphere */}
+      <div className="absolute inset-0 pointer-events-none z-0">
+        <div
+          className="ambient-gradient absolute w-full h-[150%] top-[-25%] left-0 opacity-60 mix-blend-screen"
+          style={{
+            background:
+              "radial-gradient(circle at 30% 20%, #173827 0%, #0A110E 60%, transparent 100%)",
+            backgroundSize: "150% 150%",
+          }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+             style={{
+            backgroundImage:
+              'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.75%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")',
+          }}
+        />
+      </div>
 
-      <div className="max-w-7xl mx-auto px-6 relative z-10">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="sol-header text-4xl md:text-5xl font-black mb-6 leading-tight">
-            نظام <span className="text-[#E3B23C]">قوي ومعتمد</span><br />
-            لمبيعات الجملة والتجزئة.
-          </h2>
+      <div className="max-w-360 mx-auto px-6 relative z-10 flex flex-col gap-24">
+        {/* Title Area */}
+        <div className="flex flex-col md:flex-row justify-between items-end gap-12 border-b border-white/6 pb-16 relative">
+          <div className="absolute right-0 top-0 w-px h-50 bg-white/8 ed-line" />
+          <div className="ed-header">
+            <h2 className="text-4xl md:text-6xl lg:text-7xl font-black leading-[1.1] max-w-4xl tracking-tight">
+              نظام{" "}
+              <span
+                className="text-transparent border-b-2 border-secondary"
+                style={{ WebkitTextStroke: "1px #E3B23C" }}
+              >
+                قوي
+              </span>
+              <br />
+              لمبيعات الجملة والتجزئة.
+            </h2>
+          </div>
         </div>
 
-        <div className="sol-grid grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-          {FEATURES.map((feat, idx) => (
-            <div key={idx} className="sol-card bg-white/5 border border-white/10 p-8 rounded-[32px] hover:bg-white/10 transition-colors duration-300 group">
-              <div className="w-14 h-14 bg-[#E3B23C] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
-                {feat.icon}
-              </div>
-              <h3 className="text-2xl font-bold mb-3">{feat.title}</h3>
-              <p className="text-white/60 leading-relaxed text-lg">{feat.desc}</p>
+        {/* New Layout Stack: Hero Bar + 3 Columns */}
+        <div className="flex flex-col gap-12 lg:gap-20 w-full">
+          {/* Hero Feature Horizontal Banner */}
+          <div className="ed-hero relative w-full min-h-[400px] lg:min-h-[450px] rounded-4xl overflow-hidden bg-linear-to-br from-white/3 to-transparent border border-white/5 p-10 md:p-16 lg:px-24 flex flex-col md:flex-row items-center justify-between backdrop-blur-3xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]">
+            {/* The Visual Piece: Master Container */}
+            <div className="absolute top-1/2 -translate-y-1/2 left-[-10%] md:left-[5%] w-[80vw] md:w-[600px] aspect-square pointer-events-none flex items-center justify-center">
+               
+               {/* Abstract Rings Background (Lower Opacity) */}
+               <div className="absolute inset-0 flex items-center justify-center opacity-30">
+                 <div className="ring-element w-[80%] aspect-square rounded-full border border-dashed border-secondary/60 absolute mix-blend-screen" />
+                 <div
+                   className="ring-element w-[60%] aspect-square rounded-full border border-secondary/30 absolute"
+                   style={{
+                     animationDirection: "reverse",
+                     animationDuration: "60s",
+                   }}
+                 />
+                 <div className="ring-element w-full aspect-square rounded-full border-2 border-secondary/10 absolute backdrop-blur-[2px]" />
+                 <div className="absolute w-32 md:w-48 h-32 md:h-48 rounded-full bg-linear-to-tr from-secondary/20 to-secondary/5 blur-3xl animate-[pulse_4s_infinite]" />
+               </div>
+               
+               {/* Floating High-Contrast Core (100% Opacity) */}
+               <div className="floating-core absolute flex items-center justify-center z-10 transition-transform duration-700 ease-out">
+                 {/* Glass Shell */}
+                 <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border border-white/20 bg-white/5 backdrop-blur-xl shadow-[0_0_50px_rgba(227,178,60,0.2)] flex items-center justify-center relative overflow-hidden">
+                   
+                   {/* Diagonal Light Sweep */}
+                   <div className="absolute inset-[-100%] bg-linear-to-tr from-transparent via-white/10 to-transparent rotate-45 translate-x-1/2" />
+                   
+                   {/* Central Glowing Diamond */}
+                   <div className="w-6 h-6 md:w-8 md:h-8 rounded-sm bg-secondary shadow-[0_0_40px_rgba(227,178,60,1)] relative flex items-center justify-center animate-[spin_10s_linear_infinite]">
+                      <div className="absolute w-full h-full border border-white/50 animate-ping" style={{ animationDuration: '3s' }} />
+                   </div>
+                   
+                   {/* Orbiting Satellite Dot */}
+                   <div className="absolute w-full h-full animate-[spin_5s_linear_infinite]">
+                     <div className="w-[3px] h-[3px] md:w-[4px] md:h-[4px] rounded-full bg-white absolute top-[-2px] left-1/2 -translate-x-1/2 shadow-[0_0_15px_rgba(255,255,255,1)]" />
+                   </div>
+                 </div>
+               </div>
+               
             </div>
-          ))}
+
+            <div className="relative z-10 ed-hero-content w-full md:w-3/5 text-right mt-16 md:mt-0">
+              <div className="ed-number text-[8rem] md:text-[14rem] font-black leading-none select-none text-white/5 absolute top-1/2 -translate-y-1/2 -right-8 md:-right-20 pointer-events-none">
+                01
+              </div>
+
+              <div className="w-12 h-0.75 bg-secondary mb-8" />
+              <h3 className="text-4xl md:text-5xl lg:text-7xl font-black mb-6 leading-[1.2]">
+                مساعد يعمل <br />
+                <span
+                  className="text-transparent border-b border-white/20"
+                  style={{ WebkitTextStroke: "1px rgba(255,255,255,0.8)" }}
+                >
+                  على مدار الساعة
+                </span>
+              </h3>
+              <p className="text-lg md:text-2xl text-white/50 leading-relaxed font-medium max-w-2xl">
+                لا مزيد من رسائل "نحن خارج أوقات الدوام". المساعد الذكي جاهز
+                للرد في أي ثانية، نهاراً أو ليلاً، دون انقطاع.
+              </p>
+            </div>
+          </div>
+
+          {/* Secondary Features Grid (Below Hero) */}
+          <div className="ed-features-list grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 w-full pt-4">
+            {FEATURES.map((feat, idx) => (
+              <div key={idx} className="ed-feature relative group">
+                <div className="relative z-10 border-t-2 border-white/8 group-hover:border-secondary transition-colors duration-500 bg-[#0A110E] lg:bg-transparent p-6 md:py-8 lg:p-0 lg:pt-8 rounded-2xl lg:rounded-none h-full">
+                  {/* Outline Number Behind (Desktop) */}
+                  <div
+                    className="ed-number hidden lg:block absolute -top-8 left-8 lg:left-0 lg:right-auto text-[6rem] font-black text-transparent select-none pointer-events-none opacity-0"
+                    style={{ WebkitTextStroke: "1px rgba(227,178,60,0.3)" }}
+                  >
+                    {feat.num}
+                  </div>
+                  
+                  <div className="text-sm font-mono text-secondary/70 mb-5 lg:hidden">
+                    {feat.num}
+                  </div>
+                  <h3 className="text-2xl md:text-[1.6rem] font-bold mb-4 leading-snug group-hover:text-white transition-colors text-white/80">
+                    {feat.title}
+                  </h3>
+                  <p className="text-white/40 leading-relaxed text-base">
+                    {feat.desc}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

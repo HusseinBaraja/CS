@@ -94,10 +94,10 @@ export function FlowSection() {
   }, { scope: container });
 
   return (
-    <section ref={container} className="py-24 md:py-32 bg-white relative" id="how-it-works">
+    <section ref={container} className="py-24 md:py-32 bg-bg-light relative" id="how-it-works">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center max-w-2xl mx-auto mb-20">
-          <h2 className="text-3xl md:text-5xl font-black text-[#1A2E27] mb-6">
+          <h2 className="text-3xl md:text-5xl font-black text-primary mb-6">
             كيف يعمل رضا؟
           </h2>
         </div>
@@ -113,12 +113,12 @@ export function FlowSection() {
                   <>
                     {/* Background track */}
                     <div 
-                      className="absolute top-14 right-[27px] w-0.5 bg-gray-200 hidden md:block z-0" 
+                      className="absolute top-14 right-6.75 w-0.5 bg-gray-200 hidden md:block z-0"
                       style={{ bottom: '-3rem' }} 
                     />
                     {/* Animated fill */}
                     <div 
-                      className="step-connector absolute top-14 right-[27px] w-0.5 bg-[#115C42] origin-top hidden md:block z-[1]" 
+                      className="step-connector absolute top-14 right-6.75 w-0.5 bg-[#115C42] origin-top hidden md:block z-[1]"
                       style={{ bottom: '-3rem' }} 
                     />
                   </>
@@ -126,13 +126,13 @@ export function FlowSection() {
 
                 {/* Number/Icon indicator */}
                 <div className="shrink-0 flex items-start z-10 w-auto">
-                  <div className="w-14 h-14 rounded-2xl bg-[#F8F7F4] border-2 border-white shadow-md flex items-center justify-center text-[#115C42] relative z-20">
+                  <div className="w-14 h-14 rounded-2xl bg-white border-2 border-white shadow-md flex items-center justify-center text-[#115C42] relative z-20">
                     {step.icon}
                   </div>
                 </div>
 
                 {/* Content */}
-                <div className="bg-[#F8F7F4] p-8 rounded-3xl border border-[#1A2E27]/5 flex-1 hover:shadow-lg transition-shadow duration-300 z-10 relative">
+                <div className="bg-white p-8 rounded-3xl border border-primary/10 flex-1 hover:shadow-lg transition-shadow duration-300 z-10 relative">
                   <h3 className="text-xl font-bold text-[#1A2E27] mb-3">{step.title}</h3>
                   <p className="text-[#1A2E27]/70 text-lg leading-relaxed">{step.desc}</p>
                 </div>

@@ -52,7 +52,7 @@ export function DifferentiatorSection() {
   }, { scope: container });
 
   return (
-    <section ref={container} className="py-24 bg-[#F8F7F4] border-t border-[#1A2E27]/5">
+    <section ref={container} className="py-24 bg-bg-light border-t border-[#1A2E27]/5">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-5xl font-black text-[#1A2E27] mb-6">ما الذي يجعلنا مختلفين؟</h2>
