@@ -46,13 +46,26 @@ export const startWorker = async (options: StartWorkerOptions = {}): Promise<voi
 
     shuttingDown = true;
 
-    try {
-      await Promise.all([
-        Promise.resolve(stopConversationAutoResume()),
-        Promise.resolve(stopMediaCleanup()),
-      ]);
-    } catch (error) {
-      workerLogger.error({ error, signal }, "worker shutdown failed");
+    const results = await Promise.allSettled([
+      Promise.resolve(stopConversationAutoResume()),
+      Promise.resolve(stopMediaCleanup()),
+    ]);
+
+    let failed = false;
+    for (const [index, result] of results.entries()) {
+      if (result.status === "fulfilled") {
+        continue;
+      }
+
+      failed = true;
+      workerLogger.error({
+        error: result.reason,
+        signal,
+        stopTarget: index === 0 ? "conversationAutoResume" : "mediaCleanup",
+      }, "worker shutdown failed");
+    }
+
+    if (failed) {
       workerProcess.exitCode = 1;
     }
   };

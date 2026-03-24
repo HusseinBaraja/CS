@@ -150,7 +150,7 @@ describe("startWorker", () => {
     expect(stopCallCount).toBe(2);
   });
 
-  test("logs shutdown errors and marks the process exit code", async () => {
+  test("logs each shutdown error and marks the process exit code", async () => {
     const { logger, errorCalls } = createLoggerStub();
     const { process, handlers } = createProcessStub();
 
@@ -189,6 +189,15 @@ describe("startWorker", () => {
         payload: {
           error: expect.any(Error),
           signal: "SIGTERM",
+          stopTarget: "conversationAutoResume",
+        },
+        message: "worker shutdown failed",
+      },
+      {
+        payload: {
+          error: expect.any(Error),
+          signal: "SIGTERM",
+          stopTarget: "mediaCleanup",
         },
         message: "worker shutdown failed",
       },
