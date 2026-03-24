@@ -6,11 +6,21 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden">
       <nav className="w-full fixed top-0 left-0 bg-bg-light/80 backdrop-blur-md z-50 border-b border-primary/5">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <a href="#root" aria-label="CSCB" className="flex items-center gap-3">
+          <a
+            href="#"
+            aria-label="CSCB"
+            className="flex items-center gap-3"
+            onClick={(event) => {
+              event.preventDefault();
+              scrollToTop();
+            }}
+          >
             <img src={logoUrl} alt="" className="h-10 w-auto" />
             <span className="text-2xl font-black text-primary tracking-tight">رضا</span>
           </a>
@@ -37,16 +47,21 @@ export function Layout({ children }: LayoutProps) {
           
           {/* Logo Element */}
           <div className="flex justify-center md:justify-start">
-            <div className="flex items-center gap-4 group cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <button
+              type="button"
+              className="flex items-center gap-4 group cursor-pointer"
+              onClick={scrollToTop}
+              aria-label="العودة إلى أعلى الصفحة"
+            >
               <img src={logoUrl} alt="" className="h-12 md:h-14 w-auto brightness-0 invert opacity-90 transition-all duration-700 group-hover:scale-105" />
               <div className="text-4xl font-black tracking-tight text-white/90">رضا</div>
-            </div>
+            </button>
           </div>
           
           {/* Return to Top Arrow (Center) */}
           <div className="flex justify-center order-last md:order-none mt-8 md:mt-0">
             <button 
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              onClick={scrollToTop}
               className="flex items-center justify-center p-4 rounded-full border border-white/10 text-white/30 hover:text-white/80 hover:bg-white/5 hover:border-white/20 transition-all duration-300 focus:outline-none group"
               aria-label="العودة للأعلى"
             >
