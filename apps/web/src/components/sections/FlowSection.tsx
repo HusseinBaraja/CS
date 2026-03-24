@@ -47,6 +47,7 @@ export function FlowSection() {
     // Dynamically build the exact path connecting the dots based on actual DOM layout
     const buildPath = () => {
       const svgRect = svgEl.getBoundingClientRect();
+      if (svgRect.width === 0 || svgRect.height === 0) return null;
       
       const points = dots.map(dot => {
         const rect = dot.getBoundingClientRect();
@@ -56,14 +57,22 @@ export function FlowSection() {
         };
       });
 
-      // Construct a smooth S-curve cubic Bezier path through the centers
+      // Construct a smooth S-curve cubic Bezier path through the centers.
+      // On mobile all dots share the same X; offset control points to the
+      // same side per segment, alternating between segments, so the path
+      // flows as a gentle sine wave instead of creating hard kinks.
+      const wobble = Math.min(30, svgRect.width * 0.06);
       let d = `M ${points[0].x},${points[0].y}`;
       for (let i = 0; i < points.length - 1; i++) {
           const p1 = points[i];
           const p2 = points[i+1];
-          // Determine control points based on vertical distance to ensure sweeping curves
-          const ctrlY = (p1.y + p2.y) / 2;
-          d += ` C ${p1.x},${ctrlY} ${p2.x},${ctrlY} ${p2.x},${p2.y}`;
+          const dir = i % 2 === 0 ? 1 : -1;
+          const ox = dir * wobble;
+          // Both control points shift the same direction → smooth arc,
+          // direction flips each segment → flowing S-wave.
+          const cy1 = p1.y + (p2.y - p1.y) * 0.33;
+          const cy2 = p1.y + (p2.y - p1.y) * 0.66;
+          d += ` C ${p1.x + ox},${cy1} ${p2.x + ox},${cy2} ${p2.x},${p2.y}`;
       }
 
       basePath.setAttribute('d', d);
@@ -74,75 +83,93 @@ export function FlowSection() {
       return { points, length };
     };
 
-    // Calculate initial path coordinates synchronously for animation timing
-    const pathData = buildPath();
+    // Track scroll progress (hoisted so rebuildAndRefresh can reference it)
+    let maxProgress = 0;
+
+    // Defer path building by one frame so the browser has fully laid out cards
+    let pathData = buildPath();
 
     let disposed = false;
+    const rebuildAndRefresh = () => {
+      const rebuilt = buildPath();
+      if (rebuilt) {
+        pathData = rebuilt;
+        // Reapply the mask dash values after path rebuild
+        const len = rebuilt.length;
+        gsap.set(maskPath, { strokeDasharray: len, strokeDashoffset: len * (1 - maxProgress) });
+        ScrollTrigger.refresh();
+      }
+    };
+
+    // Rebuild once layout settles (fonts, images, etc.)
+    requestAnimationFrame(() => {
+      if (!disposed) rebuildAndRefresh();
+    });
     document.fonts.ready.then(() => {
-      if (!disposed) {
-        buildPath();
-      }
+      if (!disposed) rebuildAndRefresh();
     });
-    window.addEventListener('resize', buildPath);
+    window.addEventListener('resize', rebuildAndRefresh);
 
-    const totalYDistance = pathData.points[pathData.points.length - 1].y - pathData.points[0].y;
+    if (pathData) {
+      const pd = pathData; // const binding for TypeScript narrowing in closures
+      const totalYDistance = pd.points[pd.points.length - 1].y - pd.points[0].y;
 
-    const tl = gsap.timeline({ paused: true });
-
-    let maxProgress = 0;
-    
-    ScrollTrigger.create({
-      trigger: containerEl,
-      start: 'top 55%',
-      end: 'bottom 80%',
-      onUpdate: (self) => {
-        // Only progress forwards, never backwards
-        if (self.progress > maxProgress) {
-          maxProgress = self.progress;
-          // Smoothly animate the timeline's progress to catch up with the scroll
-          gsap.to(tl, { 
-            progress: maxProgress, 
-            duration: 0.5, 
-            ease: 'power2.out',
-            overwrite: true
-          });
+      const tl = gsap.timeline({ paused: true });
+      
+      ScrollTrigger.create({
+        trigger: containerEl,
+        start: 'top 55%',
+        end: 'bottom 80%',
+        invalidateOnRefresh: true,
+        onUpdate: (self) => {
+          // Only progress forwards, never backwards
+          if (self.progress > maxProgress) {
+            maxProgress = self.progress;
+            // Smoothly animate the timeline's progress to catch up with the scroll
+            gsap.to(tl, { 
+              progress: maxProgress, 
+              duration: 0.5, 
+              ease: 'power2.out',
+              overwrite: true
+            });
+          }
         }
-      }
-    });
+      });
 
-    // Restart paths
-    gsap.set(maskPath, { strokeDasharray: pathData.length, strokeDashoffset: pathData.length });
-    tl.to(maskPath, { strokeDashoffset: 0, duration: 1, ease: 'none' }, 0);
+      // Restart paths
+      gsap.set(maskPath, { strokeDasharray: pd.length, strokeDashoffset: pd.length });
+      tl.to(maskPath, { strokeDashoffset: 0, duration: 1, ease: 'none' }, 0);
 
-    const cards = gsap.utils.toArray<HTMLElement>('.map-card-content');
-    
-    // Determine exactly when the line hits them relative to total distance linearly
-    const pointTimes = pathData.points.map(p => totalYDistance > 0 ? (p.y - pathData.points[0].y) / totalYDistance : 0);
-    
-    cards.forEach((card, i) => {
-      gsap.set(card, { opacity: 0, y: 50, scale: 0.9 });
+      const cards = gsap.utils.toArray<HTMLElement>('.map-card-content');
       
-      const triggerTime = Math.max(0, pointTimes[i] - 0.05);
-
-      tl.to(card, { 
-        opacity: 1, 
-        y: 0, 
-        scale: 1, 
-        duration: 0.15, 
-        ease: 'back.out(1.5)' 
-      }, triggerTime);
+      // Determine exactly when the line hits them relative to total distance linearly
+      const pointTimes = pd.points.map(p => totalYDistance > 0 ? (p.y - pd.points[0].y) / totalYDistance : 0);
       
-      tl.from(dots[i], {
-        scale: 0,
-        opacity: 0,
-        duration: 0.1,
-        ease: 'back.out(2)'
-      }, triggerTime);
-    });
+      cards.forEach((card, i) => {
+        gsap.set(card, { opacity: 0, y: 50, scale: 0.9 });
+        
+        const triggerTime = Math.max(0, pointTimes[i] - 0.05);
+
+        tl.to(card, { 
+          opacity: 1, 
+          y: 0, 
+          scale: 1, 
+          duration: 0.15, 
+          ease: 'back.out(1.5)' 
+        }, triggerTime);
+        
+        tl.from(dots[i], {
+          scale: 0,
+          opacity: 0,
+          duration: 0.1,
+          ease: 'back.out(2)'
+        }, triggerTime);
+      });
+    }
 
     return () => {
       disposed = true;
-      window.removeEventListener('resize', buildPath);
+      window.removeEventListener('resize', rebuildAndRefresh);
     };
   }, { scope: container });
 
@@ -177,7 +204,7 @@ export function FlowSection() {
             className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible"
           >
             <defs>
-              <mask id="line-mask">
+              <mask id="line-mask" maskUnits="userSpaceOnUse">
                 <path 
                   id="reveal-mask-path"
                   fill="none" 
