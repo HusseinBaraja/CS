@@ -65,14 +65,19 @@ export function SolutionSection() {
       ease: "linear"
     });
 
-    // Abstract Floating Core
-    gsap.to('.floating-core', {
-      y: -25,
-      duration: 3,
-      repeat: -1,
-      yoyo: true,
-      ease: "sine.inOut"
-    });
+    // Abstract Floating Core – centred motion (50% above, 50% below)
+    // Smaller amplitude on mobile so the orb stays within the rings
+    const floatHalf = window.innerWidth < 768 ? 8 : 14;
+    gsap.fromTo('.floating-core',
+      { y: floatHalf },
+      {
+        y: -floatHalf,
+        duration: 3,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut"
+      }
+    );
 
     // Main Header Reveal
     gsap.from('.ed-header', {
