@@ -4,9 +4,9 @@ import { setupGsapMocks } from '../../test/setupGsapMocks';
 
 describe('SolutionSection', () => {
   const matchMediaMock = vi.fn<(query: string) => MediaQueryList>();
+  const originalMatchMedia = window.matchMedia;
 
   beforeEach(() => {
-    vi.resetModules();
     matchMediaMock.mockReset();
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -15,6 +15,10 @@ describe('SolutionSection', () => {
   });
 
   afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: originalMatchMedia,
+    });
     vi.clearAllMocks();
   });
 
@@ -65,9 +69,10 @@ describe('SolutionSection', () => {
       dispatchEvent: vi.fn(),
     });
 
-    const { gsapTo } = setupGsapMocks();
+    const { gsapResolvedFromTo, gsapTo, gsapToArray } = setupGsapMocks();
     const { SolutionSection } = await import('./SolutionSection');
     const { container } = render(<SolutionSection />);
+    const numbers = Array.from(container.querySelectorAll('.ed-number'));
 
     expect(gsapTo).toHaveBeenCalledWith(
       '.ring-element:not(.ring-element--middle)',
@@ -90,8 +95,11 @@ describe('SolutionSection', () => {
     );
 
     const middleRing = container.querySelector('.ring-element--middle');
+    const resolvedNumbers = gsapResolvedFromTo.mock.calls.flatMap(([targets]) => targets);
 
     expect(middleRing).not.toBeNull();
     expect(middleRing?.getAttribute('style')).toBeNull();
+    expect(gsapToArray).toHaveBeenCalledWith('.ed-number');
+    expect(resolvedNumbers).toEqual(numbers);
   });
 });

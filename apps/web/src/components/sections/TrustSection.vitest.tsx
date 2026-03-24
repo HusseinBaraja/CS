@@ -1,10 +1,10 @@
 import { render } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setupGsapMocks } from '../../test/setupGsapMocks';
 
 describe('TrustSection', () => {
-  beforeEach(() => {
-    vi.resetModules();
+  afterEach(() => {
+    vi.clearAllMocks();
   });
 
   it('renders the second glow with a dedicated selector and without inert inline animation styles', async () => {
@@ -21,10 +21,12 @@ describe('TrustSection', () => {
   });
 
   it('configures GSAP tweens for both ambient glow variants', async () => {
-    const { gsapTo, gsapFrom, gsapTimeline } = setupGsapMocks();
+    const { gsapFrom, gsapResolvedTo, gsapTimeline, gsapTo } = setupGsapMocks();
 
     const { TrustSection } = await import('./TrustSection');
-    render(<TrustSection />);
+    const { container } = render(<TrustSection />);
+    const ambientGlow = container.querySelector('.ambient-glow');
+    const reverseGlow = container.querySelector('.ambient-glow-reverse');
 
     expect(gsapTo).toHaveBeenCalledWith(
       '.ambient-glow',
@@ -47,5 +49,7 @@ describe('TrustSection', () => {
     );
     expect(gsapFrom).toHaveBeenCalled();
     expect(gsapTimeline).toHaveBeenCalled();
+    expect(gsapResolvedTo).toHaveBeenCalledWith([ambientGlow], expect.any(Object));
+    expect(gsapResolvedTo).toHaveBeenCalledWith([reverseGlow], expect.any(Object));
   });
 });
