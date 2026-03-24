@@ -158,7 +158,7 @@ export function SolutionSection() {
         >
           <path
             d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
-            className="fill-[var(--color-bg-light)]"
+            className="fill-bg-light"
           />
         </svg>
       </div>
@@ -173,7 +173,7 @@ export function SolutionSection() {
         >
           <path
             d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
-            className="fill-[var(--color-bg-light)]"
+            className="fill-bg-light"
           />
         </svg>
       </div>
@@ -200,9 +200,9 @@ export function SolutionSection() {
         {/* New Layout Stack: Hero Bar + 3 Columns */}
         <div className="flex flex-col gap-12 lg:gap-20 w-full">
           {/* Hero Feature Horizontal Banner */}
-          <div className="ed-hero relative w-full min-h-[400px] lg:min-h-[450px] rounded-4xl overflow-hidden bg-linear-to-br from-white/3 to-transparent border border-white/5 p-10 md:p-16 lg:px-24 flex flex-col md:flex-row items-center justify-between backdrop-blur-3xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]">
+          <div className="ed-hero relative w-full min-h-100 lg:min-h-112.5 rounded-4xl overflow-hidden bg-linear-to-br from-white/3 to-transparent border border-white/5 p-10 md:p-16 lg:px-24 flex flex-col md:flex-row items-center justify-between backdrop-blur-3xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]">
             {/* The Visual Piece: Master Container */}
-            <div className="absolute top-1/2 -translate-y-1/2 left-[-10%] md:left-[5%] w-[80vw] md:w-[600px] aspect-square pointer-events-none flex items-center justify-center">
+            <div className="absolute top-1/2 -translate-y-1/2 left-[-10%] md:left-[5%] w-[80vw] md:w-150 aspect-square pointer-events-none flex items-center justify-center">
                
                {/* Abstract Rings Background (Lower Opacity) */}
                <div className="absolute inset-0 flex items-center justify-center opacity-30">
@@ -224,7 +224,7 @@ export function SolutionSection() {
                  <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border border-white/20 bg-white/5 backdrop-blur-xl shadow-[0_0_50px_rgba(227,178,60,0.2)] flex items-center justify-center relative overflow-hidden">
                    
                    {/* Diagonal Light Sweep */}
-                   <div className="absolute inset-[-100%] bg-linear-to-tr from-transparent via-white/10 to-transparent rotate-45 translate-x-1/2" />
+                   <div className="absolute -inset-full bg-linear-to-tr from-transparent via-white/10 to-transparent rotate-45 translate-x-1/2" />
                    
                    {/* Central Glowing Diamond */}
                    <div className="w-6 h-6 md:w-8 md:h-8 rounded-sm bg-secondary shadow-[0_0_40px_rgba(227,178,60,1)] relative flex items-center justify-center animate-[spin_10s_linear_infinite]">
@@ -233,7 +233,7 @@ export function SolutionSection() {
                    
                    {/* Orbiting Satellite Dot */}
                    <div className="absolute w-full h-full animate-[spin_5s_linear_infinite]">
-                     <div className="w-[3px] h-[3px] md:w-[4px] md:h-[4px] rounded-full bg-white absolute top-[-2px] left-1/2 -translate-x-1/2 shadow-[0_0_15px_rgba(255,255,255,1)]" />
+                     <div className="w-0.75 h-0.75 md:w-1 md:h-1 rounded-full bg-white absolute -top-0.5 left-1/2 -translate-x-1/2 shadow-[0_0_15px_rgba(255,255,255,1)]" />
                    </div>
                  </div>
                </div>

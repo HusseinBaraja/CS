@@ -101,26 +101,26 @@ export function PricingSection() {
         {/* Pricing Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 w-full max-w-4xl mx-auto items-center">
           {/* Starter Tier */}
-          <div className="pricing-card bg-[var(--color-surface)] border border-[var(--color-primary)]/5 rounded-[32px] p-8 md:p-12 shadow-[0_12px_40px_rgba(26,46,39,0.03)] flex flex-col h-[calc(100%-2rem)]">
+          <div className="pricing-card bg-surface border border-primary/5 rounded-4xl p-8 md:p-12 shadow-[0_12px_40px_rgba(26,46,39,0.03)] flex flex-col h-[calc(100%-2rem)]">
             <div className="mb-8">
-              <span className="inline-block px-4 py-1.5 rounded-full bg-[var(--color-primary)]/5 text-[var(--color-primary)] text-sm font-bold mb-6">
+              <span className="inline-block px-4 py-1.5 rounded-full bg-primary/5 text-primary text-sm font-bold mb-6">
                 الأساسية
               </span>
-              <h3 className="text-4xl md:text-5xl font-black text-[var(--color-primary)] mb-4">
+              <h3 className="text-4xl md:text-5xl font-black text-primary mb-4">
                 ٩٩${" "}
-                <span className="text-xl md:text-2xl font-bold text-[var(--color-primary)]/50">
+                <span className="text-xl md:text-2xl font-bold text-primary/50">
                   / شهرياً
                 </span>
               </h3>
-              <p className="text-[var(--color-primary)]/70 font-medium text-base md:text-lg leading-relaxed">
+              <p className="text-primary/70 font-medium text-base md:text-lg leading-relaxed">
                 الخيار الأمثل للشركات الناشئة والمشاريع التي تخطو خطواتها الأولى
                 في أتمتة الردود.
               </p>
             </div>
 
-            <div className="pricing-divider h-px w-full bg-gradient-to-l from-[var(--color-primary)]/10 via-[var(--color-primary)]/10 to-transparent mb-8"></div>
+            <div className="pricing-divider h-px w-full bg-linear-to-l from-primary/10 via-primary/10 to-transparent mb-8"></div>
 
-            <ul className="space-y-4 md:space-y-5 mb-10 flex-grow">
+            <ul className="space-y-4 md:space-y-5 mb-10 grow">
               {[
                 "ردود آلية غير محدودة",
                 "ربط بكتالوج المنتجات الأساسي",
@@ -129,9 +129,9 @@ export function PricingSection() {
               ].map((feature, i) => (
                 <li
                   key={i}
-                  className="pricing-feature flex items-start gap-4 text-[var(--color-primary)]/80 font-medium text-base md:text-lg"
+                  className="pricing-feature flex items-start gap-4 text-primary/80 font-medium text-base md:text-lg"
                 >
-                  <span className="text-[var(--color-primary)]/30">
+                  <span className="text-primary/30">
                     <DiamondIcon />
                   </span>
                   {feature}
@@ -139,26 +139,26 @@ export function PricingSection() {
               ))}
             </ul>
 
-            <button className="w-full bg-[var(--color-primary)]/5 text-[var(--color-primary)] py-4 rounded-xl font-bold text-lg hover:bg-[var(--color-primary)]/10 transition-colors duration-300">
+            <button className="w-full bg-primary/5 text-primary py-4 rounded-xl font-bold text-lg hover:bg-primary/10 transition-colors duration-300">
               ابدأ التجربة
             </button>
           </div>
 
           {/* Professional Tier (Recommended) */}
-          <div className="pricing-card relative bg-[#11231a] rounded-[32px] p-8 md:p-12 shadow-[0_24px_60px_rgba(26,46,39,0.2)] flex flex-col border border-white/5 h-full overflow-hidden z-10">
+          <div className="pricing-card relative bg-[#11231a] rounded-4xl p-8 md:p-12 shadow-[0_24px_60px_rgba(26,46,39,0.2)] flex flex-col border border-white/5 h-full overflow-hidden z-10">
             {/* Subtle glow effect instead of busy gradients */}
-            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#E3B23C]/5 rounded-full opacity-50 blur-[80px] pointer-events-none" />
+            <div className="absolute top-0 right-0 w-100 h-100 bg-secondary/5 rounded-full opacity-50 blur-[80px] pointer-events-none" />
 
             <div className="absolute top-6 left-6">
-              <span className="inline-block px-4 py-1.5 rounded-full bg-[#E3B23C]/10 border border-[#E3B23C]/20 text-[#E3B23C] text-xs font-bold uppercase tracking-wider">
+              <span className="inline-block px-4 py-1.5 rounded-full bg-secondary/10 border border-secondary/20 text-secondary text-xs font-bold uppercase tracking-wider">
                 يُنصح بها
               </span>
             </div>
 
             <div className="mb-8 relative z-10">
-              <span className="inline-block relative text-[#E3B23C] text-sm font-bold mb-6">
+              <span className="inline-block relative text-secondary text-sm font-bold mb-6">
                 الاحترافية
-                <span className="absolute -bottom-1.5 right-0 w-full h-0.5 bg-[#E3B23C]/40 rounded-full" />
+                <span className="absolute -bottom-1.5 right-0 w-full h-0.5 bg-secondary/40 rounded-full" />
               </span>
               <h3 className="text-4xl md:text-5xl font-black text-white mb-4">
                 ١٩٩${" "}
@@ -172,9 +172,9 @@ export function PricingSection() {
               </p>
             </div>
 
-            <div className="pricing-divider h-px w-full bg-gradient-to-l from-white/10 via-white/10 to-transparent mb-8 relative z-10"></div>
+            <div className="pricing-divider h-px w-full bg-linear-to-l from-white/10 via-white/10 to-transparent mb-8 relative z-10"></div>
 
-            <ul className="space-y-4 md:space-y-5 mb-10 flex-grow relative z-10">
+            <ul className="space-y-4 md:space-y-5 mb-10 grow relative z-10">
               {[
                 "كل ما في الباقة الأساسية",
                 "نقل المحادثة لفريق المبيعات (Handoff)",
@@ -186,7 +186,7 @@ export function PricingSection() {
                   key={i}
                   className="pricing-feature flex items-start gap-4 text-white/90 font-medium text-base md:text-lg"
                 >
-                  <span className="text-[#E3B23C]">
+                  <span className="text-secondary">
                     <DiamondIcon />
                   </span>
                   {feature}
@@ -194,7 +194,7 @@ export function PricingSection() {
               ))}
             </ul>
 
-            <button className="relative z-10 w-full bg-[#E3B23C] text-[#11231a] py-4 rounded-xl font-bold text-lg hover:bg-white transition-all duration-300 shadow-[0_4px_14px_rgba(227,178,60,0.15)] hover:shadow-[0_6px_20px_rgba(227,178,60,0.25)] flex items-center justify-center gap-2 group translate-y-0 hover:-translate-y-0.5">
+            <button className="relative z-10 w-full bg-secondary text-[#11231a] py-4 rounded-xl font-bold text-lg hover:bg-white transition-all duration-300 shadow-[0_4px_14px_rgba(227,178,60,0.15)] hover:shadow-[0_6px_20px_rgba(227,178,60,0.25)] flex items-center justify-center gap-2 group translate-y-0 hover:-translate-y-0.5">
               اطلب نسختك الآن
               <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1.5 transition-transform duration-300" />
             </button>

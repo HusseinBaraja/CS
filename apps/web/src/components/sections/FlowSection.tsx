@@ -147,13 +147,13 @@ export function FlowSection() {
       id="how-it-works"
     >
       {/* Decorative environment background */}
-      <div className="absolute top-0 right-0 w-[800px] h-[800px] pointer-events-none translate-x-1/3 z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.05) 0%, transparent 70%)' }} />
-      <div className="absolute bottom-0 left-0 w-[800px] h-[800px] translate-y-1/3 -translate-x-1/3 pointer-events-none z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.04) 0%, transparent 70%)' }} />
+      <div className="absolute top-0 right-0 w-200 h-200 pointer-events-none translate-x-1/3 z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.05) 0%, transparent 70%)' }} />
+      <div className="absolute bottom-0 left-0 w-200 h-200 translate-y-1/3 -translate-x-1/3 pointer-events-none z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.04) 0%, transparent 70%)' }} />
 
       <div className="max-w-6xl mx-auto px-6 relative z-10 block">
         
         <div className="text-center max-w-2xl mx-auto mb-20 md:mb-32">
-          <h2 className="text-4xl md:text-5xl font-black text-[#1A2E27] mb-6 tracking-tight">
+          <h2 className="text-4xl md:text-5xl font-black text-primary mb-6 tracking-tight">
             كيف يعمل <span className="text-primary">رضا؟</span>
           </h2>
           <p className="text-lg text-gray-500 font-medium">
@@ -226,11 +226,11 @@ export function FlowSection() {
                   
                   {/* Card Content */}
                   <div className="map-card-content bg-white/70 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] border border-white/60 shadow-xl shadow-primary/5 flex flex-col items-center text-center hover:bg-white hover:shadow-2xl hover:shadow-primary/10 hover:-translate-y-2 transition-all duration-300">
-                    <div className="w-16 h-16 rounded-[1.25rem] bg-gradient-to-br from-primary/10 to-transparent text-[#115C42] flex items-center justify-center mb-6 shadow-sm border border-primary/5 rotate-3 group-hover:rotate-0 transition-transform duration-300">
+                    <div className="w-16 h-16 rounded-[1.25rem] bg-linear-to-br from-primary/10 to-transparent text-[#115C42] flex items-center justify-center mb-6 shadow-sm border border-primary/5 rotate-3 group-hover:rotate-0 transition-transform duration-300">
                       {step.icon}
                     </div>
-                    <h3 className="text-xl md:text-2xl font-bold text-[#1A2E27] mb-3">{step.title}</h3>
-                    <p className="text-[#1A2E27]/70 text-[15px] md:text-base leading-relaxed max-w-sm">
+                    <h3 className="text-xl md:text-2xl font-bold text-primary mb-3">{step.title}</h3>
+                    <p className="text-primary/70 text-[15px] md:text-base leading-relaxed max-w-sm">
                       {step.desc}
                     </p>
                   </div>
