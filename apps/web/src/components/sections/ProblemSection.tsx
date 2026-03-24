@@ -142,15 +142,15 @@ export function ProblemSection() {
 
           <div className="relative w-full h-full flex items-center justify-center p-4 sm:p-8">
             {/* Center anchor icon representing the overwhelmed owner */}
-            <div className="absolute z-10 w-14 h-14 sm:w-20 h-20 bg-white rounded-full shadow-lg border border-red-100 flex items-center justify-center">
-              <Frown className="w-7 h-7 sm:w-10 h-10 text-red-400" />
+            <div className="absolute z-10 w-14 h-14 sm:w-20 sm:h-20 bg-white rounded-full shadow-lg border border-red-100 flex items-center justify-center">
+              <Frown className="w-7 h-7 sm:w-10 sm:h-10 text-red-400" />
             </div>
 
             {/* Floating random bubbles */}
             {CHAOS_MESSAGES.map((message, idx) => (
               <div
                 key={idx}
-                className="chaos-bubble absolute bg-white px-3 py-2 sm:px-4 sm:py-3 rounded-xl sm:rounded-2xl shadow-md text-[13px] sm:text-[15px] font-bold text-primary whitespace-nowrap border border-black/5 z-20"
+                className="chaos-bubble absolute bg-white px-2.5 py-1.5 sm:px-4 sm:py-3 rounded-xl sm:rounded-2xl shadow-md text-[11px] sm:text-[15px] font-bold text-primary whitespace-nowrap border border-black/5 z-20"
                 style={message.style}
               >
                 {message.text}
