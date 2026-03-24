@@ -27,6 +27,11 @@ export function SolutionSection() {
   const container = useRef<HTMLDivElement>(null);
   
   useGSAP(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      gsap.set('.ed-feature .ed-number', { y: 0, opacity: 0.1 });
+      return;
+    }
+
     // Ambient Background parallax & noise animation
     gsap.to('.ambient-gradient', {
       backgroundPosition: '100% 100%',
@@ -272,7 +277,7 @@ export function SolutionSection() {
                 <div className="relative z-10 border-t-2 border-white/8 group-hover:border-secondary transition-colors duration-500 bg-[#0A110E] lg:bg-transparent p-6 md:py-8 lg:p-0 lg:pt-8 rounded-2xl lg:rounded-none h-full">
                   {/* Outline Number Behind (Desktop) */}
                   <div
-                    className="ed-number hidden lg:block absolute -top-8 left-8 lg:left-0 lg:right-auto text-[6rem] font-black text-transparent select-none pointer-events-none opacity-0"
+                    className="ed-number hidden lg:block absolute -top-8 left-8 lg:left-0 lg:right-auto text-[6rem] font-black text-transparent select-none pointer-events-none"
                     style={{ WebkitTextStroke: "1px rgba(227,178,60,0.3)" }}
                   >
                     {feat.num}

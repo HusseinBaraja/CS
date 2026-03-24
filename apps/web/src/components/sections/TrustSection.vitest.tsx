@@ -39,7 +39,7 @@ describe('TrustSection', () => {
     const { TrustSection } = await import('./TrustSection');
     const { container } = render(<TrustSection />);
 
-    const reverseGlow = container.querySelector('.ambient-glow-slow-reverse');
+    const reverseGlow = container.querySelector('.ambient-glow-reverse');
 
     expect(reverseGlow).not.toBeNull();
     expect(reverseGlow?.getAttribute('style')).toBeNull();
@@ -90,7 +90,7 @@ describe('TrustSection', () => {
     );
 
     expect(gsapTo).toHaveBeenCalledWith(
-      '.ambient-glow-slow-reverse',
+      '.ambient-glow-reverse',
       expect.objectContaining({
         rotate: -360,
         duration: 30,
