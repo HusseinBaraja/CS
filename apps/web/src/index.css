@@ -6,6 +6,13 @@
   --color-secondary: #E3B23C; /* Warm gold */
   --color-bg-light: #F8F7F4; /* Warm alabaster */
   --color-surface: #FFFFFF;
+  --spacing-50: 12.5rem;
+  --spacing-100: 25rem;
+  --spacing-105: 26.25rem;
+  --spacing-150: 37.5rem;
+  --spacing-200: 50rem;
+  --spacing-225: 56.25rem;
+  --spacing-360: 90rem;
 }
 
 @layer base {

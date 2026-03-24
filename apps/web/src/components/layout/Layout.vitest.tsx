@@ -31,6 +31,21 @@ describe('Layout', () => {
     expect(scrollToMock).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
   });
 
+  it('keeps the custom watermark height utilities on the footer logo artwork', () => {
+    render(
+      <Layout>
+        <div>content</div>
+      </Layout>,
+    );
+
+    const decorativeImages = screen.getAllByRole('img', { hidden: true });
+    const watermarkImage = decorativeImages.find((image) => image.className.includes('h-150'));
+
+    expect(watermarkImage).toBeDefined();
+    expect(watermarkImage?.className).toContain('h-150');
+    expect(watermarkImage?.className).toContain('md:h-225');
+  });
+
   it('uses a top-level anchor with smooth scroll-to-top behavior', () => {
     Object.defineProperty(window, 'scrollTo', {
       value: scrollToMock,

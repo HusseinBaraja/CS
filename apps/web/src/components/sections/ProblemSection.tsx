@@ -129,7 +129,7 @@ export function ProblemSection() {
         </div>
 
         {/* Left Content - Abstract visual of message chaos */}
-        <div className="chaos-container relative h-80 sm:h-112.5 bg-white rounded-[40px] border border-primary/5 overflow-hidden flex items-center justify-center shadow-lg">
+        <div className="chaos-container relative h-80 sm:h-[28.125rem] bg-white rounded-[40px] border border-primary/5 overflow-hidden flex items-center justify-center shadow-lg">
           {/* subtle background pattern */}
           <div
             className="absolute inset-0 opacity-10"

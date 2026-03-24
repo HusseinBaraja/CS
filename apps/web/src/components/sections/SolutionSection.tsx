@@ -208,7 +208,7 @@ export function SolutionSection() {
         {/* New Layout Stack: Hero Bar + 3 Columns */}
         <div className="flex flex-col gap-12 lg:gap-20 w-full">
           {/* Hero Feature Horizontal Banner */}
-          <div className="ed-hero relative w-full min-h-100 lg:min-h-112.5 rounded-4xl overflow-hidden bg-linear-to-br from-white/3 to-transparent border border-white/5 p-10 md:p-16 lg:px-24 flex flex-col md:flex-row items-center justify-between backdrop-blur-3xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]">
+          <div className="ed-hero relative w-full min-h-100 lg:min-h-[28.125rem] rounded-4xl overflow-hidden bg-linear-to-br from-white/3 to-transparent border border-white/5 p-10 md:p-16 lg:px-24 flex flex-col md:flex-row items-center justify-between backdrop-blur-3xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]">
             {/* The Visual Piece: Master Container */}
             <div className="absolute top-[-5%] left-[-5%] md:top-1/2 md:-translate-y-1/2 md:left-[5%] w-[50vw] sm:w-[40vw] md:w-150 aspect-square pointer-events-none flex items-center justify-center">
                
