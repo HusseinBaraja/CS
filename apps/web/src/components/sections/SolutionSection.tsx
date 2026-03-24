@@ -7,17 +7,14 @@ gsap.registerPlugin(ScrollTrigger);
 
 const FEATURES = [
   {
-    num: "02",
     title: "لا مجال للتأليف أو الخطأ",
     desc: "نظامنا يعتمد مباشرة على منتجاتك المخزنة. إذا لم يجد المنتج، سيخبر العميل أو يحول المحادثة إليك.",
   },
   {
-    num: "03",
     title: "يفهم العربية والإنجليزية",
     desc: "يدرك السياق ويجيب بنفس لغة العميل. يدعم اللهجات المحلية بذكاء ودقة مبهرة.",
   },
   {
-    num: "04",
     title: "تحويل سلس للبشر",
     desc: "عندما يطلب العميل التحدث لموظف مبيعات، يصمت البوت فوراً ويرسل إليك إشعاراً لتستكمل أنت المحادثة.",
   },
@@ -30,8 +27,6 @@ export function SolutionSection() {
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     if (prefersReducedMotion) {
-      gsap.set('.ed-feature .ed-number', { y: 0, opacity: 0.1 });
-
       const animatedArtworkElements = container.current?.querySelectorAll<HTMLElement>(
         '.solution-pulse-glow, .solution-spinning-diamond, .solution-ping-border, .solution-orbit-wrapper',
       );
@@ -103,27 +98,6 @@ export function SolutionSection() {
       ease: 'power3.out'
     });
 
-    // Massive Number Parallax Effect
-    gsap.utils.toArray<HTMLElement>('.ed-number').forEach((num) => {
-      const trigger = num.parentElement;
-      if (!trigger) return;
-
-      gsap.fromTo(
-        num,
-        { y: -30, opacity: 0 },
-        {
-          y: 40,
-          opacity: 0.1,
-          scrollTrigger: {
-            trigger,
-            start: 'top bottom',
-            end: 'bottom top',
-            scrub: 1.5
-          }
-        }
-      );
-    });
-
     // Secondary Features Staggered Entry
     gsap.from('.ed-feature', {
       scrollTrigger: {
@@ -180,8 +154,8 @@ export function SolutionSection() {
       {/* Top Transition Curve */}
       <div className="absolute top-0 left-0 w-full overflow-hidden leading-none pointer-events-none z-20">
         <svg
-          className="w-full relative block"
-          style={{ width: "calc(100% + 2px)", height: "80px" }}
+          className="w-full relative block h-10 md:h-20"
+          style={{ width: "calc(100% + 2px)" }}
           viewBox="0 0 1200 120"
           preserveAspectRatio="none"
         >
@@ -195,8 +169,8 @@ export function SolutionSection() {
       {/* Bottom Transition Curve */}
       <div className="absolute bottom-0 left-0 w-full overflow-hidden leading-none pointer-events-none z-20 rotate-180">
         <svg
-          className="w-full relative block"
-          style={{ width: "calc(100% + 2px)", height: "80px" }}
+          className="w-full relative block h-10 md:h-20"
+          style={{ width: "calc(100% + 2px)" }}
           viewBox="0 0 1200 120"
           preserveAspectRatio="none"
         >
@@ -231,7 +205,7 @@ export function SolutionSection() {
           {/* Hero Feature Horizontal Banner */}
           <div className="ed-hero relative w-full min-h-100 lg:min-h-112.5 rounded-4xl overflow-hidden bg-linear-to-br from-white/3 to-transparent border border-white/5 p-10 md:p-16 lg:px-24 flex flex-col md:flex-row items-center justify-between backdrop-blur-3xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]">
             {/* The Visual Piece: Master Container */}
-            <div className="absolute top-1/2 -translate-y-1/2 left-[-10%] md:left-[5%] w-[80vw] md:w-150 aspect-square pointer-events-none flex items-center justify-center">
+            <div className="absolute top-[-5%] left-[-5%] md:top-1/2 md:-translate-y-1/2 md:left-[5%] w-[50vw] sm:w-[40vw] md:w-150 aspect-square pointer-events-none flex items-center justify-center">
                
                {/* Abstract Rings Background (Lower Opacity) */}
                <div className="absolute inset-0 flex items-center justify-center opacity-30">
@@ -263,11 +237,7 @@ export function SolutionSection() {
                
             </div>
 
-            <div className="relative z-10 ed-hero-content w-full md:w-3/5 text-right mt-16 md:mt-0">
-              <div className="ed-number text-[8rem] md:text-[14rem] font-black leading-none select-none text-white/5 absolute top-1/2 -translate-y-1/2 -right-8 md:-right-20 pointer-events-none">
-                01
-              </div>
-
+            <div className="relative z-10 ed-hero-content w-full md:w-3/5 text-right mt-24 sm:mt-28 md:mt-0">
               <div className="w-12 h-0.75 bg-secondary mb-8" />
               <h3 className="text-4xl md:text-5xl lg:text-7xl font-black mb-6 leading-[1.2]">
                 مساعد يعمل <br />
@@ -290,17 +260,6 @@ export function SolutionSection() {
             {FEATURES.map((feat, idx) => (
               <div key={idx} className="ed-feature relative group">
                 <div className="relative z-10 border-t-2 border-white/8 group-hover:border-secondary transition-colors duration-500 bg-[#0A110E] lg:bg-transparent p-6 md:py-8 lg:p-0 lg:pt-8 rounded-2xl lg:rounded-none h-full">
-                  {/* Outline Number Behind (Desktop) */}
-                  <div
-                    className="ed-number hidden lg:block absolute -top-8 left-8 lg:left-0 lg:right-auto text-[6rem] font-black text-transparent select-none pointer-events-none"
-                    style={{ WebkitTextStroke: "1px rgba(227,178,60,0.3)" }}
-                  >
-                    {feat.num}
-                  </div>
-                  
-                  <div className="text-sm font-mono text-secondary/70 mb-5 lg:hidden">
-                    {feat.num}
-                  </div>
                   <h3 className="text-2xl md:text-[1.6rem] font-bold mb-4 leading-snug group-hover:text-white transition-colors text-white/80">
                     {feat.title}
                   </h3>

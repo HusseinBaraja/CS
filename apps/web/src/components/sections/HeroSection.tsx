@@ -65,37 +65,39 @@ export function HeroSection() {
       <div className="absolute top-0 right-0 w-200 h-200 -translate-y-1/2 translate-x-1/3 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(227,178,60,0.08) 0%, transparent 70%)' }} />
       <div className="absolute bottom-0 left-0 w-150 h-150 translate-y-1/3 -translate-x-1/4 pointer-events-none z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.08) 0%, transparent 70%)' }} />
 
-      <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10 w-full">
+      <div className="max-w-7xl mx-auto px-6 flex flex-col gap-10 lg:grid lg:grid-cols-2 lg:gap-16 items-center relative z-10 w-full">
         {/* Right Content (RTL) */}
-        <div className="max-w-2xl">
-          <h1 className="hero-text-anim text-5xl md:text-6xl lg:text-7xl font-black text-primary leading-[1.1] mb-6 tracking-tight">
-            خدمة عملاء عبر واتساب <br />
-            <span className="text-[#115C42] relative inline-block">
-              دقة عالية، على مدار الساعة
-              <svg
-                className="absolute w-full h-3 -bottom-1 left-0 text-secondary/40"
-                fill="currentColor"
-                viewBox="0 0 100 10"
-                preserveAspectRatio="none"
-              >
-                <path d="M0 5 Q 50 10 100 5 L 100 10 L 0 10 Z" />
-              </svg>
-            </span>
-          </h1>
+        <div className="contents lg:block max-w-2xl w-full">
+          <div className="order-1 lg:order-none flex flex-col w-full">
+            <h1 className="hero-text-anim text-5xl md:text-6xl lg:text-7xl font-black text-primary leading-[1.1] mb-6 tracking-tight">
+              خدمة عملاء عبر واتساب <br />
+              <span className="text-[#115C42] relative inline-block">
+                دقة عالية، على مدار الساعة
+                <svg
+                  className="absolute w-full h-3 -bottom-1 left-0 text-secondary/40"
+                  fill="currentColor"
+                  viewBox="0 0 100 10"
+                  preserveAspectRatio="none"
+                >
+                  <path d="M0 5 Q 50 10 100 5 L 100 10 L 0 10 Z" />
+                </svg>
+              </span>
+            </h1>
 
-          <p className="hero-text-anim text-xl text-primary/70 mb-10 leading-relaxed font-medium">
-            اربط كتالوج منتجاتك، وسيقوم المساعد الذكي بالرد على عملائك، وتحويل
-            المحادثة إليك عند الحاجة.
-          </p>
+            <p className="hero-text-anim text-xl text-primary/70 mb-0 lg:mb-10 leading-relaxed font-medium">
+              اربط كتالوج منتجاتك، وسيقوم المساعد الذكي بالرد على عملائك، وتحويل
+              المحادثة إليك عند الحاجة.
+            </p>
+          </div>
 
-          <div className="hero-text-anim flex flex-col sm:flex-row gap-4">
-            <button className="bg-primary text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3 group">
+          <div className="hero-text-anim order-4 lg:order-none flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
+            <button className="bg-primary text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3 group w-full sm:w-auto">
               ابدأ الآن مجاناً
               <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
             </button>
           </div>
 
-          <div className="hero-text-anim mt-12 grid grid-cols-3 gap-6 pt-8 border-t border-primary/10">
+          <div className="hero-text-anim order-3 lg:order-none mt-0 lg:mt-12 grid grid-cols-3 gap-6 pt-8 border-t border-primary/10 w-full">
             <div className="flex flex-col gap-2">
               <MessageCircle className="w-6 h-6 text-primary/50" />
               <span className="font-bold text-primary">ردود فورية 24/7</span>
@@ -114,7 +116,7 @@ export function HeroSection() {
         </div>
 
         {/* Left Content - Abstract Phone UI Mockup */}
-        <div className="hero-phone-anim relative h-150 w-full max-w-105 mx-auto lg:mr-auto lg:ml-0 perspective-[1000px]">
+        <div className="hero-phone-anim order-2 lg:order-none relative h-150 w-full max-w-105 mx-auto lg:mr-auto lg:ml-0 perspective-[1000px]">
           {/* Main Device Box */}
           <div className="absolute inset-0 bg-[#fefefe] rounded-[40px] shadow-2xl border-8 border-primary overflow-hidden flex flex-col transform lg:rotate-y-12 lg:rotate-x-6 lg:translate-z-0 transition-transform duration-700 hover:rotate-y-0 hover:rotate-x-0">
             {/* WhatsApp Header Mock */}

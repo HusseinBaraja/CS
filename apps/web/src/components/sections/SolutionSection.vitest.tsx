@@ -38,7 +38,7 @@ describe('SolutionSection', () => {
     const { SolutionSection } = await import('./SolutionSection');
     const { container } = render(<SolutionSection />);
 
-    expect(gsapSet).toHaveBeenCalledWith('.ed-feature .ed-number', { y: 0, opacity: 0.1 });
+    expect(gsapSet).not.toHaveBeenCalled();
     expect(gsapTo).not.toHaveBeenCalledWith('.ambient-gradient', expect.any(Object));
     expect(gsapTo).not.toHaveBeenCalledWith('.ring-element:not(.ring-element--middle)', expect.any(Object));
     expect(gsapTo).not.toHaveBeenCalledWith('.ring-element--middle', expect.any(Object));
@@ -55,9 +55,11 @@ describe('SolutionSection', () => {
     expect(spinningDiamond?.className).not.toContain('animate-');
     expect(pingBorder?.className).not.toContain('animate-');
     expect(orbitWrapper?.className).not.toContain('animate-');
+    expect(container.querySelector('.ed-number')).toBeNull();
+    expect(container.textContent ?? '').not.toMatch(/\b01\b|\b02\b|\b03\b|\b04\b/);
   });
 
-  it('configures forward and reverse ring tweens without inert middle ring styles', async () => {
+  it('configures forward and reverse ring tweens without rendering solution number markers', async () => {
     matchMediaMock.mockReturnValue({
       matches: false,
       media: '(prefers-reduced-motion: reduce)',
@@ -72,7 +74,6 @@ describe('SolutionSection', () => {
     const { gsapResolvedFromTo, gsapTo, gsapToArray } = setupGsapMocks();
     const { SolutionSection } = await import('./SolutionSection');
     const { container } = render(<SolutionSection />);
-    const numbers = Array.from(container.querySelectorAll('.ed-number'));
 
     expect(gsapTo).toHaveBeenCalledWith(
       '.ring-element:not(.ring-element--middle)',
@@ -95,11 +96,12 @@ describe('SolutionSection', () => {
     );
 
     const middleRing = container.querySelector('.ring-element--middle');
-    const resolvedNumbers = gsapResolvedFromTo.mock.calls.flatMap(([targets]) => targets);
 
     expect(middleRing).not.toBeNull();
     expect(middleRing?.getAttribute('style')).toBeNull();
-    expect(gsapToArray).toHaveBeenCalledWith('.ed-number');
-    expect(resolvedNumbers).toEqual(numbers);
+    expect(gsapToArray).not.toHaveBeenCalledWith('.ed-number');
+    expect(gsapResolvedFromTo).not.toHaveBeenCalled();
+    expect(container.querySelector('.ed-number')).toBeNull();
+    expect(container.textContent ?? '').not.toMatch(/\b01\b|\b02\b|\b03\b|\b04\b/);
   });
 });
