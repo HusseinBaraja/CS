@@ -29,26 +29,42 @@ const createProfile = (
 const createLoggerStub = () => {
   const infoCalls: Array<{ payload: unknown; message: string }> = [];
   const errorCalls: Array<{ payload: unknown; message: string }> = [];
+  const warnCalls: Array<{ payload: unknown; message: string }> = [];
+  const debugCalls: Array<{ payload: unknown; message: string }> = [];
 
   return {
     logger: {
+      debug: (payload: unknown, message: string) => {
+        debugCalls.push({ payload, message });
+      },
       info: (payload: unknown, message: string) => {
         infoCalls.push({ payload, message });
       },
       error: (payload: unknown, message: string) => {
         errorCalls.push({ payload, message });
       },
+      warn: (payload: unknown, message: string) => {
+        warnCalls.push({ payload, message });
+      },
       child: () => ({
+        debug: (payload: unknown, message: string) => {
+          debugCalls.push({ payload, message });
+        },
         info: (payload: unknown, message: string) => {
           infoCalls.push({ payload, message });
         },
         error: (payload: unknown, message: string) => {
           errorCalls.push({ payload, message });
         },
+        warn: (payload: unknown, message: string) => {
+          warnCalls.push({ payload, message });
+        },
       }),
     },
+    debugCalls,
     errorCalls,
     infoCalls,
+    warnCalls,
   };
 };
 
@@ -642,6 +658,9 @@ describe("startTenantSessionManager", () => {
 
   test("normalizes tenant inbound messages and routes owner commands before customer conversation flow", async () => {
     const profile = createProfile("company-1", {
+      config: {
+        accessControlMode: "ALL",
+      },
       ownerPhone: "+966 500 000 1",
     });
     const store = createStoreStub([profile]);
@@ -736,7 +755,18 @@ describe("startTenantSessionManager", () => {
   });
 
   test("continues processing tenant inbound events after router failures", async () => {
-    const profiles = [createProfile("company-1"), createProfile("company-2")];
+    const profiles = [
+      createProfile("company-1", {
+        config: {
+          accessControlMode: "ALL",
+        },
+      }),
+      createProfile("company-2", {
+        config: {
+          accessControlMode: "ALL",
+        },
+      }),
+    ];
     const store = createStoreStub(profiles);
     const { logger, errorCalls } = createLoggerStub();
     const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
@@ -817,7 +847,18 @@ describe("startTenantSessionManager", () => {
   });
 
   test("passes tenant route context with profile and outbound messenger isolation", async () => {
-    const profiles = [createProfile("company-1"), createProfile("company-2")];
+    const profiles = [
+      createProfile("company-1", {
+        config: {
+          accessControlMode: "ALL",
+        },
+      }),
+      createProfile("company-2", {
+        config: {
+          accessControlMode: "ALL",
+        },
+      }),
+    ];
     const store = createStoreStub(profiles);
     const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
     const customerContexts: Array<{ companyId: string; hasOutbound: boolean; profileCompanyId: string }> = [];
@@ -940,6 +981,343 @@ describe("startTenantSessionManager", () => {
       hasOutbound: true,
       profileCompanyId: "company-1",
     }]);
+  });
+
+  test("blocks non-owner senders by default before customer routing", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([profile]);
+    const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+    const routedConversations: NormalizedInboundMessage[] = [];
+    const ignoredEvents: IgnoredInboundEvent[] = [];
+
+    await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      inboundRouter: {
+        handleCustomerConversation: async (message) => {
+          routedConversations.push(message);
+        },
+        handleIgnored: async (event) => {
+          ignoredEvents.push(event);
+        },
+        handleOwnerCommand: async () => undefined,
+      },
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
+      },
+    });
+
+    await messageCallbacks.get(profile.sessionKey)?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "blocked-customer",
+            remoteJid: "967700000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_000,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+
+    expect(routedConversations).toEqual([]);
+    expect(ignoredEvents).toEqual([{
+      transport: "whatsapp",
+      companyId: "company-1",
+      sessionKey: profile.sessionKey,
+      reason: "access_control_blocked",
+      source: {
+        upsertType: "notify",
+        rawMessageId: "blocked-customer",
+        remoteJid: "967700000001@s.whatsapp.net",
+        fromMe: false,
+        accessMode: "OWNER_ONLY",
+        accessReason: "access_mode_owner_only",
+      },
+    }]);
+  });
+
+  test("allows the owner command through owner-only access control", async () => {
+    const profile = createProfile("company-1", {
+      ownerPhone: "+966 500 000 001",
+    });
+    const store = createStoreStub([profile]);
+    const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+    const routedOwnerCommands: NormalizedInboundMessage[] = [];
+    const ignoredEvents: IgnoredInboundEvent[] = [];
+
+    await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      inboundRouter: {
+        handleCustomerConversation: async () => undefined,
+        handleIgnored: async (event) => {
+          ignoredEvents.push(event);
+        },
+        handleOwnerCommand: async (message) => {
+          routedOwnerCommands.push(message);
+        },
+      },
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
+      },
+    });
+
+    await messageCallbacks.get(profile.sessionKey)?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "owner-command",
+            remoteJid: "966500000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_000,
+          message: {
+            conversation: "!status",
+          },
+        },
+      ],
+    });
+
+    expect(routedOwnerCommands.map((message) => message.messageId)).toEqual(["owner-command"]);
+    expect(ignoredEvents).toEqual([]);
+  });
+
+  test("allows configured senders and blocks others in single-number and list modes", async () => {
+    const profiles = [
+      createProfile("company-1", {
+        config: {
+          accessControlMode: "SINGLE_NUMBER",
+          accessControlSingleNumber: "+967 700 000 001",
+        },
+      }),
+      createProfile("company-2", {
+        config: {
+          accessControlMode: "LIST",
+          accessControlAllowedNumbers: "967700000002, +967 700 000 003",
+        },
+      }),
+    ];
+    const store = createStoreStub(profiles);
+    const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+    const routedConversations: string[] = [];
+    const ignoredEvents: IgnoredInboundEvent[] = [];
+
+    await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      inboundRouter: {
+        handleCustomerConversation: async (message) => {
+          routedConversations.push(`${message.companyId}:${message.messageId}`);
+        },
+        handleIgnored: async (event) => {
+          ignoredEvents.push(event);
+        },
+        handleOwnerCommand: async () => undefined,
+      },
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
+      },
+    });
+
+    await messageCallbacks.get("company-company-1")?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "single-allowed",
+            remoteJid: "967700000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_000,
+          message: {
+            conversation: "hello",
+          },
+        },
+        {
+          key: {
+            id: "single-blocked",
+            remoteJid: "967700000099@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_001,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+    await messageCallbacks.get("company-company-2")?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "list-allowed",
+            remoteJid: "967700000003@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_002,
+          message: {
+            conversation: "hello",
+          },
+        },
+        {
+          key: {
+            id: "list-blocked",
+            remoteJid: "967700000004@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_003,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+
+    expect(routedConversations).toEqual([
+      "company-1:single-allowed",
+      "company-2:list-allowed",
+    ]);
+    expect(ignoredEvents).toEqual([
+      {
+        transport: "whatsapp",
+        companyId: "company-1",
+        sessionKey: "company-company-1",
+        reason: "access_control_blocked",
+        source: {
+          upsertType: "notify",
+          rawMessageId: "single-blocked",
+          remoteJid: "967700000099@s.whatsapp.net",
+          fromMe: false,
+          accessMode: "SINGLE_NUMBER",
+          accessReason: "access_mode_single_number_no_match",
+        },
+      },
+      {
+        transport: "whatsapp",
+        companyId: "company-2",
+        sessionKey: "company-company-2",
+        reason: "access_control_blocked",
+        source: {
+          upsertType: "notify",
+          rawMessageId: "list-blocked",
+          remoteJid: "967700000004@s.whatsapp.net",
+          fromMe: false,
+          accessMode: "LIST",
+          accessReason: "access_mode_list_no_match",
+        },
+      },
+    ]);
+  });
+
+  test("fails safe for malformed access-control config and logs a warning", async () => {
+    const profile = createProfile("company-1", {
+      config: {
+        accessControlMode: "SINGLE_NUMBER",
+        accessControlSingleNumber: "owner",
+      },
+    });
+    const store = createStoreStub([profile]);
+    const { logger, warnCalls } = createLoggerStub();
+    const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+    const ignoredEvents: IgnoredInboundEvent[] = [];
+
+    await startTenantSessionManager({
+      logger,
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      inboundRouter: {
+        handleCustomerConversation: async () => undefined,
+        handleIgnored: async (event) => {
+          ignoredEvents.push(event);
+        },
+        handleOwnerCommand: async () => undefined,
+      },
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
+      },
+    });
+
+    await messageCallbacks.get(profile.sessionKey)?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "blocked-customer",
+            remoteJid: "967700000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_000,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+
+    expect(ignoredEvents).toEqual([{
+      transport: "whatsapp",
+      companyId: "company-1",
+      sessionKey: profile.sessionKey,
+      reason: "access_control_blocked",
+      source: {
+        upsertType: "notify",
+        rawMessageId: "blocked-customer",
+        remoteJid: "967700000001@s.whatsapp.net",
+        fromMe: false,
+        accessMode: "OWNER_ONLY",
+        accessReason: "access_mode_single_number_invalid",
+      },
+    }]);
+    expect(warnCalls).toContainEqual({
+      payload: {
+        companyId: "company-1",
+        reason: "access_control_blocked",
+        sessionKey: profile.sessionKey,
+        messageId: "blocked-customer",
+        accessMode: "OWNER_ONLY",
+        accessReason: "access_mode_single_number_invalid",
+      },
+      message: "tenant inbound event ignored",
+    });
   });
 
   test("exposes isolated tenant outbound messengers through the session manager", async () => {

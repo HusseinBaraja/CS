@@ -18,6 +18,7 @@ export const IGNORED_INBOUND_EVENT_REASONS = [
   "missing_timestamp",
   "unsupported_message_type",
   "empty_payload",
+  "access_control_blocked",
 ] as const;
 
 export type IgnoredInboundEventReason = (typeof IGNORED_INBOUND_EVENT_REASONS)[number];
@@ -66,6 +67,8 @@ export interface IgnoredInboundEvent {
     rawMessageId?: string;
     remoteJid?: string;
     fromMe?: boolean;
+    accessMode?: string;
+    accessReason?: string;
   };
 }
 
