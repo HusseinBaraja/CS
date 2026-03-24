@@ -85,50 +85,31 @@ export function FlowSection() {
 
     // Track scroll progress (hoisted so rebuildAndRefresh can reference it)
     let maxProgress = 0;
+    let isAnimationInitialized = false;
+    let timeline: ReturnType<typeof gsap.timeline> | null = null;
+    let scrollTriggerInstance: ReturnType<typeof ScrollTrigger.create> | null = null;
 
-    // Defer path building by one frame so the browser has fully laid out cards
-    let pathData = buildPath();
-
-    let disposed = false;
-    const rebuildAndRefresh = () => {
-      const rebuilt = buildPath();
-      if (rebuilt) {
-        pathData = rebuilt;
-        // Reapply the mask dash values after path rebuild
-        const len = rebuilt.length;
-        gsap.set(maskPath, { strokeDasharray: len, strokeDashoffset: len * (1 - maxProgress) });
-        ScrollTrigger.refresh();
+    const initializeAnimation = (pathData: NonNullable<ReturnType<typeof buildPath>>) => {
+      if (isAnimationInitialized) {
+        return;
       }
-    };
 
-    // Rebuild once layout settles (fonts, images, etc.)
-    requestAnimationFrame(() => {
-      if (!disposed) rebuildAndRefresh();
-    });
-    document.fonts.ready.then(() => {
-      if (!disposed) rebuildAndRefresh();
-    });
-    window.addEventListener('resize', rebuildAndRefresh);
+      const totalYDistance =
+        pathData.points[pathData.points.length - 1].y - pathData.points[0].y;
 
-    if (pathData) {
-      const pd = pathData; // const binding for TypeScript narrowing in closures
-      const totalYDistance = pd.points[pd.points.length - 1].y - pd.points[0].y;
+      timeline = gsap.timeline({ paused: true });
 
-      const tl = gsap.timeline({ paused: true });
-      
-      ScrollTrigger.create({
+      scrollTriggerInstance = ScrollTrigger.create({
         trigger: containerEl,
         start: 'top 55%',
         end: 'bottom 80%',
         invalidateOnRefresh: true,
         onUpdate: (self) => {
-          // Only progress forwards, never backwards
-          if (self.progress > maxProgress) {
+          if (self.progress > maxProgress && timeline) {
             maxProgress = self.progress;
-            // Smoothly animate the timeline's progress to catch up with the scroll
-            gsap.to(tl, { 
-              progress: maxProgress, 
-              duration: 0.5, 
+            gsap.to(timeline, {
+              progress: maxProgress,
+              duration: 0.5,
               ease: 'power2.out',
               overwrite: true
             });
@@ -136,40 +117,88 @@ export function FlowSection() {
         }
       });
 
-      // Restart paths
-      gsap.set(maskPath, { strokeDasharray: pd.length, strokeDashoffset: pd.length });
-      tl.to(maskPath, { strokeDashoffset: 0, duration: 1, ease: 'none' }, 0);
+      gsap.set(maskPath, {
+        strokeDasharray: pathData.length,
+        strokeDashoffset: pathData.length
+      });
+      timeline.to(maskPath, { strokeDashoffset: 0, duration: 1, ease: 'none' }, 0);
 
       const cards = gsap.utils.toArray<HTMLElement>('.map-card-content');
-      
-      // Determine exactly when the line hits them relative to total distance linearly
-      const pointTimes = pd.points.map(p => totalYDistance > 0 ? (p.y - pd.points[0].y) / totalYDistance : 0);
-      
+      const pointTimes = pathData.points.map(p =>
+        totalYDistance > 0 ? (p.y - pathData.points[0].y) / totalYDistance : 0,
+      );
+
       cards.forEach((card, i) => {
         gsap.set(card, { opacity: 0, y: 50, scale: 0.9 });
-        
+
         const triggerTime = Math.max(0, pointTimes[i] - 0.05);
 
-        tl.to(card, { 
-          opacity: 1, 
-          y: 0, 
-          scale: 1, 
-          duration: 0.15, 
-          ease: 'back.out(1.5)' 
+        timeline?.to(card, {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          duration: 0.15,
+          ease: 'back.out(1.5)'
         }, triggerTime);
-        
-        tl.from(dots[i], {
+
+        timeline?.from(dots[i], {
           scale: 0,
           opacity: 0,
           duration: 0.1,
           ease: 'back.out(2)'
         }, triggerTime);
       });
+
+      isAnimationInitialized = true;
+    };
+
+    let disposed = false;
+    let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+    const rebuildAndRefresh = () => {
+      const rebuilt = buildPath();
+      if (rebuilt) {
+        initializeAnimation(rebuilt);
+        // Reapply the mask dash values after path rebuild
+        const len = rebuilt.length;
+        gsap.set(maskPath, { strokeDasharray: len, strokeDashoffset: len * (1 - maxProgress) });
+        ScrollTrigger.refresh();
+      }
+    };
+
+    const handleResize = () => {
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+
+      resizeTimeout = setTimeout(() => {
+        if (!disposed) {
+          rebuildAndRefresh();
+        }
+      }, 150);
+    };
+
+    // Rebuild once layout settles (fonts, images, etc.)
+    const rafId = requestAnimationFrame(() => {
+      if (!disposed) rebuildAndRefresh();
+    });
+    const fontsReady = document.fonts?.ready;
+    if (fontsReady) {
+      void fontsReady.then(() => {
+        if (!disposed) rebuildAndRefresh();
+      });
     }
+    window.addEventListener('resize', handleResize);
+    rebuildAndRefresh();
 
     return () => {
       disposed = true;
-      window.removeEventListener('resize', rebuildAndRefresh);
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', handleResize);
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+      scrollTriggerInstance?.kill();
+      timeline?.kill();
     };
   }, { scope: container });
 
