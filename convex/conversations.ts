@@ -1,5 +1,11 @@
 import { v } from 'convex/values';
 import type { PromptHistoryTurn } from '@cs/ai';
+import type {
+  ConversationMessageDto,
+  ConversationStateDto,
+  ConversationStateEventSource,
+  ConversationStateEventType,
+} from '@cs/shared';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { internalAction, internalMutation, internalQuery, type DatabaseReader, type MutationCtx } from './_generated/server';
@@ -8,24 +14,7 @@ const CONVERSATION_LOCK_LEASE_MS = 1_000;
 const CONVERSATION_LOCK_POLL_MS = 100;
 const MAX_CONVERSATION_LOCK_WAIT_MS = 1_500;
 const TRIM_MESSAGES_BATCH_SIZE = 100;
-
-type ConversationDto = {
-  id: string;
-  companyId: string;
-  phoneNumber: string;
-  muted: boolean;
-  mutedAt?: number;
-};
-
-type MessageRole = "user" | "assistant";
-
-type MessageDto = {
-  id: string;
-  conversationId: string;
-  role: MessageRole;
-  content: string;
-  timestamp: number;
-};
+export const AUTO_RESUME_IDLE_MS = 12 * 60 * 60 * 1_000;
 
 type LockAcquireResult = {
   acquired: boolean;
@@ -88,15 +77,19 @@ const normalizeMessageContent = (content: string): string => {
   return normalized;
 };
 
-const toConversationDto = (conversation: Doc<"conversations">): ConversationDto => ({
+const toConversationDto = (conversation: Doc<"conversations">): ConversationStateDto => ({
   id: conversation._id,
   companyId: conversation.companyId,
   phoneNumber: conversation.phoneNumber,
   muted: conversation.muted,
   ...(conversation.mutedAt !== undefined ? { mutedAt: conversation.mutedAt } : {}),
+  ...(conversation.lastCustomerMessageAt !== undefined
+    ? { lastCustomerMessageAt: conversation.lastCustomerMessageAt }
+    : {}),
+  ...(conversation.nextAutoResumeAt !== undefined ? { nextAutoResumeAt: conversation.nextAutoResumeAt } : {}),
 });
 
-const toMessageDto = (message: Doc<"messages">): MessageDto => ({
+const toMessageDto = (message: Doc<"messages">): ConversationMessageDto => ({
   id: message._id,
   conversationId: message.conversationId,
   role: message.role,
@@ -104,10 +97,36 @@ const toMessageDto = (message: Doc<"messages">): MessageDto => ({
   timestamp: message.timestamp,
 });
 
-const toPromptHistoryTurn = (message: MessageDto): PromptHistoryTurn => ({
+const toPromptHistoryTurn = (message: ConversationMessageDto): PromptHistoryTurn => ({
   role: message.role,
   text: message.content,
 });
+
+const normalizeOptionalString = (value: string | undefined, fieldName: string): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    throw new Error(`${fieldName} must be a non-empty string when provided`);
+  }
+
+  return normalized;
+};
+
+const listConversationsByPhone = async (
+  ctx: { db: DatabaseReader },
+  companyId: Id<"companies">,
+  phoneNumber: string,
+): Promise<Array<Doc<"conversations">>> => {
+  const conversations = await ctx.db
+    .query("conversations")
+    .withIndex("by_company_phone", (q) => q.eq("companyId", companyId).eq("phoneNumber", phoneNumber))
+    .collect();
+
+  return conversations.sort((left, right) => left._creationTime - right._creationTime || left._id.localeCompare(right._id));
+};
 
 const listActiveConversations = async (
   ctx: { db: DatabaseReader },
@@ -124,6 +143,15 @@ const listActiveConversations = async (
   return conversations.sort((left, right) => left._creationTime - right._creationTime || left._id.localeCompare(right._id));
 };
 
+const loadConversationByPhone = async (
+  ctx: { db: DatabaseReader },
+  companyId: Id<"companies">,
+  phoneNumber: string,
+): Promise<Doc<"conversations"> | null> => {
+  const conversations = await listConversationsByPhone(ctx, companyId, phoneNumber);
+  return conversations[0] ?? null;
+};
+
 const loadConversationOrThrow = async (
   ctx: { db: DatabaseReader },
   companyId: Id<"companies">,
@@ -135,6 +163,33 @@ const loadConversationOrThrow = async (
   }
 
   return conversation;
+};
+
+const insertConversationStateEvent = async (
+  ctx: MutationCtx,
+  input: {
+    companyId: Id<"companies">;
+    conversationId: Id<"conversations">;
+    phoneNumber: string;
+    eventType: ConversationStateEventType;
+    timestamp: number;
+    source: ConversationStateEventSource;
+    reason?: string;
+    actorPhoneNumber?: string;
+    metadata?: Record<string, string | number | boolean>;
+  },
+): Promise<void> => {
+  await ctx.db.insert("conversationStateEvents", {
+    companyId: input.companyId,
+    conversationId: input.conversationId,
+    phoneNumber: input.phoneNumber,
+    eventType: input.eventType,
+    timestamp: input.timestamp,
+    source: input.source,
+    ...(input.reason ? { reason: input.reason } : {}),
+    ...(input.actorPhoneNumber ? { actorPhoneNumber: input.actorPhoneNumber } : {}),
+    ...(input.metadata ? { metadata: input.metadata } : {}),
+  });
 };
 
 const loadConversationLock = async (
@@ -223,7 +278,7 @@ export const ensureActiveConversation = internalMutation({
     companyId: v.id("companies"),
     phoneNumber: v.string(),
   },
-  handler: async (ctx, args): Promise<ConversationDto> => {
+  handler: async (ctx, args): Promise<ConversationStateDto> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
     const existing = await listActiveConversations(ctx, args.companyId, phoneNumber);
     if (existing[0]) {
@@ -250,7 +305,7 @@ export const getOrCreateActiveConversation = internalAction({
     phoneNumber: v.string(),
     now: v.optional(v.number()),
   },
-  handler: async (ctx, args): Promise<ConversationDto> => {
+  handler: async (ctx, args): Promise<ConversationStateDto> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
     const ownerToken = crypto.randomUUID();
     const key = getConversationLockKey(args.companyId, phoneNumber);
@@ -300,6 +355,91 @@ export const getOrCreateActiveConversation = internalAction({
   },
 });
 
+export const getOrCreateConversationForInbound = internalAction({
+  args: {
+    companyId: v.id("companies"),
+    phoneNumber: v.string(),
+    now: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<ConversationStateDto> => {
+    const phoneNumber = normalizePhoneNumber(args.phoneNumber);
+    const ownerToken = crypto.randomUUID();
+    const key = getConversationLockKey(args.companyId, phoneNumber);
+    const startedAt = normalizeTimestamp(args.now, Date.now());
+    const deadline = startedAt + MAX_CONVERSATION_LOCK_WAIT_MS;
+    let currentNow = startedAt;
+
+    for (;;) {
+      const acquisitionNow = args.now === undefined ? normalizeTimestamp(undefined, Date.now()) : currentNow;
+      const acquisition = await ctx.runMutation(internal.conversations.acquireConversationLock, {
+        key,
+        now: acquisitionNow,
+        ownerToken,
+      });
+
+      if (acquisition.acquired) {
+        break;
+      }
+
+      const sleepMs = Math.min(acquisition.waitMs, CONVERSATION_LOCK_POLL_MS);
+      const deadlineNow = args.now === undefined ? normalizeTimestamp(undefined, Date.now()) : currentNow;
+      if (deadlineNow + sleepMs > deadline) {
+        throw new Error(
+          `Timeout acquiring conversation lock for companyId=${args.companyId} phoneNumber=${phoneNumber}`,
+        );
+      }
+
+      if (args.now !== undefined) {
+        currentNow += sleepMs;
+      }
+      await sleep(sleepMs);
+    }
+
+    try {
+      const existing = await ctx.runQuery(internal.conversations.getConversationByPhone, {
+        companyId: args.companyId,
+        phoneNumber,
+      });
+      if (existing) {
+        return existing;
+      }
+
+      return await ctx.runMutation(internal.conversations.ensureActiveConversation, {
+        companyId: args.companyId,
+        phoneNumber,
+      });
+    } finally {
+      await ctx.runMutation(internal.conversations.releaseConversationLock, {
+        key,
+        ownerToken,
+      });
+    }
+  },
+});
+
+export const getConversationByPhone = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    phoneNumber: v.string(),
+  },
+  handler: async (ctx, args): Promise<ConversationStateDto | null> => {
+    const phoneNumber = normalizePhoneNumber(args.phoneNumber);
+    const conversation = await loadConversationByPhone(ctx, args.companyId, phoneNumber);
+    return conversation ? toConversationDto(conversation) : null;
+  },
+});
+
+export const getConversation = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+  },
+  handler: async (ctx, args): Promise<ConversationStateDto> => {
+    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    return toConversationDto(conversation);
+  },
+});
+
 export const appendConversationMessage = internalMutation({
   args: {
     companyId: v.id("companies"),
@@ -308,7 +448,7 @@ export const appendConversationMessage = internalMutation({
     content: v.string(),
     timestamp: v.optional(v.number()),
   },
-  handler: async (ctx, args): Promise<MessageDto> => {
+  handler: async (ctx, args): Promise<ConversationMessageDto> => {
     await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const content = normalizeMessageContent(args.content);
     const timestamp = normalizeTimestamp(args.timestamp, Date.now());
@@ -334,7 +474,7 @@ export const listConversationMessages = internalQuery({
     conversationId: v.id("conversations"),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args): Promise<MessageDto[]> => {
+  handler: async (ctx, args): Promise<ConversationMessageDto[]> => {
     await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const limit = normalizeOptionalLimit(args.limit);
 
@@ -354,6 +494,25 @@ export const listConversationMessages = internalQuery({
       .order("asc")
       .collect();
     return messages.map(toMessageDto);
+  },
+});
+
+export const listDueAutoResumeConversations = internalQuery({
+  args: {
+    now: v.number(),
+    limit: v.number(),
+  },
+  handler: async (ctx, args): Promise<ConversationStateDto[]> => {
+    const now = normalizeTimestamp(args.now, Date.now());
+    const limit = normalizePositiveInteger(args.limit, "limit");
+    const conversations = await ctx.db
+      .query("conversations")
+      .withIndex("by_muted_next_auto_resume_at", (q) => q.eq("muted", true).lte("nextAutoResumeAt", now))
+      .take(limit);
+
+    return conversations
+      .filter((conversation) => typeof conversation.nextAutoResumeAt === "number" && conversation.nextAutoResumeAt <= now)
+      .map(toConversationDto);
   },
 });
 
@@ -436,5 +595,120 @@ export const trimConversationMessages = internalMutation({
       deletedCount,
       remainingCount: totalMessages - deletedCount,
     };
+  },
+});
+
+export const startHandoff = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    triggerTimestamp: v.optional(v.number()),
+    source: v.union(
+      v.literal("assistant_action"),
+      v.literal("provider_failure_fallback"),
+      v.literal("invalid_model_output_fallback"),
+      v.literal("api_manual"),
+    ),
+    reason: v.optional(v.string()),
+    actorPhoneNumber: v.optional(v.string()),
+    metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
+  },
+  handler: async (ctx, args): Promise<ConversationStateDto> => {
+    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    if (conversation.muted) {
+      return toConversationDto(conversation);
+    }
+
+    const triggerTimestamp = normalizeTimestamp(args.triggerTimestamp, Date.now());
+    const reason = normalizeOptionalString(args.reason, "reason");
+    const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, "actorPhoneNumber");
+
+    await ctx.db.patch(conversation._id, {
+      muted: true,
+      mutedAt: triggerTimestamp,
+      lastCustomerMessageAt: triggerTimestamp,
+      nextAutoResumeAt: triggerTimestamp + AUTO_RESUME_IDLE_MS,
+    });
+
+    await insertConversationStateEvent(ctx, {
+      companyId: args.companyId,
+      conversationId: conversation._id,
+      phoneNumber: conversation.phoneNumber,
+      eventType: "handoff_started",
+      timestamp: triggerTimestamp,
+      source: args.source,
+      ...(reason ? { reason } : {}),
+      ...(actorPhoneNumber ? { actorPhoneNumber } : {}),
+      ...(args.metadata ? { metadata: args.metadata } : {}),
+    });
+
+    const updatedConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    return toConversationDto(updatedConversation);
+  },
+});
+
+export const resumeConversation = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    resumedAt: v.optional(v.number()),
+    source: v.union(v.literal("api_manual"), v.literal("worker_auto")),
+    reason: v.optional(v.string()),
+    actorPhoneNumber: v.optional(v.string()),
+    metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
+  },
+  handler: async (ctx, args): Promise<ConversationStateDto> => {
+    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    if (!conversation.muted) {
+      return toConversationDto(conversation);
+    }
+
+    const resumedAt = normalizeTimestamp(args.resumedAt, Date.now());
+    const reason = normalizeOptionalString(args.reason, "reason");
+    const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, "actorPhoneNumber");
+
+    await ctx.db.patch(conversation._id, {
+      muted: false,
+      mutedAt: undefined,
+      nextAutoResumeAt: undefined,
+    });
+
+    await insertConversationStateEvent(ctx, {
+      companyId: args.companyId,
+      conversationId: conversation._id,
+      phoneNumber: conversation.phoneNumber,
+      eventType: args.source === "api_manual" ? "handoff_resumed_manual" : "handoff_resumed_auto",
+      timestamp: resumedAt,
+      source: args.source,
+      ...(reason ? { reason } : {}),
+      ...(actorPhoneNumber ? { actorPhoneNumber } : {}),
+      ...(args.metadata ? { metadata: args.metadata } : {}),
+    });
+
+    const updatedConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    return toConversationDto(updatedConversation);
+  },
+});
+
+export const recordMutedCustomerActivity = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    timestamp: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<ConversationStateDto> => {
+    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    if (!conversation.muted) {
+      throw new Error("Conversation is not muted");
+    }
+
+    const timestamp = normalizeTimestamp(args.timestamp, Date.now());
+    await ctx.db.patch(conversation._id, {
+      lastCustomerMessageAt: timestamp,
+      nextAutoResumeAt: timestamp + AUTO_RESUME_IDLE_MS,
+    });
+
+    const updatedConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    return toConversationDto(updatedConversation);
   },
 });

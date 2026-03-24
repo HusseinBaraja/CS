@@ -24,6 +24,20 @@ const createClientStub = () => {
     },
     mutation: async (_reference, args) => {
       mutationCalls.push(args);
+      if (typeof args === "object" && args !== null && "eventType" in (args as Record<string, unknown>)) {
+        return undefined;
+      }
+
+      if (typeof args === "object" && args !== null && "source" in (args as Record<string, unknown>)) {
+        return {
+          id: "conversation-1",
+          companyId: "company-1",
+          phoneNumber: "967700000001",
+          muted: (args as { source?: string }).source !== "worker_auto",
+          ...(typeof (args as { resumedAt?: number }).resumedAt === "number" ? {} : { mutedAt: 1_000 }),
+        };
+      }
+
       return {
         id: "message-1",
         conversationId: "conversation-1",
@@ -34,6 +48,19 @@ const createClientStub = () => {
     },
     query: async (_reference, args) => {
       queryCalls.push(args);
+      if (typeof args === "object" && args !== null && "conversationId" in (args as Record<string, unknown>) && "limit" in (args as Record<string, unknown>)) {
+        return [];
+      }
+
+      if (typeof args === "object" && args !== null && "conversationId" in (args as Record<string, unknown>)) {
+        return {
+          id: "conversation-1",
+          companyId: "company-1",
+          phoneNumber: "967700000001",
+          muted: false,
+        };
+      }
+
       return [];
     },
   };
@@ -121,10 +148,39 @@ describe("createConvexConversationStore", () => {
       conversationId: "conversation-1",
       limit: 20,
     });
+    await store.getOrCreateConversationForInbound("company-1", "967700000001");
+    await store.startHandoff({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      triggerTimestamp: 2_000,
+      source: "assistant_action",
+    });
+    await store.recordMutedCustomerActivity({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      timestamp: 3_000,
+    });
+    await store.getConversation({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+    });
+    await store.listRecentMessages({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      limit: 6,
+    });
+    await store.recordAnalyticsEvent({
+      companyId: "company-1",
+      eventType: "handoff_started",
+      timestamp: 4_000,
+      payload: {
+        source: "assistant_action",
+      },
+    });
 
-    expect(actionCalls).toHaveLength(1);
-    expect(mutationCalls).toHaveLength(1);
-    expect(queryCalls).toHaveLength(1);
+    expect(actionCalls).toHaveLength(2);
+    expect(mutationCalls).toHaveLength(4);
+    expect(queryCalls).toHaveLength(3);
   });
 
   test("creates the client once and reuses it across store operations", async () => {

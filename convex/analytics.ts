@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalQuery, type QueryCtx } from './_generated/server';
+import { internalMutation, internalQuery, type QueryCtx } from './_generated/server';
 import {
   ANALYTICS_COUNTED_EVENT_TYPES,
   ANALYTICS_PRODUCT_LINKED_EVENT_TYPES,
@@ -406,5 +406,36 @@ export const summary = internalQuery({
       },
       topProducts: validTopProducts,
     };
+  },
+});
+
+export const recordEvent = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    eventType: v.union(
+      v.literal("customer_message_received"),
+      v.literal("assistant_message_sent"),
+      v.literal("product_search"),
+      v.literal("clarification_requested"),
+      v.literal("catalog_sent"),
+      v.literal("image_sent"),
+      v.literal("handoff_started"),
+      v.literal("ai_response_sent"),
+    ),
+    timestamp: v.number(),
+    payload: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const company = await ctx.db.get(args.companyId);
+    if (!company) {
+      throw new Error("Company not found");
+    }
+
+    await ctx.db.insert("analyticsEvents", {
+      companyId: args.companyId,
+      eventType: args.eventType,
+      timestamp: args.timestamp,
+      ...(args.payload ? { payload: args.payload } : {}),
+    });
   },
 });

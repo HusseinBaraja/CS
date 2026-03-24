@@ -272,6 +272,35 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     expect(summary?.performance.averageResponseTimeMs).toBe(1500);
   });
 
+  it("records analytics events through the internal mutation", async () => {
+    freezeNow();
+    const t = convexTest(schema, modules);
+
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000811",
+        timezone: "Asia/Aden",
+      }),
+    );
+
+    await t.mutation(internal.analytics.recordEvent, {
+      companyId,
+      eventType: "handoff_started",
+      timestamp: Date.parse("2026-03-12T09:06:00.000Z"),
+      payload: {
+        source: "assistant_action",
+      },
+    });
+
+    const summary = await t.query(internal.analytics.summary, {
+      companyId,
+      period: "today",
+    });
+
+    expect(summary?.counts.handoffs).toBe(1);
+  });
+
   it("ignores malformed or negative response times", async () => {
     freezeNow();
     const t = convexTest(schema, modules);

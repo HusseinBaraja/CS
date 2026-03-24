@@ -1,6 +1,10 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
-import { BOT_RUNTIME_SESSION_STATES } from '@cs/shared';
+import {
+  BOT_RUNTIME_SESSION_STATES,
+  CONVERSATION_STATE_EVENT_SOURCES,
+  CONVERSATION_STATE_EVENT_TYPES,
+} from '@cs/shared';
 
 // ── Reusable field patterns ──────────────────────────────────────────────────
 const flexRecord = v.record(
@@ -27,6 +31,12 @@ const mediaCleanupStatusValidator = v.union(
   v.literal("retry"),
   v.literal("completed"),
   v.literal("failed"),
+);
+const conversationStateEventTypeValidator = v.union(
+  ...CONVERSATION_STATE_EVENT_TYPES.map((eventType) => v.literal(eventType)),
+);
+const conversationStateEventSourceValidator = v.union(
+  ...CONVERSATION_STATE_EVENT_SOURCES.map((source) => v.literal(source)),
 );
 const [
   initializingState,
@@ -197,7 +207,26 @@ export default defineSchema({
     phoneNumber: v.string(),
     muted: v.boolean(), // Default: false
     mutedAt: v.optional(v.number()),
-  }).index("by_company_phone_and_muted", ["companyId", "phoneNumber", "muted"]),
+    lastCustomerMessageAt: v.optional(v.number()),
+    nextAutoResumeAt: v.optional(v.number()),
+  })
+    .index("by_company_phone", ["companyId", "phoneNumber"])
+    .index("by_company_phone_and_muted", ["companyId", "phoneNumber", "muted"])
+    .index("by_muted_next_auto_resume_at", ["muted", "nextAutoResumeAt"]),
+
+  conversationStateEvents: defineTable({
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    phoneNumber: v.string(),
+    eventType: conversationStateEventTypeValidator,
+    timestamp: v.number(),
+    source: conversationStateEventSourceValidator,
+    reason: v.optional(v.string()),
+    actorPhoneNumber: v.optional(v.string()),
+    metadata: v.optional(flexRecord),
+  })
+    .index("by_conversation_time", ["conversationId", "timestamp"])
+    .index("by_company_time", ["companyId", "timestamp"]),
 
   // ── Messages ────────────────────────────────────────────────────────────
   messages: defineTable({

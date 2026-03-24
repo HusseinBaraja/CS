@@ -7,6 +7,7 @@ export interface HealthStatus {
 
 export * from "./analytics";
 export * from "./companyRuntime";
+export * from "./conversations";
 export * from "./errors";
 export * from "./inbound";
 export * from "./outbound";

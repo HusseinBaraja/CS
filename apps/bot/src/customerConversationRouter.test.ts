@@ -128,7 +128,45 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
     phoneNumber: "967700000001",
     muted: false,
   }),
+  getOrCreateConversationForInbound: async () => ({
+    id: "conversation-1",
+    companyId: "company-1",
+    phoneNumber: "967700000001",
+    muted: false,
+  }),
+  getConversation: async () => ({
+    id: "conversation-1",
+    companyId: "company-1",
+    phoneNumber: "967700000001",
+    muted: false,
+  }),
   getPromptHistory: async () => [],
+  listRecentMessages: async () => [],
+  recordAnalyticsEvent: async () => undefined,
+  recordMutedCustomerActivity: async () => ({
+    id: "conversation-1",
+    companyId: "company-1",
+    phoneNumber: "967700000001",
+    muted: true,
+    mutedAt: 1_000,
+    lastCustomerMessageAt: 1_000,
+    nextAutoResumeAt: 2_000,
+  }),
+  resumeConversation: async () => ({
+    id: "conversation-1",
+    companyId: "company-1",
+    phoneNumber: "967700000001",
+    muted: false,
+  }),
+  startHandoff: async () => ({
+    id: "conversation-1",
+    companyId: "company-1",
+    phoneNumber: "967700000001",
+    muted: true,
+    mutedAt: 1_000,
+    lastCustomerMessageAt: 1_000,
+    nextAutoResumeAt: 2_000,
+  }),
   trimConversationMessages: async () => ({
     deletedCount: 0,
     remainingCount: 0,
@@ -160,7 +198,7 @@ describe("createCustomerConversationRouter", () => {
           timestamp: input.timestamp,
         };
       },
-      getOrCreateActiveConversation: async () => ({
+      getOrCreateConversationForInbound: async () => ({
         id: "conversation-1",
         companyId: "company-1",
         phoneNumber: "967700000001",
@@ -213,7 +251,7 @@ describe("createCustomerConversationRouter", () => {
         content: input.content,
         timestamp: input.timestamp,
       }),
-      getOrCreateActiveConversation: async () => ({
+      getOrCreateConversationForInbound: async () => ({
         id: "conversation-1",
         companyId: "company-1",
         phoneNumber: "967700000001",
@@ -333,6 +371,175 @@ describe("createCustomerConversationRouter", () => {
     expect(errorCalls).toEqual([]);
   });
 
+  test("records muted customer activity and skips orchestration for muted conversations", async () => {
+    let orchestratorCalled = false;
+    const store = createStore({
+      getOrCreateConversationForInbound: async () => ({
+        id: "conversation-1",
+        companyId: "company-1",
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+        nextAutoResumeAt: 2_000,
+      }),
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async () => {
+        orchestratorCalled = true;
+        return createCatalogChatResult("Assistant reply");
+      },
+    };
+    const { logger } = createLogger();
+    const { outbound, sent } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(orchestratorCalled).toBe(false);
+    expect(sent).toEqual([]);
+  });
+
+  test("starts handoff, records analytics, and notifies the owner when the assistant requests handoff", async () => {
+    const operations: string[] = [];
+    const store = createStore({
+      appendAssistantMessage: async (input) => {
+        operations.push(`assistant:${input.content}`);
+        return {
+          id: "assistant",
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: input.content,
+          timestamp: input.timestamp,
+        };
+      },
+      appendUserMessage: async (input) => {
+        operations.push(`user:${input.content}`);
+        return {
+          id: "user",
+          conversationId: input.conversationId,
+          role: "user",
+          content: input.content,
+          timestamp: input.timestamp,
+        };
+      },
+      listRecentMessages: async () => [
+        {
+          id: "user-1",
+          conversationId: "conversation-1",
+          role: "user",
+          content: "hello",
+          timestamp: 1_000,
+        },
+        {
+          id: "assistant-1",
+          conversationId: "conversation-1",
+          role: "assistant",
+          content: "Connecting you with the team.",
+          timestamp: 2_000,
+        },
+      ],
+      recordAnalyticsEvent: async () => {
+        operations.push("analytics");
+      },
+      startHandoff: async () => {
+        operations.push("handoff");
+        return {
+          id: "conversation-1",
+          companyId: "company-1",
+          phoneNumber: "967700000001",
+          muted: true,
+          mutedAt: 2_000,
+          lastCustomerMessageAt: 2_000,
+          nextAutoResumeAt: 3_000,
+        };
+      },
+      trimConversationMessages: async (input) => {
+        operations.push(`trim:${input.maxMessages}`);
+        return {
+          deletedCount: 0,
+          remainingCount: input.maxMessages,
+        };
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async () => ({
+        ...createCatalogChatResult("Connecting you with the team."),
+        assistant: {
+          schemaVersion: "v1" as const,
+          text: "Connecting you with the team.",
+          action: { type: "handoff" as const },
+        },
+      }),
+    };
+    const { logger, errorCalls } = createLogger();
+    const { outbound, sent } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+      now: () => 2_000,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(operations).toEqual([
+      "user:hello",
+      "assistant:Connecting you with the team.",
+      "handoff",
+      "analytics",
+      "trim:20",
+    ]);
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toEqual({
+      recipientJid: "967700000001@s.whatsapp.net",
+      text: "Connecting you with the team.",
+    });
+    expect(sent[1]?.recipientJid).toBe("966500000000@s.whatsapp.net");
+    expect(sent[1]?.text).toContain("Trigger: assistant handoff action");
+    expect(errorCalls).toEqual([]);
+  });
+
+  test("does not start handoff for low-signal fallback responses", async () => {
+    let handoffStarted = false;
+    const store = createStore({
+      startHandoff: async () => {
+        handoffStarted = true;
+        return {
+          id: "conversation-1",
+          companyId: "company-1",
+          phoneNumber: "967700000001",
+          muted: true,
+        };
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async () => ({
+        ...createCatalogChatResult("I couldn't confidently match your request."),
+        outcome: "low_signal_fallback",
+      }),
+    };
+    const { logger } = createLogger();
+    const { outbound, sent } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(handoffStarted).toBe(false);
+    expect(sent).toEqual([{
+      recipientJid: "967700000001@s.whatsapp.net",
+      text: "I couldn't confidently match your request.",
+    }]);
+  });
+
   test("stops before orchestration when history loading fails", async () => {
     let orchestratorCalled = false;
     const store = createStore({
@@ -407,7 +614,7 @@ describe("createCustomerConversationRouter", () => {
           timestamp: input.timestamp,
         };
       },
-      getOrCreateActiveConversation: async () => ({
+      getOrCreateConversationForInbound: async () => ({
         id: "conversation-1",
         companyId: "company-1",
         phoneNumber: "967700000001",
@@ -457,7 +664,7 @@ describe("createCustomerConversationRouter", () => {
         content: input.content,
         timestamp: input.timestamp,
       }),
-      getOrCreateActiveConversation: async (companyId) => {
+      getOrCreateConversationForInbound: async (companyId) => {
         companyIds.push(companyId);
         return {
           id: `conversation-${companyId}`,
@@ -501,7 +708,7 @@ describe("createCustomerConversationRouter", () => {
       appendUserMessage: async () => {
         throw new Error("persist failed");
       },
-      getOrCreateActiveConversation: async () => ({
+      getOrCreateConversationForInbound: async () => ({
         id: "conversation-1",
         companyId: "company-1",
         phoneNumber: "967700000001",
@@ -544,7 +751,7 @@ describe("createCustomerConversationRouter", () => {
         content: input.content,
         timestamp: input.timestamp,
       }),
-      getOrCreateActiveConversation: async () => ({
+      getOrCreateConversationForInbound: async () => ({
         id: "conversation-1",
         companyId: "company-1",
         phoneNumber: "967700000001",
@@ -583,7 +790,7 @@ describe("createCustomerConversationRouter", () => {
         content: input.content,
         timestamp: input.timestamp,
       }),
-      getOrCreateActiveConversation: async () => ({
+      getOrCreateConversationForInbound: async () => ({
         id: "conversation-1",
         companyId: "company-1",
         phoneNumber: "967700000001",
@@ -663,7 +870,7 @@ describe("createCustomerConversationRouter", () => {
         usedRouterDependencies = true;
         throw new Error("should not run");
       },
-      getOrCreateActiveConversation: async () => {
+      getOrCreateConversationForInbound: async () => {
         usedRouterDependencies = true;
         throw new Error("should not run");
       },
