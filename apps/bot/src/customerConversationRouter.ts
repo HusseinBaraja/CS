@@ -1,7 +1,7 @@
 import type { CatalogChatOrchestrator } from '@cs/rag';
 import type { NormalizedInboundMessage } from '@cs/shared';
 import type { InboundRouteContext } from './sessionManager';
-import type { ConversationStore } from './conversationStore';
+import { toCompanyId, type ConversationStore } from './conversationStore';
 
 export interface CustomerConversationLogger {
   error(payload: unknown, message: string): void;
@@ -97,7 +97,7 @@ export const createCustomerConversationRouter = (
     try {
       const response = await options.catalogChatOrchestrator.respond({
         tenant: {
-          companyId: message.companyId as never,
+          companyId: toCompanyId(message.companyId),
         },
         conversation: {
           conversationId,

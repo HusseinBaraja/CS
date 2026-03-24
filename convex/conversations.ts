@@ -6,6 +6,8 @@ import { internalAction, internalMutation, internalQuery, type DatabaseReader, t
 
 const CONVERSATION_LOCK_LEASE_MS = 5_000;
 const CONVERSATION_LOCK_POLL_MS = 100;
+const MAX_CONVERSATION_LOCK_WAIT_MS = 500;
+const TRIM_MESSAGES_BATCH_SIZE = 100;
 
 type ConversationDto = {
   id: string;
@@ -252,11 +254,14 @@ export const getOrCreateActiveConversation = internalAction({
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
     const ownerToken = crypto.randomUUID();
     const key = getConversationLockKey(args.companyId, phoneNumber);
+    const startedAt = normalizeTimestamp(args.now, Date.now());
+    const deadline = startedAt + MAX_CONVERSATION_LOCK_WAIT_MS;
+    let currentNow = startedAt;
 
     for (;;) {
       const acquisition = await ctx.runMutation(internal.conversations.acquireConversationLock, {
         key,
-        now: normalizeTimestamp(args.now, Date.now()),
+        now: currentNow,
         ownerToken,
       });
 
@@ -264,7 +269,15 @@ export const getOrCreateActiveConversation = internalAction({
         break;
       }
 
-      await sleep(Math.min(acquisition.waitMs, CONVERSATION_LOCK_POLL_MS));
+      const sleepMs = Math.min(acquisition.waitMs, CONVERSATION_LOCK_POLL_MS);
+      if (currentNow + sleepMs > deadline) {
+        throw new Error(
+          `Timeout acquiring conversation lock for companyId=${args.companyId} phoneNumber=${phoneNumber}`,
+        );
+      }
+
+      currentNow += sleepMs;
+      await sleep(sleepMs);
     }
 
     try {
@@ -364,27 +377,52 @@ export const trimConversationMessages = internalMutation({
   handler: async (ctx, args): Promise<TrimConversationMessagesResult> => {
     await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const maxMessages = normalizePositiveInteger(args.maxMessages, "maxMessages");
-    const messages = await ctx.db
-      .query("messages")
-      .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
-      .order("asc")
-      .collect();
+    let totalMessages = 0;
+    let cursor: string | null = null;
 
-    const excessCount = Math.max(messages.length - maxMessages, 0);
+    for (;;) {
+      const page = await ctx.db
+        .query("messages")
+        .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
+        .paginate({
+          cursor,
+          numItems: TRIM_MESSAGES_BATCH_SIZE,
+        });
+
+      totalMessages += page.page.length;
+      if (page.isDone || page.page.length === 0) {
+        break;
+      }
+
+      cursor = page.continueCursor;
+    }
+
+    const excessCount = Math.max(totalMessages - maxMessages, 0);
     if (excessCount === 0) {
       return {
         deletedCount: 0,
-        remainingCount: messages.length,
+        remainingCount: totalMessages,
       };
     }
 
-    for (const message of messages.slice(0, excessCount)) {
-      await ctx.db.delete(message._id);
+    let deletedCount = 0;
+    while (deletedCount < excessCount) {
+      const batchSize = Math.min(TRIM_MESSAGES_BATCH_SIZE, excessCount - deletedCount);
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
+        .order("asc")
+        .take(batchSize);
+
+      for (const message of messages) {
+        await ctx.db.delete(message._id);
+        deletedCount += 1;
+      }
     }
 
     return {
-      deletedCount: excessCount,
-      remainingCount: messages.length - excessCount,
+      deletedCount,
+      remainingCount: totalMessages - deletedCount,
     };
   },
 });

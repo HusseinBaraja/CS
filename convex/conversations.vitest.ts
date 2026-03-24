@@ -212,7 +212,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages.map((message) => message.content)).toEqual(["second", "third"]);
   });
 
-  it("returns prompt history as ascending prompt turns", async () => {
+  it("returns the latest prompt turns in ascending order for synthetic timestamps", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
       ctx.db.insert("companies", {
@@ -259,6 +259,65 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(history).toEqual([
       { role: "assistant", text: "second" },
       { role: "assistant", text: "third" },
+    ]);
+  });
+
+  it("returns realistic interleaved prompt history in chronological order", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "first question",
+      timestamp: 1_000,
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "first answer",
+      timestamp: 2_000,
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "follow up",
+      timestamp: 3_000,
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "second answer",
+      timestamp: 4_000,
+    });
+
+    const history = await t.query(internal.conversations.getPromptHistory, {
+      companyId,
+      conversationId,
+      limit: 4,
+    });
+
+    expect(history).toEqual([
+      { role: "user", text: "first question" },
+      { role: "assistant", text: "first answer" },
+      { role: "user", text: "follow up" },
+      { role: "assistant", text: "second answer" },
     ]);
   });
 
@@ -410,6 +469,51 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     });
   });
 
+  it("trims large conversations across multiple batches", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    for (let index = 1; index <= 205; index += 1) {
+      await t.mutation(internal.conversations.appendConversationMessage, {
+        companyId,
+        conversationId,
+        role: index % 2 === 0 ? "assistant" : "user",
+        content: `message-${index}`,
+        timestamp: index,
+      });
+    }
+
+    const trimResult = await t.mutation(internal.conversations.trimConversationMessages, {
+      companyId,
+      conversationId,
+      maxMessages: 20,
+    });
+    const remainingMessages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+    });
+
+    expect(trimResult).toEqual({
+      deletedCount: 185,
+      remainingCount: 20,
+    });
+    expect(remainingMessages).toHaveLength(20);
+    expect(remainingMessages[0]?.content).toBe("message-186");
+    expect(remainingMessages.at(-1)?.content).toBe("message-205");
+  });
+
   it("rejects trims for the wrong company", async () => {
     const t = convexTest(schema, modules);
     const companyA = await t.run(async (ctx) =>
@@ -480,5 +584,34 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
         .collect()
     );
     expect(stored).toHaveLength(2);
+  });
+
+  it("times out when the conversation lock remains held", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const phoneNumber = "967700000001";
+    const now = 1_000;
+
+    await t.run(async (ctx) =>
+      ctx.db.insert("jobLocks", {
+        key: `conversation:${companyId}:${phoneNumber}`,
+        ownerToken: "another-owner",
+        acquiredAt: now,
+        expiresAt: now + 60_000,
+      })
+    );
+
+    await expect(
+      t.action(internal.conversations.getOrCreateActiveConversation, {
+        companyId,
+        phoneNumber,
+        now,
+      }),
+    ).rejects.toThrow(`Timeout acquiring conversation lock for companyId=${companyId} phoneNumber=${phoneNumber}`);
   });
 });

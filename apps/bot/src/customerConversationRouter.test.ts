@@ -58,14 +58,24 @@ const createMessage = (
 
 const createLogger = () => {
   const errorCalls: Array<{ payload: unknown; message: string }> = [];
+  const warnCalls: Array<{ payload: unknown; message: string }> = [];
+  const infoCalls: Array<{ payload: unknown; message: string }> = [];
 
   return {
     logger: {
       error: (payload: unknown, message: string) => {
         errorCalls.push({ payload, message });
       },
+      warn: (payload: unknown, message: string) => {
+        warnCalls.push({ payload, message });
+      },
+      info: (payload: unknown, message: string) => {
+        infoCalls.push({ payload, message });
+      },
     },
     errorCalls,
+    warnCalls,
+    infoCalls,
   };
 };
 
@@ -643,24 +653,24 @@ describe("createCustomerConversationRouter", () => {
   });
 
   test("logs and stops when outbound is unavailable", async () => {
-    let usedStore = false;
+    let usedRouterDependencies = false;
     const store = createStore({
       appendAssistantMessage: async () => {
-        usedStore = true;
+        usedRouterDependencies = true;
         throw new Error("should not run");
       },
       appendUserMessage: async () => {
-        usedStore = true;
+        usedRouterDependencies = true;
         throw new Error("should not run");
       },
       getOrCreateActiveConversation: async () => {
-        usedStore = true;
+        usedRouterDependencies = true;
         throw new Error("should not run");
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async () => {
-        usedStore = true;
+        usedRouterDependencies = true;
         throw new Error("should not run");
       },
     };
@@ -673,7 +683,7 @@ describe("createCustomerConversationRouter", () => {
 
     await router(createMessage(), createContext());
 
-    expect(usedStore).toBe(false);
+    expect(usedRouterDependencies).toBe(false);
     expect(errorCalls[0]?.message).toBe("customer conversation outbound messenger unavailable");
   });
 });

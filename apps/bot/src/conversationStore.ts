@@ -40,31 +40,36 @@ export interface ConvexConversationStoreOptions {
   createClient?: () => ConvexAdminClient;
 }
 
-const toCompanyId = (companyId: string): Id<"companies"> => {
-  const normalizedCompanyId = companyId.trim();
-  if (normalizedCompanyId.length === 0) {
-    throw new Error("Invalid companyId: expected a non-empty Convex identifier");
+const CONVEX_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+const toConvexId = <TableName extends "companies" | "conversations">(
+  tableName: TableName,
+  rawValue: string,
+): Id<TableName> => {
+  const normalizedValue = rawValue.trim();
+  if (normalizedValue.length === 0 || !CONVEX_ID_PATTERN.test(normalizedValue)) {
+    throw new Error(
+      `Invalid ${tableName} id "${rawValue}": expected a non-empty identifier containing only letters, numbers, "_" or "-"`,
+    );
   }
 
-  return normalizedCompanyId as Id<"companies">;
+  return normalizedValue as Id<TableName>;
 };
 
-const toConversationId = (conversationId: string): Id<"conversations"> => {
-  const normalizedConversationId = conversationId.trim();
-  if (normalizedConversationId.length === 0) {
-    throw new Error("Invalid conversationId: expected a non-empty Convex identifier");
-  }
+export const toCompanyId = (companyId: string): Id<"companies"> => toConvexId("companies", companyId);
 
-  return normalizedConversationId as Id<"conversations">;
+const toConversationId = (conversationId: string): Id<"conversations"> => {
+  return toConvexId("conversations", conversationId);
 };
 
 export const createConvexConversationStore = (
   options: ConvexConversationStoreOptions = {},
 ): ConversationStore => {
   const createClient = options.createClient ?? createConvexAdminClient;
+  const client = createClient();
 
   const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> =>
-    callback(createClient());
+    callback(client);
 
   const appendMessage = (
     role: "user" | "assistant",
