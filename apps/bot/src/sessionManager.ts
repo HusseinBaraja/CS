@@ -81,9 +81,14 @@ export interface StartTenantSessionManagerOptions {
 }
 
 export interface InboundMessageRouter {
-  handleOwnerCommand(message: NormalizedInboundMessage): Promise<void>;
-  handleCustomerConversation(message: NormalizedInboundMessage): Promise<void>;
-  handleIgnored(event: IgnoredInboundEvent): Promise<void> | void;
+  handleOwnerCommand(message: NormalizedInboundMessage, context: InboundRouteContext): Promise<void>;
+  handleCustomerConversation(message: NormalizedInboundMessage, context: InboundRouteContext): Promise<void>;
+  handleIgnored(event: IgnoredInboundEvent, context: InboundRouteContext): Promise<void> | void;
+}
+
+export interface InboundRouteContext {
+  outbound?: OutboundMessenger;
+  profile: CompanyRuntimeProfile;
 }
 
 const defaultTimer: SessionManagerTimer = {
@@ -267,19 +272,24 @@ export const startTenantSessionManager = async (
     event: IgnoredInboundEvent | NormalizedInboundMessage,
     route?: "owner_command" | "customer_conversation",
   ): Promise<void> => {
+    const context: InboundRouteContext = {
+      profile,
+      outbound: sessions.get(profile.companyId)?.outbound,
+    };
+
     try {
       if (route === "owner_command") {
-        await inboundRouter.handleOwnerCommand(event as NormalizedInboundMessage);
+        await inboundRouter.handleOwnerCommand(event as NormalizedInboundMessage, context);
         return;
       }
 
       if (route === "customer_conversation") {
-        await inboundRouter.handleCustomerConversation(event as NormalizedInboundMessage);
+        await inboundRouter.handleCustomerConversation(event as NormalizedInboundMessage, context);
         return;
       }
 
       logIgnoredInboundEvent(profile, event as IgnoredInboundEvent);
-      await inboundRouter.handleIgnored(event as IgnoredInboundEvent);
+      await inboundRouter.handleIgnored(event as IgnoredInboundEvent, context);
     } catch (error) {
       botLogger.error(
         {

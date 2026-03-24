@@ -14,6 +14,7 @@
   "dependencies": {
     "@cs/ai": "*",
     "@cs/core": "*",
+    "@cs/db": "*",
     "@cs/rag": "*",
     "@whiskeysockets/baileys": "7.0.0-rc.9"
   },

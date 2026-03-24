@@ -15,6 +15,7 @@ export interface BotRuntimeConfig {
   sessionKey: string;
   authDir: string;
   browser: [string, string, string];
+  conversationHistoryWindowMessages: number;
   connectTimeoutMs: number;
   keepAliveIntervalMs: number;
   qrTimeoutMs: number;
@@ -30,6 +31,7 @@ export interface CreateBotRuntimeConfigOverrides {
   sessionKey?: string;
   authDir?: string;
   moduleDirectory?: string;
+  conversationHistoryWindowMessages?: number;
   connectTimeoutMs?: number;
   keepAliveIntervalMs?: number;
   qrTimeoutMs?: number;
@@ -91,6 +93,10 @@ export const createBotRuntimeConfig = (
     sessionKey,
     authDir: resolveAuthDir(overrides.authDir ?? env.BOT_AUTH_DIR, overrides.moduleDirectory),
     browser: Browsers.windows("CSCB Bot"),
+    conversationHistoryWindowMessages: assertPositiveInteger(
+      "BotRuntimeConfig.conversationHistoryWindowMessages",
+      overrides.conversationHistoryWindowMessages ?? env.CONVERSATION_HISTORY_WINDOW_MESSAGES,
+    ),
     connectTimeoutMs: assertPositiveInteger(
       "BotRuntimeConfig.connectTimeoutMs",
       overrides.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS,
