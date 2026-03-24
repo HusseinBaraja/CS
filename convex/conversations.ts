@@ -4,9 +4,9 @@ import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { internalAction, internalMutation, internalQuery, type DatabaseReader, type MutationCtx } from './_generated/server';
 
-const CONVERSATION_LOCK_LEASE_MS = 5_000;
+const CONVERSATION_LOCK_LEASE_MS = 1_000;
 const CONVERSATION_LOCK_POLL_MS = 100;
-const MAX_CONVERSATION_LOCK_WAIT_MS = 500;
+const MAX_CONVERSATION_LOCK_WAIT_MS = 1_500;
 const TRIM_MESSAGES_BATCH_SIZE = 100;
 
 type ConversationDto = {
@@ -259,9 +259,11 @@ export const getOrCreateActiveConversation = internalAction({
     let currentNow = startedAt;
 
     for (;;) {
+      const acquisitionNow =
+        args.now === undefined ? normalizeTimestamp(undefined, Date.now()) : currentNow;
       const acquisition = await ctx.runMutation(internal.conversations.acquireConversationLock, {
         key,
-        now: currentNow,
+        now: acquisitionNow,
         ownerToken,
       });
 
@@ -270,13 +272,17 @@ export const getOrCreateActiveConversation = internalAction({
       }
 
       const sleepMs = Math.min(acquisition.waitMs, CONVERSATION_LOCK_POLL_MS);
-      if (currentNow + sleepMs > deadline) {
+      const deadlineNow =
+        args.now === undefined ? normalizeTimestamp(undefined, Date.now()) : currentNow;
+      if (deadlineNow + sleepMs > deadline) {
         throw new Error(
           `Timeout acquiring conversation lock for companyId=${args.companyId} phoneNumber=${phoneNumber}`,
         );
       }
 
-      currentNow += sleepMs;
+      if (args.now !== undefined) {
+        currentNow += sleepMs;
+      }
       await sleep(sleepMs);
     }
 
