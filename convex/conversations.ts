@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import type { PromptHistoryTurn } from '@cs/ai';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { internalAction, internalMutation, internalQuery, type DatabaseReader, type MutationCtx } from './_generated/server';
@@ -29,6 +30,11 @@ type LockAcquireResult = {
   waitMs: number;
 };
 
+type TrimConversationMessagesResult = {
+  deletedCount: number;
+  remainingCount: number;
+};
+
 const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, delayMs);
@@ -55,6 +61,22 @@ const normalizeTimestamp = (timestamp: number | undefined, fallback: number): nu
   return Math.trunc(candidate);
 };
 
+const normalizePositiveInteger = (value: number, fieldName: string): number => {
+  if (!Number.isFinite(value)) {
+    throw new Error(`${fieldName} must be a finite number`);
+  }
+
+  const normalized = Math.trunc(value);
+  if (normalized <= 0) {
+    throw new Error(`${fieldName} must be a positive integer`);
+  }
+
+  return normalized;
+};
+
+const normalizeOptionalLimit = (limit: number | undefined): number | undefined =>
+  limit === undefined ? undefined : normalizePositiveInteger(limit, "limit");
+
 const normalizeMessageContent = (content: string): string => {
   const normalized = content.trim();
   if (normalized.length === 0) {
@@ -78,6 +100,11 @@ const toMessageDto = (message: Doc<"messages">): MessageDto => ({
   role: message.role,
   content: message.content,
   timestamp: message.timestamp,
+});
+
+const toPromptHistoryTurn = (message: MessageDto): PromptHistoryTurn => ({
+  role: message.role,
+  text: message.content,
 });
 
 const listActiveConversations = async (
@@ -290,19 +317,74 @@ export const listConversationMessages = internalQuery({
   },
   handler: async (ctx, args): Promise<MessageDto[]> => {
     await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
-    const limit = args.limit !== undefined ? Math.max(0, Math.trunc(args.limit)) : undefined;
-
-    const query = ctx.db
-      .query("messages")
-      .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
-      .order("asc");
+    const limit = normalizeOptionalLimit(args.limit);
 
     if (limit !== undefined) {
-      const messages = await query.take(limit);
-      return messages.map(toMessageDto);
+      const latestMessages = await ctx.db
+        .query("messages")
+        .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
+        .order("desc")
+        .take(limit);
+
+      return latestMessages.reverse().map(toMessageDto);
     }
 
-    const messages = await query.collect();
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
+      .order("asc")
+      .collect();
     return messages.map(toMessageDto);
+  },
+});
+
+export const getPromptHistory = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    limit: v.number(),
+  },
+  handler: async (ctx, args): Promise<PromptHistoryTurn[]> => {
+    const messages = await ctx.runQuery(internal.conversations.listConversationMessages, {
+      companyId: args.companyId,
+      conversationId: args.conversationId,
+      limit: normalizePositiveInteger(args.limit, "limit"),
+    });
+
+    return messages.map(toPromptHistoryTurn);
+  },
+});
+
+export const trimConversationMessages = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    maxMessages: v.number(),
+  },
+  handler: async (ctx, args): Promise<TrimConversationMessagesResult> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const maxMessages = normalizePositiveInteger(args.maxMessages, "maxMessages");
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
+      .order("asc")
+      .collect();
+
+    const excessCount = Math.max(messages.length - maxMessages, 0);
+    if (excessCount === 0) {
+      return {
+        deletedCount: 0,
+        remainingCount: messages.length,
+      };
+    }
+
+    for (const message of messages.slice(0, excessCount)) {
+      await ctx.db.delete(message._id);
+    }
+
+    return {
+      deletedCount: excessCount,
+      remainingCount: messages.length - excessCount,
+    };
   },
 });

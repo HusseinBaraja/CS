@@ -29,6 +29,7 @@ describe("config", () => {
     expect(config.AI_REQUEST_TIMEOUT_MS).toBe(15_000);
     expect(config.AI_HEALTHCHECK_TIMEOUT_MS).toBe(5_000);
     expect(config.AI_MAX_RETRIES_PER_PROVIDER).toBe(1);
+    expect(config.CONVERSATION_HISTORY_WINDOW_MESSAGES).toBe(20);
     expect(config.CONVEX_URL).toBe("https://example.convex.cloud");
     expect(config.DEEPSEEK_API_KEY).toBeUndefined();
     expect(config.DEEPSEEK_BASE_URL).toBeUndefined();
@@ -178,6 +179,19 @@ describe("config", () => {
       })
     ).toThrow(
       new ConfigError("API_RATE_LIMIT_MAX_ENTRIES: Too small: expected number to be >0", {
+        code: ERROR_CODES.CONFIG_INVALID
+      })
+    );
+  });
+
+  test("rejects non-positive conversation history window sizes", () => {
+    expect(() =>
+      createConfig({
+        CONVERSATION_HISTORY_WINDOW_MESSAGES: 0,
+        CONVEX_URL: "https://example.convex.cloud"
+      })
+    ).toThrow(
+      new ConfigError("CONVERSATION_HISTORY_WINDOW_MESSAGES: Too small: expected number to be >0", {
         code: ERROR_CODES.CONFIG_INVALID
       })
     );

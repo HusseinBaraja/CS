@@ -521,6 +521,7 @@ describe("startTenantSessionManager", () => {
           sessionKey: overrides?.sessionKey ?? "missing",
           authDir: "/repo/data/bot/auth",
           browser: ["Windows", "CSCB Bot", "1.0.0"],
+          conversationHistoryWindowMessages: 20,
           connectTimeoutMs: 20_000,
           keepAliveIntervalMs: 30_000,
           qrTimeoutMs: 60_000,

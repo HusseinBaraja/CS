@@ -165,6 +165,282 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages.map((message) => message.content)).toEqual(["first", "second", "third"]);
   });
 
+  it("returns the latest limited messages in ascending timestamp order", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "first",
+      timestamp: 1_000,
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "second",
+      timestamp: 2_000,
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "third",
+      timestamp: 3_000,
+    });
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+      limit: 2,
+    });
+
+    expect(messages.map((message) => message.content)).toEqual(["second", "third"]);
+  });
+
+  it("returns prompt history as ascending prompt turns", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "third",
+      timestamp: 3_000,
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "first",
+      timestamp: 1_000,
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "second",
+      timestamp: 2_000,
+    });
+
+    const history = await t.query(internal.conversations.getPromptHistory, {
+      companyId,
+      conversationId,
+      limit: 2,
+    });
+
+    expect(history).toEqual([
+      { role: "assistant", text: "second" },
+      { role: "assistant", text: "third" },
+    ]);
+  });
+
+  it("returns empty prompt history for conversations without messages", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    const history = await t.query(internal.conversations.getPromptHistory, {
+      companyId,
+      conversationId,
+      limit: 20,
+    });
+
+    expect(history).toEqual([]);
+  });
+
+  it("rejects prompt history reads for the wrong company", async () => {
+    const t = convexTest(schema, modules);
+    const companyA = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const companyB = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant B",
+        ownerPhone: "966500000001",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId: companyA,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await expect(
+      t.query(internal.conversations.getPromptHistory, {
+        companyId: companyB,
+        conversationId,
+        limit: 20,
+      }),
+    ).rejects.toThrow("Conversation not found for company");
+  });
+
+  it("trims only the oldest excess messages for a conversation", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    for (let index = 1; index <= 23; index += 1) {
+      await t.mutation(internal.conversations.appendConversationMessage, {
+        companyId,
+        conversationId,
+        role: index % 2 === 0 ? "assistant" : "user",
+        content: `message-${index}`,
+        timestamp: index,
+      });
+    }
+
+    const trimResult = await t.mutation(internal.conversations.trimConversationMessages, {
+      companyId,
+      conversationId,
+      maxMessages: 20,
+    });
+    const remainingMessages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+    });
+
+    expect(trimResult).toEqual({
+      deletedCount: 3,
+      remainingCount: 20,
+    });
+    expect(remainingMessages).toHaveLength(20);
+    expect(remainingMessages[0]?.content).toBe("message-4");
+    expect(remainingMessages.at(-1)?.content).toBe("message-23");
+  });
+
+  it("makes trimming idempotent when the conversation is already within the limit", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    for (let index = 1; index <= 2; index += 1) {
+      await t.mutation(internal.conversations.appendConversationMessage, {
+        companyId,
+        conversationId,
+        role: "user",
+        content: `message-${index}`,
+        timestamp: index,
+      });
+    }
+
+    const firstTrim = await t.mutation(internal.conversations.trimConversationMessages, {
+      companyId,
+      conversationId,
+      maxMessages: 20,
+    });
+    const secondTrim = await t.mutation(internal.conversations.trimConversationMessages, {
+      companyId,
+      conversationId,
+      maxMessages: 20,
+    });
+
+    expect(firstTrim).toEqual({
+      deletedCount: 0,
+      remainingCount: 2,
+    });
+    expect(secondTrim).toEqual({
+      deletedCount: 0,
+      remainingCount: 2,
+    });
+  });
+
+  it("rejects trims for the wrong company", async () => {
+    const t = convexTest(schema, modules);
+    const companyA = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const companyB = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant B",
+        ownerPhone: "966500000001",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId: companyA,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await expect(
+      t.mutation(internal.conversations.trimConversationMessages, {
+        companyId: companyB,
+        conversationId,
+        maxMessages: 20,
+      }),
+    ).rejects.toThrow("Conversation not found for company");
+  });
+
   it("returns the oldest active conversation when duplicates already exist", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>

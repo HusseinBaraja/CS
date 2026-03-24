@@ -1,3 +1,4 @@
+import type { PromptHistoryTurn } from '@cs/ai';
 import { convexInternal, createConvexAdminClient, type ConvexAdminClient, type Id } from '@cs/db';
 
 export interface ConversationRecord {
@@ -27,6 +28,12 @@ export interface ConversationStore {
   getOrCreateActiveConversation(companyId: string, phoneNumber: string): Promise<ConversationRecord>;
   appendUserMessage(input: AppendConversationMessageInput): Promise<ConversationMessageRecord>;
   appendAssistantMessage(input: AppendConversationMessageInput): Promise<ConversationMessageRecord>;
+  getPromptHistory(input: { companyId: string; conversationId: string; limit: number }): Promise<PromptHistoryTurn[]>;
+  trimConversationMessages(input: {
+    companyId: string;
+    conversationId: string;
+    maxMessages: number;
+  }): Promise<{ deletedCount: number; remainingCount: number }>;
 }
 
 export interface ConvexConversationStoreOptions {
@@ -81,6 +88,22 @@ export const createConvexConversationStore = (
         client.action(convexInternal.conversations.getOrCreateActiveConversation, {
           companyId: toCompanyId(companyId),
           phoneNumber,
+        })
+      ),
+    getPromptHistory: (input) =>
+      withClient((client) =>
+        client.query(convexInternal.conversations.getPromptHistory, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          limit: input.limit,
+        })
+      ),
+    trimConversationMessages: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.trimConversationMessages, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          maxMessages: input.maxMessages,
         })
       ),
   };

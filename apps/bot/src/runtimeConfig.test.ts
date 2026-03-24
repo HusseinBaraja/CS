@@ -18,6 +18,7 @@ describe("createBotRuntimeConfig", () => {
     expect(config.browser[2].length).toBeGreaterThan(0);
     expect(config.markOnlineOnConnect).toBe(false);
     expect(config.syncFullHistory).toBe(false);
+    expect(config.conversationHistoryWindowMessages).toBe(20);
   });
 
   test("preserves absolute auth dirs", () => {
@@ -64,6 +65,15 @@ describe("createBotRuntimeConfig", () => {
         moduleDirectory: "/repo/apps/bot/src",
       })
     ).toThrow("BotRuntimeConfig.reconnectBackoff.maxDelayMs");
+  });
+
+  test("allows overriding the conversation history window size", () => {
+    const config = createBotRuntimeConfig({
+      conversationHistoryWindowMessages: 12,
+      moduleDirectory: "/repo/apps/bot/src",
+    });
+
+    expect(config.conversationHistoryWindowMessages).toBe(12);
   });
 });
 

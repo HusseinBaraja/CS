@@ -9,10 +9,13 @@ export interface CustomerConversationLogger {
 
 export interface CustomerConversationRouterOptions {
   catalogChatOrchestrator: CatalogChatOrchestrator;
+  conversationHistoryWindowMessages?: number;
   conversationStore: ConversationStore;
   logger: CustomerConversationLogger;
   now?: () => number;
 }
+
+const DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES = 20;
 
 const serializeInboundMessage = (message: NormalizedInboundMessage): string => {
   const text = message.content.text.trim();
@@ -37,6 +40,8 @@ export const createCustomerConversationRouter = (
   options: CustomerConversationRouterOptions,
 ): ((message: NormalizedInboundMessage, context: InboundRouteContext) => Promise<void>) => {
   const now = options.now ?? Date.now;
+  const conversationHistoryWindowMessages =
+    options.conversationHistoryWindowMessages ?? DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES;
 
   return async (message, context): Promise<void> => {
     if (!context.outbound) {
@@ -54,6 +59,7 @@ export const createCustomerConversationRouter = (
 
     const userMessage = serializeInboundMessage(message);
     let conversationId: string;
+    let history;
     try {
       const conversation = await options.conversationStore.getOrCreateActiveConversation(
         message.companyId,
@@ -66,6 +72,12 @@ export const createCustomerConversationRouter = (
         conversationId,
         content: userMessage,
         timestamp: message.occurredAtMs,
+      });
+
+      history = await options.conversationStore.getPromptHistory({
+        companyId: message.companyId,
+        conversationId,
+        limit: conversationHistoryWindowMessages,
       });
     } catch (error) {
       options.logger.error(
@@ -89,6 +101,7 @@ export const createCustomerConversationRouter = (
         },
         conversation: {
           conversationId,
+          history,
         },
         requestId: message.messageId,
         userMessage,
@@ -128,6 +141,26 @@ export const createCustomerConversationRouter = (
         "customer conversation assistant persistence failed",
       );
       return;
+    }
+
+    try {
+      await options.conversationStore.trimConversationMessages({
+        companyId: message.companyId,
+        conversationId,
+        maxMessages: conversationHistoryWindowMessages,
+      });
+    } catch (error) {
+      options.logger.error(
+        {
+          assistantText,
+          companyId: message.companyId,
+          conversationId,
+          error,
+          messageId: message.messageId,
+          sessionKey: message.sessionKey,
+        },
+        "customer conversation history trimming failed",
+      );
     }
 
     try {
