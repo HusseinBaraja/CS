@@ -25,10 +25,24 @@ const FEATURES = [
 
 export function SolutionSection() {
   const container = useRef<HTMLDivElement>(null);
-  
+
   useGSAP(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion) {
       gsap.set('.ed-feature .ed-number', { y: 0, opacity: 0.1 });
+
+      const animatedArtworkElements = container.current?.querySelectorAll<HTMLElement>(
+        '.solution-pulse-glow, .solution-spinning-diamond, .solution-ping-border, .solution-orbit-wrapper',
+      );
+
+      animatedArtworkElements?.forEach((element) => {
+        const animationClasses = [...element.classList].filter((className) => className.startsWith('animate-'));
+        if (animationClasses.length > 0) {
+          element.classList.remove(...animationClasses);
+        }
+      });
+
       return;
     }
 
@@ -42,9 +56,16 @@ export function SolutionSection() {
     });
 
     // Abstract Hero Animation
-    gsap.to('.ring-element', {
+    gsap.to('.ring-element:not(.ring-element--middle)', {
       rotate: 360,
       duration: 40,
+      repeat: -1,
+      ease: "linear"
+    });
+
+    gsap.to('.ring-element--middle', {
+      rotate: -360,
+      duration: 60,
       repeat: -1,
       ease: "linear"
     });
@@ -215,15 +236,9 @@ export function SolutionSection() {
                {/* Abstract Rings Background (Lower Opacity) */}
                <div className="absolute inset-0 flex items-center justify-center opacity-30">
                  <div className="ring-element w-[80%] aspect-square rounded-full border border-dashed border-secondary/60 absolute mix-blend-screen" />
-                 <div
-                   className="ring-element w-[60%] aspect-square rounded-full border border-secondary/30 absolute"
-                   style={{
-                     animationDirection: "reverse",
-                     animationDuration: "60s",
-                   }}
-                 />
+                 <div className="ring-element ring-element--middle w-[60%] aspect-square rounded-full border border-secondary/30 absolute" />
                  <div className="ring-element w-full aspect-square rounded-full border-2 border-secondary/10 absolute backdrop-blur-[2px]" />
-                 <div className="absolute w-32 md:w-48 h-32 md:h-48 rounded-full bg-linear-to-tr from-secondary/20 to-secondary/5 blur-3xl animate-[pulse_4s_infinite]" />
+                 <div className="solution-pulse-glow absolute w-32 md:w-48 h-32 md:h-48 rounded-full bg-linear-to-tr from-secondary/20 to-secondary/5 blur-3xl animate-[pulse_4s_infinite]" />
                </div>
                
                {/* Floating High-Contrast Core (100% Opacity) */}
@@ -235,12 +250,12 @@ export function SolutionSection() {
                    <div className="absolute -inset-full bg-linear-to-tr from-transparent via-white/10 to-transparent rotate-45 translate-x-1/2" />
                    
                    {/* Central Glowing Diamond */}
-                   <div className="w-6 h-6 md:w-8 md:h-8 rounded-sm bg-secondary shadow-[0_0_40px_rgba(227,178,60,1)] relative flex items-center justify-center animate-[spin_10s_linear_infinite]">
-                      <div className="absolute w-full h-full border border-white/50 animate-ping" style={{ animationDuration: '3s' }} />
+                   <div className="solution-spinning-diamond w-6 h-6 md:w-8 md:h-8 rounded-sm bg-secondary shadow-[0_0_40px_rgba(227,178,60,1)] relative flex items-center justify-center animate-[spin_10s_linear_infinite]">
+                      <div className="solution-ping-border absolute w-full h-full border border-white/50 animate-ping" style={{ animationDuration: '3s' }} />
                    </div>
-                   
+
                    {/* Orbiting Satellite Dot */}
-                   <div className="absolute w-full h-full animate-[spin_5s_linear_infinite]">
+                   <div className="solution-orbit-wrapper absolute w-full h-full animate-[spin_5s_linear_infinite]">
                      <div className="w-0.75 h-0.75 md:w-1 md:h-1 rounded-full bg-white absolute -top-0.5 left-1/2 -translate-x-1/2 shadow-[0_0_15px_rgba(255,255,255,1)]" />
                    </div>
                  </div>

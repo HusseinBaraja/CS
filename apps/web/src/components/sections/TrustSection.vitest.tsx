@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setupGsapMocks } from '../../test/setupGsapMocks';
 
 describe('TrustSection', () => {
   beforeEach(() => {
@@ -7,34 +8,7 @@ describe('TrustSection', () => {
   });
 
   it('renders the second glow with a dedicated selector and without inert inline animation styles', async () => {
-    const gsapTo = vi.fn();
-    const gsapFrom = vi.fn();
-    const gsapTimeline = vi.fn(() => ({
-      from: vi.fn().mockReturnThis(),
-    }));
-
-    vi.doMock('gsap', () => ({
-      default: {
-        registerPlugin: vi.fn(),
-        to: gsapTo,
-        from: gsapFrom,
-        timeline: gsapTimeline,
-      },
-    }));
-    vi.doMock('@gsap/react', () => ({
-      useGSAP: (func?: unknown) => {
-        if (typeof func === 'function') {
-          func();
-        }
-
-        return {
-          contextSafe: <T extends (...args: never[]) => unknown>(callback: T) => callback,
-        };
-      },
-    }));
-    vi.doMock('gsap/ScrollTrigger', () => ({
-      ScrollTrigger: {},
-    }));
+    setupGsapMocks();
 
     const { TrustSection } = await import('./TrustSection');
     const { container } = render(<TrustSection />);
@@ -47,34 +21,7 @@ describe('TrustSection', () => {
   });
 
   it('configures GSAP tweens for both ambient glow variants', async () => {
-    const gsapTo = vi.fn();
-    const gsapFrom = vi.fn();
-    const gsapTimeline = vi.fn(() => ({
-      from: vi.fn().mockReturnThis(),
-    }));
-
-    vi.doMock('gsap', () => ({
-      default: {
-        registerPlugin: vi.fn(),
-        to: gsapTo,
-        from: gsapFrom,
-        timeline: gsapTimeline,
-      },
-    }));
-    vi.doMock('@gsap/react', () => ({
-      useGSAP: (func?: unknown) => {
-        if (typeof func === 'function') {
-          func();
-        }
-
-        return {
-          contextSafe: <T extends (...args: never[]) => unknown>(callback: T) => callback,
-        };
-      },
-    }));
-    vi.doMock('gsap/ScrollTrigger', () => ({
-      ScrollTrigger: {},
-    }));
+    const { gsapTo, gsapFrom, gsapTimeline } = setupGsapMocks();
 
     const { TrustSection } = await import('./TrustSection');
     render(<TrustSection />);
