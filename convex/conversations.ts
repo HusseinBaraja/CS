@@ -377,8 +377,10 @@ export const trimConversationMessages = internalMutation({
   handler: async (ctx, args): Promise<TrimConversationMessagesResult> => {
     await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const maxMessages = normalizePositiveInteger(args.maxMessages, "maxMessages");
-    let totalMessages = 0;
     let cursor: string | null = null;
+    let totalMessages = 0;
+    const idsToDelete: Array<Id<"messages">> = [];
+    const retainedIds: Array<Id<"messages">> = [];
 
     for (;;) {
       const page = await ctx.db
@@ -390,6 +392,16 @@ export const trimConversationMessages = internalMutation({
         });
 
       totalMessages += page.page.length;
+      for (const message of page.page) {
+        retainedIds.push(message._id);
+        if (retainedIds.length > maxMessages) {
+          const oldestRetainedId = retainedIds.shift();
+          if (oldestRetainedId) {
+            idsToDelete.push(oldestRetainedId);
+          }
+        }
+      }
+
       if (page.isDone || page.page.length === 0) {
         break;
       }
@@ -407,15 +419,9 @@ export const trimConversationMessages = internalMutation({
 
     let deletedCount = 0;
     while (deletedCount < excessCount) {
-      const batchSize = Math.min(TRIM_MESSAGES_BATCH_SIZE, excessCount - deletedCount);
-      const messages = await ctx.db
-        .query("messages")
-        .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
-        .order("asc")
-        .take(batchSize);
-
-      for (const message of messages) {
-        await ctx.db.delete(message._id);
+      const batchIds = idsToDelete.slice(deletedCount, deletedCount + TRIM_MESSAGES_BATCH_SIZE);
+      for (const messageId of batchIds) {
+        await ctx.db.delete(messageId);
         deletedCount += 1;
       }
     }
