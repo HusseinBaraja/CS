@@ -77,9 +77,12 @@ export function FlowSection() {
     // Calculate initial path coordinates synchronously for animation timing
     const pathData = buildPath();
 
-    // Add a delayed rebuild to handle font-loading layout shifts, 
-    // and resize events to keep the path physically accurate
-    setTimeout(buildPath, 100); 
+    let disposed = false;
+    document.fonts.ready.then(() => {
+      if (!disposed) {
+        buildPath();
+      }
+    });
     window.addEventListener('resize', buildPath);
 
     const totalYDistance = pathData.points[pathData.points.length - 1].y - pathData.points[0].y;
@@ -137,7 +140,10 @@ export function FlowSection() {
       }, triggerTime);
     });
 
-    return () => window.removeEventListener('resize', buildPath);
+    return () => {
+      disposed = true;
+      window.removeEventListener('resize', buildPath);
+    };
   }, { scope: container });
 
   return (

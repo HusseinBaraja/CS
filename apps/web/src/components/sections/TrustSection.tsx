@@ -19,13 +19,6 @@ export function TrustSection() {
         ease: "linear",
       });
 
-      gsap.to(".ambient-glow-slow-reverse", {
-        rotate: -360,
-        duration: 30,
-        repeat: -1,
-        ease: "linear",
-      });
-
       // Text section reveals
       gsap.from(".trust-text-element", {
         scrollTrigger: {
@@ -179,7 +172,7 @@ export function TrustSection() {
           <div className="trust-interface-bg absolute inset-0 bg-linear-to-br from-[#FAFAFA] via-[#F3F4F6] to-[#E5E7EB] rounded-[2.5rem] border border-primary/5 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] overflow-hidden">
             {/* Ambient Lighting Orbs */}
             <div className="ambient-glow absolute -top-[30%] -left-[30%] w-[90%] h-[90%] rounded-full bg-secondary/20 blur-[120px] pointer-events-none" />
-            <div className="ambient-glow-slow-reverse absolute -bottom-[20%] -right-[20%] w-[70%] h-[70%] rounded-full bg-emerald-500/15 blur-[100px] pointer-events-none" />
+            <div className="ambient-glow absolute -bottom-[20%] -right-[20%] w-[70%] h-[70%] rounded-full bg-emerald-500/15 blur-[100px] pointer-events-none" />
             
             {/* Engineer Grid Pattern */}
             <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] bg-size-[32px_32px] mask-[radial-gradient(ellipse_60%_60%_at_50%_50%,#000_10%,transparent_100%)] opacity-80 pointer-events-none" />
@@ -298,14 +291,6 @@ export function TrustSection() {
           </div>
         </div>
       </div>
-      
-      <style>{`
-        @keyframes flowPacket {
-          0% { top: 0; opacity: 1; transform: translateX(-50%) scaleY(1); }
-          80% { top: 100%; opacity: 0.8; transform: translateX(-50%) scaleY(1.2); }
-          100% { top: 100%; opacity: 0; transform: translateX(-50%) scaleY(0.5); }
-        }
-      `}</style>
     </section>
   );
 }

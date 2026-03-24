@@ -1,4 +1,3 @@
-import type { ComponentType } from 'react';
 import {
   ArrowLeft as ArrowLeftIcon,
   BarChart as BarChartIcon,
@@ -20,13 +19,10 @@ import {
   TrendingUp as TrendingUpIcon,
   UserCircle as UserCircleIcon,
   Zap as ZapIcon,
+  type LucideIcon,
 } from 'lucide-react';
 
-type IconComponent = ComponentType<{
-  className?: string;
-}>;
-
-const asIcon = (icon: unknown) => icon as IconComponent;
+const asIcon = (icon: LucideIcon): LucideIcon => icon;
 
 export const ArrowLeft = asIcon(ArrowLeftIcon);
 export const BarChart = asIcon(BarChartIcon);

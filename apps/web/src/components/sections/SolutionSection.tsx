@@ -78,7 +78,10 @@ export function SolutionSection() {
     });
 
     // Massive Number Parallax Effect
-    gsap.utils.toArray('.ed-number').forEach((num: any) => {
+    gsap.utils.toArray<HTMLElement>('.ed-number').forEach((num) => {
+      const trigger = num.parentElement;
+      if (!trigger) return;
+
       gsap.fromTo(
         num,
         { y: -30, opacity: 0 },
@@ -86,7 +89,7 @@ export function SolutionSection() {
           y: 40,
           opacity: 0.1,
           scrollTrigger: {
-            trigger: num.parentElement,
+            trigger,
             start: 'top bottom',
             end: 'bottom top',
             scrub: 1.5

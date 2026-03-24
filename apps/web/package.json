@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build --config vite.config.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "bun run typecheck",
+    "check": "bun run typecheck",
+    "lint": "bun run check",
     "preview": "vite preview --config vite.config.ts"
   },
   "dependencies": {

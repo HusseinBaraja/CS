@@ -28,7 +28,7 @@ export function Layout({ children }: LayoutProps) {
             <a href="#features" className="hover:text-primary transition-colors">المميزات</a>
             <a href="#how-it-works" className="hover:text-primary transition-colors">كيف يعمل</a>
             <a href="#pricing" className="hover:text-primary transition-colors">أسعارنا</a>
-            <button className="bg-primary text-white px-6 py-2.5 rounded-full hover:bg-primary/90 transition-all font-semibold shadow-sm hover:shadow-md">
+            <button type="button" className="bg-primary text-white px-6 py-2.5 rounded-full hover:bg-primary/90 transition-all font-semibold shadow-sm hover:shadow-md">
               تواصل معنا
             </button>
           </div>
@@ -61,6 +61,7 @@ export function Layout({ children }: LayoutProps) {
           {/* Return to Top Arrow (Center) */}
           <div className="flex justify-center order-last md:order-none mt-8 md:mt-0">
             <button 
+              type="button"
               onClick={scrollToTop}
               className="flex items-center justify-center p-4 rounded-full border border-white/10 text-white/30 hover:text-white/80 hover:bg-white/5 hover:border-white/20 transition-all duration-300 focus:outline-none group"
               aria-label="العودة للأعلى"

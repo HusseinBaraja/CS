@@ -6,6 +6,19 @@ import { ArrowLeft } from '../icons';
 
 gsap.registerPlugin(ScrollTrigger);
 
+const DiamondIcon = () => (
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 12 12"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className="mt-1.5 shrink-0"
+  >
+    <path d="M6 0L12 6L6 12L0 6L6 0Z" fill="currentColor" />
+  </svg>
+);
+
 export function PricingSection() {
   const container = useRef<HTMLDivElement>(null);
 
@@ -69,19 +82,6 @@ export function PricingSection() {
       );
     },
     { scope: container },
-  );
-
-  const DiamondIcon = () => (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 12 12"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="mt-1.5 shrink-0"
-    >
-      <path d="M6 0L12 6L6 12L0 6L6 0Z" fill="currentColor" />
-    </svg>
   );
 
   return (
