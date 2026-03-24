@@ -133,7 +133,7 @@ export function SolutionSection() {
   return (
     <section
       ref={container}
-      className="py-24 md:py-40 bg-[#0A110E] relative overflow-hidden text-white"
+      className="scroll-mt-24 py-24 md:py-40 bg-[#0A110E] relative overflow-hidden text-white"
       id="features"
       dir="rtl"
     >

@@ -24,7 +24,7 @@ export function CTASection() {
   }, { scope: container });
 
   return (
-    <section ref={container} className="py-12 md:py-16 px-6 relative z-10" >
+    <section ref={container} className="scroll-mt-24 py-12 md:py-16 px-6 relative z-10" >
       <div className="max-w-5xl mx-auto cta-content bg-[#11231a] rounded-4xl md:rounded-[40px] overflow-hidden relative border border-white/5 shadow-2xl">
         
         {/* Subtle dot pattern background (SVG instead of gradients) */}

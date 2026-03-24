@@ -88,7 +88,7 @@ export function PricingSection() {
     <section
       id="pricing"
       ref={container}
-      className="scroll-mt-28 py-24 md:py-32 px-6 relative z-10 perspective-[1000px]"
+      className="scroll-mt-24 py-24 md:py-32 px-6 relative z-10 perspective-[1000px]"
     >
       <div className="max-w-6xl mx-auto">
         {/* Header */}
