@@ -148,4 +148,24 @@ describe("access control policy", () => {
       reason: "access_mode_owner_phone_invalid",
     });
   });
+
+  test("reports invalid sender phones separately from invalid owner configuration", () => {
+    const healthyPolicy = resolveAccessControlPolicy({
+      accessControlMode: "ALL",
+    }, "966500000001");
+
+    expect(evaluateInboundAccess(healthyPolicy, "sender")).toEqual({
+      allowed: false,
+      reason: "access_mode_sender_phone_invalid",
+    });
+
+    const malformedOwnerPolicy = resolveAccessControlPolicy({
+      accessControlMode: "ALL",
+    }, "owner");
+
+    expect(evaluateInboundAccess(malformedOwnerPolicy, "sender")).toEqual({
+      allowed: false,
+      reason: "access_mode_owner_phone_invalid",
+    });
+  });
 });

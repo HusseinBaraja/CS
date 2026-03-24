@@ -18,6 +18,7 @@ export const ACCESS_CONTROL_BLOCK_REASONS = [
   "access_mode_single_number_invalid",
   "access_mode_list_empty",
   "access_mode_list_invalid_owner",
+  "access_mode_sender_phone_invalid",
   "access_mode_owner_phone_invalid",
 ] as const;
 
@@ -176,7 +177,7 @@ export const evaluateInboundAccess = (
   if (!normalizedSender) {
     return {
       allowed: false,
-      reason: policy.reason ?? "access_mode_owner_phone_invalid",
+      reason: policy.reason ?? "access_mode_sender_phone_invalid",
     };
   }
 
