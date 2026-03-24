@@ -68,13 +68,41 @@ bun run test
 ### Targeted development
 
 ```bash
+bun run web
 bun run dev:web
 bun run dev:api
 bun run dev:bot
 bun run dev:worker
 ```
 
-Use `bun run dev:web` from the repository root to start the frontend app without changing directories.
+Use `bun run web` from the repository root to start the frontend app on `0.0.0.0:5173` so other devices on the same LAN or hotspot can open it.
+Use `bun run dev:web` when you specifically want the Turbo workspace dev flow instead.
+
+### Open The Frontend On Your Phone
+
+1. Start the frontend from the repository root:
+
+```bash
+bun run web
+```
+
+2. Find this PC's IPv4 address:
+
+```powershell
+ipconfig
+```
+
+3. On your phone, open:
+
+```text
+http://<your-pc-ip>:5173
+```
+
+Example:
+
+```text
+http://10.118.191.127:5173
+```
 
 ## Operations Guides
 

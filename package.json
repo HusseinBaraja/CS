@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev --parallel",
+    "web": "bunx vite apps/web --host 0.0.0.0 --config apps/web/vite.config.ts --port 5173",
     "dev:api": "turbo run dev --filter=api",
     "dev:bot": "turbo run dev --filter=bot",
     "dev:web": "turbo run dev --filter=web",
