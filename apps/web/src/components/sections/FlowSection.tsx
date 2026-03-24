@@ -143,12 +143,12 @@ export function FlowSection() {
   return (
     <section 
       ref={container} 
-      className="py-24 md:py-32 bg-white relative overflow-hidden" 
+      className="py-24 md:py-32 relative" 
       id="how-it-works"
     >
       {/* Decorative environment background */}
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-[#1A2E27]/5 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+      <div className="absolute top-0 right-0 w-[800px] h-[800px] pointer-events-none translate-x-1/3 z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.05) 0%, transparent 70%)' }} />
+      <div className="absolute bottom-0 left-0 w-[800px] h-[800px] translate-y-1/3 -translate-x-1/3 pointer-events-none z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.04) 0%, transparent 70%)' }} />
 
       <div className="max-w-6xl mx-auto px-6 relative z-10 block">
         

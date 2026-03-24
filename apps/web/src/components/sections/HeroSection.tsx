@@ -59,11 +59,11 @@ export function HeroSection() {
   return (
     <section
       ref={container}
-      className="relative pt-8 pb-24 md:pt-12 md:pb-40 overflow-hidden min-h-[90vh] flex items-center"
+      className="relative pt-8 pb-24 md:pt-12 md:pb-40 min-h-[90vh] flex items-center"
     >
       {/* Background ambient shapes */}
-      <div className="absolute top-0 right-0 w-200 h-200 bg-secondary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-150 h-150 bg-primary/5 rounded-full blur-3xl translate-y-1/4 -translate-x-1/4 pointer-events-none" />
+      <div className="absolute top-0 right-0 w-[800px] h-[800px] -translate-y-1/2 translate-x-1/3 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(227,178,60,0.08) 0%, transparent 70%)' }} />
+      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] translate-y-1/3 -translate-x-1/4 pointer-events-none z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.08) 0%, transparent 70%)' }} />
 
       <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10 w-full">
         {/* Right Content (RTL) */}

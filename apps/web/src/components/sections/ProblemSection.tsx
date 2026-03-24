@@ -90,7 +90,7 @@ export function ProblemSection() {
   return (
     <section
       ref={container}
-      className="py-24 md:py-32 bg-white relative overflow-hidden"
+      className="py-24 md:py-32 relative"
       id="problem"
     >
       <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
@@ -107,7 +107,7 @@ export function ProblemSection() {
           </p>
 
           <div className="pain-cards-container grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div className="pain-card bg-bg-light p-6 rounded-2xl border border-primary/5">
+            <div className="pain-card bg-white p-6 rounded-2xl border border-primary/5 shadow-sm">
               <Clock className="w-8 h-8 text-red-500 mb-4" />
               <h3 className="text-lg font-bold text-primary mb-2">
                 وقت ضائع
@@ -116,7 +116,7 @@ export function ProblemSection() {
                 ساعات يومياً تضيع في نسخ ولصق تفاصيل المنتجات وصورها.
               </p>
             </div>
-            <div className="pain-card bg-bg-light p-6 rounded-2xl border border-primary/5">
+            <div className="pain-card bg-white p-6 rounded-2xl border border-primary/5 shadow-sm">
               <MessageSquareOff className="w-8 h-8 text-red-500 mb-4" />
               <h3 className="text-lg font-bold text-primary mb-2">
                 فرص ضائعة
@@ -129,7 +129,7 @@ export function ProblemSection() {
         </div>
 
         {/* Left Content - Abstract visual of message chaos */}
-        <div className="chaos-container relative h-112.5 bg-bg-light rounded-[40px] border border-primary/5 overflow-hidden flex items-center justify-center">
+        <div className="chaos-container relative h-112.5 bg-white rounded-[40px] border border-primary/5 overflow-hidden flex items-center justify-center shadow-lg">
           {/* subtle background pattern */}
           <div
             className="absolute inset-0 opacity-10"

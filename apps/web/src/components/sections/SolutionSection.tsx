@@ -148,6 +148,36 @@ export function SolutionSection() {
         />
       </div>
 
+      {/* Top Transition Curve */}
+      <div className="absolute top-0 left-0 w-full overflow-hidden leading-none pointer-events-none z-20">
+        <svg
+          className="w-full relative block"
+          style={{ width: "calc(100% + 2px)", height: "80px" }}
+          viewBox="0 0 1200 120"
+          preserveAspectRatio="none"
+        >
+          <path
+            d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
+            className="fill-[var(--color-bg-light)]"
+          />
+        </svg>
+      </div>
+
+      {/* Bottom Transition Curve */}
+      <div className="absolute bottom-0 left-0 w-full overflow-hidden leading-none pointer-events-none z-20 rotate-180">
+        <svg
+          className="w-full relative block"
+          style={{ width: "calc(100% + 2px)", height: "80px" }}
+          viewBox="0 0 1200 120"
+          preserveAspectRatio="none"
+        >
+          <path
+            d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
+            className="fill-[var(--color-bg-light)]"
+          />
+        </svg>
+      </div>
+
       <div className="max-w-360 mx-auto px-6 relative z-10 flex flex-col gap-24">
         {/* Title Area */}
         <div className="flex flex-col md:flex-row justify-between items-end gap-12 border-b border-white/6 pb-16 relative">
