@@ -1,3 +1,5 @@
+import type { AccessControlMode } from './accessControl';
+
 export const INBOUND_ROUTES = [
   "owner_command",
   "customer_conversation",
@@ -67,7 +69,7 @@ export interface IgnoredInboundEvent {
     rawMessageId?: string;
     remoteJid?: string;
     fromMe?: boolean;
-    accessMode?: string;
+    accessMode?: AccessControlMode;
     accessReason?: string;
   };
 }

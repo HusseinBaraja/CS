@@ -3,6 +3,7 @@ import { logger as defaultLogger } from '@cs/core';
 import {
   evaluateInboundAccess,
   resolveAccessControlPolicy,
+  type AccessControlMode,
   type IgnoredInboundEvent,
   type IgnoredInboundEventReason,
   getBotRuntimeReconnectDelayMs,
@@ -118,7 +119,7 @@ const malformedIgnoredReasons = new Set<IgnoredInboundEventReason>([
 const createAccessControlBlockedEvent = (
   profile: CompanyRuntimeProfile,
   message: NormalizedInboundMessage,
-  accessMode: string,
+  accessMode: AccessControlMode,
   accessReason?: string,
 ): IgnoredInboundEvent => {
   return {
