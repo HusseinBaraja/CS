@@ -21,7 +21,18 @@
     direction: rtl;
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html, body {
     scroll-behavior: smooth;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html, body {
+    scroll-behavior: auto;
   }
 }
 
