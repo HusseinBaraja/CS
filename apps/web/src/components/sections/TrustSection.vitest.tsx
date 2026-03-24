@@ -18,18 +18,20 @@ describe('TrustSection', () => {
     expect(reverseGlow).not.toBeNull();
     expect(reverseGlow?.getAttribute('style')).toBeNull();
     expect(container.querySelectorAll('.ambient-glow')).toHaveLength(1);
+    expect(container.querySelectorAll('.trust-visual-container')).toHaveLength(1);
   });
 
-  it('configures GSAP tweens for both ambient glow variants', async () => {
+  it('configures GSAP tweens for both ambient glow variants and targets the rendered visual ref', async () => {
     const { gsapFrom, gsapResolvedTo, gsapTimeline, gsapTo } = setupGsapMocks();
 
     const { TrustSection } = await import('./TrustSection');
     const { container } = render(<TrustSection />);
     const ambientGlow = container.querySelector('.ambient-glow');
     const reverseGlow = container.querySelector('.ambient-glow-reverse');
+    const visualContainer = container.querySelector('.trust-visual-container');
 
     expect(gsapTo).toHaveBeenCalledWith(
-      '.ambient-glow',
+      ambientGlow,
       expect.objectContaining({
         rotate: 360,
         duration: 25,
@@ -39,7 +41,7 @@ describe('TrustSection', () => {
     );
 
     expect(gsapTo).toHaveBeenCalledWith(
-      '.ambient-glow-reverse',
+      reverseGlow,
       expect.objectContaining({
         rotate: -360,
         duration: 30,
@@ -51,5 +53,12 @@ describe('TrustSection', () => {
     expect(gsapTimeline).toHaveBeenCalled();
     expect(gsapResolvedTo).toHaveBeenCalledWith([ambientGlow], expect.any(Object));
     expect(gsapResolvedTo).toHaveBeenCalledWith([reverseGlow], expect.any(Object));
+    expect(gsapTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scrollTrigger: expect.objectContaining({
+          trigger: visualContainer,
+        }),
+      }),
+    );
   });
 });
