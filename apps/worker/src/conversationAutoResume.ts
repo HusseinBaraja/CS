@@ -94,7 +94,8 @@ export const createConversationAutoResumeProcessor = (
 
     for (const conversation of dueConversations) {
       try {
-        const outcome = await processConversation(client, conversation, tickNow);
+        const conversationNow = now();
+        const outcome = await processConversation(client, conversation, conversationNow);
         if (outcome === "resumed") {
           result.resumedCount += 1;
         } else {

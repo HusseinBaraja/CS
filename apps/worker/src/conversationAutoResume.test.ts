@@ -61,6 +61,7 @@ const createLoggerStub = () => {
 
 describe("createConversationAutoResumeProcessor", () => {
   test("resumes due muted conversations", async () => {
+    let currentNow = 2_000;
     const { client, calls } = createClientStub({
       query: async (_reference, args) => {
         const input = args as { limit?: number; conversationId?: string };
@@ -98,7 +99,7 @@ describe("createConversationAutoResumeProcessor", () => {
     const processor = createConversationAutoResumeProcessor({
       createClient: () => client as never,
       logger,
-      now: () => 2_000,
+      now: () => currentNow++,
     });
 
     await expect(processor.runTick()).resolves.toEqual({
@@ -108,6 +109,15 @@ describe("createConversationAutoResumeProcessor", () => {
     });
     expect(calls.queries).toHaveLength(2);
     expect(calls.mutations).toHaveLength(3);
+    expect(calls.queries[0]?.args).toMatchObject({
+      now: 2_000,
+    });
+    expect(calls.mutations[0]?.args).toMatchObject({
+      now: 2_001,
+    });
+    expect(calls.mutations[1]?.args).toMatchObject({
+      resumedAt: 2_001,
+    });
     expect(infoCalls).toEqual([{
       payload: {
         resumedCount: 1,
@@ -120,6 +130,7 @@ describe("createConversationAutoResumeProcessor", () => {
   });
 
   test("skips conversations that are no longer due after reload", async () => {
+    let currentNow = 2_000;
     const { client } = createClientStub({
       query: async (_reference, args) => {
         const input = args as { limit?: number };
@@ -155,7 +166,7 @@ describe("createConversationAutoResumeProcessor", () => {
     const processor = createConversationAutoResumeProcessor({
       createClient: () => client as never,
       logger: createLoggerStub().logger,
-      now: () => 2_000,
+      now: () => currentNow++,
     });
 
     await expect(processor.runTick()).resolves.toEqual({
@@ -167,7 +178,8 @@ describe("createConversationAutoResumeProcessor", () => {
 
   test("continues processing after a failed conversation resume", async () => {
     let resumeAttempts = 0;
-    const { client } = createClientStub({
+    let currentNow = 2_000;
+    const { client, calls } = createClientStub({
       query: async (_reference, args) => {
         const input = args as { limit?: number; conversationId?: string };
         if (typeof input.limit === "number") {
@@ -219,7 +231,7 @@ describe("createConversationAutoResumeProcessor", () => {
     const processor = createConversationAutoResumeProcessor({
       createClient: () => client as never,
       logger,
-      now: () => 2_000,
+      now: () => currentNow++,
     });
 
     await expect(processor.runTick()).resolves.toEqual({
@@ -235,5 +247,17 @@ describe("createConversationAutoResumeProcessor", () => {
       },
       message: "conversation auto-resume failed",
     });
+    const acquisitionNows = calls.mutations
+      .map((call) => call.args)
+      .filter((args): args is { now: number } =>
+        typeof args === "object" && args !== null && "now" in args && typeof (args as { now?: unknown }).now === "number")
+      .map((args) => args.now);
+    expect(acquisitionNows).toEqual([2_001, 2_002]);
+    const resumedAts = calls.mutations
+      .map((call) => call.args)
+      .filter((args): args is { resumedAt: number } =>
+        typeof args === "object" && args !== null && "resumedAt" in args && typeof (args as { resumedAt?: unknown }).resumedAt === "number")
+      .map((args) => args.resumedAt);
+    expect(resumedAts).toEqual([2_001, 2_002]);
   });
 });
