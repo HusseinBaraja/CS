@@ -757,6 +757,24 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       deliveryState: "pending",
     });
 
+    const acknowledged = await t.mutation(internal.conversations.acknowledgePendingAssistantMessage, {
+      companyId,
+      conversationId,
+      pendingMessageId: pending.id as Id<"messages">,
+      acknowledgedAt: 2_050,
+      transportMessageId: "assistant-1",
+    });
+
+    expect(acknowledged).toMatchObject({
+      id: pending.id,
+      deliveryState: "pending",
+      providerAcknowledgedAt: 2_050,
+      transportMessageId: "assistant-1",
+      sideEffectsState: "pending",
+      analyticsState: "not_applicable",
+      ownerNotificationState: "not_applicable",
+    });
+
     const committedConversation = await t.mutation(internal.conversations.commitPendingAssistantMessage, {
       companyId,
       conversationId,
@@ -825,6 +843,106 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([]);
   });
 
+  it("acknowledges pending handoff assistant messages idempotently", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    const pending = await t.mutation(internal.conversations.appendPendingAssistantMessage, {
+      companyId,
+      conversationId,
+      content: "Connecting you with the team.",
+      timestamp: 2_000,
+      source: "assistant_action",
+    });
+
+    const firstAcknowledgement = await t.mutation(internal.conversations.acknowledgePendingAssistantMessage, {
+      companyId,
+      conversationId,
+      pendingMessageId: pending.id as Id<"messages">,
+      acknowledgedAt: 2_100,
+      transportMessageId: "assistant-1",
+    });
+    const secondAcknowledgement = await t.mutation(internal.conversations.acknowledgePendingAssistantMessage, {
+      companyId,
+      conversationId,
+      pendingMessageId: pending.id as Id<"messages">,
+      acknowledgedAt: 2_500,
+      transportMessageId: "assistant-2",
+    });
+
+    expect(firstAcknowledgement).toMatchObject({
+      id: pending.id,
+      providerAcknowledgedAt: 2_100,
+      transportMessageId: "assistant-1",
+      sideEffectsState: "pending",
+      analyticsState: "pending",
+      ownerNotificationState: "pending",
+    });
+    expect(secondAcknowledgement).toEqual(firstAcknowledgement);
+  });
+
+  it("rejects acknowledging assistant messages that are already final", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    const sentMessage = await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "Already sent",
+      timestamp: 2_000,
+      transportMessageId: "assistant-sent-1",
+    });
+    const failedPending = await t.mutation(internal.conversations.appendPendingAssistantMessage, {
+      companyId,
+      conversationId,
+      content: "Will fail",
+      timestamp: 2_500,
+    });
+    await t.mutation(internal.conversations.markPendingAssistantMessageFailed, {
+      companyId,
+      conversationId,
+      pendingMessageId: failedPending.id as Id<"messages">,
+    });
+
+    await expect(t.mutation(internal.conversations.acknowledgePendingAssistantMessage, {
+      companyId,
+      conversationId,
+      pendingMessageId: sentMessage.id as Id<"messages">,
+      acknowledgedAt: 3_000,
+    })).rejects.toThrow("Only pending assistant messages can be acknowledged");
+    await expect(t.mutation(internal.conversations.acknowledgePendingAssistantMessage, {
+      companyId,
+      conversationId,
+      pendingMessageId: failedPending.id as Id<"messages">,
+      acknowledgedAt: 3_100,
+    })).rejects.toThrow("Only pending assistant messages can be acknowledged");
+  });
+
   it("commits pending handoff assistant messages idempotently", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
@@ -847,6 +965,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       content: "Connecting you with the team.",
       timestamp: 2_000,
       source: "assistant_action",
+    });
+
+    await t.mutation(internal.conversations.acknowledgePendingAssistantMessage, {
+      companyId,
+      conversationId,
+      pendingMessageId: pending.id as Id<"messages">,
+      acknowledgedAt: 2_050,
+      transportMessageId: "assistant-1",
     });
 
     const firstCommit = await t.mutation(internal.conversations.commitPendingAssistantMessage, {

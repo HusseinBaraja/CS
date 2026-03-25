@@ -49,6 +49,13 @@ export interface ConversationStore {
     actorPhoneNumber?: string;
     metadata?: Record<string, string | number | boolean>;
   }): Promise<ConversationMessageRecord>;
+  acknowledgePendingAssistantMessage(input: {
+    companyId: string;
+    conversationId: string;
+    pendingMessageId: string;
+    acknowledgedAt: number;
+    transportMessageId?: string;
+  }): Promise<ConversationMessageRecord>;
   commitPendingAssistantMessage(input: {
     companyId: string;
     conversationId: string;
@@ -188,6 +195,16 @@ export const createConvexConversationStore = (
           ...(input.reason ? { reason: input.reason } : {}),
           ...(input.actorPhoneNumber ? { actorPhoneNumber: input.actorPhoneNumber } : {}),
           ...(input.metadata ? { metadata: input.metadata } : {}),
+        })
+      ),
+    acknowledgePendingAssistantMessage: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.acknowledgePendingAssistantMessage, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          pendingMessageId: toMessageId(input.pendingMessageId),
+          acknowledgedAt: input.acknowledgedAt,
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
         })
       ),
     commitPendingAssistantMessage: (input) =>

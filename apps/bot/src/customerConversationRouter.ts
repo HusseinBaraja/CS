@@ -250,6 +250,31 @@ export const createCustomerConversationRouter = (
     }
 
     try {
+      await options.conversationStore.acknowledgePendingAssistantMessage({
+        companyId: message.companyId,
+        conversationId,
+        pendingMessageId,
+        acknowledgedAt: now(),
+        ...(outboundMessageId ? { transportMessageId: outboundMessageId } : {}),
+      });
+    } catch (error) {
+      options.logger.error(
+        {
+          assistantText,
+          companyId: message.companyId,
+          conversationId,
+          error,
+          messageId: message.messageId,
+          outboundMessageId,
+          pendingMessageId,
+          sessionKey: message.sessionKey,
+        },
+        "customer conversation assistant acknowledgement persistence failed",
+      );
+      return;
+    }
+
+    try {
       await options.conversationStore.commitPendingAssistantMessage({
         companyId: message.companyId,
         conversationId,

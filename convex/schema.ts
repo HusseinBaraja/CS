@@ -236,6 +236,18 @@ export default defineSchema({
     content: v.string(),
     timestamp: v.number(),
     deliveryState: v.optional(v.union(v.literal("pending"), v.literal("sent"), v.literal("failed"))),
+    providerAcknowledgedAt: v.optional(v.number()),
+    sideEffectsState: v.optional(v.union(v.literal("pending"), v.literal("completed"))),
+    ownerNotificationState: v.optional(v.union(
+      v.literal("pending"),
+      v.literal("completed"),
+      v.literal("not_applicable"),
+    )),
+    analyticsState: v.optional(v.union(
+      v.literal("pending"),
+      v.literal("completed"),
+      v.literal("not_applicable"),
+    )),
     transportMessageId: v.optional(v.string()),
     referencedTransportMessageId: v.optional(v.string()),
     handoffSource: v.optional(v.union(
@@ -250,7 +262,8 @@ export default defineSchema({
     .index("by_conversation", ["conversationId"])
     .index("by_conversation_time", ["conversationId", "timestamp"])
     .index("by_conversation_transport_message_id", ["conversationId", "transportMessageId"])
-    .index("by_role_delivery_state_time", ["role", "deliveryState", "timestamp"]),
+    .index("by_role_delivery_state_time", ["role", "deliveryState", "timestamp"])
+    .index("by_role_delivery_ack_time", ["role", "deliveryState", "providerAcknowledgedAt"]),
 
   // ── Offers ──────────────────────────────────────────────────────────────
   offers: defineTable({

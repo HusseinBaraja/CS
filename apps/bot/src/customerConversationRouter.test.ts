@@ -122,6 +122,19 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
     timestamp: input.timestamp,
     deliveryState: "pending",
   }),
+  acknowledgePendingAssistantMessage: async (input) => ({
+    id: input.pendingMessageId,
+    conversationId: input.conversationId,
+    role: "assistant",
+    content: "acknowledged assistant",
+    timestamp: input.acknowledgedAt,
+    deliveryState: "pending",
+    providerAcknowledgedAt: input.acknowledgedAt,
+    sideEffectsState: "pending",
+    analyticsState: "not_applicable",
+    ownerNotificationState: "not_applicable",
+    ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+  }),
   commitPendingAssistantMessage: async (input) => ({
     id: input.conversationId,
     companyId: input.companyId,
@@ -258,6 +271,22 @@ describe("createCustomerConversationRouter", () => {
           deliveryState: "pending",
         };
       },
+      acknowledgePendingAssistantMessage: async (input) => {
+        calls.push(`ack:${input.pendingMessageId}:${input.transportMessageId ?? "none"}:${input.acknowledgedAt}`);
+        return {
+          id: input.pendingMessageId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: "Assistant reply",
+          timestamp: 2_000,
+          deliveryState: "pending",
+          providerAcknowledgedAt: input.acknowledgedAt,
+          sideEffectsState: "pending",
+          analyticsState: "not_applicable",
+          ownerNotificationState: "not_applicable",
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+        };
+      },
       commitPendingAssistantMessage: async (input) => {
         calls.push(`commit:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
         return {
@@ -289,6 +318,7 @@ describe("createCustomerConversationRouter", () => {
       "inbound:hello:1700000000000:message-1:none",
       "orchestrator:conversation-1:hello",
       "pending:Assistant reply:2000:none",
+      "ack:pending-message-1:sent-1:2000",
       "commit:pending-message-1:sent-1",
     ]);
     expect(sent).toEqual([{
@@ -444,6 +474,22 @@ describe("createCustomerConversationRouter", () => {
           deliveryState: "pending",
         };
       },
+      acknowledgePendingAssistantMessage: async (input) => {
+        calls.push(`ack:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
+        return {
+          id: input.pendingMessageId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: "Assistant reply",
+          timestamp: 2_000,
+          deliveryState: "pending",
+          providerAcknowledgedAt: 2_000,
+          sideEffectsState: "pending",
+          analyticsState: "not_applicable",
+          ownerNotificationState: "not_applicable",
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+        };
+      },
       commitPendingAssistantMessage: async (input) => {
         calls.push(`commit:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
         return {
@@ -480,6 +526,7 @@ describe("createCustomerConversationRouter", () => {
     expect(calls).toEqual([
       "inbound:hello",
       "pending:Assistant reply",
+      "ack:pending-1:sent-1",
       "commit:pending-1:sent-1",
       "trim:12",
     ]);
@@ -561,6 +608,22 @@ describe("createCustomerConversationRouter", () => {
           deliveryState: "pending",
         };
       },
+      acknowledgePendingAssistantMessage: async (input) => {
+        operations.push(`ack:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
+        return {
+          id: input.pendingMessageId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: "Connecting you with the team.",
+          timestamp: 2_000,
+          deliveryState: "pending",
+          providerAcknowledgedAt: 2_000,
+          sideEffectsState: "pending",
+          analyticsState: "pending",
+          ownerNotificationState: "pending",
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+        };
+      },
       commitPendingAssistantMessage: async (input) => {
         operations.push(`commit:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
         return {
@@ -626,6 +689,7 @@ describe("createCustomerConversationRouter", () => {
     expect(operations).toEqual([
       "inbound:hello",
       "pending:Connecting you with the team.:assistant_action",
+      "ack:pending-handoff-1:sent-1",
       "commit:pending-handoff-1:sent-1",
       "analytics",
       "trim:20",
@@ -945,6 +1009,60 @@ describe("createCustomerConversationRouter", () => {
     expect(errorCalls[0]?.message).toBe("customer conversation assistant persistence failed");
     expect(errorCalls[0]?.payload).toMatchObject({
       pendingMessageId: "pending-message-1",
+    });
+  });
+
+  test("stops after send when acknowledgement persistence fails", async () => {
+    let commitCalled = false;
+    const store = createStore({
+      appendInboundCustomerMessage: async (input) => ({
+        conversation: {
+          id: "conversation-1",
+          companyId: input.companyId,
+          phoneNumber: input.phoneNumber,
+          muted: false,
+        },
+        wasMuted: false,
+        wasDuplicate: false,
+      }),
+      appendPendingAssistantMessage: async (input) => ({
+        id: "pending-message-1",
+        conversationId: input.conversationId,
+        role: "assistant",
+        content: input.content,
+        timestamp: input.timestamp,
+        deliveryState: "pending",
+      }),
+      acknowledgePendingAssistantMessage: async () => {
+        throw new Error("ack failed");
+      },
+      commitPendingAssistantMessage: async () => {
+        commitCalled = true;
+        throw new Error("should not commit");
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async () => createCatalogChatResult("Assistant reply", ""),
+    };
+    const { logger, errorCalls } = createLogger();
+    const { outbound, sent } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(sent).toEqual([{
+      recipientJid: "967700000001@s.whatsapp.net",
+      text: "Assistant reply",
+    }]);
+    expect(commitCalled).toBe(false);
+    expect(errorCalls[0]?.message).toBe("customer conversation assistant acknowledgement persistence failed");
+    expect(errorCalls[0]?.payload).toMatchObject({
+      pendingMessageId: "pending-message-1",
+      outboundMessageId: "sent-1",
     });
   });
 

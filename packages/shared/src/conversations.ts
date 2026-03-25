@@ -33,6 +33,10 @@ export interface ConversationMessageDto {
   content: string;
   timestamp: number;
   deliveryState?: "pending" | "sent" | "failed";
+  providerAcknowledgedAt?: number;
+  sideEffectsState?: "pending" | "completed";
+  ownerNotificationState?: "pending" | "completed" | "not_applicable";
+  analyticsState?: "pending" | "completed" | "not_applicable";
   transportMessageId?: string;
   referencedTransportMessageId?: string;
 }

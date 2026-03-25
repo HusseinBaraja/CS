@@ -130,6 +130,14 @@ const toMessageDto = (message: Doc<"messages">): ConversationMessageDto => ({
   content: message.content,
   timestamp: message.timestamp,
   ...(message.deliveryState !== undefined ? { deliveryState: message.deliveryState } : {}),
+  ...(message.providerAcknowledgedAt !== undefined
+    ? { providerAcknowledgedAt: message.providerAcknowledgedAt }
+    : {}),
+  ...(message.sideEffectsState !== undefined ? { sideEffectsState: message.sideEffectsState } : {}),
+  ...(message.ownerNotificationState !== undefined
+    ? { ownerNotificationState: message.ownerNotificationState }
+    : {}),
+  ...(message.analyticsState !== undefined ? { analyticsState: message.analyticsState } : {}),
   ...(message.transportMessageId !== undefined ? { transportMessageId: message.transportMessageId } : {}),
   ...(message.referencedTransportMessageId !== undefined
     ? { referencedTransportMessageId: message.referencedTransportMessageId }
@@ -870,6 +878,43 @@ export const appendPendingAssistantMessage = internalMutation({
       ...(args.metadata ? { handoffMetadata: args.metadata } : {}),
     });
     return toMessageDto(await loadMessageOrThrow(ctx, messageId));
+  },
+});
+
+export const acknowledgePendingAssistantMessage = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    pendingMessageId: v.id("messages"),
+    acknowledgedAt: v.number(),
+    transportMessageId: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<ConversationMessageDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
+    if (message.conversationId !== args.conversationId || message.role !== "assistant") {
+      throw new Error("Pending assistant message not found for conversation");
+    }
+
+    if (message.deliveryState !== "pending") {
+      throw new Error("Only pending assistant messages can be acknowledged");
+    }
+
+    if (message.providerAcknowledgedAt !== undefined) {
+      return toMessageDto(message);
+    }
+
+    const acknowledgedAt = normalizeTimestamp(args.acknowledgedAt, Date.now());
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
+    await ctx.db.patch(message._id, {
+      providerAcknowledgedAt: acknowledgedAt,
+      sideEffectsState: "pending",
+      analyticsState: message.handoffSource ? "pending" : "not_applicable",
+      ownerNotificationState: message.handoffSource ? "pending" : "not_applicable",
+      ...(transportMessageId ? { transportMessageId } : {}),
+    });
+
+    return toMessageDto(await loadMessageOrThrow(ctx, args.pendingMessageId));
   },
 });
 
