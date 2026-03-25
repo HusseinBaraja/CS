@@ -207,6 +207,7 @@ export default defineSchema({
     phoneNumber: v.string(),
     muted: v.boolean(), // Default: false
     mutedAt: v.optional(v.number()),
+    handoffSeedTimestamp: v.optional(v.number()),
     lastCustomerMessageAt: v.optional(v.number()),
     nextAutoResumeAt: v.optional(v.number()),
   })

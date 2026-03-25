@@ -649,9 +649,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       id: conversationId,
       muted: true,
       mutedAt: 2_000,
-      lastCustomerMessageAt: 2_000,
       nextAutoResumeAt: 2_000 + 12 * 60 * 60 * 1_000,
     });
+    expect(first.lastCustomerMessageAt).toBeUndefined();
     expect(second).toEqual(first);
 
     const stateEvents = await t.run(async (ctx) =>
@@ -659,6 +659,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     );
     expect(stateEvents).toHaveLength(1);
     expect(stateEvents[0]?.eventType).toBe("handoff_started");
+    const storedConversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+    expect(storedConversation?.handoffSeedTimestamp).toBe(2_000);
   });
 
   it("atomically appends the assistant handoff reply while muting the conversation", async () => {
@@ -689,9 +691,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       id: conversationId,
       muted: true,
       mutedAt: 2_000,
-      lastCustomerMessageAt: 2_000,
       nextAutoResumeAt: 2_000 + 12 * 60 * 60 * 1_000,
     });
+    expect(updated.lastCustomerMessageAt).toBeUndefined();
 
     const messages = await t.query(internal.conversations.listConversationMessages, {
       companyId,
@@ -715,6 +717,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       timestamp: 2_000,
       source: "assistant_action",
     });
+    const storedConversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+    expect(storedConversation?.handoffSeedTimestamp).toBe(2_000);
   });
 
   it("resumes muted conversations and clears the live mute state", async () => {
@@ -750,6 +754,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     });
     expect(resumed.nextAutoResumeAt).toBeUndefined();
     expect(resumed.mutedAt).toBeUndefined();
+    const storedConversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+    expect(storedConversation?.handoffSeedTimestamp).toBeUndefined();
 
     const stateEvents = await t.run(async (ctx) =>
       ctx.db.query("conversationStateEvents").collect()

@@ -522,7 +522,7 @@ export const appendAssistantMessageAndStartHandoff = internalMutation({
     await ctx.db.patch(conversation._id, {
       muted: true,
       mutedAt: timestamp,
-      lastCustomerMessageAt: timestamp,
+      handoffSeedTimestamp: timestamp,
       nextAutoResumeAt: timestamp + AUTO_RESUME_IDLE_MS,
     });
 
@@ -699,7 +699,7 @@ export const startHandoff = internalMutation({
     await ctx.db.patch(conversation._id, {
       muted: true,
       mutedAt: triggerTimestamp,
-      lastCustomerMessageAt: triggerTimestamp,
+      handoffSeedTimestamp: triggerTimestamp,
       nextAutoResumeAt: triggerTimestamp + AUTO_RESUME_IDLE_MS,
     });
 
@@ -750,6 +750,7 @@ export const resumeConversation = internalMutation({
     await ctx.db.patch(conversation._id, {
       muted: false,
       mutedAt: undefined,
+      handoffSeedTimestamp: undefined,
       nextAutoResumeAt: undefined,
     });
 
