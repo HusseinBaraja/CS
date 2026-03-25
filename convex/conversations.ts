@@ -1086,14 +1086,25 @@ export const listConversationMessages = internalQuery({
     const limit = normalizeOptionalLimit(args.limit);
 
     if (limit !== undefined) {
-      const latestMessages = await ctx.db
-        .query("messages")
-        .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
-        .order("desc")
-        .take(limit);
+      const visibleMessages: Array<Doc<"messages">> = [];
+      let cursor: string | null = null;
 
-      return latestMessages
-        .filter(isVisibleConversationMessage)
+      while (visibleMessages.length < limit) {
+        const page = await listConversationMessageDocsPage(ctx, args.conversationId, {
+          cursor,
+          limit: Math.max(limit, PROMPT_HISTORY_SCAN_BATCH_SIZE),
+        });
+
+        visibleMessages.push(...page.page.filter(isVisibleConversationMessage));
+        if (page.isDone || page.continueCursor === cursor) {
+          break;
+        }
+
+        cursor = page.continueCursor;
+      }
+
+      return visibleMessages
+        .slice(0, limit)
         .reverse()
         .map(toMessageDto);
     }

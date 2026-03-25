@@ -875,6 +875,92 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     ]);
   });
 
+  it("returns the requested count of visible recent messages when newer drafts are hidden", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "visible-1",
+      timestamp: 1_000,
+      transportMessageId: "user-1",
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "visible-2",
+      timestamp: 1_100,
+      transportMessageId: "assistant-1",
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "visible-3",
+      timestamp: 1_200,
+      transportMessageId: "user-2",
+    });
+    const pending = await t.mutation(internal.conversations.appendPendingAssistantMessage, {
+      companyId,
+      conversationId,
+      content: "pending-hidden",
+      timestamp: 1_300,
+    });
+    const failed = await t.mutation(internal.conversations.appendPendingAssistantMessage, {
+      companyId,
+      conversationId,
+      content: "failed-hidden",
+      timestamp: 1_400,
+    });
+    await t.mutation(internal.conversations.markPendingAssistantMessageFailed, {
+      companyId,
+      conversationId,
+      pendingMessageId: failed.id as Id<"messages">,
+    });
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+      limit: 2,
+    });
+
+    expect(messages).toEqual([
+      {
+        id: expect.any(String),
+        conversationId,
+        role: "assistant",
+        content: "visible-2",
+        timestamp: 1_100,
+        deliveryState: "sent",
+        transportMessageId: "assistant-1",
+      },
+      {
+        id: expect.any(String),
+        conversationId,
+        role: "user",
+        content: "visible-3",
+        timestamp: 1_200,
+        transportMessageId: "user-2",
+      },
+    ]);
+    expect(pending.id).toBeDefined();
+  });
+
   it("acknowledges pending handoff assistant messages idempotently", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
