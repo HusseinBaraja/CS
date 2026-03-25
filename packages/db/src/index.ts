@@ -23,9 +23,11 @@ export interface DbConnectionCheckOptions {
 }
 
 const createConnectionError = (cause?: unknown): Error & { code: string } => {
-  const error = new Error("Database connection failed", { cause }) as Error & {
+  const error = new Error("Database connection failed") as Error & {
     code: string;
+    cause?: unknown;
   };
+  error.cause = cause;
   error.code = ERROR_CODES.DB_CONNECTION_FAILED;
   return error;
 };
