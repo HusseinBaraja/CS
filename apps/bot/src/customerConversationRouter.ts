@@ -1,5 +1,9 @@
 import type { CatalogChatOrchestrator } from '@cs/rag';
-import { canonicalizePhoneNumber, type ConversationMessageDto, type NormalizedInboundMessage } from '@cs/shared';
+import {
+  canonicalizePhoneNumber,
+  formatOwnerNotification,
+  type NormalizedInboundMessage,
+} from '@cs/shared';
 import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId, type ConversationStore } from './conversationStore';
 
@@ -45,35 +49,6 @@ const serializeInboundMessage = (message: NormalizedInboundMessage): string => {
     case "sticker":
       return "[sticker]";
   }
-};
-
-const formatOwnerNotification = (
-  input: {
-    companyName: string;
-    customerPhoneNumber: string;
-    history: ConversationMessageDto[];
-    source: "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback";
-  },
-): string => {
-  const sourceLabel =
-    input.source === "assistant_action"
-      ? "assistant handoff action"
-      : input.source === "provider_failure_fallback"
-        ? "provider failure fallback"
-        : "invalid model output fallback";
-
-  const historyLines = input.history.length === 0
-    ? ["- No prior conversation history available"]
-    : input.history.map((entry) => `- ${entry.role === "user" ? "Customer" : "Assistant"}: ${entry.content}`);
-
-  return [
-    `Handoff started for ${input.companyName}.`,
-    `Customer: ${input.customerPhoneNumber}`,
-    `Trigger: ${sourceLabel}`,
-    "Auto-resume: 12 hours after the customer's last message while muted.",
-    "Recent conversation:",
-    ...historyLines,
-  ].join("\n");
 };
 
 export const createCustomerConversationRouter = (
@@ -309,6 +284,12 @@ export const createCustomerConversationRouter = (
             source: handoffSource,
           },
         });
+        await options.conversationStore.completePendingAssistantSideEffects({
+          companyId: message.companyId,
+          conversationId,
+          pendingMessageId,
+          analyticsCompleted: true,
+        });
       } catch (error) {
         options.logger.error(
           {
@@ -350,6 +331,12 @@ export const createCustomerConversationRouter = (
               history: recentMessages,
               source: handoffSource,
             }),
+          });
+          await options.conversationStore.completePendingAssistantSideEffects({
+            companyId: message.companyId,
+            conversationId,
+            pendingMessageId,
+            ownerNotificationCompleted: true,
           });
         } catch (error) {
           options.logger.error(

@@ -226,6 +226,12 @@ describe("createConvexConversationStore", () => {
       acknowledgedAt: 1_850,
       transportMessageId: "assistant-ack-1",
     });
+    await store.completePendingAssistantSideEffects({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      analyticsCompleted: true,
+    });
     await store.commitPendingAssistantMessage({
       companyId: "company-1",
       conversationId: "conversation-1",
@@ -281,7 +287,7 @@ describe("createConvexConversationStore", () => {
     });
 
     expect(actionCalls).toHaveLength(3);
-    expect(mutationCalls).toHaveLength(10);
+    expect(mutationCalls).toHaveLength(11);
     expect(queryCalls).toHaveLength(4);
   });
 
@@ -306,6 +312,13 @@ describe("createConvexConversationStore", () => {
       acknowledgedAt: 1_050,
       transportMessageId: "transport-ack-1",
     });
+    await store.completePendingAssistantSideEffects({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      analyticsCompleted: true,
+      ownerNotificationCompleted: true,
+    });
     await store.commitPendingAssistantMessage({
       companyId: "company-1",
       conversationId: "conversation-1",
@@ -318,7 +331,7 @@ describe("createConvexConversationStore", () => {
       pendingMessageId: "message-1",
     });
 
-    expect(mutationCalls.slice(-4)).toEqual([
+    expect(mutationCalls.slice(-5)).toEqual([
       {
         companyId: "company-1",
         conversationId: "conversation-1",
@@ -333,6 +346,13 @@ describe("createConvexConversationStore", () => {
         pendingMessageId: "message-1",
         acknowledgedAt: 1_050,
         transportMessageId: "transport-ack-1",
+      },
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        pendingMessageId: "message-1",
+        analyticsCompleted: true,
+        ownerNotificationCompleted: true,
       },
       {
         companyId: "company-1",

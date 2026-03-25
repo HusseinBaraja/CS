@@ -11,4 +11,5 @@ export * from "./companyRuntime";
 export * from "./conversations";
 export * from "./errors";
 export * from "./inbound";
+export * from "./ownerNotifications";
 export * from "./outbound";

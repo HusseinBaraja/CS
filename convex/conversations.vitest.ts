@@ -798,6 +798,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       content: "Assistant reply",
       timestamp: 2_000,
       deliveryState: "sent",
+      sideEffectsState: "completed",
+      analyticsState: "not_applicable",
+      ownerNotificationState: "not_applicable",
       transportMessageId: "assistant-1",
     }]);
   });
@@ -1011,6 +1014,61 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(secondAcknowledgement).toEqual(firstAcknowledgement);
   });
 
+  it("lists only acknowledged pending assistant candidates for reconciliation", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    const acknowledgedPending = await t.mutation(internal.conversations.appendPendingAssistantMessage, {
+      companyId,
+      conversationId,
+      content: "Acknowledged pending",
+      timestamp: 2_000,
+      source: "assistant_action",
+    });
+    await t.mutation(internal.conversations.acknowledgePendingAssistantMessage, {
+      companyId,
+      conversationId,
+      pendingMessageId: acknowledgedPending.id as Id<"messages">,
+      acknowledgedAt: 2_100,
+      transportMessageId: "assistant-1",
+    });
+    await t.mutation(internal.conversations.appendPendingAssistantMessage, {
+      companyId,
+      conversationId,
+      content: "Unacknowledged pending",
+      timestamp: 2_200,
+    });
+
+    const candidates = await t.query(internal.conversations.listPendingAssistantMessages, {
+      olderThanOrAt: 2_500,
+      limit: 10,
+    });
+
+    expect(candidates).toEqual([{
+      companyId,
+      conversationId,
+      messageId: acknowledgedPending.id,
+      phoneNumber: "967700000001",
+      timestamp: 2_000,
+      handoffSource: "assistant_action",
+      transportMessageId: "assistant-1",
+      analyticsState: "pending",
+      ownerNotificationState: "pending",
+    }]);
+  });
+
   it("rejects acknowledging assistant messages that are already final", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
@@ -1197,6 +1255,71 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       conversationId,
       pendingMessageId: acknowledgedPending.id as Id<"messages">,
     })).rejects.toThrow("Acknowledged assistant messages must be reconciled, not marked failed");
+  });
+
+  it("completes pending assistant side effects idempotently", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    const pending = await t.mutation(internal.conversations.appendPendingAssistantMessage, {
+      companyId,
+      conversationId,
+      content: "Connecting you with the team.",
+      timestamp: 2_000,
+      source: "assistant_action",
+    });
+    await t.mutation(internal.conversations.acknowledgePendingAssistantMessage, {
+      companyId,
+      conversationId,
+      pendingMessageId: pending.id as Id<"messages">,
+      acknowledgedAt: 2_050,
+      transportMessageId: "assistant-1",
+    });
+    await t.mutation(internal.conversations.commitPendingAssistantMessage, {
+      companyId,
+      conversationId,
+      pendingMessageId: pending.id as Id<"messages">,
+      transportMessageId: "assistant-1",
+    });
+
+    const firstCompletion = await t.mutation(internal.conversations.completePendingAssistantSideEffects, {
+      companyId,
+      conversationId,
+      pendingMessageId: pending.id as Id<"messages">,
+      analyticsCompleted: true,
+    });
+    const secondCompletion = await t.mutation(internal.conversations.completePendingAssistantSideEffects, {
+      companyId,
+      conversationId,
+      pendingMessageId: pending.id as Id<"messages">,
+      analyticsCompleted: true,
+      ownerNotificationCompleted: true,
+    });
+
+    expect(firstCompletion).toMatchObject({
+      id: pending.id,
+      sideEffectsState: "pending",
+      analyticsState: "completed",
+      ownerNotificationState: "pending",
+    });
+    expect(secondCompletion).toMatchObject({
+      id: pending.id,
+      sideEffectsState: "completed",
+      analyticsState: "completed",
+      ownerNotificationState: "completed",
+    });
   });
 
   it("resumes muted conversations and clears the live mute state", async () => {

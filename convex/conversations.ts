@@ -53,6 +53,10 @@ type PendingAssistantMessageCandidate = {
   companyId: Id<"companies">;
   phoneNumber: string;
   timestamp: number;
+  handoffSource?: AssistantHandoffSource;
+  transportMessageId?: string;
+  analyticsState?: "pending" | "completed" | "not_applicable";
+  ownerNotificationState?: "pending" | "completed" | "not_applicable";
 };
 
 const sleep = (delayMs: number): Promise<void> =>
@@ -111,6 +115,17 @@ const normalizeOptionalMessageId = (
   fieldName: string,
 ): string | undefined => normalizeOptionalString(value, fieldName);
 
+const resolveSideEffectsState = (
+  message: Pick<Doc<"messages">, "analyticsState" | "ownerNotificationState">,
+): "pending" | "completed" => {
+  const analyticsComplete =
+    message.analyticsState === "completed" || message.analyticsState === "not_applicable";
+  const ownerNotificationComplete =
+    message.ownerNotificationState === "completed" || message.ownerNotificationState === "not_applicable";
+
+  return analyticsComplete && ownerNotificationComplete ? "completed" : "pending";
+};
+
 const toConversationDto = (conversation: Doc<"conversations">): ConversationStateDto => ({
   id: conversation._id,
   companyId: conversation.companyId,
@@ -130,6 +145,7 @@ const toMessageDto = (message: Doc<"messages">): ConversationMessageDto => ({
   content: message.content,
   timestamp: message.timestamp,
   ...(message.deliveryState !== undefined ? { deliveryState: message.deliveryState } : {}),
+  ...(message.handoffSource !== undefined ? { handoffSource: message.handoffSource } : {}),
   ...(message.providerAcknowledgedAt !== undefined
     ? { providerAcknowledgedAt: message.providerAcknowledgedAt }
     : {}),
@@ -929,13 +945,17 @@ export const listPendingAssistantMessages = internalQuery({
     const limit = normalizePositiveInteger(args.limit, "limit");
     const messages = await ctx.db
       .query("messages")
-      .withIndex("by_role_delivery_state_time", (q) =>
-        q.eq("role", "assistant").eq("deliveryState", "pending").lte("timestamp", olderThanOrAt)
+      .withIndex("by_role_delivery_ack_time", (q) =>
+        q.eq("role", "assistant").eq("deliveryState", "pending").lte("providerAcknowledgedAt", olderThanOrAt)
       )
       .take(limit);
 
     const candidates: PendingAssistantMessageCandidate[] = [];
     for (const message of messages) {
+      if (message.providerAcknowledgedAt === undefined) {
+        continue;
+      }
+
       const conversation = await ctx.db.get(message.conversationId);
       if (!conversation) {
         continue;
@@ -947,10 +967,33 @@ export const listPendingAssistantMessages = internalQuery({
         companyId: conversation.companyId,
         phoneNumber: conversation.phoneNumber,
         timestamp: message.timestamp,
+        ...(message.handoffSource ? { handoffSource: message.handoffSource } : {}),
+        ...(message.transportMessageId ? { transportMessageId: message.transportMessageId } : {}),
+        ...(message.analyticsState ? { analyticsState: message.analyticsState } : {}),
+        ...(message.ownerNotificationState ? { ownerNotificationState: message.ownerNotificationState } : {}),
       });
     }
 
     return candidates;
+  },
+});
+
+export const getConversationOwnerNotificationContext = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+  },
+  handler: async (ctx, args): Promise<{ companyName: string; ownerPhone: string } | null> => {
+    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const company = await ctx.db.get(conversation.companyId);
+    if (!company) {
+      return null;
+    }
+
+    return {
+      companyName: company.name,
+      ownerPhone: company.ownerPhone,
+    };
   },
 });
 
@@ -979,6 +1022,9 @@ export const commitPendingAssistantMessage = internalMutation({
     const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
     await ctx.db.patch(message._id, {
       deliveryState: "sent",
+      ...(message.analyticsState === "not_applicable" && message.ownerNotificationState === "not_applicable"
+        ? { sideEffectsState: "completed" as const }
+        : {}),
       ...(transportMessageId ? { transportMessageId } : {}),
     });
 
@@ -1017,6 +1063,47 @@ export const markPendingAssistantMessageFailed = internalMutation({
 
     await ctx.db.patch(message._id, {
       deliveryState: "failed",
+    });
+
+    return toMessageDto(await loadMessageOrThrow(ctx, args.pendingMessageId));
+  },
+});
+
+export const completePendingAssistantSideEffects = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    pendingMessageId: v.id("messages"),
+    analyticsCompleted: v.optional(v.boolean()),
+    ownerNotificationCompleted: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<ConversationMessageDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
+    if (message.conversationId !== args.conversationId || message.role !== "assistant") {
+      throw new Error("Pending assistant message not found for conversation");
+    }
+
+    if (message.deliveryState !== "sent") {
+      throw new Error("Assistant side effects can only be completed after send");
+    }
+
+    const nextAnalyticsState =
+      args.analyticsCompleted === true && message.analyticsState === "pending"
+        ? "completed"
+        : message.analyticsState;
+    const nextOwnerNotificationState =
+      args.ownerNotificationCompleted === true && message.ownerNotificationState === "pending"
+        ? "completed"
+        : message.ownerNotificationState;
+
+    await ctx.db.patch(message._id, {
+      ...(nextAnalyticsState ? { analyticsState: nextAnalyticsState } : {}),
+      ...(nextOwnerNotificationState ? { ownerNotificationState: nextOwnerNotificationState } : {}),
+      sideEffectsState: resolveSideEffectsState({
+        analyticsState: nextAnalyticsState,
+        ownerNotificationState: nextOwnerNotificationState,
+      }),
     });
 
     return toMessageDto(await loadMessageOrThrow(ctx, args.pendingMessageId));

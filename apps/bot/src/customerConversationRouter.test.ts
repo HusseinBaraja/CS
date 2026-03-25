@@ -135,6 +135,17 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
     ownerNotificationState: "not_applicable",
     ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
   }),
+  completePendingAssistantSideEffects: async (input) => ({
+    id: input.pendingMessageId,
+    conversationId: input.conversationId,
+    role: "assistant",
+    content: "completed assistant",
+    timestamp: 1_000,
+    deliveryState: "sent",
+    sideEffectsState: input.analyticsCompleted || input.ownerNotificationCompleted ? "completed" : "pending",
+    analyticsState: input.analyticsCompleted ? "completed" : "pending",
+    ownerNotificationState: input.ownerNotificationCompleted ? "completed" : "pending",
+  }),
   commitPendingAssistantMessage: async (input) => ({
     id: input.conversationId,
     companyId: input.companyId,
@@ -654,6 +665,22 @@ describe("createCustomerConversationRouter", () => {
       recordAnalyticsEvent: async () => {
         operations.push("analytics");
       },
+      completePendingAssistantSideEffects: async (input) => {
+        operations.push(
+          `complete:${input.analyticsCompleted === true ? "analytics" : "none"}:${input.ownerNotificationCompleted === true ? "owner" : "none"}`,
+        );
+        return {
+          id: input.pendingMessageId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: "Connecting you with the team.",
+          timestamp: 2_000,
+          deliveryState: "sent",
+          sideEffectsState: "completed",
+          analyticsState: input.analyticsCompleted ? "completed" : "pending",
+          ownerNotificationState: input.ownerNotificationCompleted ? "completed" : "pending",
+        };
+      },
       startHandoff: async () => {
         throw new Error("should not separately start handoff");
       },
@@ -692,6 +719,8 @@ describe("createCustomerConversationRouter", () => {
       "ack:pending-handoff-1:sent-1",
       "commit:pending-handoff-1:sent-1",
       "analytics",
+      "complete:analytics:none",
+      "complete:none:owner",
       "trim:20",
     ]);
     expect(sent).toHaveLength(2);

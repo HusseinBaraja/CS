@@ -1,5 +1,6 @@
 import { logger as defaultLogger } from '@cs/core';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
+import { canonicalizePhoneNumber, formatOwnerNotification, type ConversationMessageDto } from '@cs/shared';
 
 const DEFAULT_PENDING_ASSISTANT_RECONCILIATION_INTERVAL_MS = 60_000;
 const DEFAULT_PENDING_ASSISTANT_RECONCILIATION_BATCH_SIZE = 50;
@@ -7,6 +8,7 @@ const DEFAULT_PENDING_ASSISTANT_GRACE_PERIOD_MS = 15_000;
 const CONVERSATION_LOCK_LEASE_MS = 1_000;
 
 type WorkerLogger = Pick<typeof defaultLogger, "info" | "error">;
+type OwnerNotificationSender = (input: { recipientJid: string; text: string }) => Promise<void>;
 
 export interface PendingAssistantReconciliationProcessorOptions {
   batchSize?: number;
@@ -15,6 +17,7 @@ export interface PendingAssistantReconciliationProcessorOptions {
   intervalMs?: number;
   logger?: WorkerLogger;
   now?: () => number;
+  sendOwnerNotification?: OwnerNotificationSender;
 }
 
 export interface PendingAssistantReconciliationTickResult {
@@ -29,6 +32,8 @@ const getConversationLockKey = (companyId: string, phoneNumber: string): string 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
+const OWNER_HANDOFF_HISTORY_LIMIT = 6;
+
 const reconcilePendingAssistantMessage = async (
   client: ConvexAdminClient,
   candidate: {
@@ -36,9 +41,13 @@ const reconcilePendingAssistantMessage = async (
     conversationId: string;
     messageId: string;
     phoneNumber: string;
+    handoffSource?: "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback";
+    analyticsState?: "pending" | "completed" | "not_applicable";
+    ownerNotificationState?: "pending" | "completed" | "not_applicable";
   },
   logger: WorkerLogger,
   now: number,
+  sendOwnerNotification?: OwnerNotificationSender,
 ): Promise<"reconciled" | "skipped"> => {
   const ownerToken = crypto.randomUUID();
   const key = getConversationLockKey(candidate.companyId, candidate.phoneNumber);
@@ -59,7 +68,7 @@ const reconcilePendingAssistantMessage = async (
       messageId: candidate.messageId as never,
     });
 
-    if (!message || message.deliveryState !== "pending") {
+    if (!message || message.deliveryState !== "pending" || message.providerAcknowledgedAt === undefined) {
       return "skipped";
     }
 
@@ -68,6 +77,62 @@ const reconcilePendingAssistantMessage = async (
       conversationId: candidate.conversationId as never,
       pendingMessageId: candidate.messageId as never,
     });
+
+    if (message.analyticsState === "pending" && message.handoffSource) {
+      await client.mutation(convexInternal.analytics.recordEvent, {
+        companyId: candidate.companyId as never,
+        eventType: "handoff_started",
+        timestamp: message.timestamp,
+        payload: {
+          conversationId: candidate.conversationId,
+          phoneNumber: candidate.phoneNumber,
+          source: message.handoffSource,
+        },
+      });
+      await client.mutation(convexInternal.conversations.completePendingAssistantSideEffects, {
+        companyId: candidate.companyId as never,
+        conversationId: candidate.conversationId as never,
+        pendingMessageId: candidate.messageId as never,
+        analyticsCompleted: true,
+      });
+    }
+
+    if (message.ownerNotificationState === "pending" && message.handoffSource && sendOwnerNotification) {
+      if (!candidate.handoffSource) {
+        throw new Error("Pending assistant handoff source unavailable for owner notification replay");
+      }
+
+      const ownerContext = await client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
+        companyId: candidate.companyId as never,
+        conversationId: candidate.conversationId as never,
+      });
+      const recentMessages = await client.query(convexInternal.conversations.listConversationMessages, {
+        companyId: candidate.companyId as never,
+        conversationId: candidate.conversationId as never,
+        limit: OWNER_HANDOFF_HISTORY_LIMIT,
+      }) as ConversationMessageDto[];
+      const ownerPhoneNumber = ownerContext ? canonicalizePhoneNumber(ownerContext.ownerPhone) : null;
+
+      if (!ownerContext || !ownerPhoneNumber) {
+        throw new Error("Owner notification replay context unavailable");
+      }
+
+      await sendOwnerNotification({
+        recipientJid: `${ownerPhoneNumber}@s.whatsapp.net`,
+        text: formatOwnerNotification({
+          companyName: ownerContext.companyName,
+          customerPhoneNumber: candidate.phoneNumber,
+          history: recentMessages,
+          source: candidate.handoffSource,
+        }),
+      });
+      await client.mutation(convexInternal.conversations.completePendingAssistantSideEffects, {
+        companyId: candidate.companyId as never,
+        conversationId: candidate.conversationId as never,
+        pendingMessageId: candidate.messageId as never,
+        ownerNotificationCompleted: true,
+      });
+    }
 
     return "reconciled";
   } finally {
@@ -99,6 +164,7 @@ export const createPendingAssistantReconciliationProcessor = (
   const intervalMs = options.intervalMs ?? DEFAULT_PENDING_ASSISTANT_RECONCILIATION_INTERVAL_MS;
   const logger = options.logger ?? defaultLogger;
   const now = options.now ?? Date.now;
+  const sendOwnerNotification = options.sendOwnerNotification;
 
   const runTick = async (): Promise<PendingAssistantReconciliationTickResult> => {
     const client = createClient();
@@ -122,7 +188,10 @@ export const createPendingAssistantReconciliationProcessor = (
           conversationId: candidate.conversationId,
           messageId: candidate.messageId,
           phoneNumber: candidate.phoneNumber,
-        }, logger, candidateNow);
+          ...(candidate.handoffSource ? { handoffSource: candidate.handoffSource } : {}),
+          ...(candidate.analyticsState ? { analyticsState: candidate.analyticsState } : {}),
+          ...(candidate.ownerNotificationState ? { ownerNotificationState: candidate.ownerNotificationState } : {}),
+        }, logger, candidateNow, sendOwnerNotification);
         if (outcome === "reconciled") {
           result.reconciledCount += 1;
         } else {

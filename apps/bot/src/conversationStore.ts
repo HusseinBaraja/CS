@@ -56,6 +56,13 @@ export interface ConversationStore {
     acknowledgedAt: number;
     transportMessageId?: string;
   }): Promise<ConversationMessageRecord>;
+  completePendingAssistantSideEffects(input: {
+    companyId: string;
+    conversationId: string;
+    pendingMessageId: string;
+    analyticsCompleted?: boolean;
+    ownerNotificationCompleted?: boolean;
+  }): Promise<ConversationMessageRecord>;
   commitPendingAssistantMessage(input: {
     companyId: string;
     conversationId: string;
@@ -205,6 +212,18 @@ export const createConvexConversationStore = (
           pendingMessageId: toMessageId(input.pendingMessageId),
           acknowledgedAt: input.acknowledgedAt,
           ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+        })
+      ),
+    completePendingAssistantSideEffects: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.completePendingAssistantSideEffects, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          pendingMessageId: toMessageId(input.pendingMessageId),
+          ...(input.analyticsCompleted !== undefined ? { analyticsCompleted: input.analyticsCompleted } : {}),
+          ...(input.ownerNotificationCompleted !== undefined
+            ? { ownerNotificationCompleted: input.ownerNotificationCompleted }
+            : {}),
         })
       ),
     commitPendingAssistantMessage: (input) =>

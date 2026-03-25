@@ -80,6 +80,8 @@ describe("createPendingAssistantReconciliationProcessor", () => {
             messageId: "message-1",
             phoneNumber: "967700000001",
             timestamp: 1_000,
+            analyticsState: "not_applicable",
+            ownerNotificationState: "not_applicable",
           }];
         }
 
@@ -91,6 +93,9 @@ describe("createPendingAssistantReconciliationProcessor", () => {
             content: "Assistant reply",
             timestamp: 1_000,
             deliveryState: "pending",
+            providerAcknowledgedAt: 1_500,
+            analyticsState: "not_applicable",
+            ownerNotificationState: "not_applicable",
           };
         }
 
@@ -148,6 +153,8 @@ describe("createPendingAssistantReconciliationProcessor", () => {
             messageId: "message-1",
             phoneNumber: "967700000001",
             timestamp: 1_000,
+            analyticsState: "not_applicable",
+            ownerNotificationState: "not_applicable",
           }];
         }
 
@@ -158,6 +165,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
           content: "Assistant reply",
           timestamp: 1_000,
           deliveryState: "sent",
+          providerAcknowledgedAt: 1_500,
         };
       },
     });
@@ -202,6 +210,8 @@ describe("createPendingAssistantReconciliationProcessor", () => {
               messageId: "message-1",
               phoneNumber: "967700000001",
               timestamp: 1_000,
+              analyticsState: "not_applicable",
+              ownerNotificationState: "not_applicable",
             },
             {
               companyId: "company-1",
@@ -209,6 +219,8 @@ describe("createPendingAssistantReconciliationProcessor", () => {
               messageId: "message-2",
               phoneNumber: "967700000002",
               timestamp: 1_500,
+              analyticsState: "not_applicable",
+              ownerNotificationState: "not_applicable",
             },
           ];
         }
@@ -220,6 +232,9 @@ describe("createPendingAssistantReconciliationProcessor", () => {
           content: "Assistant reply",
           timestamp: 1_000,
           deliveryState: "pending",
+          providerAcknowledgedAt: 1_500,
+          analyticsState: "not_applicable",
+          ownerNotificationState: "not_applicable",
         };
       },
     });
@@ -251,6 +266,142 @@ describe("createPendingAssistantReconciliationProcessor", () => {
         failedCount: 1,
       },
       message: "pending assistant reconciliation tick processed",
+    }]);
+  });
+
+  test("skips unacknowledged pending messages", async () => {
+    const { client } = createClientStub({
+      mutation: async (_reference, args) => {
+        const input = args as { key?: string; ownerToken?: string };
+        if (input.key && input.ownerToken) {
+          return { acquired: true, waitMs: 0 };
+        }
+        return undefined;
+      },
+      query: async (_reference, args) => {
+        const input = args as { olderThanOrAt?: number; messageId?: string };
+        if (typeof input.olderThanOrAt === "number") {
+          return [{
+            companyId: "company-1",
+            conversationId: "conversation-1",
+            messageId: "message-1",
+            phoneNumber: "967700000001",
+            timestamp: 1_000,
+            analyticsState: "not_applicable",
+            ownerNotificationState: "not_applicable",
+          }];
+        }
+
+        return {
+          id: "message-1",
+          conversationId: "conversation-1",
+          role: "assistant",
+          content: "Assistant reply",
+          timestamp: 1_000,
+          deliveryState: "pending",
+          analyticsState: "not_applicable",
+          ownerNotificationState: "not_applicable",
+        };
+      },
+    });
+
+    const processor = createPendingAssistantReconciliationProcessor({
+      createClient: () => client as never,
+      logger: createLoggerStub().logger,
+    });
+
+    await expect(processor.runTick()).resolves.toEqual({
+      reconciledCount: 0,
+      skippedCount: 1,
+      failedCount: 0,
+    });
+  });
+
+  test("replays analytics and owner notification side effects when a sender is provided", async () => {
+    const sentNotifications: Array<{ recipientJid: string; text: string }> = [];
+    const { client } = createClientStub({
+      mutation: async (_reference, args) => {
+        const input = args as {
+          key?: string;
+          ownerToken?: string;
+          pendingMessageId?: string;
+          eventType?: string;
+          analyticsCompleted?: boolean;
+          ownerNotificationCompleted?: boolean;
+        };
+        if (input.key && input.ownerToken) {
+          return { acquired: true, waitMs: 0 };
+        }
+        if (input.eventType === "handoff_started") {
+          return undefined;
+        }
+        if (input.pendingMessageId && (input.analyticsCompleted || input.ownerNotificationCompleted)) {
+          return undefined;
+        }
+        return undefined;
+      },
+      query: async (_reference, args) => {
+        const input = args as { olderThanOrAt?: number; messageId?: string; ownerPhone?: string; limit?: number };
+        if (typeof input.olderThanOrAt === "number") {
+          return [{
+            companyId: "company-1",
+            conversationId: "conversation-1",
+            messageId: "message-1",
+            phoneNumber: "967700000001",
+            timestamp: 1_000,
+            handoffSource: "assistant_action",
+            analyticsState: "pending",
+            ownerNotificationState: "pending",
+          }];
+        }
+        if (input.messageId === "message-1") {
+          return {
+            id: "message-1",
+            conversationId: "conversation-1",
+            role: "assistant",
+            content: "Assistant reply",
+            timestamp: 1_000,
+            deliveryState: "pending",
+            providerAcknowledgedAt: 1_500,
+            handoffSource: "assistant_action",
+            analyticsState: "pending",
+            ownerNotificationState: "pending",
+          };
+        }
+        if (typeof input.limit === "number") {
+          return [{
+            id: "assistant-sent-1",
+            conversationId: "conversation-1",
+            role: "assistant",
+            content: "Assistant reply",
+            timestamp: 1_000,
+            deliveryState: "sent",
+          }];
+        }
+        return {
+          companyName: "Tenant A",
+          ownerPhone: "966500000000",
+        };
+      },
+    });
+
+    const processor = createPendingAssistantReconciliationProcessor({
+      createClient: () => client as never,
+      logger: createLoggerStub().logger,
+      sendOwnerNotification: async (input) => {
+        sentNotifications.push(input);
+      },
+    });
+
+    await expect(processor.runTick()).resolves.toEqual({
+      reconciledCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+    });
+
+    expect(sentNotifications).toEqual([{
+      recipientJid: "966500000000@s.whatsapp.net",
+      text: expect.stringContaining("Handoff started for Tenant A."),
     }]);
   });
 });
