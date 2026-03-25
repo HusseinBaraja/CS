@@ -35,7 +35,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
         name: "Disabled Packaging",
         ownerPhone: "966500000903",
         config: {
-          botEnabled: false,
+          botEnabled: true,
         },
       });
       await ctx.db.insert("companies", {
@@ -47,7 +47,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
     const profiles = await t.query(internal.companyRuntime.listEnabledBotCompanies, {});
 
     expect(profiles).toHaveLength(2);
-    expect(profiles.map((profile) => profile.name)).toEqual([
+    expect(profiles.map((profile: { name: string }) => profile.name)).toEqual([
       "Alpha Packaging",
       "Zulu Packaging",
     ]);
@@ -60,7 +60,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
       sessionKey: expect.stringMatching(/^company-/),
     });
     expect(profiles[1]?.timezone).toBe("UTC");
-    expect(profiles.every((profile) => profile.sessionKey.startsWith("company-"))).toBe(true);
+    expect(profiles.every((profile: { sessionKey: string }) => profile.sessionKey.startsWith("company-"))).toBe(true);
   });
 
   it("upserts one runtime session row per company", async () => {

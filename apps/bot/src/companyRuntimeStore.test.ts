@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { createConvexCompanyRuntimeStore } from './companyRuntimeStore';
+import { createConvexCompanyRuntimeStore, normalizeCompanyRuntimeStoreError } from './companyRuntimeStore';
 
 type StubConvexAdminClient = {
   query: (reference: unknown, args: unknown) => Promise<unknown>;
@@ -37,5 +37,27 @@ describe("createConvexCompanyRuntimeStore", () => {
     })).rejects.toThrow("Invalid companyId");
 
     expect(mutationCalled).toBe(false);
+  });
+
+  test("normalizes missing company runtime function errors into an actionable sync message", async () => {
+    const store = createStore({
+      query: async () => {
+        throw new Error(
+          "[Request ID: abc] Server Error\nCould not find public function for 'companyRuntime:listEnabledBotCompanies'. Did you forget to run `npx convex dev` or `npx convex deploy`?",
+        );
+      },
+      mutation: async () => undefined,
+      action: async () => undefined,
+    });
+
+    await expect(store.listEnabledCompanies()).rejects.toThrow(
+      "Configured Convex deployment is missing bot runtime backend functions. Sync the backend with `bunx convex dev --once` for the active CONVEX_DEPLOYMENT.",
+    );
+  });
+
+  test("leaves unrelated convex errors unchanged", () => {
+    const error = new Error("network timeout");
+
+    expect(normalizeCompanyRuntimeStoreError(error)).toBe(error);
   });
 });

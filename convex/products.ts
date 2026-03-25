@@ -1,25 +1,22 @@
-import { GEMINI_EMBEDDING_DIMENSIONS, generateGeminiEmbeddings } from '@cs/ai';
 import { v } from 'convex/values';
 import { enqueueCleanupJobInMutation } from './mediaCleanup';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalAction, internalMutation, internalQuery, type MutationCtx } from './_generated/server';
+import {
+  buildProductEmbeddingPayload,
+  mapProductDocToEmbeddingState,
+  replaceProductEmbeddingsInMutation,
+  type ProductEmbeddingSpecifications as ProductSpecifications,
+  type ProductEmbeddingVariantAttributeValue as ProductVariantAttributeValue,
+  type ProductEmbeddingVariantAttributes as ProductVariantAttributes,
+  type ProductEmbeddingVariantState as ProductVariantWriteState,
+  type ProductEmbeddingProductState as ProductWriteState,
+} from './productEmbeddingRuntime';
 
 const flexValue = v.union(v.string(), v.number(), v.boolean());
 const flexRecord = v.record(v.string(), flexValue);
 const variantAttributesValidator = v.record(v.string(), v.any());
-
-type ProductSpecifications = Record<string, string | number | boolean>;
-type ProductVariantAttributeValue =
-  | string
-  | number
-  | boolean
-  | null
-  | ProductVariantAttributeValue[]
-  | ProductVariantAttributes;
-interface ProductVariantAttributes {
-  [key: string]: ProductVariantAttributeValue;
-}
 
 type ProductVariantDto = {
   id: string;
@@ -66,18 +63,6 @@ type DeleteProductVariantResult = {
   variantId: string;
 };
 
-type ProductWriteState = {
-  companyId: Id<"companies">;
-  categoryId: Id<"categories">;
-  nameEn: string;
-  nameAr?: string;
-  descriptionEn?: string;
-  descriptionAr?: string;
-  specifications?: ProductSpecifications;
-  basePrice?: number;
-  baseCurrency?: string;
-};
-
 type ProductUpdateArgs = {
   companyId: Id<"companies">;
   productId: Id<"products">;
@@ -94,14 +79,6 @@ type ProductUpdateArgs = {
 type ProductWriteSnapshot = ProductWriteState & {
   productId: Id<"products">;
   expectedRevision: number;
-};
-
-type ProductVariantWriteState = {
-  id: string;
-  productId: string;
-  variantLabel: string;
-  attributes: ProductVariantAttributes;
-  priceOverride?: number;
 };
 
 type ProductVariantCreateArgs = {
@@ -133,7 +110,6 @@ type ProductReader = {
   db: Pick<MutationCtx["db"], "get" | "query">;
 };
 
-const AI_PREFIX = "AI_PROVIDER_FAILED";
 const CONFLICT_PREFIX = "CONFLICT";
 const NOT_FOUND_PREFIX = "NOT_FOUND";
 const VALIDATION_PREFIX = "VALIDATION_FAILED";
@@ -374,17 +350,7 @@ const mapProductDetail = (
   variants: variants.map(mapVariant),
 });
 
-const toWriteState = (product: Doc<"products">): ProductWriteState => ({
-  companyId: product.companyId,
-  categoryId: product.categoryId,
-  nameEn: product.nameEn,
-  ...(product.nameAr ? { nameAr: product.nameAr } : {}),
-  ...(product.descriptionEn ? { descriptionEn: product.descriptionEn } : {}),
-  ...(product.descriptionAr ? { descriptionAr: product.descriptionAr } : {}),
-  ...(product.specifications ? { specifications: product.specifications } : {}),
-  ...(product.basePrice !== undefined ? { basePrice: product.basePrice } : {}),
-  ...(product.baseCurrency ? { baseCurrency: product.baseCurrency } : {}),
-});
+const toWriteState = mapProductDocToEmbeddingState;
 
 const toVariantWriteState = (variant: ProductVariantDto): ProductVariantWriteState => ({
   id: variant.id,
@@ -407,127 +373,22 @@ const sortVariants = <T extends ProductVariantWriteState | ProductVariantDto>(va
     left.variantLabel.localeCompare(right.variantLabel) || left.id.localeCompare(right.id)
   );
 
-const serializeSpecifications = (specifications: ProductSpecifications | undefined): string =>
-  specifications
-    ? Object.entries(specifications)
-      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-      .map(([key, value]) => `${key}: ${String(value)}`)
-      .join("\n")
-    : "";
-
-const serializeVariantAttributeValue = (value: ProductVariantAttributeValue): string => {
-  if (value === null) {
-    return "null";
-  }
-
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map(serializeVariantAttributeValue).join(", ")}]`;
-  }
-
-  return `{ ${Object.entries(value)
-    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-    .map(([key, entryValue]) => `${key}: ${serializeVariantAttributeValue(entryValue)}`)
-    .join(", ")} }`;
-};
-
-const serializeVariantAttributes = (attributes: ProductVariantAttributes): string =>
-  Object.entries(attributes)
-    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-    .map(([key, value]) => `${key}: ${serializeVariantAttributeValue(value)}`)
-    .join(", ");
-
-const serializeVariants = (variants: ProductVariantWriteState[]): string =>
-  sortVariants([...variants])
-    .map((variant) =>
-      [
-        `variantLabel:${variant.variantLabel}`,
-        variant.priceOverride !== undefined ? `priceOverride:${variant.priceOverride}` : undefined,
-        `attributes:${serializeVariantAttributes(variant.attributes)}`,
-      ]
-        .filter((value): value is string => Boolean(value))
-        .join("\n"),
-    )
-    .join("\n---\n");
-
 const buildSearchText = (product: ProductListItemDto): string =>
   [
     product.nameEn,
     product.nameAr,
     product.descriptionEn,
     product.descriptionAr,
-    serializeSpecifications(product.specifications),
+    product.specifications
+      ? Object.entries(product.specifications)
+          .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+          .map(([key, value]) => `${key}: ${String(value)}`)
+          .join("\n")
+      : "",
   ]
     .filter((value): value is string => Boolean(value))
     .join("\n")
     .toLocaleLowerCase();
-
-const buildLanguageEmbeddingText = (
-  product: ProductWriteState,
-  variants: ProductVariantWriteState[],
-  language: "en" | "ar",
-): string => {
-  const name =
-    language === "en"
-      ? product.nameEn
-      : normalizeOptionalString(product.nameAr) ?? product.nameEn;
-  const description =
-    language === "en"
-      ? normalizeOptionalString(product.descriptionEn)
-      : normalizeOptionalString(product.descriptionAr) ?? normalizeOptionalString(product.descriptionEn);
-  const specs = serializeSpecifications(product.specifications);
-
-  return [
-    `language:${language}`,
-    `name:${name}`,
-    description ? `description:${description}` : undefined,
-    specs ? `specifications:\n${specs}` : undefined,
-    variants.length > 0 ? `variants:\n${serializeVariants(variants)}` : undefined,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join("\n");
-};
-
-const getCompanyLanguageKey = (
-  companyId: Id<"companies">,
-  language: "en" | "ar",
-): string => `${companyId}:${language}`;
-
-const buildProductEmbeddings = async (
-  product: ProductWriteState,
-  variants: ProductVariantWriteState[] = [],
-): Promise<{
-  englishEmbedding: number[];
-  arabicEmbedding: number[];
-  englishText: string;
-  arabicText: string;
-}> => {
-  const englishText = buildLanguageEmbeddingText(product, variants, "en");
-  const arabicText = buildLanguageEmbeddingText(product, variants, "ar");
-
-  try {
-    const [englishEmbedding, arabicEmbedding] = await generateGeminiEmbeddings([
-      englishText,
-      arabicText,
-    ], {
-      model: "gemini-embedding-001",
-      outputDimensionality: GEMINI_EMBEDDING_DIMENSIONS,
-    });
-
-    return {
-      englishEmbedding,
-      arabicEmbedding,
-      englishText,
-      arabicText,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Gemini embeddings failed";
-    throw createTaggedError(AI_PREFIX, message);
-  }
-};
 
 const hasEmbeddingRelevantChanges = (
   previous: ProductWriteState,
@@ -537,7 +398,7 @@ const hasEmbeddingRelevantChanges = (
   previous.nameAr !== next.nameAr ||
   previous.descriptionEn !== next.descriptionEn ||
   previous.descriptionAr !== next.descriptionAr ||
-  serializeSpecifications(previous.specifications) !== serializeSpecifications(next.specifications);
+  JSON.stringify(previous.specifications ?? {}) !== JSON.stringify(next.specifications ?? {});
 
 const getCompany = async (
   ctx: ProductReader,
@@ -611,59 +472,6 @@ const getVariantCreateSnapshotData = async (
     ...toWriteState(product),
     variants: variants.map(mapVariant),
   };
-};
-
-const insertEmbeddings = async (
-  ctx: MutationCtx,
-  args: {
-    companyId: Id<"companies">;
-    productId: Id<"products">;
-    englishEmbedding: number[];
-    arabicEmbedding: number[];
-    englishText: string;
-    arabicText: string;
-  },
-): Promise<void> => {
-  await ctx.db.insert("embeddings", {
-    companyId: args.companyId,
-    productId: args.productId,
-    embedding: args.englishEmbedding,
-    textContent: args.englishText,
-    language: "en",
-    companyLanguage: getCompanyLanguageKey(args.companyId, "en"),
-  });
-
-  await ctx.db.insert("embeddings", {
-    companyId: args.companyId,
-    productId: args.productId,
-    embedding: args.arabicEmbedding,
-    textContent: args.arabicText,
-    language: "ar",
-    companyLanguage: getCompanyLanguageKey(args.companyId, "ar"),
-  });
-};
-
-const replaceEmbeddings = async (
-  ctx: MutationCtx,
-  args: {
-    companyId: Id<"companies">;
-    productId: Id<"products">;
-    englishEmbedding: number[];
-    arabicEmbedding: number[];
-    englishText: string;
-    arabicText: string;
-  },
-): Promise<void> => {
-  const existingEmbeddings = await ctx.db
-    .query("embeddings")
-    .withIndex("by_product", (q) => q.eq("productId", args.productId))
-    .collect();
-
-  for (const embedding of existingEmbeddings) {
-    await ctx.db.delete(embedding._id);
-  }
-
-  await insertEmbeddings(ctx, args);
 };
 
 const getEmbeddingReplacementArgs = (args: {
@@ -1054,7 +862,7 @@ export const insertProductWithEmbeddings = internalMutation({
       images: [],
     });
 
-    await insertEmbeddings(ctx, {
+    await replaceProductEmbeddingsInMutation(ctx, {
       companyId: args.companyId,
       productId,
       englishEmbedding: args.englishEmbedding,
@@ -1115,7 +923,7 @@ export const patchProductWithEmbeddings = internalMutation({
 
     const embeddingReplacementArgs = getEmbeddingReplacementArgs(args);
     if (embeddingReplacementArgs) {
-      await replaceEmbeddings(ctx, embeddingReplacementArgs);
+      await replaceProductEmbeddingsInMutation(ctx, embeddingReplacementArgs);
     }
 
     const updatedProduct = await ctx.db.get(args.productId);
@@ -1163,7 +971,7 @@ export const insertVariantWithEmbeddings = internalMutation({
       revision: args.expectedRevision + 1,
     });
 
-    await replaceEmbeddings(ctx, {
+    await replaceProductEmbeddingsInMutation(ctx, {
       companyId: args.companyId,
       productId: args.productId,
       englishEmbedding: args.englishEmbedding,
@@ -1216,7 +1024,7 @@ export const patchVariantWithEmbeddings = internalMutation({
       revision: args.expectedRevision + 1,
     });
 
-    await replaceEmbeddings(ctx, {
+    await replaceProductEmbeddingsInMutation(ctx, {
       companyId: args.companyId,
       productId: args.productId,
       englishEmbedding: args.englishEmbedding,
@@ -1265,7 +1073,7 @@ export const removeVariantWithEmbeddings = internalMutation({
       revision: args.expectedRevision + 1,
     });
 
-    await replaceEmbeddings(ctx, {
+    await replaceProductEmbeddingsInMutation(ctx, {
       companyId: args.companyId,
       productId: args.productId,
       englishEmbedding: args.englishEmbedding,
@@ -1308,7 +1116,7 @@ export const create = internalAction({
     }
 
     const productState = normalizeCreateState(args);
-    const embeddings = await buildProductEmbeddings(productState);
+    const embeddings = await buildProductEmbeddingPayload(productState);
 
     return ctx.runMutation(internal.products.insertProductWithEmbeddings, {
       ...args,
@@ -1359,7 +1167,7 @@ export const update = internalAction({
       })
       : null;
     const embeddings = hasEmbeddingRelevantChanges(existingProduct, nextState)
-      ? await buildProductEmbeddings(nextState, (variants ?? []).map(toVariantWriteState))
+      ? await buildProductEmbeddingPayload(nextState, (variants ?? []).map(toVariantWriteState))
       : null;
 
     if (!embeddings) {
@@ -1396,7 +1204,7 @@ export const createVariant = internalAction({
     }
 
     const nextVariant = normalizeVariantCreateState(args);
-    const embeddings = await buildProductEmbeddings(snapshot, sortVariants([
+    const embeddings = await buildProductEmbeddingPayload(snapshot, sortVariants([
       ...snapshot.variants.map(toVariantWriteState),
       nextVariant,
     ]));
@@ -1434,7 +1242,7 @@ export const updateVariant = internalAction({
     }
 
     const nextVariant = mergeVariantUpdateState(toVariantWriteState(snapshot.targetVariant), args);
-    const embeddings = await buildProductEmbeddings(
+    const embeddings = await buildProductEmbeddingPayload(
       snapshot,
       sortVariants(
         snapshot.variants.map((variant: ProductVariantDto) =>
@@ -1472,7 +1280,7 @@ export const removeVariant = internalAction({
       throw createTaggedError(NOT_FOUND_PREFIX, "Variant not found");
     }
 
-    const embeddings = await buildProductEmbeddings(
+    const embeddings = await buildProductEmbeddingPayload(
       snapshot,
       snapshot.variants
         .filter((variant: ProductVariantDto) => variant.id !== args.variantId)

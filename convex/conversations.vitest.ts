@@ -164,7 +164,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       companyId,
       conversationId,
     });
-    expect(messages.map((message) => message.content)).toEqual(["first", "second", "third"]);
+    expect(messages.map((message: { content: string }) => message.content)).toEqual(["first", "second", "third"]);
   });
 
   it("returns the latest limited messages in ascending timestamp order", async () => {
@@ -211,7 +211,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       limit: 2,
     });
 
-    expect(messages.map((message) => message.content)).toEqual(["second", "third"]);
+    expect(messages.map((message: { content: string }) => message.content)).toEqual(["second", "third"]);
   });
 
   it("returns the latest prompt turns in ascending order for synthetic timestamps", async () => {

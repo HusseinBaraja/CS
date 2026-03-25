@@ -3,6 +3,10 @@ import type { Doc, Id } from './_generated/dataModel';
 import { internalAction, internalMutation, internalQuery, type MutationCtx } from './_generated/server';
 import { v } from 'convex/values';
 import type { CleanupBatchResult, CleanupCursor } from './companyCleanup';
+import {
+  buildProductEmbeddingPayload,
+  type ProductEmbeddingVariantAttributes,
+} from './productEmbeddingRuntime';
 import { seedCategories, seedCompany, seedCurrencyRate, seedOffers, seedProducts, seedVariants } from './seedData';
 
 const SEED_SAMPLE_DATA_LOCK_KEY = "seedSampleData";
@@ -14,11 +18,36 @@ type SeedInsertResult = {
   companyName: string;
   counts: {
     categories: number;
+    embeddings: number;
     currencyRates: number;
     offers: number;
     productVariants: number;
     products: number;
   };
+};
+
+type SeedProductEmbeddingSnapshot = {
+  productId: Id<"products">;
+  companyId: Id<"companies">;
+  categoryId: Id<"categories">;
+  nameEn: string;
+  nameAr?: string;
+  descriptionEn?: string;
+  descriptionAr?: string;
+  specifications?: Record<string, string | number | boolean>;
+  basePrice?: number;
+  baseCurrency?: string;
+  variants: Array<{
+    id: Id<"productVariants">;
+    productId: Id<"products">;
+    variantLabel: string;
+    attributes: ProductEmbeddingVariantAttributes;
+    priceOverride?: number;
+  }>;
+};
+
+type SeedActionResult = SeedInsertResult & {
+  clearedCompanies: number;
 };
 
 type LockAcquireResult = {
@@ -74,6 +103,55 @@ export const listSeedCompanyIds = internalQuery({
     }
 
     return companyIds;
+  },
+});
+
+export const listSeedProductsForEmbedding = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+  },
+  handler: async (ctx, args): Promise<SeedProductEmbeddingSnapshot[]> => {
+    const products = await ctx.db
+      .query("products")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+
+    const results = await Promise.all(
+      products.map(async (product) => {
+        const variants = await ctx.db
+          .query("productVariants")
+          .withIndex("by_product", (q) => q.eq("productId", product._id))
+          .collect();
+
+        const sortedVariants = [...variants].sort((left, right) =>
+          left.variantLabel.localeCompare(right.variantLabel) || left._id.localeCompare(right._id),
+        );
+
+        return {
+          productId: product._id,
+          companyId: product.companyId,
+          categoryId: product.categoryId,
+          nameEn: product.nameEn,
+          ...(product.nameAr ? { nameAr: product.nameAr } : {}),
+          ...(product.descriptionEn ? { descriptionEn: product.descriptionEn } : {}),
+          ...(product.descriptionAr ? { descriptionAr: product.descriptionAr } : {}),
+          ...(product.specifications ? { specifications: product.specifications } : {}),
+          ...(product.basePrice !== undefined ? { basePrice: product.basePrice } : {}),
+          ...(product.baseCurrency ? { baseCurrency: product.baseCurrency } : {}),
+          variants: sortedVariants.map((variant) => ({
+            id: variant._id,
+            productId: variant.productId,
+            variantLabel: variant.variantLabel,
+            attributes: variant.attributes,
+            ...(variant.priceOverride !== undefined ? { priceOverride: variant.priceOverride } : {}),
+          })),
+        };
+      }),
+    );
+
+    return results.sort((left, right) =>
+      left.nameEn.localeCompare(right.nameEn) || left.productId.localeCompare(right.productId),
+    );
   },
 });
 
@@ -243,6 +321,7 @@ export const insertSeedSampleData = internalMutation({
       companyName: seedCompany.name,
       counts: {
         categories: seedCategories.length,
+        embeddings: 0,
         products: seedProducts.length,
         productVariants: seedVariants.length,
         offers: seedOffers.length,
@@ -252,9 +331,53 @@ export const insertSeedSampleData = internalMutation({
   },
 });
 
+export const syncSeedEmbeddings = internalAction({
+  args: {
+    companyId: v.id("companies"),
+  },
+  handler: async (ctx, args): Promise<{ embeddings: number }> => {
+    const products = await ctx.runQuery(internal.seed.listSeedProductsForEmbedding, {
+      companyId: args.companyId,
+    });
+
+    for (const product of products) {
+      const embeddings = await buildProductEmbeddingPayload(
+        {
+          companyId: product.companyId,
+          categoryId: product.categoryId,
+          nameEn: product.nameEn,
+          ...(product.nameAr ? { nameAr: product.nameAr } : {}),
+          ...(product.descriptionEn ? { descriptionEn: product.descriptionEn } : {}),
+          ...(product.descriptionAr ? { descriptionAr: product.descriptionAr } : {}),
+          ...(product.specifications ? { specifications: product.specifications } : {}),
+          ...(product.basePrice !== undefined ? { basePrice: product.basePrice } : {}),
+          ...(product.baseCurrency ? { baseCurrency: product.baseCurrency } : {}),
+        },
+        product.variants.map((variant: SeedProductEmbeddingSnapshot["variants"][number]) => ({
+            id: variant.id,
+            productId: variant.productId,
+            variantLabel: variant.variantLabel,
+            attributes: variant.attributes,
+            ...(variant.priceOverride !== undefined ? { priceOverride: variant.priceOverride } : {}),
+          })),
+      );
+
+      await ctx.runMutation(internal.productEmbeddingRuntime.replaceProductEmbeddings, {
+        companyId: product.companyId,
+        productId: product.productId,
+        ...embeddings,
+      });
+    }
+
+    return {
+      embeddings: products.length * 2,
+    };
+  },
+});
+
 export const seedSampleData = internalAction({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<SeedActionResult> => {
     const ownerToken = crypto.randomUUID();
 
     const refreshLock = async (): Promise<void> => {
@@ -305,9 +428,16 @@ export const seedSampleData = internalAction({
 
       await refreshLock();
       const seededResult: SeedInsertResult = await ctx.runMutation(internal.seed.insertSeedSampleData, {});
+      const syncedEmbeddings: { embeddings: number } = await ctx.runAction(internal.seed.syncSeedEmbeddings, {
+        companyId: seededResult.companyId,
+      });
 
       return {
         ...seededResult,
+        counts: {
+          ...seededResult.counts,
+          embeddings: syncedEmbeddings.embeddings,
+        },
         clearedCompanies: companyIds.length,
       };
     } finally {
