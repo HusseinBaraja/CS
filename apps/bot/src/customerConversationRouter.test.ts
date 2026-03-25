@@ -860,7 +860,7 @@ describe("createCustomerConversationRouter", () => {
         content: input.content,
         timestamp: input.timestamp,
       }),
-      getOrCreateActiveConversation: async () => ({
+      getOrCreateConversationForInbound: async () => ({
         id: "conversation-1",
         companyId: "company-1",
         phoneNumber: "967700000001",

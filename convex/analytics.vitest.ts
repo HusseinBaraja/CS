@@ -301,6 +301,28 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     expect(summary?.counts.handoffs).toBe(1);
   });
 
+  it("rejects analytics events for unknown companies", async () => {
+    freezeNow();
+    const t = convexTest(schema, modules);
+    const deletedCompanyId = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000812",
+        timezone: "Asia/Aden",
+      });
+      await ctx.db.delete(companyId);
+      return companyId;
+    });
+
+    await expect(
+      t.mutation(internal.analytics.recordEvent, {
+        companyId: deletedCompanyId,
+        eventType: "handoff_started",
+        timestamp: Date.parse("2026-03-12T09:06:00.000Z"),
+      }),
+    ).rejects.toThrow("Company not found");
+  });
+
   it("ignores malformed or negative response times", async () => {
     freezeNow();
     const t = convexTest(schema, modules);

@@ -412,6 +412,7 @@ export const summary = internalQuery({
 export const recordEvent = internalMutation({
   args: {
     companyId: v.id("companies"),
+    // Keep these literals aligned with the shared analytics event contracts in @cs/shared.
     eventType: v.union(
       v.literal("customer_message_received"),
       v.literal("assistant_message_sent"),
