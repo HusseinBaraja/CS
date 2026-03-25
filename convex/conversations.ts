@@ -162,8 +162,9 @@ const normalizeOptionalString = (value: string | undefined, fieldName: string): 
   return normalized;
 };
 
-const isVisibleConversationMessage = (message: Pick<Doc<"messages">, "deliveryState">): boolean =>
-  message.deliveryState !== "failed";
+const isVisibleConversationMessage = (
+  message: Pick<Doc<"messages">, "role" | "deliveryState">,
+): boolean => message.role === "user" || message.deliveryState === "sent";
 
 const listConversationMessageDocs = async (
   ctx: { db: DatabaseReader },
@@ -232,7 +233,7 @@ const filterMessagesBeforeInbound = (
   },
 ): ConversationMessageDto[] =>
   messages.filter((message) => {
-    if (message.deliveryState === "failed") {
+    if (!isVisibleConversationMessage(message)) {
       return false;
     }
 
@@ -967,13 +968,19 @@ export const commitPendingAssistantMessage = internalMutation({
       throw new Error("Pending assistant message not found for conversation");
     }
 
-    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
-    if (message.deliveryState !== "sent") {
-      await ctx.db.patch(message._id, {
-        deliveryState: "sent",
-        ...(transportMessageId ? { transportMessageId } : {}),
-      });
+    if (message.deliveryState !== "pending") {
+      throw new Error("Only pending assistant messages can be committed");
     }
+
+    if (message.providerAcknowledgedAt === undefined) {
+      throw new Error("Pending assistant message must be acknowledged before commit");
+    }
+
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
+    await ctx.db.patch(message._id, {
+      deliveryState: "sent",
+      ...(transportMessageId ? { transportMessageId } : {}),
+    });
 
     const updatedMessage = await loadMessageOrThrow(ctx, args.pendingMessageId);
     await applyAssistantHandoffIfNeeded(ctx, {
@@ -1000,11 +1007,17 @@ export const markPendingAssistantMessageFailed = internalMutation({
       throw new Error("Pending assistant message not found for conversation");
     }
 
-    if (message.deliveryState !== "sent") {
-      await ctx.db.patch(message._id, {
-        deliveryState: "failed",
-      });
+    if (message.deliveryState !== "pending") {
+      throw new Error("Only pending assistant messages can be marked failed");
     }
+
+    if (message.providerAcknowledgedAt !== undefined) {
+      throw new Error("Acknowledged assistant messages must be reconciled, not marked failed");
+    }
+
+    await ctx.db.patch(message._id, {
+      deliveryState: "failed",
+    });
 
     return toMessageDto(await loadMessageOrThrow(ctx, args.pendingMessageId));
   },
