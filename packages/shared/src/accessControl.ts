@@ -39,10 +39,17 @@ export interface InboundAccessEvaluation {
 }
 
 const ACCESS_CONTROL_MODE_SET = new Set<string>(ACCESS_CONTROL_MODES);
+const MALFORMED_CONFIG_VALUE = "__MALFORMED__" as const;
 
-const normalizeConfiguredString = (value: string | number | boolean | undefined): string | null => {
-  if (typeof value !== "string") {
+const normalizeConfiguredString = (
+  value: string | number | boolean | undefined,
+): string | null | typeof MALFORMED_CONFIG_VALUE => {
+  if (value === undefined) {
     return null;
+  }
+
+  if (typeof value !== "string") {
+    return MALFORMED_CONFIG_VALUE;
   }
 
   const trimmed = value.trim();
@@ -71,10 +78,14 @@ export const resolveAccessControlPolicy = (
 ): ResolvedAccessControlPolicy => {
   const ownerPhoneNumber = canonicalizePhoneNumber(ownerPhone);
   const configuredMode = normalizeConfiguredString(config?.accessControlMode);
-  const singleNumber = canonicalizePhoneNumber(normalizeConfiguredString(config?.accessControlSingleNumber) ?? "");
-  const allowedNumbers = normalizeAllowedNumbers(
-    normalizeConfiguredString(config?.accessControlAllowedNumbers),
-  );
+  const configuredSingleNumber = normalizeConfiguredString(config?.accessControlSingleNumber);
+  const configuredAllowedNumbers = normalizeConfiguredString(config?.accessControlAllowedNumbers);
+  const singleNumber = typeof configuredSingleNumber === "string"
+    ? canonicalizePhoneNumber(configuredSingleNumber)
+    : null;
+  const allowedNumbers = typeof configuredAllowedNumbers === "string"
+    ? normalizeAllowedNumbers(configuredAllowedNumbers)
+    : new Set<string>();
 
   if (!ownerPhoneNumber) {
     return {
@@ -94,6 +105,17 @@ export const resolveAccessControlPolicy = (
       effectiveMode: "OWNER_ONLY",
       allowedPhoneNumbers: new Set([ownerPhoneNumber]),
       malformed: false,
+    };
+  }
+
+  if (configuredMode === MALFORMED_CONFIG_VALUE) {
+    return {
+      ownerPhoneNumber,
+      configuredMode: String(config?.accessControlMode),
+      effectiveMode: "OWNER_ONLY",
+      allowedPhoneNumbers: new Set([ownerPhoneNumber]),
+      malformed: true,
+      reason: "access_mode_invalid_mode",
     };
   }
 
@@ -129,7 +151,7 @@ export const resolveAccessControlPolicy = (
   }
 
   if (configuredMode === "SINGLE_NUMBER") {
-    if (!singleNumber) {
+    if (configuredSingleNumber === MALFORMED_CONFIG_VALUE || !singleNumber) {
       return {
         ownerPhoneNumber,
         configuredMode,
@@ -149,7 +171,7 @@ export const resolveAccessControlPolicy = (
     };
   }
 
-  if (allowedNumbers.size === 0) {
+  if (configuredAllowedNumbers === MALFORMED_CONFIG_VALUE || allowedNumbers.size === 0) {
     return {
       ownerPhoneNumber,
       configuredMode,

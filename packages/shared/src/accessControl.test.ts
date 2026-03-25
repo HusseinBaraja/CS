@@ -94,6 +94,19 @@ describe("access control policy", () => {
     });
   });
 
+  test("fails safe for non-string access control mode values", () => {
+    const policy = resolveAccessControlPolicy({
+      accessControlMode: true,
+    }, "966500000001");
+
+    expect(policy).toMatchObject({
+      configuredMode: "true",
+      effectiveMode: "OWNER_ONLY",
+      malformed: true,
+      reason: "access_mode_invalid_mode",
+    });
+  });
+
   test("fails safe for invalid single number config", () => {
     const policy = resolveAccessControlPolicy({
       accessControlMode: "SINGLE_NUMBER",
@@ -106,6 +119,19 @@ describe("access control policy", () => {
       reason: "access_mode_single_number_invalid",
     });
     expect(sortAllowed(policy)).toEqual(["966500000001"]);
+  });
+
+  test("fails safe for non-string single number config", () => {
+    const policy = resolveAccessControlPolicy({
+      accessControlMode: "SINGLE_NUMBER",
+      accessControlSingleNumber: 967700000001,
+    }, "966500000001");
+
+    expect(policy).toMatchObject({
+      effectiveMode: "OWNER_ONLY",
+      malformed: true,
+      reason: "access_mode_single_number_invalid",
+    });
   });
 
   test("fails safe for empty list config and keeps valid entries only from mixed input", () => {
@@ -130,6 +156,19 @@ describe("access control policy", () => {
       malformed: false,
     });
     expect(sortAllowed(mixedPolicy)).toEqual(["966500000001", "967700000001"]);
+  });
+
+  test("fails safe for non-string list config", () => {
+    const policy = resolveAccessControlPolicy({
+      accessControlMode: "LIST",
+      accessControlAllowedNumbers: false,
+    }, "966500000001");
+
+    expect(policy).toMatchObject({
+      effectiveMode: "OWNER_ONLY",
+      malformed: true,
+      reason: "access_mode_list_empty",
+    });
   });
 
   test("fails closed when the owner phone is invalid", () => {
