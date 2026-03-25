@@ -585,9 +585,7 @@ export const listDueAutoResumeConversations = internalQuery({
       .withIndex("by_muted_next_auto_resume_at", (q) => q.eq("muted", true).lte("nextAutoResumeAt", now))
       .take(limit);
 
-    return conversations
-      .filter((conversation) => typeof conversation.nextAutoResumeAt === "number" && conversation.nextAutoResumeAt <= now)
-      .map(toConversationDto);
+    return conversations.map(toConversationDto);
   },
 });
 
@@ -741,17 +739,15 @@ export const resumeConversation = internalMutation({
     const resumedAt = normalizeTimestamp(args.resumedAt, Date.now());
     const reason = normalizeOptionalString(args.reason, "reason");
     const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, "actorPhoneNumber");
-    const latestConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
 
     if (
-      !latestConversation.muted
-      || latestConversation.nextAutoResumeAt === undefined
-      || latestConversation.nextAutoResumeAt > resumedAt
+      conversation.nextAutoResumeAt === undefined
+      || conversation.nextAutoResumeAt > resumedAt
     ) {
-      return toConversationDto(latestConversation);
+      return toConversationDto(conversation);
     }
 
-    await ctx.db.patch(latestConversation._id, {
+    await ctx.db.patch(conversation._id, {
       muted: false,
       mutedAt: undefined,
       nextAutoResumeAt: undefined,
@@ -759,8 +755,8 @@ export const resumeConversation = internalMutation({
 
     await insertConversationStateEvent(ctx, {
       companyId: args.companyId,
-      conversationId: latestConversation._id,
-      phoneNumber: latestConversation.phoneNumber,
+      conversationId: conversation._id,
+      phoneNumber: conversation.phoneNumber,
       eventType: args.source === "api_manual" ? "handoff_resumed_manual" : "handoff_resumed_auto",
       timestamp: resumedAt,
       source: args.source,
