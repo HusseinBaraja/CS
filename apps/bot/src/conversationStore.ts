@@ -14,6 +14,8 @@ export interface AppendConversationMessageInput {
   conversationId: string;
   content: string;
   timestamp: number;
+  transportMessageId?: string;
+  referencedTransportMessageId?: string;
 }
 
 export interface AppendInboundCustomerMessageInput {
@@ -21,11 +23,14 @@ export interface AppendInboundCustomerMessageInput {
   phoneNumber: string;
   content: string;
   timestamp: number;
+  transportMessageId?: string;
+  referencedTransportMessageId?: string;
 }
 
 export interface AppendInboundCustomerMessageResult {
   conversation: ConversationRecord;
   wasMuted: boolean;
+  wasDuplicate: boolean;
 }
 
 export interface ConversationStore {
@@ -34,6 +39,48 @@ export interface ConversationStore {
   appendInboundCustomerMessage(input: AppendInboundCustomerMessageInput): Promise<AppendInboundCustomerMessageResult>;
   appendUserMessage(input: AppendConversationMessageInput): Promise<ConversationMessageRecord>;
   appendMutedCustomerMessage(input: AppendConversationMessageInput): Promise<ConversationRecord>;
+  appendPendingAssistantMessage(input: {
+    companyId: string;
+    conversationId: string;
+    content: string;
+    timestamp: number;
+    source?: Extract<ConversationStateEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback">;
+    reason?: string;
+    actorPhoneNumber?: string;
+    metadata?: Record<string, string | number | boolean>;
+  }): Promise<ConversationMessageRecord>;
+  acknowledgePendingAssistantMessage(input: {
+    companyId: string;
+    conversationId: string;
+    pendingMessageId: string;
+    acknowledgedAt: number;
+    transportMessageId?: string;
+  }): Promise<ConversationMessageRecord>;
+  completePendingAssistantSideEffects(input: {
+    companyId: string;
+    conversationId: string;
+    pendingMessageId: string;
+    analyticsCompleted?: boolean;
+    ownerNotificationCompleted?: boolean;
+  }): Promise<ConversationMessageRecord>;
+  recordPendingAssistantSideEffectProgress(input: {
+    companyId: string;
+    conversationId: string;
+    pendingMessageId: string;
+    analyticsRecorded?: boolean;
+    ownerNotificationSent?: boolean;
+  }): Promise<ConversationMessageRecord>;
+  commitPendingAssistantMessage(input: {
+    companyId: string;
+    conversationId: string;
+    pendingMessageId: string;
+    transportMessageId?: string;
+  }): Promise<ConversationRecord>;
+  markPendingAssistantMessageFailed(input: {
+    companyId: string;
+    conversationId: string;
+    pendingMessageId: string;
+  }): Promise<ConversationMessageRecord>;
   appendAssistantMessage(input: AppendConversationMessageInput): Promise<ConversationMessageRecord>;
   appendAssistantMessageAndStartHandoff(input: {
     companyId: string;
@@ -44,6 +91,7 @@ export interface ConversationStore {
     reason?: string;
     actorPhoneNumber?: string;
     metadata?: Record<string, string | number | boolean>;
+    transportMessageId?: string;
   }): Promise<ConversationRecord>;
   startHandoff(input: {
     companyId: string;
@@ -70,11 +118,20 @@ export interface ConversationStore {
   }): Promise<ConversationRecord>;
   getConversation(input: { companyId: string; conversationId: string }): Promise<ConversationRecord>;
   getPromptHistory(input: { companyId: string; conversationId: string; limit: number }): Promise<PromptHistoryTurn[]>;
+  getPromptHistoryForInbound(input: {
+    companyId: string;
+    conversationId: string;
+    inboundTimestamp: number;
+    currentTransportMessageId?: string;
+    referencedTransportMessageId?: string;
+    limit: number;
+  }): Promise<PromptHistoryTurn[]>;
   listRecentMessages(input: { companyId: string; conversationId: string; limit: number }): Promise<ConversationMessageRecord[]>;
   recordAnalyticsEvent(input: {
     companyId: string;
     eventType: AnalyticsEventType;
     timestamp: number;
+    idempotencyKey?: string;
     payload?: Record<string, string | number | boolean>;
   }): Promise<void>;
   trimConversationMessages(input: {
@@ -90,7 +147,7 @@ export interface ConvexConversationStoreOptions {
 
 const CONVEX_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
-const toConvexId = <TableName extends "companies" | "conversations">(
+const toConvexId = <TableName extends "companies" | "conversations" | "messages">(
   tableName: TableName,
   rawValue: string,
 ): Id<TableName> => {
@@ -108,6 +165,10 @@ export const toCompanyId = (companyId: string): Id<"companies"> => toConvexId("c
 
 const toConversationId = (conversationId: string): Id<"conversations"> => {
   return toConvexId("conversations", conversationId);
+};
+
+const toMessageId = (messageId: string): Id<"messages"> => {
+  return toConvexId("messages", messageId);
 };
 
 export const createConvexConversationStore = (
@@ -130,10 +191,76 @@ export const createConvexConversationStore = (
         role,
         content: input.content,
         timestamp: input.timestamp,
+        ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+        ...(input.referencedTransportMessageId
+          ? { referencedTransportMessageId: input.referencedTransportMessageId }
+          : {}),
       })
     );
 
   return {
+    appendPendingAssistantMessage: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.appendPendingAssistantMessage, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          content: input.content,
+          timestamp: input.timestamp,
+          ...(input.source ? { source: input.source } : {}),
+          ...(input.reason ? { reason: input.reason } : {}),
+          ...(input.actorPhoneNumber ? { actorPhoneNumber: input.actorPhoneNumber } : {}),
+          ...(input.metadata ? { metadata: input.metadata } : {}),
+        })
+      ),
+    acknowledgePendingAssistantMessage: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.acknowledgePendingAssistantMessage, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          pendingMessageId: toMessageId(input.pendingMessageId),
+          acknowledgedAt: input.acknowledgedAt,
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+        })
+      ),
+    completePendingAssistantSideEffects: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.completePendingAssistantSideEffects, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          pendingMessageId: toMessageId(input.pendingMessageId),
+          ...(input.analyticsCompleted !== undefined ? { analyticsCompleted: input.analyticsCompleted } : {}),
+          ...(input.ownerNotificationCompleted !== undefined
+            ? { ownerNotificationCompleted: input.ownerNotificationCompleted }
+            : {}),
+        })
+      ),
+    recordPendingAssistantSideEffectProgress: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.recordPendingAssistantSideEffectProgress, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          pendingMessageId: toMessageId(input.pendingMessageId),
+          ...(input.analyticsRecorded !== undefined ? { analyticsRecorded: input.analyticsRecorded } : {}),
+          ...(input.ownerNotificationSent !== undefined ? { ownerNotificationSent: input.ownerNotificationSent } : {}),
+        })
+      ),
+    commitPendingAssistantMessage: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.commitPendingAssistantMessage, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          pendingMessageId: toMessageId(input.pendingMessageId),
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+        })
+      ),
+    markPendingAssistantMessageFailed: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.markPendingAssistantMessageFailed, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          pendingMessageId: toMessageId(input.pendingMessageId),
+        })
+      ),
     appendAssistantMessage: (input) => appendMessage("assistant", input),
     appendInboundCustomerMessage: (input) =>
       withClient((client) =>
@@ -142,6 +269,10 @@ export const createConvexConversationStore = (
           phoneNumber: input.phoneNumber,
           content: input.content,
           timestamp: input.timestamp,
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+          ...(input.referencedTransportMessageId
+            ? { referencedTransportMessageId: input.referencedTransportMessageId }
+            : {}),
         })
       ),
     appendAssistantMessageAndStartHandoff: (input) =>
@@ -155,6 +286,7 @@ export const createConvexConversationStore = (
           ...(input.reason ? { reason: input.reason } : {}),
           ...(input.actorPhoneNumber ? { actorPhoneNumber: input.actorPhoneNumber } : {}),
           ...(input.metadata ? { metadata: input.metadata } : {}),
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
         })
       ),
     appendMutedCustomerMessage: (input) =>
@@ -228,6 +360,19 @@ export const createConvexConversationStore = (
           limit: input.limit,
         })
       ),
+    getPromptHistoryForInbound: (input) =>
+      withClient((client) =>
+        client.query(convexInternal.conversations.getPromptHistoryForInbound, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          inboundTimestamp: input.inboundTimestamp,
+          limit: input.limit,
+          ...(input.currentTransportMessageId ? { currentTransportMessageId: input.currentTransportMessageId } : {}),
+          ...(input.referencedTransportMessageId
+            ? { referencedTransportMessageId: input.referencedTransportMessageId }
+            : {}),
+        })
+      ),
     listRecentMessages: (input) =>
       withClient((client) =>
         client.query(convexInternal.conversations.listConversationMessages, {
@@ -242,6 +387,7 @@ export const createConvexConversationStore = (
           companyId: toCompanyId(input.companyId),
           eventType: input.eventType,
           timestamp: input.timestamp,
+          ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
           ...(input.payload ? { payload: input.payload } : {}),
         })
       ).then(() => undefined),

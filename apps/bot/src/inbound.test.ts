@@ -109,6 +109,33 @@ describe("normalizeInboundMessages", () => {
     expect(wrapped).toEqual(direct);
   });
 
+  test("extracts quoted reply metadata from text messages", () => {
+    const result = normalizeSingle({
+      type: "notify",
+      messages: [
+        createMessage({
+          message: {
+            extendedTextMessage: {
+              text: "Need pricing",
+              contextInfo: {
+                stanzaId: "quoted-message-1",
+              },
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "dispatch",
+      message: {
+        replyContext: {
+          referencedMessageId: "quoted-message-1",
+        },
+      },
+    });
+  });
+
   test("normalizes media messages into placeholders and keeps captions when present", () => {
     const imageResult = normalizeSingle({
       type: "notify",
@@ -157,6 +184,101 @@ describe("normalizeInboundMessages", () => {
           kind: "sticker",
           text: "",
           hasMedia: true,
+        },
+      },
+    });
+    const quotedImageResult = normalizeSingle({
+      type: "notify",
+      messages: [
+        createMessage({
+          key: {
+            id: "message-3",
+            remoteJid: "967700000003@s.whatsapp.net",
+            fromMe: false,
+          },
+          message: {
+            imageMessage: {
+              caption: "Photo",
+              contextInfo: {
+                stanzaId: "quoted-image-1",
+              },
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(quotedImageResult).toMatchObject({
+      kind: "dispatch",
+      message: {
+        replyContext: {
+          referencedMessageId: "quoted-image-1",
+        },
+      },
+    });
+    if (stickerResult.kind !== "dispatch") {
+      throw new Error("expected sticker result to dispatch");
+    }
+    expect(stickerResult.message).not.toHaveProperty("replyContext");
+  });
+
+  test("extracts quoted reply metadata from audio messages", () => {
+    const result = normalizeSingle({
+      type: "notify",
+      messages: [
+        createMessage({
+          message: {
+            audioMessage: {
+              contextInfo: {
+                stanzaId: "quoted-audio-1",
+              },
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "dispatch",
+      message: {
+        content: {
+          kind: "audio",
+          text: "",
+          hasMedia: true,
+        },
+        replyContext: {
+          referencedMessageId: "quoted-audio-1",
+        },
+      },
+    });
+  });
+
+  test("extracts quoted reply metadata from sticker messages", () => {
+    const result = normalizeSingle({
+      type: "notify",
+      messages: [
+        createMessage({
+          message: {
+            stickerMessage: {
+              contextInfo: {
+                stanzaId: "quoted-sticker-1",
+              },
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "dispatch",
+      message: {
+        content: {
+          kind: "sticker",
+          text: "",
+          hasMedia: true,
+        },
+        replyContext: {
+          referencedMessageId: "quoted-sticker-1",
         },
       },
     });

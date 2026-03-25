@@ -16,6 +16,7 @@ const isAnalyticsMutation = (args: StubArgs): boolean => "eventType" in args;
 
 const isConversationMutation = (args: StubArgs): boolean =>
   "source" in args
+  || "pendingMessageId" in args
   || ("content" in args && "timestamp" in args && !("role" in args));
 
 const isListQuery = (args: StubArgs): boolean => "conversationId" in args && "limit" in args;
@@ -39,6 +40,7 @@ const createMessageStub = () => ({
   role: "user" as const,
   content: "hello",
   timestamp: 1_000,
+  deliveryState: "sent" as const,
 });
 
 const createActionConversationStub = () => ({
@@ -65,6 +67,7 @@ const createClientStub = () => {
         return {
           conversation: createActionConversationStub(),
           wasMuted: false,
+          wasDuplicate: false,
         };
       }
 
@@ -183,18 +186,23 @@ describe("createConvexConversationStore", () => {
       phoneNumber: "967700000001",
       content: "hello from inbound",
       timestamp: 900,
+      transportMessageId: "inbound-1",
+      referencedTransportMessageId: "quoted-1",
     });
     await store.appendUserMessage({
       companyId: "company-1",
       conversationId: "conversation-1",
       content: "hello",
       timestamp: 1_000,
+      transportMessageId: "user-1",
     });
     await store.appendMutedCustomerMessage({
       companyId: "company-1",
       conversationId: "conversation-1",
       content: "hello again",
       timestamp: 1_500,
+      transportMessageId: "muted-1",
+      referencedTransportMessageId: "quoted-2",
     });
     await store.appendAssistantMessageAndStartHandoff({
       companyId: "company-1",
@@ -202,10 +210,56 @@ describe("createConvexConversationStore", () => {
       content: "Connecting you with the team.",
       timestamp: 1_750,
       source: "assistant_action",
+      transportMessageId: "assistant-1",
+    });
+    await store.appendPendingAssistantMessage({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      content: "Assistant reply",
+      timestamp: 1_800,
+      source: "assistant_action",
+    });
+    await store.acknowledgePendingAssistantMessage({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      acknowledgedAt: 1_850,
+      transportMessageId: "assistant-ack-1",
+    });
+    await store.completePendingAssistantSideEffects({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      analyticsCompleted: true,
+    });
+    await store.recordPendingAssistantSideEffectProgress({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      ownerNotificationSent: true,
+    });
+    await store.commitPendingAssistantMessage({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      transportMessageId: "assistant-2",
+    });
+    await store.markPendingAssistantMessageFailed({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
     });
     await store.getPromptHistory({
       companyId: "company-1",
       conversationId: "conversation-1",
+      limit: 20,
+    });
+    await store.getPromptHistoryForInbound({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      inboundTimestamp: 2_500,
+      currentTransportMessageId: "inbound-2",
+      referencedTransportMessageId: "quoted-3",
       limit: 20,
     });
     await store.getOrCreateConversationForInbound("company-1", "967700000001");
@@ -232,6 +286,7 @@ describe("createConvexConversationStore", () => {
     await store.recordAnalyticsEvent({
       companyId: "company-1",
       eventType: "handoff_started",
+      idempotencyKey: "pendingMessage:message-1:handoff_started",
       timestamp: 4_000,
       payload: {
         source: "assistant_action",
@@ -239,8 +294,99 @@ describe("createConvexConversationStore", () => {
     });
 
     expect(actionCalls).toHaveLength(3);
-    expect(mutationCalls).toHaveLength(6);
-    expect(queryCalls).toHaveLength(3);
+    expect(mutationCalls).toHaveLength(12);
+    expect(queryCalls).toHaveLength(4);
+  });
+
+  test("forwards pending assistant lifecycle mutations to Convex", async () => {
+    const { client, mutationCalls } = createClientStub();
+    const store = createConvexConversationStore({
+      createClient: () => client as never,
+    });
+
+    await store.appendPendingAssistantMessage({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      content: "Assistant reply",
+      timestamp: 1_000,
+      source: "assistant_action",
+      reason: "requested handoff",
+    });
+    await store.acknowledgePendingAssistantMessage({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      acknowledgedAt: 1_050,
+      transportMessageId: "transport-ack-1",
+    });
+    await store.completePendingAssistantSideEffects({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      analyticsCompleted: true,
+      ownerNotificationCompleted: true,
+    });
+    await store.recordPendingAssistantSideEffectProgress({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      analyticsRecorded: true,
+      ownerNotificationSent: true,
+    });
+    await store.commitPendingAssistantMessage({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      transportMessageId: "transport-1",
+    });
+    await store.markPendingAssistantMessageFailed({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+    });
+
+    expect(mutationCalls.slice(-6)).toEqual([
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        content: "Assistant reply",
+        timestamp: 1_000,
+        source: "assistant_action",
+        reason: "requested handoff",
+      },
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        pendingMessageId: "message-1",
+        acknowledgedAt: 1_050,
+        transportMessageId: "transport-ack-1",
+      },
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        pendingMessageId: "message-1",
+        analyticsCompleted: true,
+        ownerNotificationCompleted: true,
+      },
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        pendingMessageId: "message-1",
+        analyticsRecorded: true,
+        ownerNotificationSent: true,
+      },
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        pendingMessageId: "message-1",
+        transportMessageId: "transport-1",
+      },
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        pendingMessageId: "message-1",
+      },
+    ]);
   });
 
   test("creates the client once and reuses it across store operations", async () => {

@@ -256,6 +256,19 @@ const getCandidateEventsForType = async (
     )
     .collect();
 
+const normalizeOptionalIdempotencyKey = (value: string | undefined): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    throw new Error("idempotencyKey must be a non-empty string when provided");
+  }
+
+  return normalized;
+};
+
 export const summary = internalQuery({
   args: {
     companyId: v.id("companies"),
@@ -424,6 +437,7 @@ export const recordEvent = internalMutation({
       v.literal("ai_response_sent"),
     ),
     timestamp: v.number(),
+    idempotencyKey: v.optional(v.string()),
     payload: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
   },
   handler: async (ctx, args): Promise<void> => {
@@ -432,10 +446,27 @@ export const recordEvent = internalMutation({
       throw new Error("Company not found");
     }
 
+    const idempotencyKey = normalizeOptionalIdempotencyKey(args.idempotencyKey);
+    if (idempotencyKey) {
+      const existing = await ctx.db
+        .query("analyticsEvents")
+        .withIndex("by_company_type_idempotency_key", (q) =>
+          q
+            .eq("companyId", args.companyId)
+            .eq("eventType", args.eventType)
+            .eq("idempotencyKey", idempotencyKey)
+        )
+        .collect();
+      if (existing[0]) {
+        return;
+      }
+    }
+
     await ctx.db.insert("analyticsEvents", {
       companyId: args.companyId,
       eventType: args.eventType,
       timestamp: args.timestamp,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
       ...(args.payload ? { payload: args.payload } : {}),
     });
   },

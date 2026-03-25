@@ -1,5 +1,9 @@
 import type { CatalogChatOrchestrator } from '@cs/rag';
-import { canonicalizePhoneNumber, type ConversationMessageDto, type NormalizedInboundMessage } from '@cs/shared';
+import {
+  canonicalizePhoneNumber,
+  formatOwnerNotification,
+  type NormalizedInboundMessage,
+} from '@cs/shared';
 import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId, type ConversationStore } from './conversationStore';
 
@@ -28,6 +32,13 @@ const redactPhoneNumber = (value: string): string => {
   return `***${suffix}`;
 };
 
+const summarizeAssistantText = (value: string): { assistantTextLength: number } => ({
+  assistantTextLength: value.length,
+});
+
+const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
+  `pendingMessage:${pendingMessageId}:handoff_started`;
+
 const serializeInboundMessage = (message: NormalizedInboundMessage): string => {
   const text = message.content.text.trim();
 
@@ -45,35 +56,6 @@ const serializeInboundMessage = (message: NormalizedInboundMessage): string => {
     case "sticker":
       return "[sticker]";
   }
-};
-
-const formatOwnerNotification = (
-  input: {
-    companyName: string;
-    customerPhoneNumber: string;
-    history: ConversationMessageDto[];
-    source: "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback";
-  },
-): string => {
-  const sourceLabel =
-    input.source === "assistant_action"
-      ? "assistant handoff action"
-      : input.source === "provider_failure_fallback"
-        ? "provider failure fallback"
-        : "invalid model output fallback";
-
-  const historyLines = input.history.length === 0
-    ? ["- No prior conversation history available"]
-    : input.history.map((entry) => `- ${entry.role === "user" ? "Customer" : "Assistant"}: ${entry.content}`);
-
-  return [
-    `Handoff started for ${input.companyName}.`,
-    `Customer: ${input.customerPhoneNumber}`,
-    `Trigger: ${sourceLabel}`,
-    "Auto-resume: 12 hours after the customer's last message while muted.",
-    "Recent conversation:",
-    ...historyLines,
-  ].join("\n");
 };
 
 export const createCustomerConversationRouter = (
@@ -106,16 +88,25 @@ export const createCustomerConversationRouter = (
         phoneNumber: message.conversationPhoneNumber,
         content: userMessage,
         timestamp: message.occurredAtMs,
+        transportMessageId: message.messageId,
+        ...(message.replyContext?.referencedMessageId
+          ? { referencedTransportMessageId: message.replyContext.referencedMessageId }
+          : {}),
       });
       conversationId = inboundAppend.conversation.id;
 
-      if (inboundAppend.wasMuted) {
+      if (inboundAppend.wasDuplicate || inboundAppend.wasMuted) {
         return;
       }
 
-      history = await options.conversationStore.getPromptHistory({
+      history = await options.conversationStore.getPromptHistoryForInbound({
         companyId: message.companyId,
         conversationId,
+        inboundTimestamp: message.occurredAtMs,
+        currentTransportMessageId: message.messageId,
+        ...(message.replyContext?.referencedMessageId
+          ? { referencedTransportMessageId: message.replyContext.referencedMessageId }
+          : {}),
         limit: conversationHistoryWindowMessages,
       });
     } catch (error) {
@@ -172,27 +163,20 @@ export const createCustomerConversationRouter = (
     }
 
     const assistantTimestamp = now();
+    let pendingMessageId: string;
     try {
-      if (handoffSource) {
-        await options.conversationStore.appendAssistantMessageAndStartHandoff({
-          companyId: message.companyId,
-          conversationId,
-          content: assistantText,
-          timestamp: assistantTimestamp,
-          source: handoffSource,
-        });
-      } else {
-        await options.conversationStore.appendAssistantMessage({
-          companyId: message.companyId,
-          conversationId,
-          content: assistantText,
-          timestamp: assistantTimestamp,
-        });
-      }
+      const pendingMessage = await options.conversationStore.appendPendingAssistantMessage({
+        companyId: message.companyId,
+        conversationId,
+        content: assistantText,
+        timestamp: assistantTimestamp,
+        ...(handoffSource ? { source: handoffSource } : {}),
+      });
+      pendingMessageId = pendingMessage.id;
     } catch (error) {
       options.logger.error(
         {
-          assistantText,
+          ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
           error,
@@ -204,24 +188,95 @@ export const createCustomerConversationRouter = (
       return;
     }
 
+    let outboundMessageId: string | undefined;
     try {
-      await context.outbound.sendText({
+      const sendReceipts = await context.outbound.sendText({
         recipientJid: `${message.sender.phoneNumber}@s.whatsapp.net`,
         text: assistantText,
       });
+      outboundMessageId = sendReceipts[0]?.messageId;
     } catch (error) {
       options.logger.error(
         {
-          assistantText,
+          ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
           error,
           messageId: message.messageId,
+          pendingMessageId,
           recipientPhoneNumber: redactPhoneNumber(message.sender.phoneNumber),
           sessionKey: message.sessionKey,
         },
         "customer conversation outbound send failed",
       );
+      try {
+        await options.conversationStore.markPendingAssistantMessageFailed({
+          companyId: message.companyId,
+          conversationId,
+          pendingMessageId,
+        });
+      } catch (markFailedError) {
+        options.logger.error(
+          {
+            companyId: message.companyId,
+            conversationId,
+            error: markFailedError,
+            messageId: message.messageId,
+            pendingMessageId,
+            sessionKey: message.sessionKey,
+          },
+          "customer conversation pending assistant failure persistence failed",
+        );
+      }
+      return;
+    }
+
+    try {
+      await options.conversationStore.acknowledgePendingAssistantMessage({
+        companyId: message.companyId,
+        conversationId,
+        pendingMessageId,
+        acknowledgedAt: now(),
+        ...(outboundMessageId ? { transportMessageId: outboundMessageId } : {}),
+      });
+    } catch (error) {
+      options.logger.error(
+        {
+          ...summarizeAssistantText(assistantText),
+          companyId: message.companyId,
+          conversationId,
+          error,
+          messageId: message.messageId,
+          outboundMessageId,
+          pendingMessageId,
+          sessionKey: message.sessionKey,
+        },
+        "customer conversation assistant acknowledgement persistence failed",
+      );
+      return;
+    }
+
+    try {
+      await options.conversationStore.commitPendingAssistantMessage({
+        companyId: message.companyId,
+        conversationId,
+        pendingMessageId,
+        ...(outboundMessageId ? { transportMessageId: outboundMessageId } : {}),
+      });
+    } catch (error) {
+      options.logger.error(
+        {
+          ...summarizeAssistantText(assistantText),
+          companyId: message.companyId,
+          conversationId,
+          error,
+          messageId: message.messageId,
+          pendingMessageId,
+          sessionKey: message.sessionKey,
+        },
+        "customer conversation assistant persistence failed",
+      );
+      return;
     }
 
     if (handoffSource) {
@@ -229,12 +284,25 @@ export const createCustomerConversationRouter = (
         await options.conversationStore.recordAnalyticsEvent({
           companyId: message.companyId,
           eventType: "handoff_started",
+          idempotencyKey: getAnalyticsIdempotencyKey(pendingMessageId),
           timestamp: assistantTimestamp,
           payload: {
             conversationId,
             phoneNumber: message.conversationPhoneNumber,
             source: handoffSource,
           },
+        });
+        await options.conversationStore.recordPendingAssistantSideEffectProgress({
+          companyId: message.companyId,
+          conversationId,
+          pendingMessageId,
+          analyticsRecorded: true,
+        });
+        await options.conversationStore.completePendingAssistantSideEffects({
+          companyId: message.companyId,
+          conversationId,
+          pendingMessageId,
+          analyticsCompleted: true,
         });
       } catch (error) {
         options.logger.error(
@@ -278,6 +346,18 @@ export const createCustomerConversationRouter = (
               source: handoffSource,
             }),
           });
+          await options.conversationStore.recordPendingAssistantSideEffectProgress({
+            companyId: message.companyId,
+            conversationId,
+            pendingMessageId,
+            ownerNotificationSent: true,
+          });
+          await options.conversationStore.completePendingAssistantSideEffects({
+            companyId: message.companyId,
+            conversationId,
+            pendingMessageId,
+            ownerNotificationCompleted: true,
+          });
         } catch (error) {
           options.logger.error(
             {
@@ -304,7 +384,7 @@ export const createCustomerConversationRouter = (
     } catch (error) {
       options.logger.error(
         {
-          assistantText,
+          ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
           error,

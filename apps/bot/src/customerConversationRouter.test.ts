@@ -89,7 +89,13 @@ const createOutbound = () => {
         recipientJid: input.recipientJid,
         text: typeof input.text === "string" ? input.text : "",
       });
-      return [];
+      return [{
+        attempts: 1,
+        kind: "text",
+        messageId: `sent-${sent.length}`,
+        recipientJid: input.recipientJid,
+        stepIndex: 0,
+      }];
     },
   };
 
@@ -108,6 +114,63 @@ const createContext = (outbound?: OutboundMessenger): InboundRouteContext => ({
 });
 
 const createStore = (overrides: Partial<ConversationStore> = {}): ConversationStore => ({
+  appendPendingAssistantMessage: async (input) => ({
+    id: "pending-assistant-message",
+    conversationId: input.conversationId,
+    role: "assistant",
+    content: input.content,
+    timestamp: input.timestamp,
+    deliveryState: "pending",
+  }),
+  acknowledgePendingAssistantMessage: async (input) => ({
+    id: input.pendingMessageId,
+    conversationId: input.conversationId,
+    role: "assistant",
+    content: "acknowledged assistant",
+    timestamp: input.acknowledgedAt,
+    deliveryState: "pending",
+    providerAcknowledgedAt: input.acknowledgedAt,
+    sideEffectsState: "pending",
+    analyticsState: "not_applicable",
+    ownerNotificationState: "not_applicable",
+    ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+  }),
+  completePendingAssistantSideEffects: async (input) => ({
+    id: input.pendingMessageId,
+    conversationId: input.conversationId,
+    role: "assistant",
+    content: "completed assistant",
+    timestamp: 1_000,
+    deliveryState: "sent",
+    sideEffectsState: input.analyticsCompleted || input.ownerNotificationCompleted ? "completed" : "pending",
+    analyticsState: input.analyticsCompleted ? "completed" : "recorded",
+    ownerNotificationState: input.ownerNotificationCompleted ? "completed" : "sent",
+  }),
+  recordPendingAssistantSideEffectProgress: async (input) => ({
+    id: input.pendingMessageId,
+    conversationId: input.conversationId,
+    role: "assistant",
+    content: "progress assistant",
+    timestamp: 1_000,
+    deliveryState: "sent",
+    sideEffectsState: "pending",
+    analyticsState: input.analyticsRecorded ? "recorded" : "pending",
+    ownerNotificationState: input.ownerNotificationSent ? "sent" : "pending",
+  }),
+  commitPendingAssistantMessage: async (input) => ({
+    id: input.conversationId,
+    companyId: input.companyId,
+    phoneNumber: "967700000001",
+    muted: false,
+  }),
+  markPendingAssistantMessageFailed: async (input) => ({
+    id: input.pendingMessageId,
+    conversationId: input.conversationId,
+    role: "assistant",
+    content: "failed assistant",
+    timestamp: 1_000,
+    deliveryState: "failed",
+  }),
   appendAssistantMessage: async (input) => ({
     id: "assistant-message",
     conversationId: input.conversationId,
@@ -131,6 +194,7 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
       muted: false,
     },
     wasMuted: false,
+    wasDuplicate: false,
   }),
   appendUserMessage: async (input) => ({
     id: "user-message",
@@ -167,6 +231,7 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
     muted: false,
   }),
   getPromptHistory: async () => [],
+  getPromptHistoryForInbound: async () => [],
   listRecentMessages: async () => [],
   recordAnalyticsEvent: async () => undefined,
   recordMutedCustomerActivity: async () => ({
@@ -205,7 +270,7 @@ describe("createCustomerConversationRouter", () => {
     const calls: string[] = [];
     const store = createStore({
       appendInboundCustomerMessage: async (input) => {
-        calls.push(`inbound:${input.content}:${input.timestamp}`);
+        calls.push(`inbound:${input.content}:${input.timestamp}:${input.transportMessageId}:${input.referencedTransportMessageId ?? "none"}`);
         return {
           conversation: {
             id: "conversation-1",
@@ -214,16 +279,43 @@ describe("createCustomerConversationRouter", () => {
             muted: false,
           },
           wasMuted: false,
+          wasDuplicate: false,
         };
       },
-      appendAssistantMessage: async (input) => {
-        calls.push(`assistant:${input.content}:${input.timestamp}`);
+      appendPendingAssistantMessage: async (input) => {
+        calls.push(`pending:${input.content}:${input.timestamp}:${input.source ?? "none"}`);
         return {
-          id: "message-2",
+          id: "pending-message-1",
           conversationId: input.conversationId,
           role: "assistant",
           content: input.content,
           timestamp: input.timestamp,
+          deliveryState: "pending",
+        };
+      },
+      acknowledgePendingAssistantMessage: async (input) => {
+        calls.push(`ack:${input.pendingMessageId}:${input.transportMessageId ?? "none"}:${input.acknowledgedAt}`);
+        return {
+          id: input.pendingMessageId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: "Assistant reply",
+          timestamp: 2_000,
+          deliveryState: "pending",
+          providerAcknowledgedAt: input.acknowledgedAt,
+          sideEffectsState: "pending",
+          analyticsState: "not_applicable",
+          ownerNotificationState: "not_applicable",
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+        };
+      },
+      commitPendingAssistantMessage: async (input) => {
+        calls.push(`commit:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
+        return {
+          id: input.conversationId,
+          companyId: input.companyId,
+          phoneNumber: "967700000001",
+          muted: false,
         };
       },
     });
@@ -245,9 +337,11 @@ describe("createCustomerConversationRouter", () => {
     await router(createMessage(), createContext(outbound));
 
     expect(calls).toEqual([
-      "inbound:hello:1700000000000",
+      "inbound:hello:1700000000000:message-1:none",
       "orchestrator:conversation-1:hello",
-      "assistant:Assistant reply:2000",
+      "pending:Assistant reply:2000:none",
+      "ack:pending-message-1:sent-1:2000",
+      "commit:pending-message-1:sent-1",
     ]);
     expect(sent).toEqual([{
       recipientJid: "967700000001@s.whatsapp.net",
@@ -267,6 +361,7 @@ describe("createCustomerConversationRouter", () => {
           muted: false,
         },
         wasMuted: false,
+        wasDuplicate: false,
       }),
       appendAssistantMessage: async (input) => ({
         id: crypto.randomUUID(),
@@ -296,11 +391,51 @@ describe("createCustomerConversationRouter", () => {
     expect(conversationIds).toEqual(["conversation-1", "conversation-1"]);
   });
 
-  test("passes bounded prompt history into orchestration", async () => {
+  test("stops before history and orchestration for duplicate inbound deliveries", async () => {
+    let historyCalled = false;
+    let orchestratorCalled = false;
+    const store = createStore({
+      appendInboundCustomerMessage: async (input) => ({
+        conversation: {
+          id: "conversation-1",
+          companyId: input.companyId,
+          phoneNumber: input.phoneNumber,
+          muted: false,
+        },
+        wasMuted: false,
+        wasDuplicate: true,
+      }),
+      getPromptHistoryForInbound: async () => {
+        historyCalled = true;
+        return [];
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async () => {
+        orchestratorCalled = true;
+        return createCatalogChatResult("Assistant reply");
+      },
+    };
+    const { logger } = createLogger();
+    const { outbound, sent } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(historyCalled).toBe(false);
+    expect(orchestratorCalled).toBe(false);
+    expect(sent).toEqual([]);
+  });
+
+  test("passes bounded lifecycle-aware prompt history into orchestration", async () => {
     let promptHistory: unknown;
     let historyLimit: number | undefined;
     const store = createStore({
-      getPromptHistory: async (input) => {
+      getPromptHistoryForInbound: async (input) => {
         historyLimit = input.limit;
         return [
           { role: "user", text: "older question" },
@@ -347,19 +482,46 @@ describe("createCustomerConversationRouter", () => {
             muted: false,
           },
           wasMuted: false,
+          wasDuplicate: false,
         };
       },
-      appendAssistantMessage: async (input) => {
-        calls.push(`assistant:${input.content}`);
+      appendPendingAssistantMessage: async (input) => {
+        calls.push(`pending:${input.content}`);
         return {
-          id: "assistant",
+          id: "pending-1",
           conversationId: input.conversationId,
           role: "assistant",
           content: input.content,
           timestamp: input.timestamp,
+          deliveryState: "pending",
         };
       },
-      getPromptHistory: async () => [],
+      acknowledgePendingAssistantMessage: async (input) => {
+        calls.push(`ack:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
+        return {
+          id: input.pendingMessageId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: "Assistant reply",
+          timestamp: 2_000,
+          deliveryState: "pending",
+          providerAcknowledgedAt: 2_000,
+          sideEffectsState: "pending",
+          analyticsState: "not_applicable",
+          ownerNotificationState: "not_applicable",
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+        };
+      },
+      commitPendingAssistantMessage: async (input) => {
+        calls.push(`commit:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
+        return {
+          id: input.conversationId,
+          companyId: input.companyId,
+          phoneNumber: "967700000001",
+          muted: false,
+        };
+      },
+      getPromptHistoryForInbound: async () => [],
       trimConversationMessages: async (input) => {
         calls.push(`trim:${input.maxMessages}`);
         return {
@@ -385,7 +547,9 @@ describe("createCustomerConversationRouter", () => {
 
     expect(calls).toEqual([
       "inbound:hello",
-      "assistant:Assistant reply",
+      "pending:Assistant reply",
+      "ack:pending-1:sent-1",
+      "commit:pending-1:sent-1",
       "trim:12",
     ]);
     expect(errorCalls).toEqual([]);
@@ -408,6 +572,7 @@ describe("createCustomerConversationRouter", () => {
             nextAutoResumeAt: input.timestamp + 1_000,
           },
           wasMuted: true,
+          wasDuplicate: false,
         };
       },
       appendUserMessage: async () => {
@@ -451,17 +616,45 @@ describe("createCustomerConversationRouter", () => {
             muted: false,
           },
           wasMuted: false,
+          wasDuplicate: false,
         };
       },
-      appendAssistantMessageAndStartHandoff: async (input) => {
-        operations.push(`assistant-handoff:${input.content}:${input.source}`);
+      appendPendingAssistantMessage: async (input) => {
+        operations.push(`pending:${input.content}:${input.source ?? "none"}`);
+        return {
+          id: "pending-handoff-1",
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: input.content,
+          timestamp: input.timestamp,
+          deliveryState: "pending",
+        };
+      },
+      acknowledgePendingAssistantMessage: async (input) => {
+        operations.push(`ack:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
+        return {
+          id: input.pendingMessageId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: "Connecting you with the team.",
+          timestamp: 2_000,
+          deliveryState: "pending",
+          providerAcknowledgedAt: 2_000,
+          sideEffectsState: "pending",
+          analyticsState: "pending",
+          ownerNotificationState: "pending",
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+        };
+      },
+      commitPendingAssistantMessage: async (input) => {
+        operations.push(`commit:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
         return {
           id: input.conversationId,
           companyId: input.companyId,
           phoneNumber: "967700000001",
           muted: true,
-          mutedAt: input.timestamp,
-          nextAutoResumeAt: input.timestamp + 1_000,
+          mutedAt: 2_000,
+          nextAutoResumeAt: 3_000,
         };
       },
       listRecentMessages: async () => [
@@ -480,8 +673,40 @@ describe("createCustomerConversationRouter", () => {
           timestamp: 2_000,
         },
       ],
-      recordAnalyticsEvent: async () => {
-        operations.push("analytics");
+      recordAnalyticsEvent: async (input) => {
+        operations.push(`analytics:${input.idempotencyKey ?? "none"}`);
+      },
+      recordPendingAssistantSideEffectProgress: async (input) => {
+        operations.push(
+          `progress:${input.analyticsRecorded === true ? "analytics" : "none"}:${input.ownerNotificationSent === true ? "owner" : "none"}`,
+        );
+        return {
+          id: input.pendingMessageId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: "Connecting you with the team.",
+          timestamp: 2_000,
+          deliveryState: "sent",
+          sideEffectsState: "pending",
+          analyticsState: input.analyticsRecorded ? "recorded" : "pending",
+          ownerNotificationState: input.ownerNotificationSent ? "sent" : "pending",
+        };
+      },
+      completePendingAssistantSideEffects: async (input) => {
+        operations.push(
+          `complete:${input.analyticsCompleted === true ? "analytics" : "none"}:${input.ownerNotificationCompleted === true ? "owner" : "none"}`,
+        );
+        return {
+          id: input.pendingMessageId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: "Connecting you with the team.",
+          timestamp: 2_000,
+          deliveryState: "sent",
+          sideEffectsState: "completed",
+          analyticsState: input.analyticsCompleted ? "completed" : "recorded",
+          ownerNotificationState: input.ownerNotificationCompleted ? "completed" : "sent",
+        };
       },
       startHandoff: async () => {
         throw new Error("should not separately start handoff");
@@ -517,8 +742,14 @@ describe("createCustomerConversationRouter", () => {
 
     expect(operations).toEqual([
       "inbound:hello",
-      "assistant-handoff:Connecting you with the team.:assistant_action",
-      "analytics",
+      "pending:Connecting you with the team.:assistant_action",
+      "ack:pending-handoff-1:sent-1",
+      "commit:pending-handoff-1:sent-1",
+      "analytics:pendingMessage:pending-handoff-1:handoff_started",
+      "progress:analytics:none",
+      "complete:analytics:none",
+      "progress:none:owner",
+      "complete:none:owner",
       "trim:20",
     ]);
     expect(sent).toHaveLength(2);
@@ -570,7 +801,7 @@ describe("createCustomerConversationRouter", () => {
   test("stops before orchestration when history loading fails", async () => {
     let orchestratorCalled = false;
     const store = createStore({
-      getPromptHistory: async () => {
+      getPromptHistoryForInbound: async () => {
         throw new Error("history failed");
       },
     });
@@ -619,6 +850,8 @@ describe("createCustomerConversationRouter", () => {
       text: "Assistant reply",
     }]);
     expect(errorCalls[0]?.message).toBe("customer conversation history trimming failed");
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
+    expect(errorCalls[0]?.payload).toMatchObject({ assistantTextLength: "Assistant reply".length });
   });
 
   test("serializes media messages into stable placeholder text", async () => {
@@ -634,14 +867,16 @@ describe("createCustomerConversationRouter", () => {
             muted: false,
           },
           wasMuted: false,
+          wasDuplicate: false,
         };
       },
-      appendAssistantMessage: async (input) => ({
-        id: "assistant",
+      appendPendingAssistantMessage: async (input) => ({
+        id: "pending-assistant",
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
         timestamp: input.timestamp,
+        deliveryState: "pending",
       }),
     });
     const orchestrator: CatalogChatOrchestrator = {
@@ -683,14 +918,16 @@ describe("createCustomerConversationRouter", () => {
             muted: false,
           },
           wasMuted: false,
+          wasDuplicate: false,
         };
       },
-      appendAssistantMessage: async (input) => ({
-        id: "assistant",
+      appendPendingAssistantMessage: async (input) => ({
+        id: "pending-assistant",
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
         timestamp: input.timestamp,
+        deliveryState: "pending",
       }),
     });
     const orchestrator: CatalogChatOrchestrator = {
@@ -721,7 +958,7 @@ describe("createCustomerConversationRouter", () => {
 
   test("stops before orchestration when persistence fails", async () => {
     const store = createStore({
-      appendAssistantMessage: async () => {
+      appendPendingAssistantMessage: async () => {
         throw new Error("should not be called");
       },
       appendInboundCustomerMessage: async () => {
@@ -761,8 +998,9 @@ describe("createCustomerConversationRouter", () => {
           muted: false,
         },
         wasMuted: false,
+        wasDuplicate: false,
       }),
-      appendAssistantMessage: async () => {
+      appendPendingAssistantMessage: async () => {
         appendedAssistant = true;
         throw new Error("should not run");
       },
@@ -787,7 +1025,7 @@ describe("createCustomerConversationRouter", () => {
     expect(errorCalls[0]?.message).toBe("customer conversation orchestration failed");
   });
 
-  test("does not send when assistant persistence fails", async () => {
+  test("leaves a pending assistant reply for reconciliation when commit fails", async () => {
     const store = createStore({
       appendInboundCustomerMessage: async (input) => ({
         conversation: {
@@ -797,9 +1035,18 @@ describe("createCustomerConversationRouter", () => {
           muted: false,
         },
         wasMuted: false,
+        wasDuplicate: false,
       }),
-      appendAssistantMessage: async () => {
-        throw new Error("assistant persist failed");
+      appendPendingAssistantMessage: async (input) => ({
+        id: "pending-message-1",
+        conversationId: input.conversationId,
+        role: "assistant",
+        content: input.content,
+        timestamp: input.timestamp,
+        deliveryState: "pending",
+      }),
+      commitPendingAssistantMessage: async () => {
+        throw new Error("assistant commit failed");
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
@@ -815,11 +1062,20 @@ describe("createCustomerConversationRouter", () => {
 
     await router(createMessage(), createContext(outbound));
 
-    expect(sent).toEqual([]);
+    expect(sent).toEqual([{
+      recipientJid: "967700000001@s.whatsapp.net",
+      text: "Assistant reply",
+    }]);
     expect(errorCalls[0]?.message).toBe("customer conversation assistant persistence failed");
+    expect(errorCalls[0]?.payload).toMatchObject({
+      pendingMessageId: "pending-message-1",
+      assistantTextLength: "Assistant reply".length,
+    });
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
   });
 
-  test("logs outbound send failures after assistant persistence", async () => {
+  test("stops after send when acknowledgement persistence fails", async () => {
+    let commitCalled = false;
     const store = createStore({
       appendInboundCustomerMessage: async (input) => ({
         conversation: {
@@ -829,14 +1085,85 @@ describe("createCustomerConversationRouter", () => {
           muted: false,
         },
         wasMuted: false,
+        wasDuplicate: false,
       }),
-      appendAssistantMessage: async (input) => ({
-        id: "assistant",
+      appendPendingAssistantMessage: async (input) => ({
+        id: "pending-message-1",
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
         timestamp: input.timestamp,
+        deliveryState: "pending",
       }),
+      acknowledgePendingAssistantMessage: async () => {
+        throw new Error("ack failed");
+      },
+      commitPendingAssistantMessage: async () => {
+        commitCalled = true;
+        throw new Error("should not commit");
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async () => createCatalogChatResult("Assistant reply", ""),
+    };
+    const { logger, errorCalls } = createLogger();
+    const { outbound, sent } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(sent).toEqual([{
+      recipientJid: "967700000001@s.whatsapp.net",
+      text: "Assistant reply",
+    }]);
+    expect(commitCalled).toBe(false);
+    expect(errorCalls[0]?.message).toBe("customer conversation assistant acknowledgement persistence failed");
+    expect(errorCalls[0]?.payload).toMatchObject({
+      pendingMessageId: "pending-message-1",
+      outboundMessageId: "sent-1",
+      assistantTextLength: "Assistant reply".length,
+    });
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
+  });
+
+  test("marks the pending assistant reply failed when outbound send fails", async () => {
+    let markedFailed = false;
+    const store = createStore({
+      appendInboundCustomerMessage: async (input) => ({
+        conversation: {
+          id: "conversation-1",
+          companyId: input.companyId,
+          phoneNumber: input.phoneNumber,
+          muted: false,
+        },
+        wasMuted: false,
+        wasDuplicate: false,
+      }),
+      appendPendingAssistantMessage: async (input) => {
+        return {
+          id: "pending-message-1",
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: input.content,
+          timestamp: input.timestamp,
+          deliveryState: "pending",
+        };
+      },
+      markPendingAssistantMessageFailed: async (input) => {
+        markedFailed = true;
+        return {
+          id: input.pendingMessageId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: "Assistant reply",
+          timestamp: 1_000,
+          deliveryState: "failed",
+        };
+      },
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async () => createCatalogChatResult("Assistant reply", ""),
@@ -857,16 +1184,115 @@ describe("createCustomerConversationRouter", () => {
 
     await router(createMessage(), createContext(outbound));
 
+    expect(markedFailed).toBe(true);
     expect(errorCalls[0]?.message).toBe("customer conversation outbound send failed");
     expect(errorCalls[0]?.payload).toMatchObject({
+      pendingMessageId: "pending-message-1",
       recipientPhoneNumber: "***0001",
+      assistantTextLength: "Assistant reply".length,
     });
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
+  });
+
+  test("sends empty history after a stale idle gap without a quoted reference", async () => {
+    let promptHistory: unknown;
+    let historyInput: unknown;
+    const store = createStore({
+      getPromptHistoryForInbound: async (input) => {
+        historyInput = input;
+        return [];
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async (input) => {
+        promptHistory = input.conversation?.history;
+        return createCatalogChatResult("Assistant reply", input.userMessage);
+      },
+    };
+    const { logger } = createLogger();
+    const { outbound } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(historyInput).toEqual({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      inboundTimestamp: 1_700_000_000_000,
+      currentTransportMessageId: "message-1",
+      limit: 20,
+    });
+    expect(promptHistory).toEqual([]);
+  });
+
+  test("passes quoted reply metadata through inbound persistence and history selection", async () => {
+    const captured: Record<string, unknown>[] = [];
+    const store = createStore({
+      appendInboundCustomerMessage: async (input) => {
+        captured.push({
+          step: "appendInboundCustomerMessage",
+          transportMessageId: input.transportMessageId,
+          referencedTransportMessageId: input.referencedTransportMessageId,
+        });
+        return {
+          conversation: {
+            id: "conversation-1",
+            companyId: input.companyId,
+            phoneNumber: input.phoneNumber,
+            muted: false,
+          },
+          wasMuted: false,
+          wasDuplicate: false,
+        };
+      },
+      getPromptHistoryForInbound: async (input) => {
+        captured.push({
+          step: "getPromptHistoryForInbound",
+          currentTransportMessageId: input.currentTransportMessageId,
+          referencedTransportMessageId: input.referencedTransportMessageId,
+        });
+        return [{ role: "assistant", text: "older answer" }];
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async (input) => createCatalogChatResult("Assistant reply", input.userMessage),
+    };
+    const { logger } = createLogger();
+    const { outbound } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+    });
+
+    await router(createMessage({
+      replyContext: {
+        referencedMessageId: "quoted-message-1",
+      },
+    }), createContext(outbound));
+
+    expect(captured).toEqual([
+      {
+        step: "appendInboundCustomerMessage",
+        transportMessageId: "message-1",
+        referencedTransportMessageId: "quoted-message-1",
+      },
+      {
+        step: "getPromptHistoryForInbound",
+        currentTransportMessageId: "message-1",
+        referencedTransportMessageId: "quoted-message-1",
+      },
+    ]);
   });
 
   test("logs and stops when outbound is unavailable", async () => {
     let usedRouterDependencies = false;
     const store = createStore({
-      appendAssistantMessage: async () => {
+      appendPendingAssistantMessage: async () => {
         usedRouterDependencies = true;
         throw new Error("should not run");
       },
@@ -904,14 +1330,23 @@ describe("createCustomerConversationRouter", () => {
           muted: false,
         },
         wasMuted: false,
+        wasDuplicate: false,
       }),
-      appendAssistantMessageAndStartHandoff: async (input) => ({
+      appendPendingAssistantMessage: async (input) => ({
+        id: "pending-handoff-1",
+        conversationId: input.conversationId,
+        role: "assistant",
+        content: input.content,
+        timestamp: input.timestamp,
+        deliveryState: "pending",
+      }),
+      commitPendingAssistantMessage: async (input) => ({
         id: input.conversationId,
         companyId: input.companyId,
         phoneNumber: "967700000001",
         muted: true,
-        mutedAt: input.timestamp,
-        nextAutoResumeAt: input.timestamp + 1_000,
+        mutedAt: 2_000,
+        nextAutoResumeAt: 3_000,
       }),
       listRecentMessages: async () => {
         throw new Error("history failed");

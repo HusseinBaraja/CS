@@ -17,11 +17,14 @@ import {
   type MutationCtx,
 } from './_generated/server';
 
-const CONVERSATION_LOCK_LEASE_MS = 1_000;
+const CONVERSATION_LOCK_LEASE_MS = 15_000;
 const CONVERSATION_LOCK_POLL_MS = 100;
 const MAX_CONVERSATION_LOCK_WAIT_MS = 1_500;
 const TRIM_MESSAGES_BATCH_SIZE = 100;
+const PROMPT_HISTORY_SCAN_BATCH_SIZE = 100;
 export const AUTO_RESUME_IDLE_MS = 12 * 60 * 60 * 1_000;
+export const STALE_CONTEXT_RESET_MS = 30 * 60 * 1_000;
+const REFERENCED_HISTORY_SIDE_MESSAGES = 5;
 
 type LockAcquireResult = {
   acquired: boolean;
@@ -36,6 +39,23 @@ type TrimConversationMessagesResult = {
 type AppendInboundCustomerMessageResult = {
   conversation: ConversationStateDto;
   wasMuted: boolean;
+  wasDuplicate: boolean;
+};
+
+type AssistantHandoffSource = Extract<
+  ConversationStateEventSource,
+  "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback"
+>;
+
+type PendingAssistantMessageCandidate = {
+  messageId: Id<"messages">;
+  conversationId: Id<"conversations">;
+  companyId: Id<"companies">;
+  phoneNumber: string;
+  timestamp: number;
+  transportMessageId?: string;
+  analyticsState?: "pending" | "recorded" | "completed" | "not_applicable";
+  ownerNotificationState?: "pending" | "sent" | "completed" | "not_applicable";
 };
 
 const sleep = (delayMs: number): Promise<void> =>
@@ -89,6 +109,22 @@ const normalizeMessageContent = (content: string): string => {
   return normalized;
 };
 
+const normalizeOptionalMessageId = (
+  value: string | undefined,
+  fieldName: string,
+): string | undefined => normalizeOptionalString(value, fieldName);
+
+const resolveSideEffectsState = (
+  message: Pick<Doc<"messages">, "analyticsState" | "ownerNotificationState">,
+): "pending" | "completed" => {
+  const analyticsComplete =
+    message.analyticsState === "completed" || message.analyticsState === "not_applicable";
+  const ownerNotificationComplete =
+    message.ownerNotificationState === "completed" || message.ownerNotificationState === "not_applicable";
+
+  return analyticsComplete && ownerNotificationComplete ? "completed" : "pending";
+};
+
 const toConversationDto = (conversation: Doc<"conversations">): ConversationStateDto => ({
   id: conversation._id,
   companyId: conversation.companyId,
@@ -107,6 +143,20 @@ const toMessageDto = (message: Doc<"messages">): ConversationMessageDto => ({
   role: message.role,
   content: message.content,
   timestamp: message.timestamp,
+  ...(message.deliveryState !== undefined ? { deliveryState: message.deliveryState } : {}),
+  ...(message.handoffSource !== undefined ? { handoffSource: message.handoffSource } : {}),
+  ...(message.providerAcknowledgedAt !== undefined
+    ? { providerAcknowledgedAt: message.providerAcknowledgedAt }
+    : {}),
+  ...(message.sideEffectsState !== undefined ? { sideEffectsState: message.sideEffectsState } : {}),
+  ...(message.ownerNotificationState !== undefined
+    ? { ownerNotificationState: message.ownerNotificationState }
+    : {}),
+  ...(message.analyticsState !== undefined ? { analyticsState: message.analyticsState } : {}),
+  ...(message.transportMessageId !== undefined ? { transportMessageId: message.transportMessageId } : {}),
+  ...(message.referencedTransportMessageId !== undefined
+    ? { referencedTransportMessageId: message.referencedTransportMessageId }
+    : {}),
 });
 
 const toPromptHistoryTurn = (message: ConversationMessageDto): PromptHistoryTurn => ({
@@ -127,6 +177,213 @@ const normalizeOptionalString = (value: string | undefined, fieldName: string): 
   return normalized;
 };
 
+const isVisibleConversationMessage = (
+  message: Pick<Doc<"messages">, "role" | "deliveryState">,
+): boolean => message.role === "user" || message.deliveryState === "sent";
+
+const listConversationMessageDocsPage = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  input: {
+    cursor: string | null;
+    limit: number;
+  },
+) =>
+  ctx.db
+    .query("messages")
+    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
+    .order("desc")
+    .paginate({
+      cursor: input.cursor,
+      numItems: input.limit,
+    });
+
+const listConversationMessageDocsPageAscending = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  input: {
+    cursor: string | null;
+    limit: number;
+  },
+) =>
+  ctx.db
+    .query("messages")
+    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
+    .paginate({
+      cursor: input.cursor,
+      numItems: input.limit,
+    });
+
+const resolveMessageByTransportMessageId = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  transportMessageId: string,
+): Promise<Doc<"messages"> | null> => {
+  const normalizedTransportMessageId = normalizeOptionalMessageId(transportMessageId, "transportMessageId");
+  if (!normalizedTransportMessageId) {
+    return null;
+  }
+
+  const messages = await ctx.db
+    .query("messages")
+    .withIndex("by_conversation_transport_message_id", (q) =>
+      q.eq("conversationId", conversationId).eq("transportMessageId", normalizedTransportMessageId)
+    )
+    .collect();
+
+  return messages[0] ?? null;
+};
+
+const resolveExistingMessageInsert = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  transportMessageId: string | undefined,
+): Promise<Doc<"messages"> | null> => {
+  if (!transportMessageId) {
+    return null;
+  }
+
+  return resolveMessageByTransportMessageId(ctx, conversationId, transportMessageId);
+};
+
+const filterMessagesBeforeInbound = (
+  messages: ConversationMessageDto[],
+  input: {
+    inboundTimestamp: number;
+    currentTransportMessageId?: string;
+  },
+): ConversationMessageDto[] =>
+  messages.filter((message) =>
+    isVisibleConversationMessage(message)
+    && (
+      message.timestamp < input.inboundTimestamp
+      || (
+        message.timestamp === input.inboundTimestamp
+        && message.transportMessageId !== input.currentTransportMessageId
+      )
+    )
+  );
+
+const isMessageBeforeInbound = (
+  message: ConversationMessageDto,
+  input: {
+    inboundTimestamp: number;
+    currentTransportMessageId?: string;
+  },
+): boolean =>
+  isVisibleConversationMessage(message)
+  && (
+    message.timestamp < input.inboundTimestamp
+    || (
+      message.timestamp === input.inboundTimestamp
+      && message.transportMessageId !== input.currentTransportMessageId
+    )
+  );
+
+const collectPriorMessagesDescending = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  input: {
+    inboundTimestamp: number;
+    currentTransportMessageId?: string;
+    minimumCount?: number;
+    stopWhenPriorMessagesFound?: boolean;
+  },
+): Promise<ConversationMessageDto[]> => {
+  const priorMessages: ConversationMessageDto[] = [];
+  let cursor: string | null = null;
+
+  for (;;) {
+    const page = await listConversationMessageDocsPage(ctx, conversationId, {
+      cursor,
+      limit: PROMPT_HISTORY_SCAN_BATCH_SIZE,
+    });
+    const filteredPage = filterMessagesBeforeInbound(
+      page.page.map(toMessageDto),
+      input,
+    );
+    priorMessages.push(...filteredPage);
+
+    if (
+      input.stopWhenPriorMessagesFound
+      && priorMessages.length > 0
+    ) {
+      break;
+    }
+
+    if (
+      input.minimumCount !== undefined
+      && priorMessages.length >= input.minimumCount
+    ) {
+      break;
+    }
+
+    if (page.isDone || page.page.length === 0) {
+      break;
+    }
+
+    cursor = page.continueCursor;
+  }
+
+  return priorMessages;
+};
+
+const collectReferencedHistorySliceAscending = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  input: {
+    inboundTimestamp: number;
+    currentTransportMessageId?: string;
+    referencedMessageId: Id<"messages">;
+  },
+): Promise<ConversationMessageDto[]> => {
+  const precedingMessages: ConversationMessageDto[] = [];
+  const referencedWindow: ConversationMessageDto[] = [];
+  let cursor: string | null = null;
+  let foundReferencedMessage = false;
+
+  for (;;) {
+    const page = await listConversationMessageDocsPageAscending(ctx, conversationId, {
+      cursor,
+      limit: PROMPT_HISTORY_SCAN_BATCH_SIZE,
+    });
+
+    for (const messageDoc of page.page) {
+      const message = toMessageDto(messageDoc);
+      if (!isMessageBeforeInbound(message, input)) {
+        continue;
+      }
+
+      if (!foundReferencedMessage) {
+        if (message.id === input.referencedMessageId) {
+          foundReferencedMessage = true;
+          referencedWindow.push(...precedingMessages, message);
+          continue;
+        }
+
+        precedingMessages.push(message);
+        if (precedingMessages.length > REFERENCED_HISTORY_SIDE_MESSAGES) {
+          precedingMessages.shift();
+        }
+        continue;
+      }
+
+      referencedWindow.push(message);
+      if (referencedWindow.length >= (REFERENCED_HISTORY_SIDE_MESSAGES * 2) + 1) {
+        return referencedWindow;
+      }
+    }
+
+    if (page.isDone || page.page.length === 0 || page.continueCursor === cursor) {
+      break;
+    }
+
+    cursor = page.continueCursor;
+  }
+
+  return foundReferencedMessage ? referencedWindow : [];
+};
+
 const listConversationsByPhone = async (
   ctx: { db: DatabaseReader },
   companyId: Id<"companies">,
@@ -138,6 +395,55 @@ const listConversationsByPhone = async (
     .collect();
 
   return conversations.sort((left, right) => left._creationTime - right._creationTime || left._id.localeCompare(right._id));
+};
+
+const loadMessageOrThrow = async (
+  ctx: { db: DatabaseReader },
+  messageId: Id<"messages">,
+): Promise<Doc<"messages">> => {
+  const message = await ctx.db.get(messageId);
+  if (!message) {
+    throw new Error("Message not found");
+  }
+
+  return message;
+};
+
+const normalizeOptionalHandoffSource = (
+  value: AssistantHandoffSource | undefined,
+): AssistantHandoffSource | undefined => value;
+
+const applyAssistantHandoffIfNeeded = async (
+  ctx: MutationCtx,
+  input: {
+    companyId: Id<"companies">;
+    conversation: Doc<"conversations">;
+    message: Doc<"messages">;
+  },
+): Promise<void> => {
+  const source = input.message.handoffSource;
+  if (!source || input.conversation.muted) {
+    return;
+  }
+
+  await ctx.db.patch(input.conversation._id, {
+    muted: true,
+    mutedAt: input.message.timestamp,
+    handoffSeedTimestamp: input.message.timestamp,
+    nextAutoResumeAt: input.message.timestamp + AUTO_RESUME_IDLE_MS,
+  });
+
+  await insertConversationStateEvent(ctx, {
+    companyId: input.companyId,
+    conversationId: input.conversation._id,
+    phoneNumber: input.conversation.phoneNumber,
+    eventType: "handoff_started",
+    timestamp: input.message.timestamp,
+    source,
+    ...(input.message.handoffReason ? { reason: input.message.handoffReason } : {}),
+    ...(input.message.handoffActorPhoneNumber ? { actorPhoneNumber: input.message.handoffActorPhoneNumber } : {}),
+    ...(input.message.handoffMetadata ? { metadata: input.message.handoffMetadata } : {}),
+  });
 };
 
 const listActiveConversations = async (
@@ -437,17 +743,27 @@ export const appendConversationMessage = internalMutation({
     role: v.union(v.literal("user"), v.literal("assistant")),
     content: v.string(),
     timestamp: v.optional(v.number()),
+    transportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<ConversationMessageDto> => {
     await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const content = normalizeMessageContent(args.content);
     const timestamp = normalizeTimestamp(args.timestamp, Date.now());
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
+    const referencedTransportMessageId = normalizeOptionalMessageId(
+      args.referencedTransportMessageId,
+      "referencedTransportMessageId",
+    );
 
     const messageId = await ctx.db.insert("messages", {
       conversationId: args.conversationId,
       role: args.role,
       content,
       timestamp,
+      ...(args.role === "assistant" ? { deliveryState: "sent" as const } : {}),
+      ...(transportMessageId ? { transportMessageId } : {}),
+      ...(referencedTransportMessageId ? { referencedTransportMessageId } : {}),
     });
     const message = await ctx.db.get(messageId);
     if (!message) {
@@ -464,6 +780,8 @@ export const appendMutedCustomerMessage = internalMutation({
     conversationId: v.id("conversations"),
     content: v.string(),
     timestamp: v.optional(v.number()),
+    transportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<ConversationStateDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
@@ -473,12 +791,23 @@ export const appendMutedCustomerMessage = internalMutation({
 
     const content = normalizeMessageContent(args.content);
     const timestamp = normalizeTimestamp(args.timestamp, Date.now());
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
+    const referencedTransportMessageId = normalizeOptionalMessageId(
+      args.referencedTransportMessageId,
+      "referencedTransportMessageId",
+    );
+    const existingMessage = await resolveExistingMessageInsert(ctx, args.conversationId, transportMessageId);
+    if (existingMessage) {
+      return toConversationDto(conversation);
+    }
 
     await ctx.db.insert("messages", {
       conversationId: args.conversationId,
       role: "user",
       content,
       timestamp,
+      ...(transportMessageId ? { transportMessageId } : {}),
+      ...(referencedTransportMessageId ? { referencedTransportMessageId } : {}),
     });
 
     await ctx.db.patch(conversation._id, {
@@ -497,23 +826,41 @@ export const appendInboundCustomerMessageToConversation = internalMutation({
     conversationId: v.id("conversations"),
     content: v.string(),
     timestamp: v.optional(v.number()),
+    transportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<AppendInboundCustomerMessageResult> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const content = normalizeMessageContent(args.content);
     const timestamp = normalizeTimestamp(args.timestamp, Date.now());
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
+    const referencedTransportMessageId = normalizeOptionalMessageId(
+      args.referencedTransportMessageId,
+      "referencedTransportMessageId",
+    );
+    const existingMessage = await resolveExistingMessageInsert(ctx, args.conversationId, transportMessageId);
+    if (existingMessage) {
+      return {
+        conversation: toConversationDto(conversation),
+        wasMuted: conversation.muted,
+        wasDuplicate: true,
+      };
+    }
 
     await ctx.db.insert("messages", {
       conversationId: args.conversationId,
       role: "user",
       content,
       timestamp,
+      ...(transportMessageId ? { transportMessageId } : {}),
+      ...(referencedTransportMessageId ? { referencedTransportMessageId } : {}),
     });
 
     if (!conversation.muted) {
       return {
         conversation: toConversationDto(conversation),
         wasMuted: false,
+        wasDuplicate: false,
       };
     }
 
@@ -526,6 +873,7 @@ export const appendInboundCustomerMessageToConversation = internalMutation({
     return {
       conversation: toConversationDto(updatedConversation),
       wasMuted: true,
+      wasDuplicate: false,
     };
   },
 });
@@ -536,6 +884,8 @@ export const appendInboundCustomerMessage = internalAction({
     phoneNumber: v.string(),
     content: v.string(),
     timestamp: v.optional(v.number()),
+    transportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<AppendInboundCustomerMessageResult> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
@@ -554,8 +904,319 @@ export const appendInboundCustomerMessage = internalAction({
         conversationId: conversation.id as Id<"conversations">,
         content: args.content,
         timestamp: args.timestamp,
+        transportMessageId: args.transportMessageId,
+        referencedTransportMessageId: args.referencedTransportMessageId,
       });
     });
+  },
+});
+
+export const getConversationMessage = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    messageId: v.id("messages"),
+  },
+  handler: async (ctx, args): Promise<ConversationMessageDto | null> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const message = await ctx.db.get(args.messageId);
+    if (!message || message.conversationId !== args.conversationId) {
+      return null;
+    }
+
+    return toMessageDto(message);
+  },
+});
+
+export const appendPendingAssistantMessage = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    content: v.string(),
+    timestamp: v.optional(v.number()),
+    source: v.optional(v.union(
+      v.literal("assistant_action"),
+      v.literal("provider_failure_fallback"),
+      v.literal("invalid_model_output_fallback"),
+    )),
+    reason: v.optional(v.string()),
+    actorPhoneNumber: v.optional(v.string()),
+    metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
+  },
+  handler: async (ctx, args): Promise<ConversationMessageDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const content = normalizeMessageContent(args.content);
+    const timestamp = normalizeTimestamp(args.timestamp, Date.now());
+    const source = normalizeOptionalHandoffSource(args.source);
+    const reason = normalizeOptionalString(args.reason, "reason");
+    const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, "actorPhoneNumber");
+
+    const messageId = await ctx.db.insert("messages", {
+      conversationId: args.conversationId,
+      role: "assistant",
+      content,
+      timestamp,
+      deliveryState: "pending",
+      ...(source ? { handoffSource: source } : {}),
+      ...(reason ? { handoffReason: reason } : {}),
+      ...(actorPhoneNumber ? { handoffActorPhoneNumber: actorPhoneNumber } : {}),
+      ...(args.metadata ? { handoffMetadata: args.metadata } : {}),
+    });
+    return toMessageDto(await loadMessageOrThrow(ctx, messageId));
+  },
+});
+
+export const acknowledgePendingAssistantMessage = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    pendingMessageId: v.id("messages"),
+    acknowledgedAt: v.number(),
+    transportMessageId: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<ConversationMessageDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
+    if (message.conversationId !== args.conversationId || message.role !== "assistant") {
+      throw new Error("Pending assistant message not found for conversation");
+    }
+
+    if (message.deliveryState !== "pending") {
+      throw new Error("Only pending assistant messages can be acknowledged");
+    }
+
+    if (message.providerAcknowledgedAt !== undefined) {
+      return toMessageDto(message);
+    }
+
+    const acknowledgedAt = normalizeTimestamp(args.acknowledgedAt, Date.now());
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
+    await ctx.db.patch(message._id, {
+      providerAcknowledgedAt: acknowledgedAt,
+      sideEffectsState: "pending",
+      analyticsState: message.handoffSource ? "pending" : "not_applicable",
+      ownerNotificationState: message.handoffSource ? "pending" : "not_applicable",
+      ...(transportMessageId ? { transportMessageId } : {}),
+    });
+
+    return toMessageDto(await loadMessageOrThrow(ctx, args.pendingMessageId));
+  },
+});
+
+export const listPendingAssistantMessages = internalQuery({
+  args: {
+    olderThanOrAt: v.number(),
+    limit: v.number(),
+  },
+  handler: async (ctx, args): Promise<PendingAssistantMessageCandidate[]> => {
+    const olderThanOrAt = normalizeTimestamp(args.olderThanOrAt, Date.now());
+    const limit = normalizePositiveInteger(args.limit, "limit");
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_role_delivery_ack_time", (q) =>
+        q.eq("role", "assistant").eq("deliveryState", "pending").lte("providerAcknowledgedAt", olderThanOrAt)
+      )
+      .take(limit);
+
+    const candidates: PendingAssistantMessageCandidate[] = [];
+    for (const message of messages) {
+      if (message.providerAcknowledgedAt === undefined) {
+        continue;
+      }
+
+      const conversation = await ctx.db.get(message.conversationId);
+      if (!conversation) {
+        continue;
+      }
+
+      candidates.push({
+        messageId: message._id,
+        conversationId: message.conversationId,
+        companyId: conversation.companyId,
+        phoneNumber: conversation.phoneNumber,
+        timestamp: message.timestamp,
+        ...(message.transportMessageId ? { transportMessageId: message.transportMessageId } : {}),
+        ...(message.analyticsState ? { analyticsState: message.analyticsState } : {}),
+        ...(message.ownerNotificationState ? { ownerNotificationState: message.ownerNotificationState } : {}),
+      });
+    }
+
+    return candidates;
+  },
+});
+
+export const getConversationOwnerNotificationContext = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+  },
+  handler: async (ctx, args): Promise<{ companyName: string; ownerPhone: string } | null> => {
+    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const company = await ctx.db.get(conversation.companyId);
+    if (!company) {
+      return null;
+    }
+
+    return {
+      companyName: company.name,
+      ownerPhone: company.ownerPhone,
+    };
+  },
+});
+
+export const commitPendingAssistantMessage = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    pendingMessageId: v.id("messages"),
+    transportMessageId: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<ConversationStateDto> => {
+    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
+    if (message.conversationId !== args.conversationId || message.role !== "assistant") {
+      throw new Error("Pending assistant message not found for conversation");
+    }
+
+    if (message.deliveryState !== "pending") {
+      throw new Error("Only pending assistant messages can be committed");
+    }
+
+    if (message.providerAcknowledgedAt === undefined) {
+      throw new Error("Pending assistant message must be acknowledged before commit");
+    }
+
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
+    await ctx.db.patch(message._id, {
+      deliveryState: "sent",
+      ...(message.analyticsState === "not_applicable" && message.ownerNotificationState === "not_applicable"
+        ? { sideEffectsState: "completed" as const }
+        : {}),
+      ...(transportMessageId ? { transportMessageId } : {}),
+    });
+
+    const updatedMessage = await loadMessageOrThrow(ctx, args.pendingMessageId);
+    await applyAssistantHandoffIfNeeded(ctx, {
+      companyId: args.companyId,
+      conversation,
+      message: updatedMessage,
+    });
+
+    const updatedConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    return toConversationDto(updatedConversation);
+  },
+});
+
+export const markPendingAssistantMessageFailed = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    pendingMessageId: v.id("messages"),
+  },
+  handler: async (ctx, args): Promise<ConversationMessageDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
+    if (message.conversationId !== args.conversationId || message.role !== "assistant") {
+      throw new Error("Pending assistant message not found for conversation");
+    }
+
+    if (message.deliveryState !== "pending") {
+      throw new Error("Only pending assistant messages can be marked failed");
+    }
+
+    if (message.providerAcknowledgedAt !== undefined) {
+      throw new Error("Acknowledged assistant messages must be reconciled, not marked failed");
+    }
+
+    await ctx.db.patch(message._id, {
+      deliveryState: "failed",
+    });
+
+    return toMessageDto(await loadMessageOrThrow(ctx, args.pendingMessageId));
+  },
+});
+
+export const completePendingAssistantSideEffects = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    pendingMessageId: v.id("messages"),
+    analyticsCompleted: v.optional(v.boolean()),
+    ownerNotificationCompleted: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<ConversationMessageDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
+    if (message.conversationId !== args.conversationId || message.role !== "assistant") {
+      throw new Error("Pending assistant message not found for conversation");
+    }
+
+    if (message.deliveryState !== "sent") {
+      throw new Error("Assistant side effects can only be completed after send");
+    }
+
+    const nextAnalyticsState =
+      args.analyticsCompleted === true
+        && (message.analyticsState === "pending" || message.analyticsState === "recorded")
+        ? "completed"
+        : message.analyticsState;
+    const nextOwnerNotificationState =
+      args.ownerNotificationCompleted === true
+        && (message.ownerNotificationState === "pending" || message.ownerNotificationState === "sent")
+        ? "completed"
+        : message.ownerNotificationState;
+
+    await ctx.db.patch(message._id, {
+      ...(nextAnalyticsState ? { analyticsState: nextAnalyticsState } : {}),
+      ...(nextOwnerNotificationState ? { ownerNotificationState: nextOwnerNotificationState } : {}),
+      sideEffectsState: resolveSideEffectsState({
+        analyticsState: nextAnalyticsState,
+        ownerNotificationState: nextOwnerNotificationState,
+      }),
+    });
+
+    return toMessageDto(await loadMessageOrThrow(ctx, args.pendingMessageId));
+  },
+});
+
+export const recordPendingAssistantSideEffectProgress = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    pendingMessageId: v.id("messages"),
+    analyticsRecorded: v.optional(v.boolean()),
+    ownerNotificationSent: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<ConversationMessageDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
+    if (message.conversationId !== args.conversationId || message.role !== "assistant") {
+      throw new Error("Pending assistant message not found for conversation");
+    }
+
+    if (message.deliveryState !== "sent") {
+      throw new Error("Assistant side effect progress can only be recorded after send");
+    }
+
+    const nextAnalyticsState =
+      args.analyticsRecorded === true && message.analyticsState === "pending"
+        ? "recorded"
+        : message.analyticsState;
+    const nextOwnerNotificationState =
+      args.ownerNotificationSent === true && message.ownerNotificationState === "pending"
+        ? "sent"
+        : message.ownerNotificationState;
+
+    await ctx.db.patch(message._id, {
+      ...(nextAnalyticsState ? { analyticsState: nextAnalyticsState } : {}),
+      ...(nextOwnerNotificationState ? { ownerNotificationState: nextOwnerNotificationState } : {}),
+      sideEffectsState: resolveSideEffectsState({
+        analyticsState: nextAnalyticsState,
+        ownerNotificationState: nextOwnerNotificationState,
+      }),
+    });
+
+    return toMessageDto(await loadMessageOrThrow(ctx, args.pendingMessageId));
   },
 });
 
@@ -573,6 +1234,7 @@ export const appendAssistantMessageAndStartHandoff = internalMutation({
     reason: v.optional(v.string()),
     actorPhoneNumber: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
+    transportMessageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<ConversationStateDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
@@ -584,31 +1246,25 @@ export const appendAssistantMessageAndStartHandoff = internalMutation({
     const timestamp = normalizeTimestamp(args.timestamp, Date.now());
     const reason = normalizeOptionalString(args.reason, "reason");
     const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, "actorPhoneNumber");
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
 
-    await ctx.db.insert("messages", {
+    const messageId = await ctx.db.insert("messages", {
       conversationId: args.conversationId,
       role: "assistant",
       content,
       timestamp,
+      deliveryState: "sent",
+      handoffSource: args.source,
+      ...(reason ? { handoffReason: reason } : {}),
+      ...(actorPhoneNumber ? { handoffActorPhoneNumber: actorPhoneNumber } : {}),
+      ...(args.metadata ? { handoffMetadata: args.metadata } : {}),
+      ...(transportMessageId ? { transportMessageId } : {}),
     });
-
-    await ctx.db.patch(conversation._id, {
-      muted: true,
-      mutedAt: timestamp,
-      handoffSeedTimestamp: timestamp,
-      nextAutoResumeAt: timestamp + AUTO_RESUME_IDLE_MS,
-    });
-
-    await insertConversationStateEvent(ctx, {
+    const message = await loadMessageOrThrow(ctx, messageId);
+    await applyAssistantHandoffIfNeeded(ctx, {
       companyId: args.companyId,
-      conversationId: conversation._id,
-      phoneNumber: conversation.phoneNumber,
-      eventType: "handoff_started",
-      timestamp,
-      source: args.source,
-      ...(reason ? { reason } : {}),
-      ...(actorPhoneNumber ? { actorPhoneNumber } : {}),
-      ...(args.metadata ? { metadata: args.metadata } : {}),
+      conversation,
+      message,
     });
 
     const updatedConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
@@ -627,13 +1283,27 @@ export const listConversationMessages = internalQuery({
     const limit = normalizeOptionalLimit(args.limit);
 
     if (limit !== undefined) {
-      const latestMessages = await ctx.db
-        .query("messages")
-        .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
-        .order("desc")
-        .take(limit);
+      const visibleMessages: Array<Doc<"messages">> = [];
+      let cursor: string | null = null;
 
-      return latestMessages.reverse().map(toMessageDto);
+      while (visibleMessages.length < limit) {
+        const page = await listConversationMessageDocsPage(ctx, args.conversationId, {
+          cursor,
+          limit: Math.max(limit, PROMPT_HISTORY_SCAN_BATCH_SIZE),
+        });
+
+        visibleMessages.push(...page.page.filter(isVisibleConversationMessage));
+        if (page.isDone || page.continueCursor === cursor) {
+          break;
+        }
+
+        cursor = page.continueCursor;
+      }
+
+      return visibleMessages
+        .slice(0, limit)
+        .reverse()
+        .map(toMessageDto);
     }
 
     const messages = await ctx.db
@@ -641,7 +1311,7 @@ export const listConversationMessages = internalQuery({
       .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
       .order("asc")
       .collect();
-    return messages.map(toMessageDto);
+    return messages.filter(isVisibleConversationMessage).map(toMessageDto);
   },
 });
 
@@ -676,6 +1346,80 @@ export const getPromptHistory = internalQuery({
     });
 
     return messages.map(toPromptHistoryTurn);
+  },
+});
+
+export const getPromptHistoryForInbound = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    inboundTimestamp: v.number(),
+    currentTransportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
+    limit: v.number(),
+  },
+  handler: async (ctx, args): Promise<PromptHistoryTurn[]> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const inboundTimestamp = normalizeTimestamp(args.inboundTimestamp, Date.now());
+    const limit = normalizePositiveInteger(args.limit, "limit");
+    const currentTransportMessageId = normalizeOptionalMessageId(
+      args.currentTransportMessageId,
+      "currentTransportMessageId",
+    );
+    const referencedTransportMessageId = normalizeOptionalMessageId(
+      args.referencedTransportMessageId,
+      "referencedTransportMessageId",
+    );
+
+    const priorMessagesDescending = await collectPriorMessagesDescending(ctx, args.conversationId, {
+      inboundTimestamp,
+      ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+      stopWhenPriorMessagesFound: true,
+    });
+
+    if (priorMessagesDescending.length === 0) {
+      return [];
+    }
+
+    const latestMessage = priorMessagesDescending[0];
+    const activeWindowStart = inboundTimestamp - STALE_CONTEXT_RESET_MS;
+    if (latestMessage && latestMessage.timestamp >= activeWindowStart) {
+      const recentPriorMessages = await collectPriorMessagesDescending(ctx, args.conversationId, {
+        inboundTimestamp,
+        ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+        minimumCount: limit,
+      });
+      return recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn);
+    }
+
+    if (!referencedTransportMessageId) {
+      return [];
+    }
+
+    const referencedMessage = await resolveMessageByTransportMessageId(
+      ctx,
+      args.conversationId,
+      referencedTransportMessageId,
+    );
+    if (!referencedMessage) {
+      return [];
+    }
+
+    if (referencedMessage.timestamp >= activeWindowStart) {
+      const recentPriorMessages = await collectPriorMessagesDescending(ctx, args.conversationId, {
+        inboundTimestamp,
+        ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+        minimumCount: limit,
+      });
+      return recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn);
+    }
+
+    const referencedWindow = await collectReferencedHistorySliceAscending(ctx, args.conversationId, {
+      inboundTimestamp,
+      ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+      referencedMessageId: referencedMessage._id,
+    });
+    return referencedWindow.map(toPromptHistoryTurn);
   },
 });
 

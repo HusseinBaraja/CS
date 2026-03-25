@@ -301,6 +301,47 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     expect(summary?.counts.handoffs).toBe(1);
   });
 
+  it("deduplicates analytics events by idempotency key", async () => {
+    freezeNow();
+    const t = convexTest(schema, modules);
+
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000813",
+        timezone: "Asia/Aden",
+      }),
+    );
+
+    await t.mutation(internal.analytics.recordEvent, {
+      companyId,
+      eventType: "handoff_started",
+      timestamp: Date.parse("2026-03-12T09:06:00.000Z"),
+      idempotencyKey: "pendingMessage:message-1:handoff_started",
+      payload: {
+        source: "assistant_action",
+      },
+    });
+    await t.mutation(internal.analytics.recordEvent, {
+      companyId,
+      eventType: "handoff_started",
+      timestamp: Date.parse("2026-03-12T09:07:00.000Z"),
+      idempotencyKey: "pendingMessage:message-1:handoff_started",
+      payload: {
+        source: "assistant_action",
+      },
+    });
+
+    const summary = await t.query(internal.analytics.summary, {
+      companyId,
+      period: "today",
+    });
+    const storedEvents = await t.run(async (ctx) => ctx.db.query("analyticsEvents").collect());
+
+    expect(summary?.counts.handoffs).toBe(1);
+    expect(storedEvents).toHaveLength(1);
+  });
+
   it("rejects analytics events for unknown companies", async () => {
     freezeNow();
     const t = convexTest(schema, modules);

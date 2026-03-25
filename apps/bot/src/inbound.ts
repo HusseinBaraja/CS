@@ -59,6 +59,38 @@ const normalizeDisplayName = (value: string | null | undefined): string | undefi
   return normalized.length > 0 ? normalized : undefined;
 };
 
+const readOptionalString = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+
+const getReferencedMessageId = (normalizedContent: NonNullable<ReturnType<typeof normalizeMessageContent>>): string | undefined => {
+  const candidates = [
+    normalizedContent.extendedTextMessage?.contextInfo?.stanzaId,
+    normalizedContent.imageMessage?.contextInfo?.stanzaId,
+    normalizedContent.videoMessage?.contextInfo?.stanzaId,
+    normalizedContent.audioMessage?.contextInfo?.stanzaId,
+    normalizedContent.documentMessage?.contextInfo?.stanzaId,
+    normalizedContent.stickerMessage?.contextInfo?.stanzaId,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = readOptionalString(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return undefined;
+};
+
+const extractReferencedMessageId = (message: WAMessage): string | undefined => {
+  const normalizedContent = normalizeMessageContent(message.message);
+  if (!normalizedContent) {
+    return undefined;
+  }
+
+  return getReferencedMessageId(normalizedContent);
+};
+
 const coerceTimestampToMs = (value: WAMessage["messageTimestamp"]): number | null => {
   if (value === null || value === undefined) {
     return null;
@@ -238,6 +270,8 @@ export const normalizeInboundMessages = (
     } satisfies InboundDispatch;
   }
 
+  const referencedMessageId = extractReferencedMessageId(message);
+
   const normalizedMessage: NormalizedInboundMessage = {
     transport: "whatsapp",
     companyId: profile.companyId,
@@ -261,6 +295,13 @@ export const normalizeInboundMessages = (
     source: {
       upsertType: event.type,
     },
+    ...(referencedMessageId !== undefined
+      ? {
+          replyContext: {
+            referencedMessageId,
+          },
+        }
+      : {}),
   };
 
   return {

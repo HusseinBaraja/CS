@@ -235,9 +235,37 @@ export default defineSchema({
     role: v.union(v.literal("user"), v.literal("assistant")),
     content: v.string(),
     timestamp: v.number(),
+    deliveryState: v.optional(v.union(v.literal("pending"), v.literal("sent"), v.literal("failed"))),
+    providerAcknowledgedAt: v.optional(v.number()),
+    sideEffectsState: v.optional(v.union(v.literal("pending"), v.literal("completed"))),
+    ownerNotificationState: v.optional(v.union(
+      v.literal("pending"),
+      v.literal("sent"),
+      v.literal("completed"),
+      v.literal("not_applicable"),
+    )),
+    analyticsState: v.optional(v.union(
+      v.literal("pending"),
+      v.literal("recorded"),
+      v.literal("completed"),
+      v.literal("not_applicable"),
+    )),
+    transportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
+    handoffSource: v.optional(v.union(
+      v.literal("assistant_action"),
+      v.literal("provider_failure_fallback"),
+      v.literal("invalid_model_output_fallback"),
+    )),
+    handoffReason: v.optional(v.string()),
+    handoffActorPhoneNumber: v.optional(v.string()),
+    handoffMetadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
   })
     .index("by_conversation", ["conversationId"])
-    .index("by_conversation_time", ["conversationId", "timestamp"]),
+    .index("by_conversation_time", ["conversationId", "timestamp"])
+    .index("by_conversation_transport_message_id", ["conversationId", "transportMessageId"])
+    .index("by_role_delivery_state_time", ["role", "deliveryState", "timestamp"])
+    .index("by_role_delivery_ack_time", ["role", "deliveryState", "providerAcknowledgedAt"]),
 
   // ── Offers ──────────────────────────────────────────────────────────────
   offers: defineTable({
@@ -264,8 +292,10 @@ export default defineSchema({
     companyId: v.id("companies"),
     eventType: v.string(),
     timestamp: v.number(),
+    idempotencyKey: v.optional(v.string()),
     payload: v.optional(flexRecord),
   })
     .index("by_company_type", ["companyId", "eventType"])
+    .index("by_company_type_idempotency_key", ["companyId", "eventType", "idempotencyKey"])
     .index("by_company_type_time", ["companyId", "eventType", "timestamp"]),
 });
