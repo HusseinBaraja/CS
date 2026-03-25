@@ -61,17 +61,18 @@ export function FlowSection() {
       // On mobile all dots share the same X; offset control points to the
       // same side per segment, alternating between segments, so the path
       // flows as a gentle sine wave instead of creating hard kinks.
-      const wobble = Math.min(30, svgRect.width * 0.06);
+      const wobble = svgRect.width > 700 ? 0 : Math.min(30, svgRect.width * 0.06);
       let d = `M ${points[0].x},${points[0].y}`;
       for (let i = 0; i < points.length - 1; i++) {
           const p1 = points[i];
           const p2 = points[i+1];
           const dir = i % 2 === 0 ? 1 : -1;
           const ox = dir * wobble;
-          // Both control points shift the same direction → smooth arc,
-          // direction flips each segment → flowing S-wave.
-          const cy1 = p1.y + (p2.y - p1.y) * 0.33;
-          const cy2 = p1.y + (p2.y - p1.y) * 0.66;
+
+          // Symmetric sweeping S-curve on desktop; staggered wave on mobile
+          const cy1 = wobble === 0 ? (p1.y + p2.y) / 2 : p1.y + (p2.y - p1.y) * 0.33;
+          const cy2 = wobble === 0 ? (p1.y + p2.y) / 2 : p1.y + (p2.y - p1.y) * 0.66;
+
           d += ` C ${p1.x + ox},${cy1} ${p2.x + ox},${cy2} ${p2.x},${p2.y}`;
       }
 
