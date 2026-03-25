@@ -32,6 +32,13 @@ const redactPhoneNumber = (value: string): string => {
   return `***${suffix}`;
 };
 
+const summarizeAssistantText = (value: string): { assistantTextLength: number } => ({
+  assistantTextLength: value.length,
+});
+
+const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
+  `pendingMessage:${pendingMessageId}:handoff_started`;
+
 const serializeInboundMessage = (message: NormalizedInboundMessage): string => {
   const text = message.content.text.trim();
 
@@ -169,7 +176,7 @@ export const createCustomerConversationRouter = (
     } catch (error) {
       options.logger.error(
         {
-          assistantText,
+          ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
           error,
@@ -191,7 +198,7 @@ export const createCustomerConversationRouter = (
     } catch (error) {
       options.logger.error(
         {
-          assistantText,
+          ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
           error,
@@ -235,7 +242,7 @@ export const createCustomerConversationRouter = (
     } catch (error) {
       options.logger.error(
         {
-          assistantText,
+          ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
           error,
@@ -259,7 +266,7 @@ export const createCustomerConversationRouter = (
     } catch (error) {
       options.logger.error(
         {
-          assistantText,
+          ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
           error,
@@ -277,12 +284,19 @@ export const createCustomerConversationRouter = (
         await options.conversationStore.recordAnalyticsEvent({
           companyId: message.companyId,
           eventType: "handoff_started",
+          idempotencyKey: getAnalyticsIdempotencyKey(pendingMessageId),
           timestamp: assistantTimestamp,
           payload: {
             conversationId,
             phoneNumber: message.conversationPhoneNumber,
             source: handoffSource,
           },
+        });
+        await options.conversationStore.recordPendingAssistantSideEffectProgress({
+          companyId: message.companyId,
+          conversationId,
+          pendingMessageId,
+          analyticsRecorded: true,
         });
         await options.conversationStore.completePendingAssistantSideEffects({
           companyId: message.companyId,
@@ -332,6 +346,12 @@ export const createCustomerConversationRouter = (
               source: handoffSource,
             }),
           });
+          await options.conversationStore.recordPendingAssistantSideEffectProgress({
+            companyId: message.companyId,
+            conversationId,
+            pendingMessageId,
+            ownerNotificationSent: true,
+          });
           await options.conversationStore.completePendingAssistantSideEffects({
             companyId: message.companyId,
             conversationId,
@@ -364,7 +384,7 @@ export const createCustomerConversationRouter = (
     } catch (error) {
       options.logger.error(
         {
-          assistantText,
+          ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
           error,

@@ -36,8 +36,8 @@ export interface ConversationMessageDto {
   handoffSource?: ConversationStateEventSource;
   providerAcknowledgedAt?: number;
   sideEffectsState?: "pending" | "completed";
-  ownerNotificationState?: "pending" | "completed" | "not_applicable";
-  analyticsState?: "pending" | "completed" | "not_applicable";
+  ownerNotificationState?: "pending" | "sent" | "completed" | "not_applicable";
+  analyticsState?: "pending" | "recorded" | "completed" | "not_applicable";
   transportMessageId?: string;
   referencedTransportMessageId?: string;
 }

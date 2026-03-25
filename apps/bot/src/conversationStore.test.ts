@@ -232,6 +232,12 @@ describe("createConvexConversationStore", () => {
       pendingMessageId: "message-1",
       analyticsCompleted: true,
     });
+    await store.recordPendingAssistantSideEffectProgress({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      ownerNotificationSent: true,
+    });
     await store.commitPendingAssistantMessage({
       companyId: "company-1",
       conversationId: "conversation-1",
@@ -280,6 +286,7 @@ describe("createConvexConversationStore", () => {
     await store.recordAnalyticsEvent({
       companyId: "company-1",
       eventType: "handoff_started",
+      idempotencyKey: "pendingMessage:message-1:handoff_started",
       timestamp: 4_000,
       payload: {
         source: "assistant_action",
@@ -287,7 +294,7 @@ describe("createConvexConversationStore", () => {
     });
 
     expect(actionCalls).toHaveLength(3);
-    expect(mutationCalls).toHaveLength(11);
+    expect(mutationCalls).toHaveLength(12);
     expect(queryCalls).toHaveLength(4);
   });
 
@@ -319,6 +326,13 @@ describe("createConvexConversationStore", () => {
       analyticsCompleted: true,
       ownerNotificationCompleted: true,
     });
+    await store.recordPendingAssistantSideEffectProgress({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      analyticsRecorded: true,
+      ownerNotificationSent: true,
+    });
     await store.commitPendingAssistantMessage({
       companyId: "company-1",
       conversationId: "conversation-1",
@@ -331,7 +345,7 @@ describe("createConvexConversationStore", () => {
       pendingMessageId: "message-1",
     });
 
-    expect(mutationCalls.slice(-5)).toEqual([
+    expect(mutationCalls.slice(-6)).toEqual([
       {
         companyId: "company-1",
         conversationId: "conversation-1",
@@ -353,6 +367,13 @@ describe("createConvexConversationStore", () => {
         pendingMessageId: "message-1",
         analyticsCompleted: true,
         ownerNotificationCompleted: true,
+      },
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        pendingMessageId: "message-1",
+        analyticsRecorded: true,
+        ownerNotificationSent: true,
       },
       {
         companyId: "company-1",

@@ -1062,7 +1062,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       messageId: acknowledgedPending.id,
       phoneNumber: "967700000001",
       timestamp: 2_000,
-      handoffSource: "assistant_action",
       transportMessageId: "assistant-1",
       analyticsState: "pending",
       ownerNotificationState: "pending",
@@ -1315,6 +1314,72 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       ownerNotificationState: "pending",
     });
     expect(secondCompletion).toMatchObject({
+      id: pending.id,
+      sideEffectsState: "completed",
+      analyticsState: "completed",
+      ownerNotificationState: "completed",
+    });
+  });
+
+  it("records pending assistant side effect progress before final completion", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    const pending = await t.mutation(internal.conversations.appendPendingAssistantMessage, {
+      companyId,
+      conversationId,
+      content: "Connecting you with the team.",
+      timestamp: 2_000,
+      source: "assistant_action",
+    });
+    await t.mutation(internal.conversations.acknowledgePendingAssistantMessage, {
+      companyId,
+      conversationId,
+      pendingMessageId: pending.id as Id<"messages">,
+      acknowledgedAt: 2_050,
+      transportMessageId: "assistant-1",
+    });
+    await t.mutation(internal.conversations.commitPendingAssistantMessage, {
+      companyId,
+      conversationId,
+      pendingMessageId: pending.id as Id<"messages">,
+      transportMessageId: "assistant-1",
+    });
+
+    const progressed = await t.mutation(internal.conversations.recordPendingAssistantSideEffectProgress, {
+      companyId,
+      conversationId,
+      pendingMessageId: pending.id as Id<"messages">,
+      analyticsRecorded: true,
+      ownerNotificationSent: true,
+    });
+    const completed = await t.mutation(internal.conversations.completePendingAssistantSideEffects, {
+      companyId,
+      conversationId,
+      pendingMessageId: pending.id as Id<"messages">,
+      analyticsCompleted: true,
+      ownerNotificationCompleted: true,
+    });
+
+    expect(progressed).toMatchObject({
+      id: pending.id,
+      sideEffectsState: "pending",
+      analyticsState: "recorded",
+      ownerNotificationState: "sent",
+    });
+    expect(completed).toMatchObject({
       id: pending.id,
       sideEffectsState: "completed",
       analyticsState: "completed",

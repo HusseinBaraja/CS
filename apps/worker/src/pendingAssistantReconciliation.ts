@@ -5,10 +5,10 @@ import { canonicalizePhoneNumber, formatOwnerNotification, type ConversationMess
 const DEFAULT_PENDING_ASSISTANT_RECONCILIATION_INTERVAL_MS = 60_000;
 const DEFAULT_PENDING_ASSISTANT_RECONCILIATION_BATCH_SIZE = 50;
 const DEFAULT_PENDING_ASSISTANT_GRACE_PERIOD_MS = 15_000;
-const CONVERSATION_LOCK_LEASE_MS = 1_000;
 
 type WorkerLogger = Pick<typeof defaultLogger, "info" | "error">;
 type OwnerNotificationSender = (input: { recipientJid: string; text: string }) => Promise<void>;
+type AssistantHandoffSource = "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback";
 
 export interface PendingAssistantReconciliationProcessorOptions {
   batchSize?: number;
@@ -32,6 +32,14 @@ const getConversationLockKey = (companyId: string, phoneNumber: string): string 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
+const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
+  `pendingMessage:${pendingMessageId}:handoff_started`;
+
+const isAssistantHandoffSource = (value: string): value is AssistantHandoffSource =>
+  value === "assistant_action"
+  || value === "provider_failure_fallback"
+  || value === "invalid_model_output_fallback";
+
 const OWNER_HANDOFF_HISTORY_LIMIT = 6;
 
 const reconcilePendingAssistantMessage = async (
@@ -41,9 +49,8 @@ const reconcilePendingAssistantMessage = async (
     conversationId: string;
     messageId: string;
     phoneNumber: string;
-    handoffSource?: "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback";
-    analyticsState?: "pending" | "completed" | "not_applicable";
-    ownerNotificationState?: "pending" | "completed" | "not_applicable";
+    analyticsState?: "pending" | "recorded" | "completed" | "not_applicable";
+    ownerNotificationState?: "pending" | "sent" | "completed" | "not_applicable";
   },
   logger: WorkerLogger,
   now: number,
@@ -78,17 +85,27 @@ const reconcilePendingAssistantMessage = async (
       pendingMessageId: candidate.messageId as never,
     });
 
-    if (message.analyticsState === "pending" && message.handoffSource) {
-      await client.mutation(convexInternal.analytics.recordEvent, {
-        companyId: candidate.companyId as never,
-        eventType: "handoff_started",
-        timestamp: message.timestamp,
-        payload: {
-          conversationId: candidate.conversationId,
-          phoneNumber: candidate.phoneNumber,
-          source: message.handoffSource,
-        },
-      });
+    if ((message.analyticsState === "pending" || message.analyticsState === "recorded") && message.handoffSource) {
+      if (message.analyticsState === "pending") {
+        await client.mutation(convexInternal.analytics.recordEvent, {
+          companyId: candidate.companyId as never,
+          eventType: "handoff_started",
+          timestamp: message.timestamp,
+          idempotencyKey: getAnalyticsIdempotencyKey(candidate.messageId),
+          payload: {
+            conversationId: candidate.conversationId,
+            phoneNumber: candidate.phoneNumber,
+            source: message.handoffSource,
+          },
+        });
+        await client.mutation(convexInternal.conversations.recordPendingAssistantSideEffectProgress, {
+          companyId: candidate.companyId as never,
+          conversationId: candidate.conversationId as never,
+          pendingMessageId: candidate.messageId as never,
+          analyticsRecorded: true,
+        });
+      }
+
       await client.mutation(convexInternal.conversations.completePendingAssistantSideEffects, {
         companyId: candidate.companyId as never,
         conversationId: candidate.conversationId as never,
@@ -97,35 +114,48 @@ const reconcilePendingAssistantMessage = async (
       });
     }
 
-    if (message.ownerNotificationState === "pending" && message.handoffSource && sendOwnerNotification) {
-      if (!candidate.handoffSource) {
-        throw new Error("Pending assistant handoff source unavailable for owner notification replay");
+    if (message.ownerNotificationState === "pending" || message.ownerNotificationState === "sent") {
+      if (!message.handoffSource || !isAssistantHandoffSource(message.handoffSource)) {
+        throw new Error("Pending assistant owner notification replay requires message.handoffSource");
       }
 
-      const ownerContext = await client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
-        companyId: candidate.companyId as never,
-        conversationId: candidate.conversationId as never,
-      });
-      const recentMessages = await client.query(convexInternal.conversations.listConversationMessages, {
-        companyId: candidate.companyId as never,
-        conversationId: candidate.conversationId as never,
-        limit: OWNER_HANDOFF_HISTORY_LIMIT,
-      }) as ConversationMessageDto[];
-      const ownerPhoneNumber = ownerContext ? canonicalizePhoneNumber(ownerContext.ownerPhone) : null;
+      if (message.ownerNotificationState === "pending") {
+        if (!sendOwnerNotification) {
+          throw new Error("Pending assistant owner notification sender unavailable");
+        }
 
-      if (!ownerContext || !ownerPhoneNumber) {
-        throw new Error("Owner notification replay context unavailable");
+        const ownerContext = await client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
+          companyId: candidate.companyId as never,
+          conversationId: candidate.conversationId as never,
+        });
+        const recentMessages = await client.query(convexInternal.conversations.listConversationMessages, {
+          companyId: candidate.companyId as never,
+          conversationId: candidate.conversationId as never,
+          limit: OWNER_HANDOFF_HISTORY_LIMIT,
+        }) as ConversationMessageDto[];
+        const ownerPhoneNumber = ownerContext ? canonicalizePhoneNumber(ownerContext.ownerPhone) : null;
+
+        if (!ownerContext || !ownerPhoneNumber) {
+          throw new Error("Owner notification replay context unavailable");
+        }
+
+        await sendOwnerNotification({
+          recipientJid: `${ownerPhoneNumber}@s.whatsapp.net`,
+          text: formatOwnerNotification({
+            companyName: ownerContext.companyName,
+            customerPhoneNumber: candidate.phoneNumber,
+            history: recentMessages,
+            source: message.handoffSource,
+          }),
+        });
+        await client.mutation(convexInternal.conversations.recordPendingAssistantSideEffectProgress, {
+          companyId: candidate.companyId as never,
+          conversationId: candidate.conversationId as never,
+          pendingMessageId: candidate.messageId as never,
+          ownerNotificationSent: true,
+        });
       }
 
-      await sendOwnerNotification({
-        recipientJid: `${ownerPhoneNumber}@s.whatsapp.net`,
-        text: formatOwnerNotification({
-          companyName: ownerContext.companyName,
-          customerPhoneNumber: candidate.phoneNumber,
-          history: recentMessages,
-          source: candidate.handoffSource,
-        }),
-      });
       await client.mutation(convexInternal.conversations.completePendingAssistantSideEffects, {
         companyId: candidate.companyId as never,
         conversationId: candidate.conversationId as never,
@@ -188,7 +218,6 @@ export const createPendingAssistantReconciliationProcessor = (
           conversationId: candidate.conversationId,
           messageId: candidate.messageId,
           phoneNumber: candidate.phoneNumber,
-          ...(candidate.handoffSource ? { handoffSource: candidate.handoffSource } : {}),
           ...(candidate.analyticsState ? { analyticsState: candidate.analyticsState } : {}),
           ...(candidate.ownerNotificationState ? { ownerNotificationState: candidate.ownerNotificationState } : {}),
         }, logger, candidateNow, sendOwnerNotification);

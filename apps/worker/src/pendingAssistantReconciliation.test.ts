@@ -136,7 +136,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
   });
 
   test("skips messages that are no longer pending after reload", async () => {
-    const { client } = createClientStub({
+    const { client, calls } = createClientStub({
       mutation: async (_reference, args) => {
         const input = args as { key?: string; ownerToken?: string };
         if (input.key && input.ownerToken) {
@@ -184,7 +184,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
 
   test("continues processing after a reconciliation failure", async () => {
     let commitAttempts = 0;
-    const { client } = createClientStub({
+    const { client, calls } = createClientStub({
       mutation: async (_reference, args) => {
         const input = args as { key?: string; ownerToken?: string; pendingMessageId?: string };
         if (input.key && input.ownerToken) {
@@ -270,7 +270,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
   });
 
   test("skips unacknowledged pending messages", async () => {
-    const { client } = createClientStub({
+    const { client, calls } = createClientStub({
       mutation: async (_reference, args) => {
         const input = args as { key?: string; ownerToken?: string };
         if (input.key && input.ownerToken) {
@@ -319,13 +319,16 @@ describe("createPendingAssistantReconciliationProcessor", () => {
 
   test("replays analytics and owner notification side effects when a sender is provided", async () => {
     const sentNotifications: Array<{ recipientJid: string; text: string }> = [];
-    const { client } = createClientStub({
+    const { client, calls } = createClientStub({
       mutation: async (_reference, args) => {
         const input = args as {
           key?: string;
           ownerToken?: string;
           pendingMessageId?: string;
           eventType?: string;
+          idempotencyKey?: string;
+          analyticsRecorded?: boolean;
+          ownerNotificationSent?: boolean;
           analyticsCompleted?: boolean;
           ownerNotificationCompleted?: boolean;
         };
@@ -335,7 +338,15 @@ describe("createPendingAssistantReconciliationProcessor", () => {
         if (input.eventType === "handoff_started") {
           return undefined;
         }
-        if (input.pendingMessageId && (input.analyticsCompleted || input.ownerNotificationCompleted)) {
+        if (
+          input.pendingMessageId
+          && (
+            input.analyticsRecorded
+            || input.ownerNotificationSent
+            || input.analyticsCompleted
+            || input.ownerNotificationCompleted
+          )
+        ) {
           return undefined;
         }
         return undefined;
@@ -349,7 +360,6 @@ describe("createPendingAssistantReconciliationProcessor", () => {
             messageId: "message-1",
             phoneNumber: "967700000001",
             timestamp: 1_000,
-            handoffSource: "assistant_action",
             analyticsState: "pending",
             ownerNotificationState: "pending",
           }];
@@ -403,5 +413,106 @@ describe("createPendingAssistantReconciliationProcessor", () => {
       recipientJid: "966500000000@s.whatsapp.net",
       text: expect.stringContaining("Handoff started for Tenant A."),
     }]);
+    expect(calls.mutations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        args: expect.objectContaining({
+          eventType: "handoff_started",
+          idempotencyKey: "pendingMessage:message-1:handoff_started",
+        }),
+      }),
+      expect.objectContaining({
+        args: expect.objectContaining({
+          pendingMessageId: "message-1",
+          analyticsRecorded: true,
+        }),
+      }),
+      expect.objectContaining({
+        args: expect.objectContaining({
+          pendingMessageId: "message-1",
+          ownerNotificationSent: true,
+        }),
+      }),
+    ]));
+  });
+
+  test("completes already-recorded side effects without replaying them", async () => {
+    const sentNotifications: Array<{ recipientJid: string; text: string }> = [];
+    const { client, calls } = createClientStub({
+      mutation: async (_reference, args) => {
+        const input = args as {
+          key?: string;
+          ownerToken?: string;
+          pendingMessageId?: string;
+          analyticsCompleted?: boolean;
+          ownerNotificationCompleted?: boolean;
+        };
+        if (input.key && input.ownerToken) {
+          return { acquired: true, waitMs: 0 };
+        }
+        if (input.pendingMessageId && (input.analyticsCompleted || input.ownerNotificationCompleted)) {
+          return undefined;
+        }
+        return undefined;
+      },
+      query: async (_reference, args) => {
+        const input = args as { olderThanOrAt?: number; messageId?: string };
+        if (typeof input.olderThanOrAt === "number") {
+          return [{
+            companyId: "company-1",
+            conversationId: "conversation-1",
+            messageId: "message-1",
+            phoneNumber: "967700000001",
+            timestamp: 1_000,
+            analyticsState: "recorded",
+            ownerNotificationState: "sent",
+          }];
+        }
+        if (input.messageId === "message-1") {
+          return {
+            id: "message-1",
+            conversationId: "conversation-1",
+            role: "assistant",
+            content: "Assistant reply",
+            timestamp: 1_000,
+            deliveryState: "pending",
+            providerAcknowledgedAt: 1_500,
+            handoffSource: "assistant_action",
+            analyticsState: "recorded",
+            ownerNotificationState: "sent",
+          };
+        }
+        throw new Error("should not load owner replay context");
+      },
+    });
+
+    const processor = createPendingAssistantReconciliationProcessor({
+      createClient: () => client as never,
+      logger: createLoggerStub().logger,
+      sendOwnerNotification: async (input) => {
+        sentNotifications.push(input);
+      },
+    });
+
+    await expect(processor.runTick()).resolves.toEqual({
+      reconciledCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+    });
+
+    expect(sentNotifications).toEqual([]);
+    expect(calls.mutations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        args: expect.objectContaining({
+          pendingMessageId: "message-1",
+          analyticsCompleted: true,
+        }),
+      }),
+      expect.objectContaining({
+        args: expect.objectContaining({
+          pendingMessageId: "message-1",
+          ownerNotificationCompleted: true,
+        }),
+      }),
+    ]));
   });
 });

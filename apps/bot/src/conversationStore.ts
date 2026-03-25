@@ -63,6 +63,13 @@ export interface ConversationStore {
     analyticsCompleted?: boolean;
     ownerNotificationCompleted?: boolean;
   }): Promise<ConversationMessageRecord>;
+  recordPendingAssistantSideEffectProgress(input: {
+    companyId: string;
+    conversationId: string;
+    pendingMessageId: string;
+    analyticsRecorded?: boolean;
+    ownerNotificationSent?: boolean;
+  }): Promise<ConversationMessageRecord>;
   commitPendingAssistantMessage(input: {
     companyId: string;
     conversationId: string;
@@ -124,6 +131,7 @@ export interface ConversationStore {
     companyId: string;
     eventType: AnalyticsEventType;
     timestamp: number;
+    idempotencyKey?: string;
     payload?: Record<string, string | number | boolean>;
   }): Promise<void>;
   trimConversationMessages(input: {
@@ -224,6 +232,16 @@ export const createConvexConversationStore = (
           ...(input.ownerNotificationCompleted !== undefined
             ? { ownerNotificationCompleted: input.ownerNotificationCompleted }
             : {}),
+        })
+      ),
+    recordPendingAssistantSideEffectProgress: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.recordPendingAssistantSideEffectProgress, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          pendingMessageId: toMessageId(input.pendingMessageId),
+          ...(input.analyticsRecorded !== undefined ? { analyticsRecorded: input.analyticsRecorded } : {}),
+          ...(input.ownerNotificationSent !== undefined ? { ownerNotificationSent: input.ownerNotificationSent } : {}),
         })
       ),
     commitPendingAssistantMessage: (input) =>
@@ -369,6 +387,7 @@ export const createConvexConversationStore = (
           companyId: toCompanyId(input.companyId),
           eventType: input.eventType,
           timestamp: input.timestamp,
+          ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
           ...(input.payload ? { payload: input.payload } : {}),
         })
       ).then(() => undefined),

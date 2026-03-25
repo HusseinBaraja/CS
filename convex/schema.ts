@@ -240,11 +240,13 @@ export default defineSchema({
     sideEffectsState: v.optional(v.union(v.literal("pending"), v.literal("completed"))),
     ownerNotificationState: v.optional(v.union(
       v.literal("pending"),
+      v.literal("sent"),
       v.literal("completed"),
       v.literal("not_applicable"),
     )),
     analyticsState: v.optional(v.union(
       v.literal("pending"),
+      v.literal("recorded"),
       v.literal("completed"),
       v.literal("not_applicable"),
     )),
@@ -290,8 +292,10 @@ export default defineSchema({
     companyId: v.id("companies"),
     eventType: v.string(),
     timestamp: v.number(),
+    idempotencyKey: v.optional(v.string()),
     payload: v.optional(flexRecord),
   })
     .index("by_company_type", ["companyId", "eventType"])
+    .index("by_company_type_idempotency_key", ["companyId", "eventType", "idempotencyKey"])
     .index("by_company_type_time", ["companyId", "eventType", "timestamp"]),
 });

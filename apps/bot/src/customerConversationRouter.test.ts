@@ -143,8 +143,19 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
     timestamp: 1_000,
     deliveryState: "sent",
     sideEffectsState: input.analyticsCompleted || input.ownerNotificationCompleted ? "completed" : "pending",
-    analyticsState: input.analyticsCompleted ? "completed" : "pending",
-    ownerNotificationState: input.ownerNotificationCompleted ? "completed" : "pending",
+    analyticsState: input.analyticsCompleted ? "completed" : "recorded",
+    ownerNotificationState: input.ownerNotificationCompleted ? "completed" : "sent",
+  }),
+  recordPendingAssistantSideEffectProgress: async (input) => ({
+    id: input.pendingMessageId,
+    conversationId: input.conversationId,
+    role: "assistant",
+    content: "progress assistant",
+    timestamp: 1_000,
+    deliveryState: "sent",
+    sideEffectsState: "pending",
+    analyticsState: input.analyticsRecorded ? "recorded" : "pending",
+    ownerNotificationState: input.ownerNotificationSent ? "sent" : "pending",
   }),
   commitPendingAssistantMessage: async (input) => ({
     id: input.conversationId,
@@ -662,8 +673,24 @@ describe("createCustomerConversationRouter", () => {
           timestamp: 2_000,
         },
       ],
-      recordAnalyticsEvent: async () => {
-        operations.push("analytics");
+      recordAnalyticsEvent: async (input) => {
+        operations.push(`analytics:${input.idempotencyKey ?? "none"}`);
+      },
+      recordPendingAssistantSideEffectProgress: async (input) => {
+        operations.push(
+          `progress:${input.analyticsRecorded === true ? "analytics" : "none"}:${input.ownerNotificationSent === true ? "owner" : "none"}`,
+        );
+        return {
+          id: input.pendingMessageId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: "Connecting you with the team.",
+          timestamp: 2_000,
+          deliveryState: "sent",
+          sideEffectsState: "pending",
+          analyticsState: input.analyticsRecorded ? "recorded" : "pending",
+          ownerNotificationState: input.ownerNotificationSent ? "sent" : "pending",
+        };
       },
       completePendingAssistantSideEffects: async (input) => {
         operations.push(
@@ -677,8 +704,8 @@ describe("createCustomerConversationRouter", () => {
           timestamp: 2_000,
           deliveryState: "sent",
           sideEffectsState: "completed",
-          analyticsState: input.analyticsCompleted ? "completed" : "pending",
-          ownerNotificationState: input.ownerNotificationCompleted ? "completed" : "pending",
+          analyticsState: input.analyticsCompleted ? "completed" : "recorded",
+          ownerNotificationState: input.ownerNotificationCompleted ? "completed" : "sent",
         };
       },
       startHandoff: async () => {
@@ -718,8 +745,10 @@ describe("createCustomerConversationRouter", () => {
       "pending:Connecting you with the team.:assistant_action",
       "ack:pending-handoff-1:sent-1",
       "commit:pending-handoff-1:sent-1",
-      "analytics",
+      "analytics:pendingMessage:pending-handoff-1:handoff_started",
+      "progress:analytics:none",
       "complete:analytics:none",
+      "progress:none:owner",
       "complete:none:owner",
       "trim:20",
     ]);
@@ -821,6 +850,8 @@ describe("createCustomerConversationRouter", () => {
       text: "Assistant reply",
     }]);
     expect(errorCalls[0]?.message).toBe("customer conversation history trimming failed");
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
+    expect(errorCalls[0]?.payload).toMatchObject({ assistantTextLength: "Assistant reply".length });
   });
 
   test("serializes media messages into stable placeholder text", async () => {
@@ -1038,7 +1069,9 @@ describe("createCustomerConversationRouter", () => {
     expect(errorCalls[0]?.message).toBe("customer conversation assistant persistence failed");
     expect(errorCalls[0]?.payload).toMatchObject({
       pendingMessageId: "pending-message-1",
+      assistantTextLength: "Assistant reply".length,
     });
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
   });
 
   test("stops after send when acknowledgement persistence fails", async () => {
@@ -1092,7 +1125,9 @@ describe("createCustomerConversationRouter", () => {
     expect(errorCalls[0]?.payload).toMatchObject({
       pendingMessageId: "pending-message-1",
       outboundMessageId: "sent-1",
+      assistantTextLength: "Assistant reply".length,
     });
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
   });
 
   test("marks the pending assistant reply failed when outbound send fails", async () => {
@@ -1154,7 +1189,9 @@ describe("createCustomerConversationRouter", () => {
     expect(errorCalls[0]?.payload).toMatchObject({
       pendingMessageId: "pending-message-1",
       recipientPhoneNumber: "***0001",
+      assistantTextLength: "Assistant reply".length,
     });
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
   });
 
   test("sends empty history after a stale idle gap without a quoted reference", async () => {
