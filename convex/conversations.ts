@@ -186,6 +186,18 @@ const resolveMessageByTransportMessageId = async (
   return messages[0] ?? null;
 };
 
+const resolveExistingMessageInsert = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  transportMessageId: string | undefined,
+): Promise<Doc<"messages"> | null> => {
+  if (!transportMessageId) {
+    return null;
+  }
+
+  return resolveMessageByTransportMessageId(ctx, conversationId, transportMessageId);
+};
+
 const filterMessagesBeforeInbound = (
   messages: ConversationMessageDto[],
   input: {
@@ -619,6 +631,10 @@ export const appendMutedCustomerMessage = internalMutation({
       args.referencedTransportMessageId,
       "referencedTransportMessageId",
     );
+    const existingMessage = await resolveExistingMessageInsert(ctx, args.conversationId, transportMessageId);
+    if (existingMessage) {
+      return toConversationDto(conversation);
+    }
 
     await ctx.db.insert("messages", {
       conversationId: args.conversationId,
@@ -657,6 +673,13 @@ export const appendInboundCustomerMessageToConversation = internalMutation({
       args.referencedTransportMessageId,
       "referencedTransportMessageId",
     );
+    const existingMessage = await resolveExistingMessageInsert(ctx, args.conversationId, transportMessageId);
+    if (existingMessage) {
+      return {
+        conversation: toConversationDto(conversation),
+        wasMuted: conversation.muted,
+      };
+    }
 
     await ctx.db.insert("messages", {
       conversationId: args.conversationId,

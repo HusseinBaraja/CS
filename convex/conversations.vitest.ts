@@ -970,6 +970,110 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     }]);
   });
 
+  it("treats duplicate inbound transport ids as idempotent for active conversations", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+
+    const first = await t.action(internal.conversations.appendInboundCustomerMessage, {
+      companyId,
+      phoneNumber: "967700000001",
+      content: "hello",
+      timestamp: 2_000,
+      transportMessageId: "inbound-1",
+    });
+    const second = await t.action(internal.conversations.appendInboundCustomerMessage, {
+      companyId,
+      phoneNumber: "967700000001",
+      content: "hello again",
+      timestamp: 9_000,
+      transportMessageId: "inbound-1",
+    });
+
+    expect(second).toEqual({
+      conversation: first.conversation,
+      wasMuted: false,
+    });
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId: first.conversation.id as Id<"conversations">,
+    });
+    expect(messages).toEqual([{
+      id: expect.any(String),
+      conversationId: first.conversation.id,
+      role: "user",
+      content: "hello",
+      timestamp: 2_000,
+      transportMessageId: "inbound-1",
+    }]);
+  });
+
+  it("treats duplicate muted inbound transport ids as idempotent without extending deadlines", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+        nextAutoResumeAt: 2_000,
+      })
+    );
+
+    const first = await t.mutation(internal.conversations.appendMutedCustomerMessage, {
+      companyId,
+      conversationId,
+      content: "hello again",
+      timestamp: 5_000,
+      transportMessageId: "inbound-1",
+    });
+    const second = await t.mutation(internal.conversations.appendMutedCustomerMessage, {
+      companyId,
+      conversationId,
+      content: "duplicate delivery",
+      timestamp: 9_000,
+      transportMessageId: "inbound-1",
+    });
+
+    expect(first).toMatchObject({
+      id: conversationId,
+      muted: true,
+      lastCustomerMessageAt: 5_000,
+      nextAutoResumeAt: 5_000 + 12 * 60 * 60 * 1_000,
+    });
+    expect(second).toMatchObject({
+      id: conversationId,
+      muted: true,
+      lastCustomerMessageAt: 5_000,
+      nextAutoResumeAt: 5_000 + 12 * 60 * 60 * 1_000,
+    });
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+    });
+    expect(messages).toEqual([{
+      id: expect.any(String),
+      conversationId,
+      role: "user",
+      content: "hello again",
+      timestamp: 5_000,
+      transportMessageId: "inbound-1",
+    }]);
+  });
+
   it("does not resume a stale due auto-resume candidate after muted activity extends the deadline", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
