@@ -89,6 +89,14 @@ export function FlowSection() {
     let timeline: ReturnType<typeof gsap.timeline> | null = null;
     let scrollTriggerInstance: ReturnType<typeof ScrollTrigger.create> | null = null;
 
+    const destroyAnimation = () => {
+      scrollTriggerInstance?.kill();
+      timeline?.kill();
+      scrollTriggerInstance = null;
+      timeline = null;
+      isAnimationInitialized = false;
+    };
+
     const initializeAnimation = (pathData: NonNullable<ReturnType<typeof buildPath>>) => {
       if (isAnimationInitialized) {
         return;
@@ -157,10 +165,17 @@ export function FlowSection() {
     const rebuildAndRefresh = () => {
       const rebuilt = buildPath();
       if (rebuilt) {
+        if (isAnimationInitialized) {
+          destroyAnimation();
+        }
+
         initializeAnimation(rebuilt);
-        // Reapply the mask dash values after path rebuild
         const len = rebuilt.length;
-        gsap.set(maskPath, { strokeDasharray: len, strokeDashoffset: len * (1 - maxProgress) });
+        gsap.set(maskPath, {
+          strokeDasharray: len,
+          strokeDashoffset: len * (1 - maxProgress),
+        });
+        timeline?.progress(maxProgress);
         ScrollTrigger.refresh();
       }
     };
@@ -197,8 +212,7 @@ export function FlowSection() {
       if (resizeTimeout) {
         clearTimeout(resizeTimeout);
       }
-      scrollTriggerInstance?.kill();
-      timeline?.kill();
+      destroyAnimation();
     };
   }, { scope: container });
 
