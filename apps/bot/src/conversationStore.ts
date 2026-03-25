@@ -30,6 +30,7 @@ export interface AppendInboundCustomerMessageInput {
 export interface AppendInboundCustomerMessageResult {
   conversation: ConversationRecord;
   wasMuted: boolean;
+  wasDuplicate: boolean;
 }
 
 export interface ConversationStore {

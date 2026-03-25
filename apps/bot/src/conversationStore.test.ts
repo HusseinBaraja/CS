@@ -67,6 +67,7 @@ const createClientStub = () => {
         return {
           conversation: createActionConversationStub(),
           wasMuted: false,
+          wasDuplicate: false,
         };
       }
 

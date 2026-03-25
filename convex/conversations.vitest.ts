@@ -1152,6 +1152,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(second).toEqual({
       conversation: first.conversation,
       wasMuted: false,
+      wasDuplicate: true,
     });
 
     const messages = await t.query(internal.conversations.listConversationMessages, {

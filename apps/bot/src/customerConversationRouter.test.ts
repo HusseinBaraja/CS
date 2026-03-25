@@ -159,6 +159,7 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
       muted: false,
     },
     wasMuted: false,
+    wasDuplicate: false,
   }),
   appendUserMessage: async (input) => ({
     id: "user-message",
@@ -243,6 +244,7 @@ describe("createCustomerConversationRouter", () => {
             muted: false,
           },
           wasMuted: false,
+          wasDuplicate: false,
         };
       },
       appendPendingAssistantMessage: async (input) => {
@@ -307,6 +309,7 @@ describe("createCustomerConversationRouter", () => {
           muted: false,
         },
         wasMuted: false,
+        wasDuplicate: false,
       }),
       appendAssistantMessage: async (input) => ({
         id: crypto.randomUUID(),
@@ -334,6 +337,46 @@ describe("createCustomerConversationRouter", () => {
     await router(createMessage({ messageId: "message-2", occurredAtMs: 1_700_000_000_001 }), createContext(outbound));
 
     expect(conversationIds).toEqual(["conversation-1", "conversation-1"]);
+  });
+
+  test("stops before history and orchestration for duplicate inbound deliveries", async () => {
+    let historyCalled = false;
+    let orchestratorCalled = false;
+    const store = createStore({
+      appendInboundCustomerMessage: async (input) => ({
+        conversation: {
+          id: "conversation-1",
+          companyId: input.companyId,
+          phoneNumber: input.phoneNumber,
+          muted: false,
+        },
+        wasMuted: false,
+        wasDuplicate: true,
+      }),
+      getPromptHistoryForInbound: async () => {
+        historyCalled = true;
+        return [];
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async () => {
+        orchestratorCalled = true;
+        return createCatalogChatResult("Assistant reply");
+      },
+    };
+    const { logger } = createLogger();
+    const { outbound, sent } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(historyCalled).toBe(false);
+    expect(orchestratorCalled).toBe(false);
+    expect(sent).toEqual([]);
   });
 
   test("passes bounded lifecycle-aware prompt history into orchestration", async () => {
@@ -387,6 +430,7 @@ describe("createCustomerConversationRouter", () => {
             muted: false,
           },
           wasMuted: false,
+          wasDuplicate: false,
         };
       },
       appendPendingAssistantMessage: async (input) => {
@@ -459,6 +503,7 @@ describe("createCustomerConversationRouter", () => {
             nextAutoResumeAt: input.timestamp + 1_000,
           },
           wasMuted: true,
+          wasDuplicate: false,
         };
       },
       appendUserMessage: async () => {
@@ -502,6 +547,7 @@ describe("createCustomerConversationRouter", () => {
             muted: false,
           },
           wasMuted: false,
+          wasDuplicate: false,
         };
       },
       appendPendingAssistantMessage: async (input) => {
@@ -697,6 +743,7 @@ describe("createCustomerConversationRouter", () => {
             muted: false,
           },
           wasMuted: false,
+          wasDuplicate: false,
         };
       },
       appendPendingAssistantMessage: async (input) => ({
@@ -747,6 +794,7 @@ describe("createCustomerConversationRouter", () => {
             muted: false,
           },
           wasMuted: false,
+          wasDuplicate: false,
         };
       },
       appendPendingAssistantMessage: async (input) => ({
@@ -826,6 +874,7 @@ describe("createCustomerConversationRouter", () => {
           muted: false,
         },
         wasMuted: false,
+        wasDuplicate: false,
       }),
       appendPendingAssistantMessage: async () => {
         appendedAssistant = true;
@@ -862,6 +911,7 @@ describe("createCustomerConversationRouter", () => {
           muted: false,
         },
         wasMuted: false,
+        wasDuplicate: false,
       }),
       appendPendingAssistantMessage: async (input) => ({
         id: "pending-message-1",
@@ -909,6 +959,7 @@ describe("createCustomerConversationRouter", () => {
           muted: false,
         },
         wasMuted: false,
+        wasDuplicate: false,
       }),
       appendPendingAssistantMessage: async (input) => {
         return {
@@ -1011,6 +1062,7 @@ describe("createCustomerConversationRouter", () => {
             muted: false,
           },
           wasMuted: false,
+          wasDuplicate: false,
         };
       },
       getPromptHistoryForInbound: async (input) => {
@@ -1094,6 +1146,7 @@ describe("createCustomerConversationRouter", () => {
           muted: false,
         },
         wasMuted: false,
+        wasDuplicate: false,
       }),
       appendPendingAssistantMessage: async (input) => ({
         id: "pending-handoff-1",

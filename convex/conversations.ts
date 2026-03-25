@@ -39,6 +39,7 @@ type TrimConversationMessagesResult = {
 type AppendInboundCustomerMessageResult = {
   conversation: ConversationStateDto;
   wasMuted: boolean;
+  wasDuplicate: boolean;
 };
 
 type AssistantHandoffSource = Extract<
@@ -749,6 +750,7 @@ export const appendInboundCustomerMessageToConversation = internalMutation({
       return {
         conversation: toConversationDto(conversation),
         wasMuted: conversation.muted,
+        wasDuplicate: true,
       };
     }
 
@@ -765,6 +767,7 @@ export const appendInboundCustomerMessageToConversation = internalMutation({
       return {
         conversation: toConversationDto(conversation),
         wasMuted: false,
+        wasDuplicate: false,
       };
     }
 
@@ -777,6 +780,7 @@ export const appendInboundCustomerMessageToConversation = internalMutation({
     return {
       conversation: toConversationDto(updatedConversation),
       wasMuted: true,
+      wasDuplicate: false,
     };
   },
 });

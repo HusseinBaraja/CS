@@ -113,7 +113,7 @@ export const createCustomerConversationRouter = (
       });
       conversationId = inboundAppend.conversation.id;
 
-      if (inboundAppend.wasMuted) {
+      if (inboundAppend.wasDuplicate || inboundAppend.wasMuted) {
         return;
       }
 
