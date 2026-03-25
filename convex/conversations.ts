@@ -46,6 +46,14 @@ type AssistantHandoffSource = Extract<
   "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback"
 >;
 
+type PendingAssistantMessageCandidate = {
+  messageId: Id<"messages">;
+  conversationId: Id<"conversations">;
+  companyId: Id<"companies">;
+  phoneNumber: string;
+  timestamp: number;
+};
+
 const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, delayMs);
@@ -806,6 +814,23 @@ export const appendInboundCustomerMessage = internalAction({
   },
 });
 
+export const getConversationMessage = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    messageId: v.id("messages"),
+  },
+  handler: async (ctx, args): Promise<ConversationMessageDto | null> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const message = await ctx.db.get(args.messageId);
+    if (!message || message.conversationId !== args.conversationId) {
+      return null;
+    }
+
+    return toMessageDto(message);
+  },
+});
+
 export const appendPendingAssistantMessage = internalMutation({
   args: {
     companyId: v.id("companies"),
@@ -841,6 +866,41 @@ export const appendPendingAssistantMessage = internalMutation({
       ...(args.metadata ? { handoffMetadata: args.metadata } : {}),
     });
     return toMessageDto(await loadMessageOrThrow(ctx, messageId));
+  },
+});
+
+export const listPendingAssistantMessages = internalQuery({
+  args: {
+    olderThanOrAt: v.number(),
+    limit: v.number(),
+  },
+  handler: async (ctx, args): Promise<PendingAssistantMessageCandidate[]> => {
+    const olderThanOrAt = normalizeTimestamp(args.olderThanOrAt, Date.now());
+    const limit = normalizePositiveInteger(args.limit, "limit");
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_role_delivery_state_time", (q) =>
+        q.eq("role", "assistant").eq("deliveryState", "pending").lte("timestamp", olderThanOrAt)
+      )
+      .take(limit);
+
+    const candidates: PendingAssistantMessageCandidate[] = [];
+    for (const message of messages) {
+      const conversation = await ctx.db.get(message.conversationId);
+      if (!conversation) {
+        continue;
+      }
+
+      candidates.push({
+        messageId: message._id,
+        conversationId: message.conversationId,
+        companyId: conversation.companyId,
+        phoneNumber: conversation.phoneNumber,
+        timestamp: message.timestamp,
+      });
+    }
+
+    return candidates;
   },
 });
 

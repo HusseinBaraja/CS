@@ -1,6 +1,7 @@
 import { logger } from '@cs/core';
 import { createConversationAutoResumeProcessor } from './conversationAutoResume';
 import { createMediaCleanupProcessor } from './mediaCleanup';
+import { createPendingAssistantReconciliationProcessor } from './pendingAssistantReconciliation';
 
 interface WorkerLogger {
   info(payload: unknown, message: string): void;
@@ -9,6 +10,7 @@ interface WorkerLogger {
 
 type MediaCleanupProcessor = ReturnType<typeof createMediaCleanupProcessor>;
 type ConversationAutoResumeProcessor = ReturnType<typeof createConversationAutoResumeProcessor>;
+type PendingAssistantReconciliationProcessor = ReturnType<typeof createPendingAssistantReconciliationProcessor>;
 
 interface WorkerProcess {
   exitCode?: number;
@@ -20,6 +22,7 @@ interface WorkerProcess {
 
 export interface StartWorkerOptions {
   createConversationAutoResumeProcessor?: () => ConversationAutoResumeProcessor;
+  createPendingAssistantReconciliationProcessor?: () => PendingAssistantReconciliationProcessor;
   logger?: WorkerLogger;
   createMediaCleanupProcessor?: () => MediaCleanupProcessor;
   workerProcess?: WorkerProcess;
@@ -29,13 +32,17 @@ export const startWorker = async (options: StartWorkerOptions = {}): Promise<voi
   const workerLogger = options.logger ?? logger;
   const workerProcess = options.workerProcess ?? process;
   const conversationAutoResume = (options.createConversationAutoResumeProcessor ?? createConversationAutoResumeProcessor)();
+  const pendingAssistantReconciliation =
+    (options.createPendingAssistantReconciliationProcessor ?? createPendingAssistantReconciliationProcessor)();
   const mediaCleanup = (options.createMediaCleanupProcessor ?? createMediaCleanupProcessor)();
 
   workerLogger.info({ db: { provider: "convex" } }, "worker initialized");
   await conversationAutoResume.runTick();
+  await pendingAssistantReconciliation.runTick();
   await mediaCleanup.runTick();
 
   const stopConversationAutoResume = conversationAutoResume.start();
+  const stopPendingAssistantReconciliation = pendingAssistantReconciliation.start();
   const stopMediaCleanup = mediaCleanup.start();
   let shuttingDown = false;
 
@@ -48,6 +55,7 @@ export const startWorker = async (options: StartWorkerOptions = {}): Promise<voi
 
     const results = await Promise.allSettled([
       Promise.resolve(stopConversationAutoResume()),
+      Promise.resolve(stopPendingAssistantReconciliation()),
       Promise.resolve(stopMediaCleanup()),
     ]);
 
@@ -58,11 +66,15 @@ export const startWorker = async (options: StartWorkerOptions = {}): Promise<voi
       }
 
       failed = true;
-      workerLogger.error({
-        error: result.reason,
-        signal,
-        stopTarget: index === 0 ? "conversationAutoResume" : "mediaCleanup",
-      }, "worker shutdown failed");
+        workerLogger.error({
+          error: result.reason,
+          signal,
+          stopTarget: index === 0
+            ? "conversationAutoResume"
+            : index === 1
+              ? "pendingAssistantReconciliation"
+              : "mediaCleanup",
+        }, "worker shutdown failed");
     }
 
     if (failed) {

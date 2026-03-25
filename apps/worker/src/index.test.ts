@@ -63,6 +63,23 @@ describe("startWorker", () => {
           };
         },
       }),
+      createPendingAssistantReconciliationProcessor: () => ({
+        runTick: async () => {
+          events.push("runTick:pendingAssistant");
+          return {
+            reconciledCount: 0,
+            skippedCount: 0,
+            failedCount: 0,
+          };
+        },
+        start: () => {
+          events.push("start:pendingAssistant");
+          return () => {
+            stopCallCount += 1;
+            events.push("stop:pendingAssistant");
+          };
+        },
+      }),
       createMediaCleanupProcessor: () => ({
         runTick: async () => {
           events.push("runTick:mediaCleanup");
@@ -93,20 +110,25 @@ describe("startWorker", () => {
     expect(errorCalls).toEqual([]);
     expect(events).toEqual([
       "runTick:autoResume",
+      "runTick:pendingAssistant",
       "runTick:mediaCleanup",
       "start:autoResume",
+      "start:pendingAssistant",
       "start:mediaCleanup",
     ]);
     expect(Array.from(handlers.keys()).sort()).toEqual(["SIGINT", "SIGTERM", "beforeExit"]);
 
     await handlers.get("SIGINT")?.();
-    expect(stopCallCount).toBe(2);
+    expect(stopCallCount).toBe(3);
     expect(events).toEqual([
       "runTick:autoResume",
+      "runTick:pendingAssistant",
       "runTick:mediaCleanup",
       "start:autoResume",
+      "start:pendingAssistant",
       "start:mediaCleanup",
       "stop:autoResume",
+      "stop:pendingAssistant",
       "stop:mediaCleanup",
     ]);
   });
@@ -122,6 +144,16 @@ describe("startWorker", () => {
       createConversationAutoResumeProcessor: () => ({
         runTick: async () => ({
           resumedCount: 0,
+          skippedCount: 0,
+          failedCount: 0,
+        }),
+        start: () => async () => {
+          stopCallCount += 1;
+        },
+      }),
+      createPendingAssistantReconciliationProcessor: () => ({
+        runTick: async () => ({
+          reconciledCount: 0,
           skippedCount: 0,
           failedCount: 0,
         }),
@@ -147,7 +179,7 @@ describe("startWorker", () => {
     await handlers.get("SIGTERM")?.();
     await handlers.get("beforeExit")?.();
 
-    expect(stopCallCount).toBe(2);
+    expect(stopCallCount).toBe(3);
   });
 
   test("logs each shutdown error and marks the process exit code", async () => {
@@ -160,6 +192,16 @@ describe("startWorker", () => {
       createConversationAutoResumeProcessor: () => ({
         runTick: async () => ({
           resumedCount: 0,
+          skippedCount: 0,
+          failedCount: 0,
+        }),
+        start: () => async () => {
+          throw new Error("stop failed");
+        },
+      }),
+      createPendingAssistantReconciliationProcessor: () => ({
+        runTick: async () => ({
+          reconciledCount: 0,
           skippedCount: 0,
           failedCount: 0,
         }),
@@ -197,6 +239,14 @@ describe("startWorker", () => {
         payload: {
           error: expect.any(Error),
           signal: "SIGTERM",
+          stopTarget: "pendingAssistantReconciliation",
+        },
+        message: "worker shutdown failed",
+      },
+      {
+        payload: {
+          error: expect.any(Error),
+          signal: "SIGTERM",
           stopTarget: "mediaCleanup",
         },
         message: "worker shutdown failed",
@@ -214,6 +264,12 @@ describe("startWorker", () => {
       createConversationAutoResumeProcessor: () => ({
         runTick: async () => {
           throw new Error("tick failed");
+        },
+        start: () => () => undefined,
+      }),
+      createPendingAssistantReconciliationProcessor: () => ({
+        runTick: async () => {
+          throw new Error("should not be called");
         },
         start: () => () => undefined,
       }),
