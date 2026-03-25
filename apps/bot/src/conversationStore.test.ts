@@ -144,6 +144,12 @@ describe("createConvexConversationStore", () => {
     });
 
     await store.getOrCreateActiveConversation("company-1", "967700000001");
+    await store.appendInboundCustomerMessage({
+      companyId: "company-1",
+      phoneNumber: "967700000001",
+      content: "hello from inbound",
+      timestamp: 900,
+    });
     await store.appendUserMessage({
       companyId: "company-1",
       conversationId: "conversation-1",
@@ -198,7 +204,7 @@ describe("createConvexConversationStore", () => {
       },
     });
 
-    expect(actionCalls).toHaveLength(2);
+    expect(actionCalls).toHaveLength(3);
     expect(mutationCalls).toHaveLength(6);
     expect(queryCalls).toHaveLength(3);
   });

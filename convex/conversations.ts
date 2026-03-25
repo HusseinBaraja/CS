@@ -33,6 +33,11 @@ type TrimConversationMessagesResult = {
   remainingCount: number;
 };
 
+type AppendInboundCustomerMessageResult = {
+  conversation: ConversationStateDto;
+  wasMuted: boolean;
+};
+
 const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, delayMs);
@@ -483,6 +488,74 @@ export const appendMutedCustomerMessage = internalMutation({
 
     const updatedConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     return toConversationDto(updatedConversation);
+  },
+});
+
+export const appendInboundCustomerMessageToConversation = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    content: v.string(),
+    timestamp: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<AppendInboundCustomerMessageResult> => {
+    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const content = normalizeMessageContent(args.content);
+    const timestamp = normalizeTimestamp(args.timestamp, Date.now());
+
+    await ctx.db.insert("messages", {
+      conversationId: args.conversationId,
+      role: "user",
+      content,
+      timestamp,
+    });
+
+    if (!conversation.muted) {
+      return {
+        conversation: toConversationDto(conversation),
+        wasMuted: false,
+      };
+    }
+
+    await ctx.db.patch(conversation._id, {
+      lastCustomerMessageAt: timestamp,
+      nextAutoResumeAt: timestamp + AUTO_RESUME_IDLE_MS,
+    });
+
+    const updatedConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    return {
+      conversation: toConversationDto(updatedConversation),
+      wasMuted: true,
+    };
+  },
+});
+
+export const appendInboundCustomerMessage = internalAction({
+  args: {
+    companyId: v.id("companies"),
+    phoneNumber: v.string(),
+    content: v.string(),
+    timestamp: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<AppendInboundCustomerMessageResult> => {
+    const phoneNumber = normalizePhoneNumber(args.phoneNumber);
+    return withConversationLock(ctx, args, async () => {
+      const existing = await ctx.runQuery(internal.conversations.getConversationByPhone, {
+        companyId: args.companyId,
+        phoneNumber,
+      });
+      const conversation = existing ?? await ctx.runMutation(internal.conversations.ensureActiveConversation, {
+        companyId: args.companyId,
+        phoneNumber,
+      });
+
+      return ctx.runMutation(internal.conversations.appendInboundCustomerMessageToConversation, {
+        companyId: args.companyId,
+        conversationId: conversation.id as Id<"conversations">,
+        content: args.content,
+        timestamp: args.timestamp,
+      });
+    });
   },
 });
 

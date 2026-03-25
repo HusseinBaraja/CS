@@ -100,31 +100,18 @@ export const createCustomerConversationRouter = (
     const userMessage = serializeInboundMessage(message);
     let conversationId: string;
     let history;
-    let wasMuted = false;
     try {
-      const conversation = await options.conversationStore.getOrCreateConversationForInbound(
-        message.companyId,
-        message.conversationPhoneNumber,
-      );
-      conversationId = conversation.id;
-      wasMuted = conversation.muted;
-
-      if (wasMuted) {
-        await options.conversationStore.appendMutedCustomerMessage({
-          companyId: message.companyId,
-          conversationId,
-          content: userMessage,
-          timestamp: message.occurredAtMs,
-        });
-        return;
-      }
-
-      await options.conversationStore.appendUserMessage({
+      const inboundAppend = await options.conversationStore.appendInboundCustomerMessage({
         companyId: message.companyId,
-        conversationId,
+        phoneNumber: message.conversationPhoneNumber,
         content: userMessage,
         timestamp: message.occurredAtMs,
       });
+      conversationId = inboundAppend.conversation.id;
+
+      if (inboundAppend.wasMuted) {
+        return;
+      }
 
       history = await options.conversationStore.getPromptHistory({
         companyId: message.companyId,

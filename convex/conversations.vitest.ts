@@ -1,3 +1,4 @@
+import type { Id } from '@cs/db';
 import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 import { internal } from './_generated/api';
@@ -841,6 +842,95 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       role: "user",
       content: "hello again",
       timestamp: 5_000,
+    }]);
+  });
+
+  it("atomically appends inbound customer messages for existing muted conversations", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+        nextAutoResumeAt: 2_000,
+      })
+    );
+
+    const result = await t.action(internal.conversations.appendInboundCustomerMessage, {
+      companyId,
+      phoneNumber: "967700000001",
+      content: "hello again",
+      timestamp: 5_000,
+    });
+
+    expect(result).toEqual({
+      conversation: {
+        id: conversationId,
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 5_000,
+        nextAutoResumeAt: 5_000 + 12 * 60 * 60 * 1_000,
+      },
+      wasMuted: true,
+    });
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+    });
+    expect(messages).toEqual([{
+      id: expect.any(String),
+      conversationId,
+      role: "user",
+      content: "hello again",
+      timestamp: 5_000,
+    }]);
+  });
+
+  it("atomically appends inbound customer messages while creating active conversations on demand", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+
+    const result = await t.action(internal.conversations.appendInboundCustomerMessage, {
+      companyId,
+      phoneNumber: "967700000001",
+      content: "hello",
+      timestamp: 2_000,
+    });
+
+    expect(result.wasMuted).toBe(false);
+    expect(result.conversation).toEqual({
+      id: expect.any(String),
+      companyId,
+      phoneNumber: "967700000001",
+      muted: false,
+    });
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId: result.conversation.id as Id<"conversations">,
+    });
+    expect(messages).toEqual([{
+      id: expect.any(String),
+      conversationId: result.conversation.id,
+      role: "user",
+      content: "hello",
+      timestamp: 2_000,
     }]);
   });
 

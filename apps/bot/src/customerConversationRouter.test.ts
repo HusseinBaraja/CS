@@ -121,8 +121,16 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
     phoneNumber: "967700000001",
     muted: true,
     mutedAt: input.timestamp,
-    lastCustomerMessageAt: input.timestamp,
     nextAutoResumeAt: input.timestamp + 1_000,
+  }),
+  appendInboundCustomerMessage: async (input) => ({
+    conversation: {
+      id: "conversation-1",
+      companyId: input.companyId,
+      phoneNumber: input.phoneNumber,
+      muted: false,
+    },
+    wasMuted: false,
   }),
   appendUserMessage: async (input) => ({
     id: "user-message",
@@ -196,6 +204,18 @@ describe("createCustomerConversationRouter", () => {
   test("persists customer and assistant messages and sends the assistant reply", async () => {
     const calls: string[] = [];
     const store = createStore({
+      appendInboundCustomerMessage: async (input) => {
+        calls.push(`inbound:${input.content}:${input.timestamp}`);
+        return {
+          conversation: {
+            id: "conversation-1",
+            companyId: input.companyId,
+            phoneNumber: input.phoneNumber,
+            muted: false,
+          },
+          wasMuted: false,
+        };
+      },
       appendAssistantMessage: async (input) => {
         calls.push(`assistant:${input.content}:${input.timestamp}`);
         return {
@@ -206,22 +226,6 @@ describe("createCustomerConversationRouter", () => {
           timestamp: input.timestamp,
         };
       },
-      appendUserMessage: async (input) => {
-        calls.push(`user:${input.content}:${input.timestamp}`);
-        return {
-          id: "message-1",
-          conversationId: input.conversationId,
-          role: "user",
-          content: input.content,
-          timestamp: input.timestamp,
-        };
-      },
-      getOrCreateConversationForInbound: async () => ({
-        id: "conversation-1",
-        companyId: "company-1",
-        phoneNumber: "967700000001",
-        muted: false,
-      }),
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async (input) => {
@@ -241,7 +245,7 @@ describe("createCustomerConversationRouter", () => {
     await router(createMessage(), createContext(outbound));
 
     expect(calls).toEqual([
-      "user:hello:1700000000000",
+      "inbound:hello:1700000000000",
       "orchestrator:conversation-1:hello",
       "assistant:Assistant reply:2000",
     ]);
@@ -255,25 +259,21 @@ describe("createCustomerConversationRouter", () => {
   test("reuses one active conversation across repeated customer messages", async () => {
     const conversationIds: string[] = [];
     const store = createStore({
+      appendInboundCustomerMessage: async (input) => ({
+        conversation: {
+          id: "conversation-1",
+          companyId: input.companyId,
+          phoneNumber: input.phoneNumber,
+          muted: false,
+        },
+        wasMuted: false,
+      }),
       appendAssistantMessage: async (input) => ({
         id: crypto.randomUUID(),
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
         timestamp: input.timestamp,
-      }),
-      appendUserMessage: async (input) => ({
-        id: crypto.randomUUID(),
-        conversationId: input.conversationId,
-        role: "user",
-        content: input.content,
-        timestamp: input.timestamp,
-      }),
-      getOrCreateConversationForInbound: async () => ({
-        id: "conversation-1",
-        companyId: "company-1",
-        phoneNumber: "967700000001",
-        muted: false,
       }),
     });
     const orchestrator: CatalogChatOrchestrator = {
@@ -337,22 +337,24 @@ describe("createCustomerConversationRouter", () => {
   test("trims conversation messages after assistant persistence", async () => {
     const calls: string[] = [];
     const store = createStore({
+      appendInboundCustomerMessage: async (input) => {
+        calls.push(`inbound:${input.content}`);
+        return {
+          conversation: {
+            id: "conversation-1",
+            companyId: input.companyId,
+            phoneNumber: input.phoneNumber,
+            muted: false,
+          },
+          wasMuted: false,
+        };
+      },
       appendAssistantMessage: async (input) => {
         calls.push(`assistant:${input.content}`);
         return {
           id: "assistant",
           conversationId: input.conversationId,
           role: "assistant",
-          content: input.content,
-          timestamp: input.timestamp,
-        };
-      },
-      appendUserMessage: async (input) => {
-        calls.push(`user:${input.content}`);
-        return {
-          id: "user",
-          conversationId: input.conversationId,
-          role: "user",
           content: input.content,
           timestamp: input.timestamp,
         };
@@ -382,7 +384,7 @@ describe("createCustomerConversationRouter", () => {
     await router(createMessage(), createContext(outbound));
 
     expect(calls).toEqual([
-      "user:hello",
+      "inbound:hello",
       "assistant:Assistant reply",
       "trim:12",
     ]);
@@ -393,30 +395,24 @@ describe("createCustomerConversationRouter", () => {
     const operations: string[] = [];
     let orchestratorCalled = false;
     const store = createStore({
-      appendMutedCustomerMessage: async (input) => {
+      appendInboundCustomerMessage: async (input) => {
         operations.push(`muted:${input.content}:${input.timestamp}`);
         return {
-          id: input.conversationId,
-          companyId: input.companyId,
-          phoneNumber: "967700000001",
-          muted: true,
-          mutedAt: 1_000,
-          lastCustomerMessageAt: input.timestamp,
-          nextAutoResumeAt: input.timestamp + 1_000,
+          conversation: {
+            id: "conversation-1",
+            companyId: input.companyId,
+            phoneNumber: input.phoneNumber,
+            muted: true,
+            mutedAt: 1_000,
+            lastCustomerMessageAt: input.timestamp,
+            nextAutoResumeAt: input.timestamp + 1_000,
+          },
+          wasMuted: true,
         };
       },
       appendUserMessage: async () => {
         throw new Error("should not append regular user message when muted");
       },
-      getOrCreateConversationForInbound: async () => ({
-        id: "conversation-1",
-        companyId: "company-1",
-        phoneNumber: "967700000001",
-        muted: true,
-        mutedAt: 1_000,
-        lastCustomerMessageAt: 1_000,
-        nextAutoResumeAt: 2_000,
-      }),
       recordMutedCustomerActivity: async () => {
         throw new Error("should not separately record muted activity");
       },
@@ -445,6 +441,18 @@ describe("createCustomerConversationRouter", () => {
   test("starts handoff, records analytics, and notifies the owner when the assistant requests handoff", async () => {
     const operations: string[] = [];
     const store = createStore({
+      appendInboundCustomerMessage: async (input) => {
+        operations.push(`inbound:${input.content}`);
+        return {
+          conversation: {
+            id: "conversation-1",
+            companyId: input.companyId,
+            phoneNumber: input.phoneNumber,
+            muted: false,
+          },
+          wasMuted: false,
+        };
+      },
       appendAssistantMessageAndStartHandoff: async (input) => {
         operations.push(`assistant-handoff:${input.content}:${input.source}`);
         return {
@@ -453,18 +461,7 @@ describe("createCustomerConversationRouter", () => {
           phoneNumber: "967700000001",
           muted: true,
           mutedAt: input.timestamp,
-          lastCustomerMessageAt: input.timestamp,
           nextAutoResumeAt: input.timestamp + 1_000,
-        };
-      },
-      appendUserMessage: async (input) => {
-        operations.push(`user:${input.content}`);
-        return {
-          id: "user",
-          conversationId: input.conversationId,
-          role: "user",
-          content: input.content,
-          timestamp: input.timestamp,
         };
       },
       listRecentMessages: async () => [
@@ -519,7 +516,7 @@ describe("createCustomerConversationRouter", () => {
     await router(createMessage(), createContext(outbound));
 
     expect(operations).toEqual([
-      "user:hello",
+      "inbound:hello",
       "assistant-handoff:Connecting you with the team.:assistant_action",
       "analytics",
       "trim:20",
@@ -627,28 +624,24 @@ describe("createCustomerConversationRouter", () => {
   test("serializes media messages into stable placeholder text", async () => {
     const userContents: string[] = [];
     const store = createStore({
+      appendInboundCustomerMessage: async (input) => {
+        userContents.push(input.content);
+        return {
+          conversation: {
+            id: "conversation-1",
+            companyId: input.companyId,
+            phoneNumber: input.phoneNumber,
+            muted: false,
+          },
+          wasMuted: false,
+        };
+      },
       appendAssistantMessage: async (input) => ({
         id: "assistant",
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
         timestamp: input.timestamp,
-      }),
-      appendUserMessage: async (input) => {
-        userContents.push(input.content);
-        return {
-          id: "user",
-          conversationId: input.conversationId,
-          role: "user",
-          content: input.content,
-          timestamp: input.timestamp,
-        };
-      },
-      getOrCreateConversationForInbound: async () => ({
-        id: "conversation-1",
-        companyId: "company-1",
-        phoneNumber: "967700000001",
-        muted: false,
       }),
     });
     const orchestrator: CatalogChatOrchestrator = {
@@ -680,6 +673,18 @@ describe("createCustomerConversationRouter", () => {
   test("keeps tenant isolation for the same customer phone across companies", async () => {
     const companyIds: string[] = [];
     const store = createStore({
+      appendInboundCustomerMessage: async (input) => {
+        companyIds.push(input.companyId);
+        return {
+          conversation: {
+            id: `conversation-${input.companyId}`,
+            companyId: input.companyId,
+            phoneNumber: input.phoneNumber,
+            muted: false,
+          },
+          wasMuted: false,
+        };
+      },
       appendAssistantMessage: async (input) => ({
         id: "assistant",
         conversationId: input.conversationId,
@@ -687,22 +692,6 @@ describe("createCustomerConversationRouter", () => {
         content: input.content,
         timestamp: input.timestamp,
       }),
-      appendUserMessage: async (input) => ({
-        id: "user",
-        conversationId: input.conversationId,
-        role: "user",
-        content: input.content,
-        timestamp: input.timestamp,
-      }),
-      getOrCreateConversationForInbound: async (companyId) => {
-        companyIds.push(companyId);
-        return {
-          id: `conversation-${companyId}`,
-          companyId,
-          phoneNumber: "967700000001",
-          muted: false,
-        };
-      },
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async () => createCatalogChatResult("ok", ""),
@@ -735,15 +724,9 @@ describe("createCustomerConversationRouter", () => {
       appendAssistantMessage: async () => {
         throw new Error("should not be called");
       },
-      appendUserMessage: async () => {
+      appendInboundCustomerMessage: async () => {
         throw new Error("persist failed");
       },
-      getOrCreateConversationForInbound: async () => ({
-        id: "conversation-1",
-        companyId: "company-1",
-        phoneNumber: "967700000001",
-        muted: false,
-      }),
     });
     let orchestratorCalled = false;
     const orchestrator: CatalogChatOrchestrator = {
@@ -770,23 +753,19 @@ describe("createCustomerConversationRouter", () => {
   test("does not persist or send assistant output when orchestration fails", async () => {
     let appendedAssistant = false;
     const store = createStore({
+      appendInboundCustomerMessage: async (input) => ({
+        conversation: {
+          id: "conversation-1",
+          companyId: input.companyId,
+          phoneNumber: input.phoneNumber,
+          muted: false,
+        },
+        wasMuted: false,
+      }),
       appendAssistantMessage: async () => {
         appendedAssistant = true;
         throw new Error("should not run");
       },
-      appendUserMessage: async (input) => ({
-        id: "user",
-        conversationId: input.conversationId,
-        role: "user",
-        content: input.content,
-        timestamp: input.timestamp,
-      }),
-      getOrCreateConversationForInbound: async () => ({
-        id: "conversation-1",
-        companyId: "company-1",
-        phoneNumber: "967700000001",
-        muted: false,
-      }),
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async () => {
@@ -810,22 +789,18 @@ describe("createCustomerConversationRouter", () => {
 
   test("does not send when assistant persistence fails", async () => {
     const store = createStore({
+      appendInboundCustomerMessage: async (input) => ({
+        conversation: {
+          id: "conversation-1",
+          companyId: input.companyId,
+          phoneNumber: input.phoneNumber,
+          muted: false,
+        },
+        wasMuted: false,
+      }),
       appendAssistantMessage: async () => {
         throw new Error("assistant persist failed");
       },
-      appendUserMessage: async (input) => ({
-        id: "user",
-        conversationId: input.conversationId,
-        role: "user",
-        content: input.content,
-        timestamp: input.timestamp,
-      }),
-      getOrCreateConversationForInbound: async () => ({
-        id: "conversation-1",
-        companyId: "company-1",
-        phoneNumber: "967700000001",
-        muted: false,
-      }),
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async () => createCatalogChatResult("Assistant reply", ""),
@@ -846,25 +821,21 @@ describe("createCustomerConversationRouter", () => {
 
   test("logs outbound send failures after assistant persistence", async () => {
     const store = createStore({
+      appendInboundCustomerMessage: async (input) => ({
+        conversation: {
+          id: "conversation-1",
+          companyId: input.companyId,
+          phoneNumber: input.phoneNumber,
+          muted: false,
+        },
+        wasMuted: false,
+      }),
       appendAssistantMessage: async (input) => ({
         id: "assistant",
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
         timestamp: input.timestamp,
-      }),
-      appendUserMessage: async (input) => ({
-        id: "user",
-        conversationId: input.conversationId,
-        role: "user",
-        content: input.content,
-        timestamp: input.timestamp,
-      }),
-      getOrCreateConversationForInbound: async () => ({
-        id: "conversation-1",
-        companyId: "company-1",
-        phoneNumber: "967700000001",
-        muted: false,
       }),
     });
     const orchestrator: CatalogChatOrchestrator = {
@@ -899,11 +870,7 @@ describe("createCustomerConversationRouter", () => {
         usedRouterDependencies = true;
         throw new Error("should not run");
       },
-      appendUserMessage: async () => {
-        usedRouterDependencies = true;
-        throw new Error("should not run");
-      },
-      getOrCreateConversationForInbound: async () => {
+      appendInboundCustomerMessage: async () => {
         usedRouterDependencies = true;
         throw new Error("should not run");
       },
@@ -929,21 +896,22 @@ describe("createCustomerConversationRouter", () => {
 
   test("redacts owner phone numbers in handoff notification error logs", async () => {
     const store = createStore({
+      appendInboundCustomerMessage: async (input) => ({
+        conversation: {
+          id: "conversation-1",
+          companyId: input.companyId,
+          phoneNumber: input.phoneNumber,
+          muted: false,
+        },
+        wasMuted: false,
+      }),
       appendAssistantMessageAndStartHandoff: async (input) => ({
         id: input.conversationId,
         companyId: input.companyId,
         phoneNumber: "967700000001",
         muted: true,
         mutedAt: input.timestamp,
-        lastCustomerMessageAt: input.timestamp,
         nextAutoResumeAt: input.timestamp + 1_000,
-      }),
-      appendUserMessage: async (input) => ({
-        id: "user",
-        conversationId: input.conversationId,
-        role: "user",
-        content: input.content,
-        timestamp: input.timestamp,
       }),
       listRecentMessages: async () => {
         throw new Error("history failed");
