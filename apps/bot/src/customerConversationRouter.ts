@@ -175,12 +175,22 @@ export const createCustomerConversationRouter = (
 
     const assistantTimestamp = now();
     try {
-      await options.conversationStore.appendAssistantMessage({
-        companyId: message.companyId,
-        conversationId,
-        content: assistantText,
-        timestamp: assistantTimestamp,
-      });
+      if (handoffSource) {
+        await options.conversationStore.appendAssistantMessageAndStartHandoff({
+          companyId: message.companyId,
+          conversationId,
+          content: assistantText,
+          timestamp: assistantTimestamp,
+          source: handoffSource,
+        });
+      } else {
+        await options.conversationStore.appendAssistantMessage({
+          companyId: message.companyId,
+          conversationId,
+          content: assistantText,
+          timestamp: assistantTimestamp,
+        });
+      }
     } catch (error) {
       options.logger.error(
         {
@@ -217,29 +227,6 @@ export const createCustomerConversationRouter = (
     }
 
     if (handoffSource) {
-      try {
-        await options.conversationStore.startHandoff({
-          companyId: message.companyId,
-          conversationId,
-          triggerTimestamp: assistantTimestamp,
-          source: handoffSource,
-        });
-      } catch (error) {
-        options.logger.error(
-          {
-            assistantText,
-            companyId: message.companyId,
-            conversationId,
-            error,
-            handoffSource,
-            messageId: message.messageId,
-            sessionKey: message.sessionKey,
-          },
-          "customer conversation handoff transition failed",
-        );
-        return;
-      }
-
       try {
         await options.conversationStore.recordAnalyticsEvent({
           companyId: message.companyId,

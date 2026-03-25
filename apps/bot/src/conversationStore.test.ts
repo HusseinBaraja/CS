@@ -28,7 +28,14 @@ const createClientStub = () => {
         return undefined;
       }
 
-      if (typeof args === "object" && args !== null && "source" in (args as Record<string, unknown>)) {
+      if (
+        typeof args === "object"
+        && args !== null
+        && (
+          "source" in (args as Record<string, unknown>)
+          || ("content" in (args as Record<string, unknown>) && "timestamp" in (args as Record<string, unknown>) && !("role" in (args as Record<string, unknown>)))
+        )
+      ) {
         return {
           id: "conversation-1",
           companyId: "company-1",
@@ -149,6 +156,13 @@ describe("createConvexConversationStore", () => {
       content: "hello again",
       timestamp: 1_500,
     });
+    await store.appendAssistantMessageAndStartHandoff({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      content: "Connecting you with the team.",
+      timestamp: 1_750,
+      source: "assistant_action",
+    });
     await store.getPromptHistory({
       companyId: "company-1",
       conversationId: "conversation-1",
@@ -185,7 +199,7 @@ describe("createConvexConversationStore", () => {
     });
 
     expect(actionCalls).toHaveLength(2);
-    expect(mutationCalls).toHaveLength(5);
+    expect(mutationCalls).toHaveLength(6);
     expect(queryCalls).toHaveLength(3);
   });
 

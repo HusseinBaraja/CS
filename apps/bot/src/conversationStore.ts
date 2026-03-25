@@ -22,6 +22,16 @@ export interface ConversationStore {
   appendUserMessage(input: AppendConversationMessageInput): Promise<ConversationMessageRecord>;
   appendMutedCustomerMessage(input: AppendConversationMessageInput): Promise<ConversationRecord>;
   appendAssistantMessage(input: AppendConversationMessageInput): Promise<ConversationMessageRecord>;
+  appendAssistantMessageAndStartHandoff(input: {
+    companyId: string;
+    conversationId: string;
+    content: string;
+    timestamp: number;
+    source: Extract<ConversationStateEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback">;
+    reason?: string;
+    actorPhoneNumber?: string;
+    metadata?: Record<string, string | number | boolean>;
+  }): Promise<ConversationRecord>;
   startHandoff(input: {
     companyId: string;
     conversationId: string;
@@ -112,6 +122,19 @@ export const createConvexConversationStore = (
 
   return {
     appendAssistantMessage: (input) => appendMessage("assistant", input),
+    appendAssistantMessageAndStartHandoff: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.appendAssistantMessageAndStartHandoff, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          content: input.content,
+          timestamp: input.timestamp,
+          source: input.source,
+          ...(input.reason ? { reason: input.reason } : {}),
+          ...(input.actorPhoneNumber ? { actorPhoneNumber: input.actorPhoneNumber } : {}),
+          ...(input.metadata ? { metadata: input.metadata } : {}),
+        })
+      ),
     appendMutedCustomerMessage: (input) =>
       withClient((client) =>
         client.mutation(convexInternal.conversations.appendMutedCustomerMessage, {

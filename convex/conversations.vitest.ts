@@ -661,6 +661,62 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(stateEvents[0]?.eventType).toBe("handoff_started");
   });
 
+  it("atomically appends the assistant handoff reply while muting the conversation", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    const updated = await t.mutation(internal.conversations.appendAssistantMessageAndStartHandoff, {
+      companyId,
+      conversationId,
+      content: "Connecting you with the team.",
+      timestamp: 2_000,
+      source: "assistant_action",
+    });
+
+    expect(updated).toMatchObject({
+      id: conversationId,
+      muted: true,
+      mutedAt: 2_000,
+      lastCustomerMessageAt: 2_000,
+      nextAutoResumeAt: 2_000 + 12 * 60 * 60 * 1_000,
+    });
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+    });
+    expect(messages).toEqual([{
+      id: expect.any(String),
+      conversationId,
+      role: "assistant",
+      content: "Connecting you with the team.",
+      timestamp: 2_000,
+    }]);
+
+    const stateEvents = await t.run(async (ctx) =>
+      ctx.db.query("conversationStateEvents").collect()
+    );
+    expect(stateEvents).toHaveLength(1);
+    expect(stateEvents[0]).toMatchObject({
+      conversationId,
+      eventType: "handoff_started",
+      timestamp: 2_000,
+      source: "assistant_action",
+    });
+  });
+
   it("resumes muted conversations and clears the live mute state", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>

@@ -115,6 +115,15 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
     content: input.content,
     timestamp: input.timestamp,
   }),
+  appendAssistantMessageAndStartHandoff: async (input) => ({
+    id: input.conversationId,
+    companyId: input.companyId,
+    phoneNumber: "967700000001",
+    muted: true,
+    mutedAt: input.timestamp,
+    lastCustomerMessageAt: input.timestamp,
+    nextAutoResumeAt: input.timestamp + 1_000,
+  }),
   appendUserMessage: async (input) => ({
     id: "user-message",
     conversationId: input.conversationId,
@@ -436,14 +445,16 @@ describe("createCustomerConversationRouter", () => {
   test("starts handoff, records analytics, and notifies the owner when the assistant requests handoff", async () => {
     const operations: string[] = [];
     const store = createStore({
-      appendAssistantMessage: async (input) => {
-        operations.push(`assistant:${input.content}`);
+      appendAssistantMessageAndStartHandoff: async (input) => {
+        operations.push(`assistant-handoff:${input.content}:${input.source}`);
         return {
-          id: "assistant",
-          conversationId: input.conversationId,
-          role: "assistant",
-          content: input.content,
-          timestamp: input.timestamp,
+          id: input.conversationId,
+          companyId: input.companyId,
+          phoneNumber: "967700000001",
+          muted: true,
+          mutedAt: input.timestamp,
+          lastCustomerMessageAt: input.timestamp,
+          nextAutoResumeAt: input.timestamp + 1_000,
         };
       },
       appendUserMessage: async (input) => {
@@ -476,16 +487,7 @@ describe("createCustomerConversationRouter", () => {
         operations.push("analytics");
       },
       startHandoff: async () => {
-        operations.push("handoff");
-        return {
-          id: "conversation-1",
-          companyId: "company-1",
-          phoneNumber: "967700000001",
-          muted: true,
-          mutedAt: 2_000,
-          lastCustomerMessageAt: 2_000,
-          nextAutoResumeAt: 3_000,
-        };
+        throw new Error("should not separately start handoff");
       },
       trimConversationMessages: async (input) => {
         operations.push(`trim:${input.maxMessages}`);
@@ -518,8 +520,7 @@ describe("createCustomerConversationRouter", () => {
 
     expect(operations).toEqual([
       "user:hello",
-      "assistant:Connecting you with the team.",
-      "handoff",
+      "assistant-handoff:Connecting you with the team.:assistant_action",
       "analytics",
       "trim:20",
     ]);

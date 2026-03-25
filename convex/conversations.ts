@@ -486,6 +486,63 @@ export const appendMutedCustomerMessage = internalMutation({
   },
 });
 
+export const appendAssistantMessageAndStartHandoff = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    content: v.string(),
+    timestamp: v.optional(v.number()),
+    source: v.union(
+      v.literal("assistant_action"),
+      v.literal("provider_failure_fallback"),
+      v.literal("invalid_model_output_fallback"),
+    ),
+    reason: v.optional(v.string()),
+    actorPhoneNumber: v.optional(v.string()),
+    metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
+  },
+  handler: async (ctx, args): Promise<ConversationStateDto> => {
+    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    if (conversation.muted) {
+      return toConversationDto(conversation);
+    }
+
+    const content = normalizeMessageContent(args.content);
+    const timestamp = normalizeTimestamp(args.timestamp, Date.now());
+    const reason = normalizeOptionalString(args.reason, "reason");
+    const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, "actorPhoneNumber");
+
+    await ctx.db.insert("messages", {
+      conversationId: args.conversationId,
+      role: "assistant",
+      content,
+      timestamp,
+    });
+
+    await ctx.db.patch(conversation._id, {
+      muted: true,
+      mutedAt: timestamp,
+      lastCustomerMessageAt: timestamp,
+      nextAutoResumeAt: timestamp + AUTO_RESUME_IDLE_MS,
+    });
+
+    await insertConversationStateEvent(ctx, {
+      companyId: args.companyId,
+      conversationId: conversation._id,
+      phoneNumber: conversation.phoneNumber,
+      eventType: "handoff_started",
+      timestamp,
+      source: args.source,
+      ...(reason ? { reason } : {}),
+      ...(actorPhoneNumber ? { actorPhoneNumber } : {}),
+      ...(args.metadata ? { metadata: args.metadata } : {}),
+    });
+
+    const updatedConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    return toConversationDto(updatedConversation);
+  },
+});
+
 export const listConversationMessages = internalQuery({
   args: {
     companyId: v.id("companies"),
