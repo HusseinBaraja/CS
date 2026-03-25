@@ -48,7 +48,7 @@ export function FlowSection() {
     const buildPath = () => {
       const svgRect = svgEl.getBoundingClientRect();
       if (svgRect.width === 0 || svgRect.height === 0) return null;
-      
+
       const points = dots.map(dot => {
         const rect = dot.getBoundingClientRect();
         return {
@@ -61,24 +61,25 @@ export function FlowSection() {
       // On mobile all dots share the same X; offset control points to the
       // same side per segment, alternating between segments, so the path
       // flows as a gentle sine wave instead of creating hard kinks.
-      const wobble = Math.min(30, svgRect.width * 0.06);
+      const wobble = svgRect.width > 700 ? 0 : Math.min(30, svgRect.width * 0.06);
       let d = `M ${points[0].x},${points[0].y}`;
       for (let i = 0; i < points.length - 1; i++) {
           const p1 = points[i];
           const p2 = points[i+1];
           const dir = i % 2 === 0 ? 1 : -1;
           const ox = dir * wobble;
-          // Both control points shift the same direction → smooth arc,
-          // direction flips each segment → flowing S-wave.
-          const cy1 = p1.y + (p2.y - p1.y) * 0.33;
-          const cy2 = p1.y + (p2.y - p1.y) * 0.66;
+
+          // Symmetric sweeping S-curve on desktop; staggered wave on mobile
+          const cy1 = wobble === 0 ? (p1.y + p2.y) / 2 : p1.y + (p2.y - p1.y) * 0.33;
+          const cy2 = wobble === 0 ? (p1.y + p2.y) / 2 : p1.y + (p2.y - p1.y) * 0.66;
+
           d += ` C ${p1.x + ox},${cy1} ${p2.x + ox},${cy2} ${p2.x},${p2.y}`;
       }
 
       basePath.setAttribute('d', d);
       activePath.setAttribute('d', d);
       maskPath.setAttribute('d', d);
-      
+
       const length = maskPath.getTotalLength();
       return { points, length };
     };
@@ -88,14 +89,6 @@ export function FlowSection() {
     let isAnimationInitialized = false;
     let timeline: ReturnType<typeof gsap.timeline> | null = null;
     let scrollTriggerInstance: ReturnType<typeof ScrollTrigger.create> | null = null;
-
-    const destroyAnimation = () => {
-      scrollTriggerInstance?.kill();
-      timeline?.kill();
-      scrollTriggerInstance = null;
-      timeline = null;
-      isAnimationInitialized = false;
-    };
 
     const initializeAnimation = (pathData: NonNullable<ReturnType<typeof buildPath>>) => {
       if (isAnimationInitialized) {
@@ -165,17 +158,10 @@ export function FlowSection() {
     const rebuildAndRefresh = () => {
       const rebuilt = buildPath();
       if (rebuilt) {
-        if (isAnimationInitialized) {
-          destroyAnimation();
-        }
 
         initializeAnimation(rebuilt);
         const len = rebuilt.length;
-        gsap.set(maskPath, {
-          strokeDasharray: len,
-          strokeDashoffset: len * (1 - maxProgress),
-        });
-        timeline?.progress(maxProgress);
+        gsap.set(maskPath, { strokeDasharray: len, strokeDashoffset: len * (1 - maxProgress) });
         ScrollTrigger.refresh();
       }
     };
@@ -212,14 +198,15 @@ export function FlowSection() {
       if (resizeTimeout) {
         clearTimeout(resizeTimeout);
       }
-      destroyAnimation();
+      scrollTriggerInstance?.kill();
+      timeline?.kill();
     };
   }, { scope: container });
 
   return (
-    <section 
-      ref={container} 
-      className="scroll-mt-header-offset py-24 md:py-32 relative" 
+    <section
+      ref={container}
+      className="scroll-mt-header-offset py-24 md:py-32 relative"
       id="how-it-works"
     >
       {/* Decorative environment background */}
@@ -227,7 +214,7 @@ export function FlowSection() {
       <div className="absolute bottom-0 left-0 w-200 h-200 translate-y-1/3 -translate-x-1/3 pointer-events-none z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.04) 0%, transparent 70%)' }} />
 
       <div className="max-w-6xl mx-auto px-6 relative z-10 block">
-        
+
         <div className="text-center max-w-2xl mx-auto mb-20 md:mb-32">
           <h2 className="text-4xl md:text-5xl font-black text-primary mb-6 tracking-tight">
             كيف يعمل <span className="text-primary">رضا؟</span>
@@ -239,20 +226,20 @@ export function FlowSection() {
 
         {/* Map Interactive Area */}
         <div className="relative w-full pb-16">
-          
+
           {/* Overlay SVG covering the exact relative space of the steps */}
           {/* pointer-events-none prevents capturing clicks intended for cards */}
-          <svg 
+          <svg
             id="map-svg"
             className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible"
           >
             <defs>
               <mask id="line-mask" maskUnits="userSpaceOnUse">
-                <path 
+                <path
                   id="reveal-mask-path"
-                  fill="none" 
-                  stroke="white" 
-                  strokeWidth="8" 
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="8"
                   strokeLinecap="round"
                 />
               </mask>
@@ -263,23 +250,23 @@ export function FlowSection() {
             </defs>
 
             {/* Faint unexplored path */}
-            <path 
+            <path
               id="base-map-path"
-              fill="none" 
+              fill="none"
               stroke="#1A2E27"
               strokeOpacity="0.08"
-              strokeWidth="4" 
-              strokeDasharray="8 12" 
+              strokeWidth="4"
+              strokeDasharray="8 12"
               strokeLinecap="round"
             />
 
             {/* Explored green path, revealed gracefully by mask */}
-            <path 
+            <path
               id="active-map-path"
-              fill="none" 
-              stroke="#115C42" 
-              strokeWidth="4" 
-              strokeDasharray="8 12" 
+              fill="none"
+              stroke="#115C42"
+              strokeWidth="4"
+              strokeDasharray="8 12"
               strokeLinecap="round"
               filter="url(#map-glow)"
               mask="url(#line-mask)"
@@ -294,13 +281,13 @@ export function FlowSection() {
               const alignmentClass = idx % 2 === 0 ? 'md:me-auto' : 'md:ms-auto';
 
               return (
-                <div 
-                  key={idx} 
+                <div
+                  key={idx}
                   className={`flex flex-col items-center w-full md:w-[48%] lg:w-[45%] map-island-container ${alignmentClass}`}
                 >
                   {/* Pin Drop */}
                   <div className="map-island-dot w-6 h-6 rounded-full bg-white border-4 border-[#115C42] shadow-[0_0_15px_rgba(17,92,66,0.5)] z-20 mb-6 shrink-0" />
-                  
+
                   {/* Card Content */}
                   <div className="map-card-content bg-white/70 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] border border-white/60 shadow-xl shadow-primary/5 flex flex-col items-center text-center hover:bg-white hover:shadow-2xl hover:shadow-primary/10 hover:-translate-y-2 transition-all duration-300">
                     <div className="w-16 h-16 rounded-[1.25rem] bg-linear-to-br from-primary/10 to-transparent text-[#115C42] flex items-center justify-center mb-6 shadow-sm border border-primary/5 rotate-3 group-hover:rotate-0 transition-transform duration-300">
