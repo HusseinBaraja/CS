@@ -14,6 +14,8 @@ export interface AppendConversationMessageInput {
   conversationId: string;
   content: string;
   timestamp: number;
+  transportMessageId?: string;
+  referencedTransportMessageId?: string;
 }
 
 export interface AppendInboundCustomerMessageInput {
@@ -21,6 +23,8 @@ export interface AppendInboundCustomerMessageInput {
   phoneNumber: string;
   content: string;
   timestamp: number;
+  transportMessageId?: string;
+  referencedTransportMessageId?: string;
 }
 
 export interface AppendInboundCustomerMessageResult {
@@ -44,6 +48,7 @@ export interface ConversationStore {
     reason?: string;
     actorPhoneNumber?: string;
     metadata?: Record<string, string | number | boolean>;
+    transportMessageId?: string;
   }): Promise<ConversationRecord>;
   startHandoff(input: {
     companyId: string;
@@ -70,6 +75,14 @@ export interface ConversationStore {
   }): Promise<ConversationRecord>;
   getConversation(input: { companyId: string; conversationId: string }): Promise<ConversationRecord>;
   getPromptHistory(input: { companyId: string; conversationId: string; limit: number }): Promise<PromptHistoryTurn[]>;
+  getPromptHistoryForInbound(input: {
+    companyId: string;
+    conversationId: string;
+    inboundTimestamp: number;
+    currentTransportMessageId?: string;
+    referencedTransportMessageId?: string;
+    limit: number;
+  }): Promise<PromptHistoryTurn[]>;
   listRecentMessages(input: { companyId: string; conversationId: string; limit: number }): Promise<ConversationMessageRecord[]>;
   recordAnalyticsEvent(input: {
     companyId: string;
@@ -130,6 +143,10 @@ export const createConvexConversationStore = (
         role,
         content: input.content,
         timestamp: input.timestamp,
+        ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+        ...(input.referencedTransportMessageId
+          ? { referencedTransportMessageId: input.referencedTransportMessageId }
+          : {}),
       })
     );
 
@@ -142,6 +159,10 @@ export const createConvexConversationStore = (
           phoneNumber: input.phoneNumber,
           content: input.content,
           timestamp: input.timestamp,
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
+          ...(input.referencedTransportMessageId
+            ? { referencedTransportMessageId: input.referencedTransportMessageId }
+            : {}),
         })
       ),
     appendAssistantMessageAndStartHandoff: (input) =>
@@ -155,6 +176,7 @@ export const createConvexConversationStore = (
           ...(input.reason ? { reason: input.reason } : {}),
           ...(input.actorPhoneNumber ? { actorPhoneNumber: input.actorPhoneNumber } : {}),
           ...(input.metadata ? { metadata: input.metadata } : {}),
+          ...(input.transportMessageId ? { transportMessageId: input.transportMessageId } : {}),
         })
       ),
     appendMutedCustomerMessage: (input) =>
@@ -226,6 +248,19 @@ export const createConvexConversationStore = (
           companyId: toCompanyId(input.companyId),
           conversationId: toConversationId(input.conversationId),
           limit: input.limit,
+        })
+      ),
+    getPromptHistoryForInbound: (input) =>
+      withClient((client) =>
+        client.query(convexInternal.conversations.getPromptHistoryForInbound, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          inboundTimestamp: input.inboundTimestamp,
+          limit: input.limit,
+          ...(input.currentTransportMessageId ? { currentTransportMessageId: input.currentTransportMessageId } : {}),
+          ...(input.referencedTransportMessageId
+            ? { referencedTransportMessageId: input.referencedTransportMessageId }
+            : {}),
         })
       ),
     listRecentMessages: (input) =>

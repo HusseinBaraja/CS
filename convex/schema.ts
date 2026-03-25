@@ -235,9 +235,12 @@ export default defineSchema({
     role: v.union(v.literal("user"), v.literal("assistant")),
     content: v.string(),
     timestamp: v.number(),
+    transportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
   })
     .index("by_conversation", ["conversationId"])
-    .index("by_conversation_time", ["conversationId", "timestamp"]),
+    .index("by_conversation_time", ["conversationId", "timestamp"])
+    .index("by_conversation_transport_message_id", ["conversationId", "transportMessageId"]),
 
   // ── Offers ──────────────────────────────────────────────────────────────
   offers: defineTable({

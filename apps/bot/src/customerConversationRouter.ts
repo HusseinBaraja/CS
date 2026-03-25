@@ -106,6 +106,10 @@ export const createCustomerConversationRouter = (
         phoneNumber: message.conversationPhoneNumber,
         content: userMessage,
         timestamp: message.occurredAtMs,
+        transportMessageId: message.messageId,
+        ...(message.replyContext?.referencedMessageId
+          ? { referencedTransportMessageId: message.replyContext.referencedMessageId }
+          : {}),
       });
       conversationId = inboundAppend.conversation.id;
 
@@ -113,9 +117,14 @@ export const createCustomerConversationRouter = (
         return;
       }
 
-      history = await options.conversationStore.getPromptHistory({
+      history = await options.conversationStore.getPromptHistoryForInbound({
         companyId: message.companyId,
         conversationId,
+        inboundTimestamp: message.occurredAtMs,
+        currentTransportMessageId: message.messageId,
+        ...(message.replyContext?.referencedMessageId
+          ? { referencedTransportMessageId: message.replyContext.referencedMessageId }
+          : {}),
         limit: conversationHistoryWindowMessages,
       });
     } catch (error) {
@@ -172,6 +181,29 @@ export const createCustomerConversationRouter = (
     }
 
     const assistantTimestamp = now();
+    let outboundMessageId: string | undefined;
+    try {
+      const sendReceipts = await context.outbound.sendText({
+        recipientJid: `${message.sender.phoneNumber}@s.whatsapp.net`,
+        text: assistantText,
+      });
+      outboundMessageId = sendReceipts[0]?.messageId;
+    } catch (error) {
+      options.logger.error(
+        {
+          assistantText,
+          companyId: message.companyId,
+          conversationId,
+          error,
+          messageId: message.messageId,
+          recipientPhoneNumber: redactPhoneNumber(message.sender.phoneNumber),
+          sessionKey: message.sessionKey,
+        },
+        "customer conversation outbound send failed",
+      );
+      return;
+    }
+
     try {
       if (handoffSource) {
         await options.conversationStore.appendAssistantMessageAndStartHandoff({
@@ -180,6 +212,7 @@ export const createCustomerConversationRouter = (
           content: assistantText,
           timestamp: assistantTimestamp,
           source: handoffSource,
+          ...(outboundMessageId ? { transportMessageId: outboundMessageId } : {}),
         });
       } else {
         await options.conversationStore.appendAssistantMessage({
@@ -187,6 +220,7 @@ export const createCustomerConversationRouter = (
           conversationId,
           content: assistantText,
           timestamp: assistantTimestamp,
+          ...(outboundMessageId ? { transportMessageId: outboundMessageId } : {}),
         });
       }
     } catch (error) {
@@ -202,26 +236,6 @@ export const createCustomerConversationRouter = (
         "customer conversation assistant persistence failed",
       );
       return;
-    }
-
-    try {
-      await context.outbound.sendText({
-        recipientJid: `${message.sender.phoneNumber}@s.whatsapp.net`,
-        text: assistantText,
-      });
-    } catch (error) {
-      options.logger.error(
-        {
-          assistantText,
-          companyId: message.companyId,
-          conversationId,
-          error,
-          messageId: message.messageId,
-          recipientPhoneNumber: redactPhoneNumber(message.sender.phoneNumber),
-          sessionKey: message.sessionKey,
-        },
-        "customer conversation outbound send failed",
-      );
     }
 
     if (handoffSource) {

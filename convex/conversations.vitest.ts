@@ -2,6 +2,7 @@ import type { Id } from '@cs/db';
 import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 import { internal } from './_generated/api';
+import { STALE_CONTEXT_RESET_MS } from './conversations';
 import schema from './schema';
 
 const modules =
@@ -686,6 +687,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       content: "Connecting you with the team.",
       timestamp: 2_000,
       source: "assistant_action",
+      transportMessageId: "assistant-1",
     });
 
     expect(updated).toMatchObject({
@@ -706,6 +708,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       role: "assistant",
       content: "Connecting you with the team.",
       timestamp: 2_000,
+      transportMessageId: "assistant-1",
     }]);
 
     const stateEvents = await t.run(async (ctx) =>
@@ -934,6 +937,39 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     }]);
   });
 
+  it("persists inbound transport ids for quoted customer replies", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+
+    const result = await t.action(internal.conversations.appendInboundCustomerMessage, {
+      companyId,
+      phoneNumber: "967700000001",
+      content: "hello",
+      timestamp: 2_000,
+      transportMessageId: "inbound-1",
+      referencedTransportMessageId: "quoted-1",
+    });
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId: result.conversation.id as Id<"conversations">,
+    });
+    expect(messages).toEqual([{
+      id: expect.any(String),
+      conversationId: result.conversation.id,
+      role: "user",
+      content: "hello",
+      timestamp: 2_000,
+      transportMessageId: "inbound-1",
+      referencedTransportMessageId: "quoted-1",
+    }]);
+  });
+
   it("does not resume a stale due auto-resume candidate after muted activity extends the deadline", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
@@ -984,6 +1020,185 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       ctx.db.query("conversationStateEvents").collect()
     );
     expect(stateEvents).toHaveLength(0);
+  });
+
+  it("returns recent prompt history when the latest message is within the active window", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    for (let index = 1; index <= 3; index += 1) {
+      await t.mutation(internal.conversations.appendConversationMessage, {
+        companyId,
+        conversationId,
+        role: index % 2 === 0 ? "assistant" : "user",
+        content: `message-${index}`,
+        timestamp: 1_000 + index,
+        transportMessageId: `transport-${index}`,
+      });
+    }
+
+    const history = await t.query(internal.conversations.getPromptHistoryForInbound, {
+      companyId,
+      conversationId,
+      inboundTimestamp: 1_000 + STALE_CONTEXT_RESET_MS,
+      currentTransportMessageId: "inbound-1",
+      limit: 20,
+    });
+
+    expect(history).toEqual([
+      { role: "user", text: "message-1" },
+      { role: "assistant", text: "message-2" },
+      { role: "user", text: "message-3" },
+    ]);
+  });
+
+  it("returns empty prompt history when the latest message is stale and no reference exists", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "old message",
+      timestamp: 1_000,
+      transportMessageId: "old-1",
+    });
+
+    const history = await t.query(internal.conversations.getPromptHistoryForInbound, {
+      companyId,
+      conversationId,
+      inboundTimestamp: 1_000 + STALE_CONTEXT_RESET_MS + 1,
+      currentTransportMessageId: "inbound-1",
+      limit: 20,
+    });
+
+    expect(history).toEqual([]);
+  });
+
+  it("returns an 11-message slice around a referenced stale message", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    for (let index = 1; index <= 15; index += 1) {
+      await t.mutation(internal.conversations.appendConversationMessage, {
+        companyId,
+        conversationId,
+        role: index % 2 === 0 ? "assistant" : "user",
+        content: `message-${index}`,
+        timestamp: index * 1_000,
+        transportMessageId: `transport-${index}`,
+      });
+    }
+
+    const history = await t.query(internal.conversations.getPromptHistoryForInbound, {
+      companyId,
+      conversationId,
+      inboundTimestamp: STALE_CONTEXT_RESET_MS + 20_000,
+      currentTransportMessageId: "inbound-1",
+      referencedTransportMessageId: "transport-8",
+      limit: 20,
+    });
+
+    expect(history).toEqual([
+      { role: "user", text: "message-3" },
+      { role: "assistant", text: "message-4" },
+      { role: "user", text: "message-5" },
+      { role: "assistant", text: "message-6" },
+      { role: "user", text: "message-7" },
+      { role: "assistant", text: "message-8" },
+      { role: "user", text: "message-9" },
+      { role: "assistant", text: "message-10" },
+      { role: "user", text: "message-11" },
+      { role: "assistant", text: "message-12" },
+      { role: "user", text: "message-13" },
+    ]);
+  });
+
+  it("does not resolve referenced messages across tenants", async () => {
+    const t = convexTest(schema, modules);
+    const companyA = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const companyB = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant B",
+        ownerPhone: "966500000001",
+      })
+    );
+    const conversationA = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId: companyA,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+    const conversationB = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId: companyB,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId: companyB,
+      conversationId: conversationB,
+      role: "assistant",
+      content: "other tenant message",
+      timestamp: 1_000,
+      transportMessageId: "shared-reference",
+    });
+
+    const history = await t.query(internal.conversations.getPromptHistoryForInbound, {
+      companyId: companyA,
+      conversationId: conversationA,
+      inboundTimestamp: STALE_CONTEXT_RESET_MS + 2_000,
+      currentTransportMessageId: "inbound-1",
+      referencedTransportMessageId: "shared-reference",
+      limit: 20,
+    });
+
+    expect(history).toEqual([]);
   });
 
   it("times out when the conversation lock remains held", async () => {

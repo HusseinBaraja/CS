@@ -32,4 +32,6 @@ export interface ConversationMessageDto {
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+  transportMessageId?: string;
+  referencedTransportMessageId?: string;
 }

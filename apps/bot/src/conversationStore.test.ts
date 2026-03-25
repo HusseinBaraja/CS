@@ -183,18 +183,23 @@ describe("createConvexConversationStore", () => {
       phoneNumber: "967700000001",
       content: "hello from inbound",
       timestamp: 900,
+      transportMessageId: "inbound-1",
+      referencedTransportMessageId: "quoted-1",
     });
     await store.appendUserMessage({
       companyId: "company-1",
       conversationId: "conversation-1",
       content: "hello",
       timestamp: 1_000,
+      transportMessageId: "user-1",
     });
     await store.appendMutedCustomerMessage({
       companyId: "company-1",
       conversationId: "conversation-1",
       content: "hello again",
       timestamp: 1_500,
+      transportMessageId: "muted-1",
+      referencedTransportMessageId: "quoted-2",
     });
     await store.appendAssistantMessageAndStartHandoff({
       companyId: "company-1",
@@ -202,10 +207,19 @@ describe("createConvexConversationStore", () => {
       content: "Connecting you with the team.",
       timestamp: 1_750,
       source: "assistant_action",
+      transportMessageId: "assistant-1",
     });
     await store.getPromptHistory({
       companyId: "company-1",
       conversationId: "conversation-1",
+      limit: 20,
+    });
+    await store.getPromptHistoryForInbound({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      inboundTimestamp: 2_500,
+      currentTransportMessageId: "inbound-2",
+      referencedTransportMessageId: "quoted-3",
       limit: 20,
     });
     await store.getOrCreateConversationForInbound("company-1", "967700000001");
@@ -240,7 +254,7 @@ describe("createConvexConversationStore", () => {
 
     expect(actionCalls).toHaveLength(3);
     expect(mutationCalls).toHaveLength(6);
-    expect(queryCalls).toHaveLength(3);
+    expect(queryCalls).toHaveLength(4);
   });
 
   test("creates the client once and reuses it across store operations", async () => {

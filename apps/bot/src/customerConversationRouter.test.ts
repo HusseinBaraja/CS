@@ -89,7 +89,13 @@ const createOutbound = () => {
         recipientJid: input.recipientJid,
         text: typeof input.text === "string" ? input.text : "",
       });
-      return [];
+      return [{
+        attempts: 1,
+        kind: "text",
+        messageId: `sent-${sent.length}`,
+        recipientJid: input.recipientJid,
+        stepIndex: 0,
+      }];
     },
   };
 
@@ -167,6 +173,7 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
     muted: false,
   }),
   getPromptHistory: async () => [],
+  getPromptHistoryForInbound: async () => [],
   listRecentMessages: async () => [],
   recordAnalyticsEvent: async () => undefined,
   recordMutedCustomerActivity: async () => ({
@@ -205,7 +212,7 @@ describe("createCustomerConversationRouter", () => {
     const calls: string[] = [];
     const store = createStore({
       appendInboundCustomerMessage: async (input) => {
-        calls.push(`inbound:${input.content}:${input.timestamp}`);
+        calls.push(`inbound:${input.content}:${input.timestamp}:${input.transportMessageId}:${input.referencedTransportMessageId ?? "none"}`);
         return {
           conversation: {
             id: "conversation-1",
@@ -217,7 +224,7 @@ describe("createCustomerConversationRouter", () => {
         };
       },
       appendAssistantMessage: async (input) => {
-        calls.push(`assistant:${input.content}:${input.timestamp}`);
+        calls.push(`assistant:${input.content}:${input.timestamp}:${input.transportMessageId ?? "none"}`);
         return {
           id: "message-2",
           conversationId: input.conversationId,
@@ -245,9 +252,9 @@ describe("createCustomerConversationRouter", () => {
     await router(createMessage(), createContext(outbound));
 
     expect(calls).toEqual([
-      "inbound:hello:1700000000000",
+      "inbound:hello:1700000000000:message-1:none",
       "orchestrator:conversation-1:hello",
-      "assistant:Assistant reply:2000",
+      "assistant:Assistant reply:2000:sent-1",
     ]);
     expect(sent).toEqual([{
       recipientJid: "967700000001@s.whatsapp.net",
@@ -296,11 +303,11 @@ describe("createCustomerConversationRouter", () => {
     expect(conversationIds).toEqual(["conversation-1", "conversation-1"]);
   });
 
-  test("passes bounded prompt history into orchestration", async () => {
+  test("passes bounded lifecycle-aware prompt history into orchestration", async () => {
     let promptHistory: unknown;
     let historyLimit: number | undefined;
     const store = createStore({
-      getPromptHistory: async (input) => {
+      getPromptHistoryForInbound: async (input) => {
         historyLimit = input.limit;
         return [
           { role: "user", text: "older question" },
@@ -350,7 +357,7 @@ describe("createCustomerConversationRouter", () => {
         };
       },
       appendAssistantMessage: async (input) => {
-        calls.push(`assistant:${input.content}`);
+        calls.push(`assistant:${input.content}:${input.transportMessageId ?? "none"}`);
         return {
           id: "assistant",
           conversationId: input.conversationId,
@@ -359,7 +366,7 @@ describe("createCustomerConversationRouter", () => {
           timestamp: input.timestamp,
         };
       },
-      getPromptHistory: async () => [],
+      getPromptHistoryForInbound: async () => [],
       trimConversationMessages: async (input) => {
         calls.push(`trim:${input.maxMessages}`);
         return {
@@ -385,7 +392,7 @@ describe("createCustomerConversationRouter", () => {
 
     expect(calls).toEqual([
       "inbound:hello",
-      "assistant:Assistant reply",
+      "assistant:Assistant reply:sent-1",
       "trim:12",
     ]);
     expect(errorCalls).toEqual([]);
@@ -454,7 +461,7 @@ describe("createCustomerConversationRouter", () => {
         };
       },
       appendAssistantMessageAndStartHandoff: async (input) => {
-        operations.push(`assistant-handoff:${input.content}:${input.source}`);
+        operations.push(`assistant-handoff:${input.content}:${input.source}:${input.transportMessageId ?? "none"}`);
         return {
           id: input.conversationId,
           companyId: input.companyId,
@@ -517,7 +524,7 @@ describe("createCustomerConversationRouter", () => {
 
     expect(operations).toEqual([
       "inbound:hello",
-      "assistant-handoff:Connecting you with the team.:assistant_action",
+      "assistant-handoff:Connecting you with the team.:assistant_action:sent-1",
       "analytics",
       "trim:20",
     ]);
@@ -570,7 +577,7 @@ describe("createCustomerConversationRouter", () => {
   test("stops before orchestration when history loading fails", async () => {
     let orchestratorCalled = false;
     const store = createStore({
-      getPromptHistory: async () => {
+      getPromptHistoryForInbound: async () => {
         throw new Error("history failed");
       },
     });
@@ -815,11 +822,15 @@ describe("createCustomerConversationRouter", () => {
 
     await router(createMessage(), createContext(outbound));
 
-    expect(sent).toEqual([]);
+    expect(sent).toEqual([{
+      recipientJid: "967700000001@s.whatsapp.net",
+      text: "Assistant reply",
+    }]);
     expect(errorCalls[0]?.message).toBe("customer conversation assistant persistence failed");
   });
 
-  test("logs outbound send failures after assistant persistence", async () => {
+  test("logs outbound send failures before assistant persistence", async () => {
+    let appendedAssistant = false;
     const store = createStore({
       appendInboundCustomerMessage: async (input) => ({
         conversation: {
@@ -830,13 +841,16 @@ describe("createCustomerConversationRouter", () => {
         },
         wasMuted: false,
       }),
-      appendAssistantMessage: async (input) => ({
-        id: "assistant",
-        conversationId: input.conversationId,
-        role: "assistant",
-        content: input.content,
-        timestamp: input.timestamp,
-      }),
+      appendAssistantMessage: async (input) => {
+        appendedAssistant = true;
+        return {
+          id: "assistant",
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: input.content,
+          timestamp: input.timestamp,
+        };
+      },
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async () => createCatalogChatResult("Assistant reply", ""),
@@ -857,10 +871,105 @@ describe("createCustomerConversationRouter", () => {
 
     await router(createMessage(), createContext(outbound));
 
+    expect(appendedAssistant).toBe(false);
     expect(errorCalls[0]?.message).toBe("customer conversation outbound send failed");
     expect(errorCalls[0]?.payload).toMatchObject({
       recipientPhoneNumber: "***0001",
     });
+  });
+
+  test("sends empty history after a stale idle gap without a quoted reference", async () => {
+    let promptHistory: unknown;
+    let historyInput: unknown;
+    const store = createStore({
+      getPromptHistoryForInbound: async (input) => {
+        historyInput = input;
+        return [];
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async (input) => {
+        promptHistory = input.conversation?.history;
+        return createCatalogChatResult("Assistant reply", input.userMessage);
+      },
+    };
+    const { logger } = createLogger();
+    const { outbound } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(historyInput).toEqual({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      inboundTimestamp: 1_700_000_000_000,
+      currentTransportMessageId: "message-1",
+      limit: 20,
+    });
+    expect(promptHistory).toEqual([]);
+  });
+
+  test("passes quoted reply metadata through inbound persistence and history selection", async () => {
+    const captured: Record<string, unknown>[] = [];
+    const store = createStore({
+      appendInboundCustomerMessage: async (input) => {
+        captured.push({
+          step: "appendInboundCustomerMessage",
+          transportMessageId: input.transportMessageId,
+          referencedTransportMessageId: input.referencedTransportMessageId,
+        });
+        return {
+          conversation: {
+            id: "conversation-1",
+            companyId: input.companyId,
+            phoneNumber: input.phoneNumber,
+            muted: false,
+          },
+          wasMuted: false,
+        };
+      },
+      getPromptHistoryForInbound: async (input) => {
+        captured.push({
+          step: "getPromptHistoryForInbound",
+          currentTransportMessageId: input.currentTransportMessageId,
+          referencedTransportMessageId: input.referencedTransportMessageId,
+        });
+        return [{ role: "assistant", text: "older answer" }];
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async (input) => createCatalogChatResult("Assistant reply", input.userMessage),
+    };
+    const { logger } = createLogger();
+    const { outbound } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+    });
+
+    await router(createMessage({
+      replyContext: {
+        referencedMessageId: "quoted-message-1",
+      },
+    }), createContext(outbound));
+
+    expect(captured).toEqual([
+      {
+        step: "appendInboundCustomerMessage",
+        transportMessageId: "message-1",
+        referencedTransportMessageId: "quoted-message-1",
+      },
+      {
+        step: "getPromptHistoryForInbound",
+        currentTransportMessageId: "message-1",
+        referencedTransportMessageId: "quoted-message-1",
+      },
+    ]);
   });
 
   test("logs and stops when outbound is unavailable", async () => {

@@ -22,6 +22,8 @@ const CONVERSATION_LOCK_POLL_MS = 100;
 const MAX_CONVERSATION_LOCK_WAIT_MS = 1_500;
 const TRIM_MESSAGES_BATCH_SIZE = 100;
 export const AUTO_RESUME_IDLE_MS = 12 * 60 * 60 * 1_000;
+export const STALE_CONTEXT_RESET_MS = 30 * 60 * 1_000;
+const REFERENCED_HISTORY_SIDE_MESSAGES = 5;
 
 type LockAcquireResult = {
   acquired: boolean;
@@ -89,6 +91,11 @@ const normalizeMessageContent = (content: string): string => {
   return normalized;
 };
 
+const normalizeOptionalMessageId = (
+  value: string | undefined,
+  fieldName: string,
+): string | undefined => normalizeOptionalString(value, fieldName);
+
 const toConversationDto = (conversation: Doc<"conversations">): ConversationStateDto => ({
   id: conversation._id,
   companyId: conversation.companyId,
@@ -107,6 +114,10 @@ const toMessageDto = (message: Doc<"messages">): ConversationMessageDto => ({
   role: message.role,
   content: message.content,
   timestamp: message.timestamp,
+  ...(message.transportMessageId !== undefined ? { transportMessageId: message.transportMessageId } : {}),
+  ...(message.referencedTransportMessageId !== undefined
+    ? { referencedTransportMessageId: message.referencedTransportMessageId }
+    : {}),
 });
 
 const toPromptHistoryTurn = (message: ConversationMessageDto): PromptHistoryTurn => ({
@@ -126,6 +137,59 @@ const normalizeOptionalString = (value: string | undefined, fieldName: string): 
 
   return normalized;
 };
+
+const listConversationMessageDocs = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+): Promise<Array<Doc<"messages">>> =>
+  ctx.db
+    .query("messages")
+    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
+    .order("asc")
+    .collect();
+
+const resolveMessageByTransportMessageId = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  transportMessageId: string,
+): Promise<Doc<"messages"> | null> => {
+  const normalizedTransportMessageId = normalizeOptionalMessageId(transportMessageId, "transportMessageId");
+  if (!normalizedTransportMessageId) {
+    return null;
+  }
+
+  const messages = await ctx.db
+    .query("messages")
+    .withIndex("by_conversation_transport_message_id", (q) =>
+      q.eq("conversationId", conversationId).eq("transportMessageId", normalizedTransportMessageId)
+    )
+    .collect();
+
+  return messages[0] ?? null;
+};
+
+const filterMessagesBeforeInbound = (
+  messages: ConversationMessageDto[],
+  input: {
+    inboundTimestamp: number;
+    currentTransportMessageId?: string;
+  },
+): ConversationMessageDto[] =>
+  messages.filter((message) => {
+    if (message.timestamp < input.inboundTimestamp) {
+      return true;
+    }
+
+    if (message.timestamp > input.inboundTimestamp) {
+      return false;
+    }
+
+    if (input.currentTransportMessageId && message.transportMessageId === input.currentTransportMessageId) {
+      return false;
+    }
+
+    return false;
+  });
 
 const listConversationsByPhone = async (
   ctx: { db: DatabaseReader },
@@ -437,17 +501,26 @@ export const appendConversationMessage = internalMutation({
     role: v.union(v.literal("user"), v.literal("assistant")),
     content: v.string(),
     timestamp: v.optional(v.number()),
+    transportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<ConversationMessageDto> => {
     await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const content = normalizeMessageContent(args.content);
     const timestamp = normalizeTimestamp(args.timestamp, Date.now());
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
+    const referencedTransportMessageId = normalizeOptionalMessageId(
+      args.referencedTransportMessageId,
+      "referencedTransportMessageId",
+    );
 
     const messageId = await ctx.db.insert("messages", {
       conversationId: args.conversationId,
       role: args.role,
       content,
       timestamp,
+      ...(transportMessageId ? { transportMessageId } : {}),
+      ...(referencedTransportMessageId ? { referencedTransportMessageId } : {}),
     });
     const message = await ctx.db.get(messageId);
     if (!message) {
@@ -464,6 +537,8 @@ export const appendMutedCustomerMessage = internalMutation({
     conversationId: v.id("conversations"),
     content: v.string(),
     timestamp: v.optional(v.number()),
+    transportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<ConversationStateDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
@@ -473,12 +548,19 @@ export const appendMutedCustomerMessage = internalMutation({
 
     const content = normalizeMessageContent(args.content);
     const timestamp = normalizeTimestamp(args.timestamp, Date.now());
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
+    const referencedTransportMessageId = normalizeOptionalMessageId(
+      args.referencedTransportMessageId,
+      "referencedTransportMessageId",
+    );
 
     await ctx.db.insert("messages", {
       conversationId: args.conversationId,
       role: "user",
       content,
       timestamp,
+      ...(transportMessageId ? { transportMessageId } : {}),
+      ...(referencedTransportMessageId ? { referencedTransportMessageId } : {}),
     });
 
     await ctx.db.patch(conversation._id, {
@@ -497,17 +579,26 @@ export const appendInboundCustomerMessageToConversation = internalMutation({
     conversationId: v.id("conversations"),
     content: v.string(),
     timestamp: v.optional(v.number()),
+    transportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<AppendInboundCustomerMessageResult> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const content = normalizeMessageContent(args.content);
     const timestamp = normalizeTimestamp(args.timestamp, Date.now());
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
+    const referencedTransportMessageId = normalizeOptionalMessageId(
+      args.referencedTransportMessageId,
+      "referencedTransportMessageId",
+    );
 
     await ctx.db.insert("messages", {
       conversationId: args.conversationId,
       role: "user",
       content,
       timestamp,
+      ...(transportMessageId ? { transportMessageId } : {}),
+      ...(referencedTransportMessageId ? { referencedTransportMessageId } : {}),
     });
 
     if (!conversation.muted) {
@@ -536,6 +627,8 @@ export const appendInboundCustomerMessage = internalAction({
     phoneNumber: v.string(),
     content: v.string(),
     timestamp: v.optional(v.number()),
+    transportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<AppendInboundCustomerMessageResult> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
@@ -554,6 +647,8 @@ export const appendInboundCustomerMessage = internalAction({
         conversationId: conversation.id as Id<"conversations">,
         content: args.content,
         timestamp: args.timestamp,
+        transportMessageId: args.transportMessageId,
+        referencedTransportMessageId: args.referencedTransportMessageId,
       });
     });
   },
@@ -573,6 +668,7 @@ export const appendAssistantMessageAndStartHandoff = internalMutation({
     reason: v.optional(v.string()),
     actorPhoneNumber: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
+    transportMessageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<ConversationStateDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
@@ -584,12 +680,14 @@ export const appendAssistantMessageAndStartHandoff = internalMutation({
     const timestamp = normalizeTimestamp(args.timestamp, Date.now());
     const reason = normalizeOptionalString(args.reason, "reason");
     const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, "actorPhoneNumber");
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
 
     await ctx.db.insert("messages", {
       conversationId: args.conversationId,
       role: "assistant",
       content,
       timestamp,
+      ...(transportMessageId ? { transportMessageId } : {}),
     });
 
     await ctx.db.patch(conversation._id, {
@@ -676,6 +774,72 @@ export const getPromptHistory = internalQuery({
     });
 
     return messages.map(toPromptHistoryTurn);
+  },
+});
+
+export const getPromptHistoryForInbound = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    inboundTimestamp: v.number(),
+    currentTransportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
+    limit: v.number(),
+  },
+  handler: async (ctx, args): Promise<PromptHistoryTurn[]> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const inboundTimestamp = normalizeTimestamp(args.inboundTimestamp, Date.now());
+    const limit = normalizePositiveInteger(args.limit, "limit");
+    const currentTransportMessageId = normalizeOptionalMessageId(
+      args.currentTransportMessageId,
+      "currentTransportMessageId",
+    );
+    const referencedTransportMessageId = normalizeOptionalMessageId(
+      args.referencedTransportMessageId,
+      "referencedTransportMessageId",
+    );
+
+    const allMessages = (await listConversationMessageDocs(ctx, args.conversationId)).map(toMessageDto);
+    const priorMessages = filterMessagesBeforeInbound(allMessages, {
+      inboundTimestamp,
+      ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+    });
+
+    if (priorMessages.length === 0) {
+      return [];
+    }
+
+    const latestMessage = priorMessages[priorMessages.length - 1];
+    const activeWindowStart = inboundTimestamp - STALE_CONTEXT_RESET_MS;
+    if (latestMessage && latestMessage.timestamp >= activeWindowStart) {
+      return priorMessages.slice(-limit).map(toPromptHistoryTurn);
+    }
+
+    if (!referencedTransportMessageId) {
+      return [];
+    }
+
+    const referencedMessage = await resolveMessageByTransportMessageId(
+      ctx,
+      args.conversationId,
+      referencedTransportMessageId,
+    );
+    if (!referencedMessage) {
+      return [];
+    }
+
+    if (referencedMessage.timestamp >= activeWindowStart) {
+      return priorMessages.slice(-limit).map(toPromptHistoryTurn);
+    }
+
+    const referencedIndex = priorMessages.findIndex((message) => message.id === referencedMessage._id);
+    if (referencedIndex === -1) {
+      return [];
+    }
+
+    const sliceStart = Math.max(0, referencedIndex - REFERENCED_HISTORY_SIDE_MESSAGES);
+    const sliceEnd = referencedIndex + REFERENCED_HISTORY_SIDE_MESSAGES + 1;
+    return priorMessages.slice(sliceStart, sliceEnd).map(toPromptHistoryTurn);
   },
 });
 

@@ -57,6 +57,9 @@ export interface NormalizedInboundMessage {
   source: {
     upsertType: "notify" | "append";
   };
+  replyContext?: {
+    referencedMessageId: string;
+  };
 }
 
 export interface IgnoredInboundEvent {
