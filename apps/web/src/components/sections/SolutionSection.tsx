@@ -67,17 +67,42 @@ export function SolutionSection() {
 
     // Abstract Floating Core – centred motion (50% above, 50% below)
     // Smaller amplitude on mobile so the orb stays within the rings
-    const floatHalf = window.innerWidth < 768 ? 8 : 14;
-    gsap.fromTo('.floating-core',
-      { y: floatHalf },
-      {
-        y: -floatHalf,
-        duration: 3,
-        repeat: -1,
-        yoyo: true,
-        ease: "sine.inOut"
+    let floatingCoreTween: ReturnType<typeof gsap.fromTo> | null = null;
+    let isMobileViewport = window.innerWidth < 768;
+    let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const initFloatingCoreAnimation = () => {
+      floatingCoreTween?.kill();
+
+      const floatHalf = window.innerWidth < 768 ? 8 : 14;
+      floatingCoreTween = gsap.fromTo('.floating-core',
+        { y: floatHalf },
+        {
+          y: -floatHalf,
+          duration: 3,
+          repeat: -1,
+          yoyo: true,
+          ease: "sine.inOut"
+        }
+      );
+    };
+
+    const handleResize = () => {
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
       }
-    );
+
+      resizeTimeout = setTimeout(() => {
+        const nextIsMobileViewport = window.innerWidth < 768;
+        if (nextIsMobileViewport !== isMobileViewport) {
+          isMobileViewport = nextIsMobileViewport;
+          initFloatingCoreAnimation();
+        }
+      }, 150);
+    };
+
+    initFloatingCoreAnimation();
+    window.addEventListener('resize', handleResize);
 
     // Main Header Reveal
     gsap.from('.ed-header', {
@@ -127,6 +152,14 @@ export function SolutionSection() {
       duration: 1.5,
       ease: 'expo.inOut'
     });
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+      floatingCoreTween?.kill();
+    };
 
   }, { scope: container });
 

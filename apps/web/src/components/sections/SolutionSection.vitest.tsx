@@ -1,16 +1,22 @@
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setupGsapMocks } from '../../test/setupGsapMocks';
 
 describe('SolutionSection', () => {
   const matchMediaMock = vi.fn<(query: string) => MediaQueryList>();
   const originalMatchMedia = window.matchMedia;
+  const originalInnerWidth = window.innerWidth;
 
   beforeEach(() => {
     matchMediaMock.mockReset();
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: matchMediaMock,
+    });
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: originalInnerWidth,
     });
   });
 
@@ -19,7 +25,13 @@ describe('SolutionSection', () => {
       writable: true,
       value: originalMatchMedia,
     });
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: originalInnerWidth,
+    });
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('disables GSAP and CSS artwork animations when reduced motion is requested', async () => {
@@ -59,7 +71,7 @@ describe('SolutionSection', () => {
     expect(container.textContent ?? '').not.toMatch(/\b01\b|\b02\b|\b03\b|\b04\b/);
   });
 
-  it('configures forward and reverse ring tweens without rendering solution number markers', async () => {
+  it('configures forward and reverse ring tweens and uses desktop floating amplitude by default', async () => {
     matchMediaMock.mockReturnValue({
       matches: false,
       media: '(prefers-reduced-motion: reduce)',
@@ -70,8 +82,13 @@ describe('SolutionSection', () => {
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
     });
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 1024,
+    });
 
-    const { gsapResolvedFromTo, gsapTo, gsapToArray } = setupGsapMocks();
+    const { gsapFromTo, gsapTo, gsapToArray } = setupGsapMocks();
     const { SolutionSection } = await import('./SolutionSection');
     const { container } = render(<SolutionSection />);
 
@@ -99,9 +116,76 @@ describe('SolutionSection', () => {
 
     expect(middleRing).not.toBeNull();
     expect(middleRing?.getAttribute('style')).toBeNull();
+    expect(gsapFromTo).toHaveBeenCalledWith(
+      '.floating-core',
+      { y: 14 },
+      expect.objectContaining({
+        y: -14,
+        duration: 3,
+        repeat: -1,
+        yoyo: true,
+        ease: 'sine.inOut',
+      }),
+    );
     expect(gsapToArray).not.toHaveBeenCalledWith('.ed-number');
-    expect(gsapResolvedFromTo).not.toHaveBeenCalled();
     expect(container.querySelector('.ed-number')).toBeNull();
     expect(container.textContent ?? '').not.toMatch(/\b01\b|\b02\b|\b03\b|\b04\b/);
+  });
+
+  it('recreates the floating-core tween when resize crosses the mobile breakpoint and cleans it up on unmount', async () => {
+    vi.useFakeTimers();
+    matchMediaMock.mockReturnValue({
+      matches: false,
+      media: '(prefers-reduced-motion: reduce)',
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    });
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 640,
+    });
+
+    const { gsapFromTo, gsapTweenInstance } = setupGsapMocks();
+    const { SolutionSection } = await import('./SolutionSection');
+    const { unmount } = render(<SolutionSection />);
+
+    expect(gsapFromTo).toHaveBeenNthCalledWith(
+      1,
+      '.floating-core',
+      { y: 8 },
+      expect.objectContaining({
+        y: -8,
+      }),
+    );
+
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 1024,
+    });
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+      vi.advanceTimersByTime(160);
+    });
+
+    expect(gsapTweenInstance.kill).toHaveBeenCalledTimes(1);
+    expect(gsapFromTo).toHaveBeenNthCalledWith(
+      2,
+      '.floating-core',
+      { y: 14 },
+      expect.objectContaining({
+        y: -14,
+      }),
+    );
+
+    unmount();
+
+    expect(gsapTweenInstance.kill).toHaveBeenCalledTimes(2);
   });
 });
