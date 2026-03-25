@@ -887,6 +887,9 @@ describe("createCustomerConversationRouter", () => {
     await router(createMessage(), createContext(outbound));
 
     expect(errorCalls[0]?.message).toBe("customer conversation outbound send failed");
+    expect(errorCalls[0]?.payload).toMatchObject({
+      recipientPhoneNumber: "***0001",
+    });
   });
 
   test("logs and stops when outbound is unavailable", async () => {
@@ -922,5 +925,56 @@ describe("createCustomerConversationRouter", () => {
 
     expect(usedRouterDependencies).toBe(false);
     expect(errorCalls[0]?.message).toBe("customer conversation outbound messenger unavailable");
+  });
+
+  test("redacts owner phone numbers in handoff notification error logs", async () => {
+    const store = createStore({
+      appendAssistantMessageAndStartHandoff: async (input) => ({
+        id: input.conversationId,
+        companyId: input.companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: input.timestamp,
+        lastCustomerMessageAt: input.timestamp,
+        nextAutoResumeAt: input.timestamp + 1_000,
+      }),
+      appendUserMessage: async (input) => ({
+        id: "user",
+        conversationId: input.conversationId,
+        role: "user",
+        content: input.content,
+        timestamp: input.timestamp,
+      }),
+      listRecentMessages: async () => {
+        throw new Error("history failed");
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async () => ({
+        ...createCatalogChatResult("Connecting you with the team."),
+        assistant: {
+          schemaVersion: "v1" as const,
+          text: "Connecting you with the team.",
+          action: { type: "handoff" as const },
+        },
+      }),
+    };
+    const { logger, errorCalls } = createLogger();
+    const { outbound } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+      now: () => 2_000,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(errorCalls.at(-1)).toEqual({
+      payload: expect.objectContaining({
+        ownerPhoneNumber: "***0000",
+      }),
+      message: "customer conversation owner handoff notification failed",
+    });
   });
 });

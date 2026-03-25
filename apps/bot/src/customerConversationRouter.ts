@@ -17,6 +17,17 @@ export interface CustomerConversationRouterOptions {
 
 const DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES = 20;
 const OWNER_HANDOFF_HISTORY_LIMIT = 6;
+
+const redactPhoneNumber = (value: string): string => {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 0) {
+    return "[redacted]";
+  }
+
+  const suffix = digits.slice(-4);
+  return `***${suffix}`;
+};
+
 const serializeInboundMessage = (message: NormalizedInboundMessage): string => {
   const text = message.content.text.trim();
 
@@ -219,7 +230,7 @@ export const createCustomerConversationRouter = (
           conversationId,
           error,
           messageId: message.messageId,
-          recipientPhoneNumber: message.sender.phoneNumber,
+          recipientPhoneNumber: redactPhoneNumber(message.sender.phoneNumber),
           sessionKey: message.sessionKey,
         },
         "customer conversation outbound send failed",
@@ -258,7 +269,7 @@ export const createCustomerConversationRouter = (
           {
             companyId: message.companyId,
             conversationId,
-            ownerPhone: context.profile.ownerPhone,
+            ownerPhone: redactPhoneNumber(context.profile.ownerPhone),
             sessionKey: message.sessionKey,
           },
           "customer conversation owner phone unavailable for handoff notification",
@@ -287,7 +298,7 @@ export const createCustomerConversationRouter = (
               conversationId,
               error,
               handoffSource,
-              ownerPhoneNumber,
+              ownerPhoneNumber: redactPhoneNumber(ownerPhoneNumber),
               messageId: message.messageId,
               sessionKey: message.sessionKey,
             },
