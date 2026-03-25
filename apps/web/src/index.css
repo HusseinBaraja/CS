@@ -6,6 +6,7 @@
   --color-secondary: #E3B23C; /* Warm gold */
   --color-bg-light: #F8F7F4; /* Warm alabaster */
   --color-surface: #FFFFFF;
+  --header-offset: 5rem;
   --spacing-50: 12.5rem;
   --spacing-100: 25rem;
   --spacing-105: 26.25rem;
@@ -34,6 +35,10 @@
   html, body {
     scroll-behavior: auto;
   }
+}
+
+.scroll-mt-header-offset {
+  scroll-margin-top: var(--header-offset);
 }
 
 /* Custom Scrollbar for a premium feel */

@@ -90,7 +90,7 @@ export function ProblemSection() {
   return (
     <section
       ref={container}
-      className="scroll-mt-24 py-24 md:py-32 relative"
+      className="scroll-mt-header-offset py-24 md:py-32 relative"
       id="problem"
     >
       <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">

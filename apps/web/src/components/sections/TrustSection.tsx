@@ -170,7 +170,7 @@ export function TrustSection() {
   );
 
   return (
-    <section ref={container} className="scroll-mt-24 py-24 md:py-32 relative overflow-hidden" id="usecase">
+    <section ref={container} className="scroll-mt-header-offset py-24 md:py-32 relative overflow-hidden" id="usecase">
       <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-start">
         <div className="order-1 lg:col-start-1 relative z-10">
           <h2 className="trust-text-element text-4xl md:text-5xl lg:text-5xl xl:text-6xl font-black text-primary mb-6 leading-[1.15] tracking-tight">

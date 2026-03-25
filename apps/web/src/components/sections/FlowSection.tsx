@@ -219,7 +219,7 @@ export function FlowSection() {
   return (
     <section 
       ref={container} 
-      className="scroll-mt-24 py-24 md:py-32 relative" 
+      className="scroll-mt-header-offset py-24 md:py-32 relative" 
       id="how-it-works"
     >
       {/* Decorative environment background */}
