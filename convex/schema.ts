@@ -235,12 +235,22 @@ export default defineSchema({
     role: v.union(v.literal("user"), v.literal("assistant")),
     content: v.string(),
     timestamp: v.number(),
+    deliveryState: v.optional(v.union(v.literal("pending"), v.literal("sent"), v.literal("failed"))),
     transportMessageId: v.optional(v.string()),
     referencedTransportMessageId: v.optional(v.string()),
+    handoffSource: v.optional(v.union(
+      v.literal("assistant_action"),
+      v.literal("provider_failure_fallback"),
+      v.literal("invalid_model_output_fallback"),
+    )),
+    handoffReason: v.optional(v.string()),
+    handoffActorPhoneNumber: v.optional(v.string()),
+    handoffMetadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
   })
     .index("by_conversation", ["conversationId"])
     .index("by_conversation_time", ["conversationId", "timestamp"])
-    .index("by_conversation_transport_message_id", ["conversationId", "transportMessageId"]),
+    .index("by_conversation_transport_message_id", ["conversationId", "transportMessageId"])
+    .index("by_role_delivery_state_time", ["role", "deliveryState", "timestamp"]),
 
   // ── Offers ──────────────────────────────────────────────────────────────
   offers: defineTable({

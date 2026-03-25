@@ -32,6 +32,7 @@ export interface ConversationMessageDto {
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+  deliveryState?: "pending" | "sent" | "failed";
   transportMessageId?: string;
   referencedTransportMessageId?: string;
 }

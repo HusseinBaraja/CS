@@ -181,6 +181,31 @@ export const createCustomerConversationRouter = (
     }
 
     const assistantTimestamp = now();
+    let pendingMessageId: string;
+    try {
+      const pendingMessage = await options.conversationStore.appendPendingAssistantMessage({
+        companyId: message.companyId,
+        conversationId,
+        content: assistantText,
+        timestamp: assistantTimestamp,
+        ...(handoffSource ? { source: handoffSource } : {}),
+      });
+      pendingMessageId = pendingMessage.id;
+    } catch (error) {
+      options.logger.error(
+        {
+          assistantText,
+          companyId: message.companyId,
+          conversationId,
+          error,
+          messageId: message.messageId,
+          sessionKey: message.sessionKey,
+        },
+        "customer conversation assistant persistence failed",
+      );
+      return;
+    }
+
     let outboundMessageId: string | undefined;
     try {
       const sendReceipts = await context.outbound.sendText({
@@ -196,33 +221,41 @@ export const createCustomerConversationRouter = (
           conversationId,
           error,
           messageId: message.messageId,
+          pendingMessageId,
           recipientPhoneNumber: redactPhoneNumber(message.sender.phoneNumber),
           sessionKey: message.sessionKey,
         },
         "customer conversation outbound send failed",
       );
+      try {
+        await options.conversationStore.markPendingAssistantMessageFailed({
+          companyId: message.companyId,
+          conversationId,
+          pendingMessageId,
+        });
+      } catch (markFailedError) {
+        options.logger.error(
+          {
+            companyId: message.companyId,
+            conversationId,
+            error: markFailedError,
+            messageId: message.messageId,
+            pendingMessageId,
+            sessionKey: message.sessionKey,
+          },
+          "customer conversation pending assistant failure persistence failed",
+        );
+      }
       return;
     }
 
     try {
-      if (handoffSource) {
-        await options.conversationStore.appendAssistantMessageAndStartHandoff({
-          companyId: message.companyId,
-          conversationId,
-          content: assistantText,
-          timestamp: assistantTimestamp,
-          source: handoffSource,
-          ...(outboundMessageId ? { transportMessageId: outboundMessageId } : {}),
-        });
-      } else {
-        await options.conversationStore.appendAssistantMessage({
-          companyId: message.companyId,
-          conversationId,
-          content: assistantText,
-          timestamp: assistantTimestamp,
-          ...(outboundMessageId ? { transportMessageId: outboundMessageId } : {}),
-        });
-      }
+      await options.conversationStore.commitPendingAssistantMessage({
+        companyId: message.companyId,
+        conversationId,
+        pendingMessageId,
+        ...(outboundMessageId ? { transportMessageId: outboundMessageId } : {}),
+      });
     } catch (error) {
       options.logger.error(
         {
@@ -231,6 +264,7 @@ export const createCustomerConversationRouter = (
           conversationId,
           error,
           messageId: message.messageId,
+          pendingMessageId,
           sessionKey: message.sessionKey,
         },
         "customer conversation assistant persistence failed",

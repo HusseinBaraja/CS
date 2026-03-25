@@ -114,6 +114,28 @@ const createContext = (outbound?: OutboundMessenger): InboundRouteContext => ({
 });
 
 const createStore = (overrides: Partial<ConversationStore> = {}): ConversationStore => ({
+  appendPendingAssistantMessage: async (input) => ({
+    id: "pending-assistant-message",
+    conversationId: input.conversationId,
+    role: "assistant",
+    content: input.content,
+    timestamp: input.timestamp,
+    deliveryState: "pending",
+  }),
+  commitPendingAssistantMessage: async (input) => ({
+    id: input.conversationId,
+    companyId: input.companyId,
+    phoneNumber: "967700000001",
+    muted: false,
+  }),
+  markPendingAssistantMessageFailed: async (input) => ({
+    id: input.pendingMessageId,
+    conversationId: input.conversationId,
+    role: "assistant",
+    content: "failed assistant",
+    timestamp: 1_000,
+    deliveryState: "failed",
+  }),
   appendAssistantMessage: async (input) => ({
     id: "assistant-message",
     conversationId: input.conversationId,
@@ -223,14 +245,24 @@ describe("createCustomerConversationRouter", () => {
           wasMuted: false,
         };
       },
-      appendAssistantMessage: async (input) => {
-        calls.push(`assistant:${input.content}:${input.timestamp}:${input.transportMessageId ?? "none"}`);
+      appendPendingAssistantMessage: async (input) => {
+        calls.push(`pending:${input.content}:${input.timestamp}:${input.source ?? "none"}`);
         return {
-          id: "message-2",
+          id: "pending-message-1",
           conversationId: input.conversationId,
           role: "assistant",
           content: input.content,
           timestamp: input.timestamp,
+          deliveryState: "pending",
+        };
+      },
+      commitPendingAssistantMessage: async (input) => {
+        calls.push(`commit:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
+        return {
+          id: input.conversationId,
+          companyId: input.companyId,
+          phoneNumber: "967700000001",
+          muted: false,
         };
       },
     });
@@ -254,7 +286,8 @@ describe("createCustomerConversationRouter", () => {
     expect(calls).toEqual([
       "inbound:hello:1700000000000:message-1:none",
       "orchestrator:conversation-1:hello",
-      "assistant:Assistant reply:2000:sent-1",
+      "pending:Assistant reply:2000:none",
+      "commit:pending-message-1:sent-1",
     ]);
     expect(sent).toEqual([{
       recipientJid: "967700000001@s.whatsapp.net",
@@ -356,14 +389,24 @@ describe("createCustomerConversationRouter", () => {
           wasMuted: false,
         };
       },
-      appendAssistantMessage: async (input) => {
-        calls.push(`assistant:${input.content}:${input.transportMessageId ?? "none"}`);
+      appendPendingAssistantMessage: async (input) => {
+        calls.push(`pending:${input.content}`);
         return {
-          id: "assistant",
+          id: "pending-1",
           conversationId: input.conversationId,
           role: "assistant",
           content: input.content,
           timestamp: input.timestamp,
+          deliveryState: "pending",
+        };
+      },
+      commitPendingAssistantMessage: async (input) => {
+        calls.push(`commit:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
+        return {
+          id: input.conversationId,
+          companyId: input.companyId,
+          phoneNumber: "967700000001",
+          muted: false,
         };
       },
       getPromptHistoryForInbound: async () => [],
@@ -392,7 +435,8 @@ describe("createCustomerConversationRouter", () => {
 
     expect(calls).toEqual([
       "inbound:hello",
-      "assistant:Assistant reply:sent-1",
+      "pending:Assistant reply",
+      "commit:pending-1:sent-1",
       "trim:12",
     ]);
     expect(errorCalls).toEqual([]);
@@ -460,15 +504,26 @@ describe("createCustomerConversationRouter", () => {
           wasMuted: false,
         };
       },
-      appendAssistantMessageAndStartHandoff: async (input) => {
-        operations.push(`assistant-handoff:${input.content}:${input.source}:${input.transportMessageId ?? "none"}`);
+      appendPendingAssistantMessage: async (input) => {
+        operations.push(`pending:${input.content}:${input.source ?? "none"}`);
+        return {
+          id: "pending-handoff-1",
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: input.content,
+          timestamp: input.timestamp,
+          deliveryState: "pending",
+        };
+      },
+      commitPendingAssistantMessage: async (input) => {
+        operations.push(`commit:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
         return {
           id: input.conversationId,
           companyId: input.companyId,
           phoneNumber: "967700000001",
           muted: true,
-          mutedAt: input.timestamp,
-          nextAutoResumeAt: input.timestamp + 1_000,
+          mutedAt: 2_000,
+          nextAutoResumeAt: 3_000,
         };
       },
       listRecentMessages: async () => [
@@ -524,7 +579,8 @@ describe("createCustomerConversationRouter", () => {
 
     expect(operations).toEqual([
       "inbound:hello",
-      "assistant-handoff:Connecting you with the team.:assistant_action:sent-1",
+      "pending:Connecting you with the team.:assistant_action",
+      "commit:pending-handoff-1:sent-1",
       "analytics",
       "trim:20",
     ]);
@@ -643,12 +699,13 @@ describe("createCustomerConversationRouter", () => {
           wasMuted: false,
         };
       },
-      appendAssistantMessage: async (input) => ({
-        id: "assistant",
+      appendPendingAssistantMessage: async (input) => ({
+        id: "pending-assistant",
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
         timestamp: input.timestamp,
+        deliveryState: "pending",
       }),
     });
     const orchestrator: CatalogChatOrchestrator = {
@@ -692,12 +749,13 @@ describe("createCustomerConversationRouter", () => {
           wasMuted: false,
         };
       },
-      appendAssistantMessage: async (input) => ({
-        id: "assistant",
+      appendPendingAssistantMessage: async (input) => ({
+        id: "pending-assistant",
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
         timestamp: input.timestamp,
+        deliveryState: "pending",
       }),
     });
     const orchestrator: CatalogChatOrchestrator = {
@@ -728,7 +786,7 @@ describe("createCustomerConversationRouter", () => {
 
   test("stops before orchestration when persistence fails", async () => {
     const store = createStore({
-      appendAssistantMessage: async () => {
+      appendPendingAssistantMessage: async () => {
         throw new Error("should not be called");
       },
       appendInboundCustomerMessage: async () => {
@@ -769,7 +827,7 @@ describe("createCustomerConversationRouter", () => {
         },
         wasMuted: false,
       }),
-      appendAssistantMessage: async () => {
+      appendPendingAssistantMessage: async () => {
         appendedAssistant = true;
         throw new Error("should not run");
       },
@@ -794,7 +852,7 @@ describe("createCustomerConversationRouter", () => {
     expect(errorCalls[0]?.message).toBe("customer conversation orchestration failed");
   });
 
-  test("does not send when assistant persistence fails", async () => {
+  test("leaves a pending assistant reply for reconciliation when commit fails", async () => {
     const store = createStore({
       appendInboundCustomerMessage: async (input) => ({
         conversation: {
@@ -805,8 +863,16 @@ describe("createCustomerConversationRouter", () => {
         },
         wasMuted: false,
       }),
-      appendAssistantMessage: async () => {
-        throw new Error("assistant persist failed");
+      appendPendingAssistantMessage: async (input) => ({
+        id: "pending-message-1",
+        conversationId: input.conversationId,
+        role: "assistant",
+        content: input.content,
+        timestamp: input.timestamp,
+        deliveryState: "pending",
+      }),
+      commitPendingAssistantMessage: async () => {
+        throw new Error("assistant commit failed");
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
@@ -827,10 +893,13 @@ describe("createCustomerConversationRouter", () => {
       text: "Assistant reply",
     }]);
     expect(errorCalls[0]?.message).toBe("customer conversation assistant persistence failed");
+    expect(errorCalls[0]?.payload).toMatchObject({
+      pendingMessageId: "pending-message-1",
+    });
   });
 
-  test("logs outbound send failures before assistant persistence", async () => {
-    let appendedAssistant = false;
+  test("marks the pending assistant reply failed when outbound send fails", async () => {
+    let markedFailed = false;
     const store = createStore({
       appendInboundCustomerMessage: async (input) => ({
         conversation: {
@@ -841,14 +910,25 @@ describe("createCustomerConversationRouter", () => {
         },
         wasMuted: false,
       }),
-      appendAssistantMessage: async (input) => {
-        appendedAssistant = true;
+      appendPendingAssistantMessage: async (input) => {
         return {
-          id: "assistant",
+          id: "pending-message-1",
           conversationId: input.conversationId,
           role: "assistant",
           content: input.content,
           timestamp: input.timestamp,
+          deliveryState: "pending",
+        };
+      },
+      markPendingAssistantMessageFailed: async (input) => {
+        markedFailed = true;
+        return {
+          id: input.pendingMessageId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: "Assistant reply",
+          timestamp: 1_000,
+          deliveryState: "failed",
         };
       },
     });
@@ -871,9 +951,10 @@ describe("createCustomerConversationRouter", () => {
 
     await router(createMessage(), createContext(outbound));
 
-    expect(appendedAssistant).toBe(false);
+    expect(markedFailed).toBe(true);
     expect(errorCalls[0]?.message).toBe("customer conversation outbound send failed");
     expect(errorCalls[0]?.payload).toMatchObject({
+      pendingMessageId: "pending-message-1",
       recipientPhoneNumber: "***0001",
     });
   });
@@ -975,7 +1056,7 @@ describe("createCustomerConversationRouter", () => {
   test("logs and stops when outbound is unavailable", async () => {
     let usedRouterDependencies = false;
     const store = createStore({
-      appendAssistantMessage: async () => {
+      appendPendingAssistantMessage: async () => {
         usedRouterDependencies = true;
         throw new Error("should not run");
       },
@@ -1014,13 +1095,21 @@ describe("createCustomerConversationRouter", () => {
         },
         wasMuted: false,
       }),
-      appendAssistantMessageAndStartHandoff: async (input) => ({
+      appendPendingAssistantMessage: async (input) => ({
+        id: "pending-handoff-1",
+        conversationId: input.conversationId,
+        role: "assistant",
+        content: input.content,
+        timestamp: input.timestamp,
+        deliveryState: "pending",
+      }),
+      commitPendingAssistantMessage: async (input) => ({
         id: input.conversationId,
         companyId: input.companyId,
         phoneNumber: "967700000001",
         muted: true,
-        mutedAt: input.timestamp,
-        nextAutoResumeAt: input.timestamp + 1_000,
+        mutedAt: 2_000,
+        nextAutoResumeAt: 3_000,
       }),
       listRecentMessages: async () => {
         throw new Error("history failed");

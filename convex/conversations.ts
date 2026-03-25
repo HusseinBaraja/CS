@@ -41,6 +41,11 @@ type AppendInboundCustomerMessageResult = {
   wasMuted: boolean;
 };
 
+type AssistantHandoffSource = Extract<
+  ConversationStateEventSource,
+  "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback"
+>;
+
 const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, delayMs);
@@ -115,6 +120,7 @@ const toMessageDto = (message: Doc<"messages">): ConversationMessageDto => ({
   role: message.role,
   content: message.content,
   timestamp: message.timestamp,
+  ...(message.deliveryState !== undefined ? { deliveryState: message.deliveryState } : {}),
   ...(message.transportMessageId !== undefined ? { transportMessageId: message.transportMessageId } : {}),
   ...(message.referencedTransportMessageId !== undefined
     ? { referencedTransportMessageId: message.referencedTransportMessageId }
@@ -138,6 +144,9 @@ const normalizeOptionalString = (value: string | undefined, fieldName: string): 
 
   return normalized;
 };
+
+const isVisibleConversationMessage = (message: Pick<Doc<"messages">, "deliveryState">): boolean =>
+  message.deliveryState !== "failed";
 
 const listConversationMessageDocs = async (
   ctx: { db: DatabaseReader },
@@ -206,6 +215,10 @@ const filterMessagesBeforeInbound = (
   },
 ): ConversationMessageDto[] =>
   messages.filter((message) => {
+    if (message.deliveryState === "failed") {
+      return false;
+    }
+
     if (message.timestamp < input.inboundTimestamp) {
       return true;
     }
@@ -280,6 +293,55 @@ const listConversationsByPhone = async (
     .collect();
 
   return conversations.sort((left, right) => left._creationTime - right._creationTime || left._id.localeCompare(right._id));
+};
+
+const loadMessageOrThrow = async (
+  ctx: { db: DatabaseReader },
+  messageId: Id<"messages">,
+): Promise<Doc<"messages">> => {
+  const message = await ctx.db.get(messageId);
+  if (!message) {
+    throw new Error("Message not found");
+  }
+
+  return message;
+};
+
+const normalizeOptionalHandoffSource = (
+  value: AssistantHandoffSource | undefined,
+): AssistantHandoffSource | undefined => value;
+
+const applyAssistantHandoffIfNeeded = async (
+  ctx: MutationCtx,
+  input: {
+    companyId: Id<"companies">;
+    conversation: Doc<"conversations">;
+    message: Doc<"messages">;
+  },
+): Promise<void> => {
+  const source = input.message.handoffSource;
+  if (!source || input.conversation.muted) {
+    return;
+  }
+
+  await ctx.db.patch(input.conversation._id, {
+    muted: true,
+    mutedAt: input.message.timestamp,
+    handoffSeedTimestamp: input.message.timestamp,
+    nextAutoResumeAt: input.message.timestamp + AUTO_RESUME_IDLE_MS,
+  });
+
+  await insertConversationStateEvent(ctx, {
+    companyId: input.companyId,
+    conversationId: input.conversation._id,
+    phoneNumber: input.conversation.phoneNumber,
+    eventType: "handoff_started",
+    timestamp: input.message.timestamp,
+    source,
+    ...(input.message.handoffReason ? { reason: input.message.handoffReason } : {}),
+    ...(input.message.handoffActorPhoneNumber ? { actorPhoneNumber: input.message.handoffActorPhoneNumber } : {}),
+    ...(input.message.handoffMetadata ? { metadata: input.message.handoffMetadata } : {}),
+  });
 };
 
 const listActiveConversations = async (
@@ -597,6 +659,7 @@ export const appendConversationMessage = internalMutation({
       role: args.role,
       content,
       timestamp,
+      ...(args.role === "assistant" ? { deliveryState: "sent" as const } : {}),
       ...(transportMessageId ? { transportMessageId } : {}),
       ...(referencedTransportMessageId ? { referencedTransportMessageId } : {}),
     });
@@ -743,6 +806,101 @@ export const appendInboundCustomerMessage = internalAction({
   },
 });
 
+export const appendPendingAssistantMessage = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    content: v.string(),
+    timestamp: v.optional(v.number()),
+    source: v.optional(v.union(
+      v.literal("assistant_action"),
+      v.literal("provider_failure_fallback"),
+      v.literal("invalid_model_output_fallback"),
+    )),
+    reason: v.optional(v.string()),
+    actorPhoneNumber: v.optional(v.string()),
+    metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
+  },
+  handler: async (ctx, args): Promise<ConversationMessageDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const content = normalizeMessageContent(args.content);
+    const timestamp = normalizeTimestamp(args.timestamp, Date.now());
+    const source = normalizeOptionalHandoffSource(args.source);
+    const reason = normalizeOptionalString(args.reason, "reason");
+    const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, "actorPhoneNumber");
+
+    const messageId = await ctx.db.insert("messages", {
+      conversationId: args.conversationId,
+      role: "assistant",
+      content,
+      timestamp,
+      deliveryState: "pending",
+      ...(source ? { handoffSource: source } : {}),
+      ...(reason ? { handoffReason: reason } : {}),
+      ...(actorPhoneNumber ? { handoffActorPhoneNumber: actorPhoneNumber } : {}),
+      ...(args.metadata ? { handoffMetadata: args.metadata } : {}),
+    });
+    return toMessageDto(await loadMessageOrThrow(ctx, messageId));
+  },
+});
+
+export const commitPendingAssistantMessage = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    pendingMessageId: v.id("messages"),
+    transportMessageId: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<ConversationStateDto> => {
+    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
+    if (message.conversationId !== args.conversationId || message.role !== "assistant") {
+      throw new Error("Pending assistant message not found for conversation");
+    }
+
+    const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
+    if (message.deliveryState !== "sent") {
+      await ctx.db.patch(message._id, {
+        deliveryState: "sent",
+        ...(transportMessageId ? { transportMessageId } : {}),
+      });
+    }
+
+    const updatedMessage = await loadMessageOrThrow(ctx, args.pendingMessageId);
+    await applyAssistantHandoffIfNeeded(ctx, {
+      companyId: args.companyId,
+      conversation,
+      message: updatedMessage,
+    });
+
+    const updatedConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    return toConversationDto(updatedConversation);
+  },
+});
+
+export const markPendingAssistantMessageFailed = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    pendingMessageId: v.id("messages"),
+  },
+  handler: async (ctx, args): Promise<ConversationMessageDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
+    if (message.conversationId !== args.conversationId || message.role !== "assistant") {
+      throw new Error("Pending assistant message not found for conversation");
+    }
+
+    if (message.deliveryState !== "sent") {
+      await ctx.db.patch(message._id, {
+        deliveryState: "failed",
+      });
+    }
+
+    return toMessageDto(await loadMessageOrThrow(ctx, args.pendingMessageId));
+  },
+});
+
 export const appendAssistantMessageAndStartHandoff = internalMutation({
   args: {
     companyId: v.id("companies"),
@@ -771,31 +929,23 @@ export const appendAssistantMessageAndStartHandoff = internalMutation({
     const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, "actorPhoneNumber");
     const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, "transportMessageId");
 
-    await ctx.db.insert("messages", {
+    const messageId = await ctx.db.insert("messages", {
       conversationId: args.conversationId,
       role: "assistant",
       content,
       timestamp,
+      deliveryState: "sent",
+      handoffSource: args.source,
+      ...(reason ? { handoffReason: reason } : {}),
+      ...(actorPhoneNumber ? { handoffActorPhoneNumber: actorPhoneNumber } : {}),
+      ...(args.metadata ? { handoffMetadata: args.metadata } : {}),
       ...(transportMessageId ? { transportMessageId } : {}),
     });
-
-    await ctx.db.patch(conversation._id, {
-      muted: true,
-      mutedAt: timestamp,
-      handoffSeedTimestamp: timestamp,
-      nextAutoResumeAt: timestamp + AUTO_RESUME_IDLE_MS,
-    });
-
-    await insertConversationStateEvent(ctx, {
+    const message = await loadMessageOrThrow(ctx, messageId);
+    await applyAssistantHandoffIfNeeded(ctx, {
       companyId: args.companyId,
-      conversationId: conversation._id,
-      phoneNumber: conversation.phoneNumber,
-      eventType: "handoff_started",
-      timestamp,
-      source: args.source,
-      ...(reason ? { reason } : {}),
-      ...(actorPhoneNumber ? { actorPhoneNumber } : {}),
-      ...(args.metadata ? { metadata: args.metadata } : {}),
+      conversation,
+      message,
     });
 
     const updatedConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
@@ -820,7 +970,10 @@ export const listConversationMessages = internalQuery({
         .order("desc")
         .take(limit);
 
-      return latestMessages.reverse().map(toMessageDto);
+      return latestMessages
+        .filter(isVisibleConversationMessage)
+        .reverse()
+        .map(toMessageDto);
     }
 
     const messages = await ctx.db
@@ -828,7 +981,7 @@ export const listConversationMessages = internalQuery({
       .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
       .order("asc")
       .collect();
-    return messages.map(toMessageDto);
+    return messages.filter(isVisibleConversationMessage).map(toMessageDto);
   },
 });
 

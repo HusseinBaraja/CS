@@ -16,6 +16,7 @@ const isAnalyticsMutation = (args: StubArgs): boolean => "eventType" in args;
 
 const isConversationMutation = (args: StubArgs): boolean =>
   "source" in args
+  || "pendingMessageId" in args
   || ("content" in args && "timestamp" in args && !("role" in args));
 
 const isListQuery = (args: StubArgs): boolean => "conversationId" in args && "limit" in args;
@@ -39,6 +40,7 @@ const createMessageStub = () => ({
   role: "user" as const,
   content: "hello",
   timestamp: 1_000,
+  deliveryState: "sent" as const,
 });
 
 const createActionConversationStub = () => ({
@@ -209,6 +211,24 @@ describe("createConvexConversationStore", () => {
       source: "assistant_action",
       transportMessageId: "assistant-1",
     });
+    await store.appendPendingAssistantMessage({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      content: "Assistant reply",
+      timestamp: 1_800,
+      source: "assistant_action",
+    });
+    await store.commitPendingAssistantMessage({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      transportMessageId: "assistant-2",
+    });
+    await store.markPendingAssistantMessageFailed({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+    });
     await store.getPromptHistory({
       companyId: "company-1",
       conversationId: "conversation-1",
@@ -253,8 +273,57 @@ describe("createConvexConversationStore", () => {
     });
 
     expect(actionCalls).toHaveLength(3);
-    expect(mutationCalls).toHaveLength(6);
+    expect(mutationCalls).toHaveLength(9);
     expect(queryCalls).toHaveLength(4);
+  });
+
+  test("forwards pending assistant lifecycle mutations to Convex", async () => {
+    const { client, mutationCalls } = createClientStub();
+    const store = createConvexConversationStore({
+      createClient: () => client as never,
+    });
+
+    await store.appendPendingAssistantMessage({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      content: "Assistant reply",
+      timestamp: 1_000,
+      source: "assistant_action",
+      reason: "requested handoff",
+    });
+    await store.commitPendingAssistantMessage({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+      transportMessageId: "transport-1",
+    });
+    await store.markPendingAssistantMessageFailed({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      pendingMessageId: "message-1",
+    });
+
+    expect(mutationCalls.slice(-3)).toEqual([
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        content: "Assistant reply",
+        timestamp: 1_000,
+        source: "assistant_action",
+        reason: "requested handoff",
+      },
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        pendingMessageId: "message-1",
+        transportMessageId: "transport-1",
+      },
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        pendingMessageId: "message-1",
+      },
+    ]);
   });
 
   test("creates the client once and reuses it across store operations", async () => {
