@@ -736,6 +736,58 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(dueConversations).toEqual([]);
   });
 
+  it("does not resume a stale due auto-resume candidate after muted activity extends the deadline", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+        nextAutoResumeAt: 2_000,
+      })
+    );
+
+    const dueConversations = await t.query(internal.conversations.listDueAutoResumeConversations, {
+      now: 2_000,
+      limit: 10,
+    });
+    expect(dueConversations).toHaveLength(1);
+
+    await t.mutation(internal.conversations.recordMutedCustomerActivity, {
+      companyId,
+      conversationId,
+      timestamp: 5_000,
+    });
+
+    const resumed = await t.mutation(internal.conversations.resumeConversation, {
+      companyId,
+      conversationId,
+      resumedAt: 2_000,
+      source: "worker_auto",
+    });
+
+    expect(resumed).toMatchObject({
+      id: conversationId,
+      muted: true,
+      mutedAt: 1_000,
+      lastCustomerMessageAt: 5_000,
+      nextAutoResumeAt: 5_000 + 12 * 60 * 60 * 1_000,
+    });
+
+    const stateEvents = await t.run(async (ctx) =>
+      ctx.db.query("conversationStateEvents").collect()
+    );
+    expect(stateEvents).toHaveLength(0);
+  });
+
   it("times out when the conversation lock remains held", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>

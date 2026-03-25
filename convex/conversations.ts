@@ -651,8 +651,17 @@ export const resumeConversation = internalMutation({
     const resumedAt = normalizeTimestamp(args.resumedAt, Date.now());
     const reason = normalizeOptionalString(args.reason, "reason");
     const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, "actorPhoneNumber");
+    const latestConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
 
-    await ctx.db.patch(conversation._id, {
+    if (
+      !latestConversation.muted
+      || latestConversation.nextAutoResumeAt === undefined
+      || latestConversation.nextAutoResumeAt > resumedAt
+    ) {
+      return toConversationDto(latestConversation);
+    }
+
+    await ctx.db.patch(latestConversation._id, {
       muted: false,
       mutedAt: undefined,
       nextAutoResumeAt: undefined,
@@ -660,8 +669,8 @@ export const resumeConversation = internalMutation({
 
     await insertConversationStateEvent(ctx, {
       companyId: args.companyId,
-      conversationId: conversation._id,
-      phoneNumber: conversation.phoneNumber,
+      conversationId: latestConversation._id,
+      phoneNumber: latestConversation.phoneNumber,
       eventType: args.source === "api_manual" ? "handoff_resumed_manual" : "handoff_resumed_auto",
       timestamp: resumedAt,
       source: args.source,
