@@ -1049,6 +1049,15 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       });
     }
 
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "current inbound",
+      timestamp: 1_000 + STALE_CONTEXT_RESET_MS,
+      transportMessageId: "inbound-1",
+    });
+
     const history = await t.query(internal.conversations.getPromptHistoryForInbound, {
       companyId,
       conversationId,
@@ -1089,6 +1098,15 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       transportMessageId: "old-1",
     });
 
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "current inbound",
+      timestamp: 1_000 + STALE_CONTEXT_RESET_MS + 1,
+      transportMessageId: "inbound-1",
+    });
+
     const history = await t.query(internal.conversations.getPromptHistoryForInbound, {
       companyId,
       conversationId,
@@ -1127,6 +1145,15 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       });
     }
 
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "current inbound",
+      timestamp: STALE_CONTEXT_RESET_MS + 20_000,
+      transportMessageId: "inbound-1",
+    });
+
     const history = await t.query(internal.conversations.getPromptHistoryForInbound, {
       companyId,
       conversationId,
@@ -1148,6 +1175,52 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       { role: "user", text: "message-11" },
       { role: "assistant", text: "message-12" },
       { role: "user", text: "message-13" },
+    ]);
+  });
+
+  it("keeps same-timestamp prior messages while excluding the current inbound transport id", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "same timestamp prior",
+      timestamp: 5_000,
+      transportMessageId: "assistant-5",
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "current inbound",
+      timestamp: 5_000,
+      transportMessageId: "inbound-1",
+    });
+
+    const history = await t.query(internal.conversations.getPromptHistoryForInbound, {
+      companyId,
+      conversationId,
+      inboundTimestamp: 5_000,
+      currentTransportMessageId: "inbound-1",
+      limit: 20,
+    });
+
+    expect(history).toEqual([
+      { role: "assistant", text: "same timestamp prior" },
     ]);
   });
 

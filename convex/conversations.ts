@@ -21,6 +21,7 @@ const CONVERSATION_LOCK_LEASE_MS = 1_000;
 const CONVERSATION_LOCK_POLL_MS = 100;
 const MAX_CONVERSATION_LOCK_WAIT_MS = 1_500;
 const TRIM_MESSAGES_BATCH_SIZE = 100;
+const PROMPT_HISTORY_SCAN_BATCH_SIZE = 100;
 export const AUTO_RESUME_IDLE_MS = 12 * 60 * 60 * 1_000;
 export const STALE_CONTEXT_RESET_MS = 30 * 60 * 1_000;
 const REFERENCED_HISTORY_SIDE_MESSAGES = 5;
@@ -148,6 +149,23 @@ const listConversationMessageDocs = async (
     .order("asc")
     .collect();
 
+const listConversationMessageDocsPage = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  input: {
+    cursor: string | null;
+    limit: number;
+  },
+) =>
+  ctx.db
+    .query("messages")
+    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
+    .order("desc")
+    .paginate({
+      cursor: input.cursor,
+      numItems: input.limit,
+    });
+
 const resolveMessageByTransportMessageId = async (
   ctx: { db: DatabaseReader },
   conversationId: Id<"conversations">,
@@ -180,16 +198,64 @@ const filterMessagesBeforeInbound = (
       return true;
     }
 
-    if (message.timestamp > input.inboundTimestamp) {
-      return false;
+    if (message.timestamp === input.inboundTimestamp) {
+      return message.transportMessageId !== input.currentTransportMessageId;
     }
 
-    if (input.currentTransportMessageId && message.transportMessageId === input.currentTransportMessageId) {
+    if (message.timestamp > input.inboundTimestamp) {
       return false;
     }
 
     return false;
   });
+
+const collectPriorMessagesDescending = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  input: {
+    inboundTimestamp: number;
+    currentTransportMessageId?: string;
+    minimumCount?: number;
+    stopWhenPriorMessagesFound?: boolean;
+  },
+): Promise<ConversationMessageDto[]> => {
+  const priorMessages: ConversationMessageDto[] = [];
+  let cursor: string | null = null;
+
+  for (;;) {
+    const page = await listConversationMessageDocsPage(ctx, conversationId, {
+      cursor,
+      limit: PROMPT_HISTORY_SCAN_BATCH_SIZE,
+    });
+    const filteredPage = filterMessagesBeforeInbound(
+      page.page.map(toMessageDto),
+      input,
+    );
+    priorMessages.push(...filteredPage);
+
+    if (
+      input.stopWhenPriorMessagesFound
+      && priorMessages.length > 0
+    ) {
+      break;
+    }
+
+    if (
+      input.minimumCount !== undefined
+      && priorMessages.length >= input.minimumCount
+    ) {
+      break;
+    }
+
+    if (page.isDone || page.page.length === 0) {
+      break;
+    }
+
+    cursor = page.continueCursor;
+  }
+
+  return priorMessages;
+};
 
 const listConversationsByPhone = async (
   ctx: { db: DatabaseReader },
@@ -799,20 +865,25 @@ export const getPromptHistoryForInbound = internalQuery({
       "referencedTransportMessageId",
     );
 
-    const allMessages = (await listConversationMessageDocs(ctx, args.conversationId)).map(toMessageDto);
-    const priorMessages = filterMessagesBeforeInbound(allMessages, {
+    const priorMessagesDescending = await collectPriorMessagesDescending(ctx, args.conversationId, {
       inboundTimestamp,
       ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+      stopWhenPriorMessagesFound: true,
     });
 
-    if (priorMessages.length === 0) {
+    if (priorMessagesDescending.length === 0) {
       return [];
     }
 
-    const latestMessage = priorMessages[priorMessages.length - 1];
+    const latestMessage = priorMessagesDescending[0];
     const activeWindowStart = inboundTimestamp - STALE_CONTEXT_RESET_MS;
     if (latestMessage && latestMessage.timestamp >= activeWindowStart) {
-      return priorMessages.slice(-limit).map(toPromptHistoryTurn);
+      const recentPriorMessages = await collectPriorMessagesDescending(ctx, args.conversationId, {
+        inboundTimestamp,
+        ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+        minimumCount: limit,
+      });
+      return recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn);
     }
 
     if (!referencedTransportMessageId) {
@@ -829,9 +900,20 @@ export const getPromptHistoryForInbound = internalQuery({
     }
 
     if (referencedMessage.timestamp >= activeWindowStart) {
-      return priorMessages.slice(-limit).map(toPromptHistoryTurn);
+      const recentPriorMessages = await collectPriorMessagesDescending(ctx, args.conversationId, {
+        inboundTimestamp,
+        ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+        minimumCount: limit,
+      });
+      return recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn);
     }
 
+    const allPriorMessages = (await listConversationMessageDocs(ctx, args.conversationId))
+      .map(toMessageDto);
+    const priorMessages = filterMessagesBeforeInbound(allPriorMessages, {
+      inboundTimestamp,
+      ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+    });
     const referencedIndex = priorMessages.findIndex((message) => message.id === referencedMessage._id);
     if (referencedIndex === -1) {
       return [];
