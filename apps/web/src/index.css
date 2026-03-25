@@ -6,6 +6,14 @@
   --color-secondary: #E3B23C; /* Warm gold */
   --color-bg-light: #F8F7F4; /* Warm alabaster */
   --color-surface: #FFFFFF;
+  --header-offset: 5rem;
+  --spacing-50: 12.5rem;
+  --spacing-100: 25rem;
+  --spacing-105: 26.25rem;
+  --spacing-150: 37.5rem;
+  --spacing-200: 50rem;
+  --spacing-225: 56.25rem;
+  --spacing-360: 90rem;
 }
 
 @layer base {
@@ -15,6 +23,22 @@
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
   }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html, body {
+    scroll-behavior: smooth;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html, body {
+    scroll-behavior: auto;
+  }
+}
+
+.scroll-mt-header-offset {
+  scroll-margin-top: var(--header-offset);
 }
 
 /* Custom Scrollbar for a premium feel */

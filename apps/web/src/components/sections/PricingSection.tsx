@@ -88,7 +88,7 @@ export function PricingSection() {
     <section
       id="pricing"
       ref={container}
-      className="scroll-mt-28 py-24 md:py-32 px-6 relative z-10 perspective-[1000px]"
+      className="scroll-mt-header-offset py-24 md:py-32 px-6 relative z-10 perspective-[1000px]"
     >
       <div className="max-w-6xl mx-auto">
         {/* Header */}
@@ -99,9 +99,9 @@ export function PricingSection() {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 w-full max-w-4xl mx-auto items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-12 w-full max-w-4xl mx-auto items-center">
           {/* Starter Tier */}
-          <div className="pricing-card bg-surface border border-primary/5 rounded-4xl p-8 md:p-12 shadow-[0_12px_40px_rgba(26,46,39,0.03)] flex flex-col h-[calc(100%-2rem)]">
+          <div className="pricing-card bg-surface border border-primary/5 rounded-4xl p-6 md:p-12 shadow-[0_12px_40px_rgba(26,46,39,0.03)] flex flex-col h-full lg:h-[calc(100%-2rem)]">
             <div className="mb-8">
               <span className="inline-block px-4 py-1.5 rounded-full bg-primary/5 text-primary text-sm font-bold mb-6">
                 الأساسية
@@ -139,15 +139,15 @@ export function PricingSection() {
               ))}
             </ul>
 
-            <button className="w-full bg-primary/5 text-primary py-4 rounded-xl font-bold text-lg hover:bg-primary/10 transition-colors duration-300">
+            <button className="w-full bg-surface border border-primary/15 text-primary py-3.5 md:py-4 rounded-xl font-bold text-lg hover:bg-primary/5 hover:border-primary/20 hover:-translate-y-0.5 shadow-sm hover:shadow-md transition-all duration-300">
               ابدأ التجربة
             </button>
           </div>
 
           {/* Professional Tier (Recommended) */}
-          <div className="pricing-card relative bg-[#11231a] rounded-4xl p-8 md:p-12 shadow-[0_24px_60px_rgba(26,46,39,0.2)] flex flex-col border border-white/5 h-full overflow-hidden z-10">
+          <div className="pricing-card relative bg-[#11231a] rounded-4xl p-6 md:p-12 shadow-[0_24px_60px_rgba(26,46,39,0.2)] flex flex-col border border-white/5 h-full overflow-hidden z-10">
             {/* Subtle glow effect instead of busy gradients */}
-            <div className="absolute top-0 right-0 w-100 h-100 bg-secondary/5 rounded-full opacity-50 blur-[80px] pointer-events-none" />
+            <div className="absolute top-0 right-0 w-100 h-100 bg-secondary/10 rounded-full opacity-30 blur-[100px] pointer-events-none" />
 
             <div className="absolute top-6 left-6">
               <span className="inline-block px-4 py-1.5 rounded-full bg-secondary/10 border border-secondary/20 text-secondary text-xs font-bold uppercase tracking-wider">
@@ -194,7 +194,7 @@ export function PricingSection() {
               ))}
             </ul>
 
-            <button className="relative z-10 w-full bg-secondary text-[#11231a] py-4 rounded-xl font-bold text-lg hover:bg-white transition-all duration-300 shadow-[0_4px_14px_rgba(227,178,60,0.15)] hover:shadow-[0_6px_20px_rgba(227,178,60,0.25)] flex items-center justify-center gap-2 group translate-y-0 hover:-translate-y-0.5">
+            <button className="relative z-10 w-full bg-secondary text-[#11231a] py-3.5 md:py-4 rounded-xl font-bold text-lg hover:bg-white transition-all duration-300 shadow-[0_4px_14px_rgba(227,178,60,0.15)] hover:shadow-[0_6px_20px_rgba(227,178,60,0.25)] flex items-center justify-center gap-2 group translate-y-0 hover:-translate-y-0.5">
               اطلب نسختك الآن
               <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1.5 transition-transform duration-300" />
             </button>

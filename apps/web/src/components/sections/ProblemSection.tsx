@@ -90,7 +90,7 @@ export function ProblemSection() {
   return (
     <section
       ref={container}
-      className="py-24 md:py-32 relative"
+      className="scroll-mt-header-offset py-24 md:py-32 relative"
       id="problem"
     >
       <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
@@ -106,7 +106,7 @@ export function ProblemSection() {
             الأمر.
           </p>
 
-          <div className="pain-cards-container grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="pain-cards-container hidden sm:grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="pain-card bg-white p-6 rounded-2xl border border-primary/5 shadow-sm">
               <Clock className="w-8 h-8 text-red-500 mb-4" />
               <h3 className="text-lg font-bold text-primary mb-2">
@@ -129,7 +129,7 @@ export function ProblemSection() {
         </div>
 
         {/* Left Content - Abstract visual of message chaos */}
-        <div className="chaos-container relative h-112.5 bg-white rounded-[40px] border border-primary/5 overflow-hidden flex items-center justify-center shadow-lg">
+        <div className="chaos-container relative h-80 sm:h-[28.125rem] bg-white rounded-[40px] border border-primary/5 overflow-hidden flex items-center justify-center shadow-lg">
           {/* subtle background pattern */}
           <div
             className="absolute inset-0 opacity-10"
@@ -140,21 +140,21 @@ export function ProblemSection() {
             }}
           />
 
-          <div className="relative w-full h-full flex items-center justify-center p-8">
+          <div className="relative w-full h-full flex items-center justify-center p-4 sm:p-8">
             {/* Center anchor icon representing the overwhelmed owner */}
-            <div className="absolute z-10 w-20 h-20 bg-white rounded-full shadow-lg border border-red-100 flex items-center justify-center">
-              <Frown className="w-10 h-10 text-red-400" />
+            <div className="absolute z-10 w-14 h-14 sm:w-20 sm:h-20 bg-white rounded-full shadow-lg border border-red-100 flex items-center justify-center">
+              <Frown className="w-7 h-7 sm:w-10 sm:h-10 text-red-400" />
             </div>
 
             {/* Floating random bubbles */}
             {CHAOS_MESSAGES.map((message, idx) => (
               <div
                 key={idx}
-                className="chaos-bubble absolute bg-white px-4 py-3 rounded-2xl shadow-md text-[15px] font-bold text-primary whitespace-nowrap border border-black/5 z-20"
+                className="chaos-bubble absolute bg-white px-2.5 py-1.5 sm:px-4 sm:py-3 rounded-xl sm:rounded-2xl shadow-md text-[11px] sm:text-[15px] font-bold text-primary whitespace-nowrap border border-black/5 z-20"
                 style={message.style}
               >
                 {message.text}
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-[10px] text-white font-bold border-2 border-white shadow-sm">
+                <div className="absolute -bottom-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-red-500 flex items-center justify-center text-[8px] sm:text-[10px] text-white font-bold border-2 border-white shadow-sm">
                   1
                 </div>
               </div>

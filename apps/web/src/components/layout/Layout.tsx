@@ -40,7 +40,7 @@ export function Layout({ children }: LayoutProps) {
       <footer className="relative bg-primary overflow-hidden border-t border-white/5 py-12 md:py-16">
         {/* Giant Watermark Background */}
         <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-[20%] pointer-events-none opacity-[0.08] select-none z-0">
-          <img src={logoUrl} alt="" className="h-[600px] md:h-[900px] w-auto brightness-0 invert drop-shadow-2xl" />
+          <img src={logoUrl} alt="" className="h-150 md:h-225 w-auto brightness-0 invert drop-shadow-2xl" />
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-10 items-center">
@@ -59,7 +59,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
           
           {/* Return to Top Arrow (Center) */}
-          <div className="flex justify-center order-last md:order-none mt-8 md:mt-0">
+          <div className="flex justify-center order-last md:order-0 mt-8 md:mt-0">
             <button 
               type="button"
               onClick={scrollToTop}
