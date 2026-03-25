@@ -7,6 +7,47 @@ type StubConvexAdminClient = {
   action: (reference: unknown, args: unknown) => Promise<unknown>;
 };
 
+type StubArgs = Record<string, unknown>;
+
+const asStubArgs = (value: unknown): StubArgs | null =>
+  typeof value === "object" && value !== null ? value as StubArgs : null;
+
+const isAnalyticsMutation = (args: StubArgs): boolean => "eventType" in args;
+
+const isConversationMutation = (args: StubArgs): boolean =>
+  "source" in args
+  || ("content" in args && "timestamp" in args && !("role" in args));
+
+const isListQuery = (args: StubArgs): boolean => "conversationId" in args && "limit" in args;
+
+const isConversationQuery = (args: StubArgs): boolean => "conversationId" in args;
+
+const isInboundAppendAction = (args: StubArgs): boolean =>
+  "phoneNumber" in args && "content" in args && "timestamp" in args;
+
+const createConversationStub = (args: StubArgs) => ({
+  id: "conversation-1",
+  companyId: "company-1",
+  phoneNumber: "967700000001",
+  muted: args.source !== "worker_auto",
+  ...(typeof args.resumedAt === "number" ? {} : { mutedAt: 1_000 }),
+});
+
+const createMessageStub = () => ({
+  id: "message-1",
+  conversationId: "conversation-1",
+  role: "user" as const,
+  content: "hello",
+  timestamp: 1_000,
+});
+
+const createActionConversationStub = () => ({
+  id: "conversation-1",
+  companyId: "company-1",
+  phoneNumber: "967700000001",
+  muted: false,
+});
+
 const createClientStub = () => {
   const queryCalls: unknown[] = [];
   const mutationCalls: unknown[] = [];
@@ -15,57 +56,50 @@ const createClientStub = () => {
   const client: StubConvexAdminClient = {
     action: async (_reference, args) => {
       actionCalls.push(args);
-      return {
-        id: "conversation-1",
-        companyId: "company-1",
-        phoneNumber: "967700000001",
-        muted: false,
-      };
+      const stubArgs = asStubArgs(args);
+      if (!stubArgs) {
+        return createActionConversationStub();
+      }
+
+      if (isInboundAppendAction(stubArgs)) {
+        return {
+          conversation: createActionConversationStub(),
+          wasMuted: false,
+        };
+      }
+
+      return createActionConversationStub();
     },
     mutation: async (_reference, args) => {
       mutationCalls.push(args);
-      if (typeof args === "object" && args !== null && "eventType" in (args as Record<string, unknown>)) {
+      const stubArgs = asStubArgs(args);
+      if (!stubArgs) {
+        return createMessageStub();
+      }
+
+      if (isAnalyticsMutation(stubArgs)) {
         return undefined;
       }
 
-      if (
-        typeof args === "object"
-        && args !== null
-        && (
-          "source" in (args as Record<string, unknown>)
-          || ("content" in (args as Record<string, unknown>) && "timestamp" in (args as Record<string, unknown>) && !("role" in (args as Record<string, unknown>)))
-        )
-      ) {
-        return {
-          id: "conversation-1",
-          companyId: "company-1",
-          phoneNumber: "967700000001",
-          muted: (args as { source?: string }).source !== "worker_auto",
-          ...(typeof (args as { resumedAt?: number }).resumedAt === "number" ? {} : { mutedAt: 1_000 }),
-        };
+      if (isConversationMutation(stubArgs)) {
+        return createConversationStub(stubArgs);
       }
 
-      return {
-        id: "message-1",
-        conversationId: "conversation-1",
-        role: "user",
-        content: "hello",
-        timestamp: 1_000,
-      };
+      return createMessageStub();
     },
     query: async (_reference, args) => {
       queryCalls.push(args);
-      if (typeof args === "object" && args !== null && "conversationId" in (args as Record<string, unknown>) && "limit" in (args as Record<string, unknown>)) {
+      const stubArgs = asStubArgs(args);
+      if (!stubArgs) {
         return [];
       }
 
-      if (typeof args === "object" && args !== null && "conversationId" in (args as Record<string, unknown>)) {
-        return {
-          id: "conversation-1",
-          companyId: "company-1",
-          phoneNumber: "967700000001",
-          muted: false,
-        };
+      if (isListQuery(stubArgs)) {
+        return [];
+      }
+
+      if (isConversationQuery(stubArgs)) {
+        return createActionConversationStub();
       }
 
       return [];
