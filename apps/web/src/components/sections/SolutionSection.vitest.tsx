@@ -150,7 +150,7 @@ describe('SolutionSection', () => {
       value: 640,
     });
 
-    const { gsapFromTo, gsapTweenInstance } = setupGsapMocks();
+    const { createdTweens, gsapFromTo } = setupGsapMocks();
     const { SolutionSection } = await import('./SolutionSection');
     const { unmount } = render(<SolutionSection />);
 
@@ -174,7 +174,9 @@ describe('SolutionSection', () => {
       vi.advanceTimersByTime(160);
     });
 
-    expect(gsapTweenInstance.kill).toHaveBeenCalledTimes(1);
+    expect(createdTweens).toHaveLength(2);
+    expect(createdTweens[0]?.kill).toHaveBeenCalledTimes(1);
+    expect(createdTweens[1]?.kill).not.toHaveBeenCalled();
     expect(gsapFromTo).toHaveBeenNthCalledWith(
       2,
       '.floating-core',
@@ -186,6 +188,6 @@ describe('SolutionSection', () => {
 
     unmount();
 
-    expect(gsapTweenInstance.kill).toHaveBeenCalledTimes(2);
+    expect(createdTweens[1]?.kill).toHaveBeenCalledTimes(1);
   });
 });

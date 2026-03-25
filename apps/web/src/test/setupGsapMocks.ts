@@ -15,6 +15,7 @@ type GsapTarget =
 type TimelineInstance = {
   from: ReturnType<typeof vi.fn<(target: GsapTarget, vars?: object) => TimelineInstance>>;
   to: ReturnType<typeof vi.fn<(target: GsapTarget, vars?: object, position?: number | string) => TimelineInstance>>;
+  progress: ReturnType<typeof vi.fn<(value?: number) => TimelineInstance>>;
   kill: ReturnType<typeof vi.fn<() => void>>;
 };
 
@@ -26,17 +27,6 @@ type ScrollTriggerInstance = {
   kill: ReturnType<typeof vi.fn<() => void>>;
 };
 
-const timelineInstance = {} as TimelineInstance;
-timelineInstance.from = vi.fn<(target: GsapTarget, vars?: object) => TimelineInstance>();
-timelineInstance.to = vi.fn<(target: GsapTarget, vars?: object, position?: number | string) => TimelineInstance>();
-timelineInstance.kill = vi.fn<() => void>();
-
-const tweenInstance = {} as TweenInstance;
-tweenInstance.kill = vi.fn<() => void>();
-
-const scrollTriggerInstance = {} as ScrollTriggerInstance;
-scrollTriggerInstance.kill = vi.fn<() => void>();
-
 const gsapResolvedTo = vi.fn<(targets: Element[], vars?: object) => void>();
 const gsapResolvedFrom = vi.fn<(targets: Element[], vars?: object) => void>();
 const gsapResolvedFromTo = vi.fn<(targets: Element[], fromVars?: object, toVars?: object) => void>();
@@ -44,12 +34,41 @@ const gsapTo = vi.fn<(target: GsapTarget, vars?: object) => TweenInstance>();
 const gsapFrom = vi.fn<(target: GsapTarget, vars?: object) => void>();
 const gsapFromTo = vi.fn<(target: GsapTarget, fromVars?: object, toVars?: object) => TweenInstance>();
 const gsapSet = vi.fn<(target: GsapTarget, vars?: object) => void>();
-const gsapTimeline = vi.fn<(vars?: object) => typeof timelineInstance>();
+const gsapTimeline = vi.fn<(vars?: object) => TimelineInstance>();
 const gsapToArray = vi.fn<(target: GsapTarget) => Element[]>();
 const scrollTriggerCreate = vi.fn<(vars?: object) => ScrollTriggerInstance>();
 const scrollTriggerRefresh = vi.fn<() => void>();
+const createdTimelines: TimelineInstance[] = [];
+const createdTweens: TweenInstance[] = [];
+const createdScrollTriggers: ScrollTriggerInstance[] = [];
 
 let currentScope: ParentNode = document;
+
+function createTimelineInstance(): TimelineInstance {
+  const timelineInstance = {} as TimelineInstance;
+  timelineInstance.from = vi.fn<(target: GsapTarget, vars?: object) => TimelineInstance>();
+  timelineInstance.to = vi.fn<(target: GsapTarget, vars?: object, position?: number | string) => TimelineInstance>();
+  timelineInstance.progress = vi.fn<(value?: number) => TimelineInstance>();
+  timelineInstance.kill = vi.fn<() => void>();
+
+  timelineInstance.from.mockImplementation(() => timelineInstance);
+  timelineInstance.to.mockImplementation(() => timelineInstance);
+  timelineInstance.progress.mockImplementation(() => timelineInstance);
+
+  return timelineInstance;
+}
+
+function createTweenInstance(): TweenInstance {
+  return {
+    kill: vi.fn<() => void>(),
+  };
+}
+
+function createScrollTriggerInstance(): ScrollTriggerInstance {
+  return {
+    kill: vi.fn<() => void>(),
+  };
+}
 
 function canQuery(value: ParentNode): value is ParentNode & {
   querySelectorAll(selectors: string): NodeListOf<Element>;
@@ -104,15 +123,9 @@ function resolveTargets(target: GsapTarget): Element[] {
 
 function resetGsapMocks() {
   currentScope = document;
-
-  timelineInstance.from.mockReset();
-  timelineInstance.from.mockImplementation(() => timelineInstance);
-  timelineInstance.to.mockReset();
-  timelineInstance.to.mockImplementation(() => timelineInstance);
-  timelineInstance.kill.mockReset();
-
-  tweenInstance.kill.mockReset();
-  scrollTriggerInstance.kill.mockReset();
+  createdTimelines.length = 0;
+  createdTweens.length = 0;
+  createdScrollTriggers.length = 0;
 
   gsapResolvedTo.mockReset();
   gsapResolvedFrom.mockReset();
@@ -121,6 +134,8 @@ function resetGsapMocks() {
   gsapTo.mockReset();
   gsapTo.mockImplementation((target, vars) => {
     gsapResolvedTo(resolveTargets(target), vars);
+    const tweenInstance = createTweenInstance();
+    createdTweens.push(tweenInstance);
     return tweenInstance;
   });
 
@@ -132,18 +147,28 @@ function resetGsapMocks() {
   gsapFromTo.mockReset();
   gsapFromTo.mockImplementation((target, fromVars, toVars) => {
     gsapResolvedFromTo(resolveTargets(target), fromVars, toVars);
+    const tweenInstance = createTweenInstance();
+    createdTweens.push(tweenInstance);
     return tweenInstance;
   });
 
   gsapSet.mockReset();
   gsapTimeline.mockReset();
-  gsapTimeline.mockImplementation(() => timelineInstance);
+  gsapTimeline.mockImplementation(() => {
+    const timelineInstance = createTimelineInstance();
+    createdTimelines.push(timelineInstance);
+    return timelineInstance;
+  });
 
   gsapToArray.mockReset();
   gsapToArray.mockImplementation((target) => resolveTargets(target));
 
   scrollTriggerCreate.mockReset();
-  scrollTriggerCreate.mockImplementation(() => scrollTriggerInstance);
+  scrollTriggerCreate.mockImplementation(() => {
+    const scrollTriggerInstance = createScrollTriggerInstance();
+    createdScrollTriggers.push(scrollTriggerInstance);
+    return scrollTriggerInstance;
+  });
   scrollTriggerRefresh.mockReset();
 }
 
@@ -204,10 +229,10 @@ export function setupGsapMocks() {
     gsapResolvedTo,
     gsapResolvedFrom,
     gsapResolvedFromTo,
-    gsapTimelineInstance: timelineInstance,
-    gsapTweenInstance: tweenInstance,
     scrollTriggerCreate,
-    scrollTriggerInstance,
     scrollTriggerRefresh,
+    createdTimelines,
+    createdTweens,
+    createdScrollTriggers,
   };
 }
