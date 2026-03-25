@@ -7,6 +7,7 @@ import { createApiKeyAuthMiddleware } from './auth';
 import { createRateLimitMiddleware } from './rateLimit';
 import { createCustomErrorResponse, createErrorResponse } from './responses';
 import { createCategoriesRoutes } from './routes/categories';
+import { createConversationsRoutes } from './routes/conversations';
 import { createAnalyticsRoutes } from './routes/analytics';
 import { createCompaniesRoutes } from './routes/companies';
 import { createBotRuntimeRoutes, renderBotRuntimeShell } from './routes/botRuntime';
@@ -18,10 +19,12 @@ import type { AnalyticsService } from './services/analytics';
 import { createConvexAnalyticsService } from './services/convexAnalyticsService';
 import type { CategoriesService } from './services/categories';
 import { createConvexCategoriesService } from './services/convexCategoriesService';
+import type { ConversationsService } from './services/conversations';
 import type { CompaniesService } from './services/companies';
 import type { BotRuntimeService } from './services/botRuntime';
 import { createConvexCompaniesService } from './services/convexCompaniesService';
 import { createConvexBotRuntimeService } from './services/convexBotRuntimeService';
+import { createConvexConversationsService } from './services/convexConversationsService';
 import type { CurrencyRatesService } from './services/currencyRates';
 import { createConvexCurrencyRatesService } from './services/convexCurrencyRatesService';
 import type { OffersService } from './services/offers';
@@ -38,6 +41,7 @@ export interface ApiAppOptions {
   companiesService?: CompaniesService;
   botRuntimeService?: BotRuntimeService;
   categoriesService?: CategoriesService;
+  conversationsService?: ConversationsService;
   productsService?: ProductsService;
   productMediaService?: ProductMediaService;
   offersService?: OffersService;
@@ -141,6 +145,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const companiesService = options.companiesService ?? createConvexCompaniesService();
   const botRuntimeService = options.botRuntimeService ?? createConvexBotRuntimeService();
   const categoriesService = options.categoriesService ?? createConvexCategoriesService();
+  const conversationsService = options.conversationsService ?? createConvexConversationsService();
   const productsService = options.productsService ?? createConvexProductsService();
   const productMediaService = options.productMediaService ?? createConvexProductMediaService({
     logger: appLogger,
@@ -249,6 +254,13 @@ export const createApp = (options: ApiAppOptions = {}) => {
     "/api/companies/:companyId/analytics",
     createAnalyticsRoutes({
       analyticsService
+    })
+  );
+
+  app.route(
+    "/api/companies/:companyId/conversations",
+    createConversationsRoutes({
+      conversationsService
     })
   );
 

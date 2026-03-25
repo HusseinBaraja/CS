@@ -7,6 +7,47 @@ type StubConvexAdminClient = {
   action: (reference: unknown, args: unknown) => Promise<unknown>;
 };
 
+type StubArgs = Record<string, unknown>;
+
+const asStubArgs = (value: unknown): StubArgs | null =>
+  typeof value === "object" && value !== null ? value as StubArgs : null;
+
+const isAnalyticsMutation = (args: StubArgs): boolean => "eventType" in args;
+
+const isConversationMutation = (args: StubArgs): boolean =>
+  "source" in args
+  || ("content" in args && "timestamp" in args && !("role" in args));
+
+const isListQuery = (args: StubArgs): boolean => "conversationId" in args && "limit" in args;
+
+const isConversationQuery = (args: StubArgs): boolean => "conversationId" in args;
+
+const isInboundAppendAction = (args: StubArgs): boolean =>
+  "phoneNumber" in args && "content" in args && "timestamp" in args;
+
+const createConversationStub = (args: StubArgs) => ({
+  id: "conversation-1",
+  companyId: "company-1",
+  phoneNumber: "967700000001",
+  muted: args.source !== "worker_auto",
+  ...(typeof args.resumedAt === "number" ? {} : { mutedAt: 1_000 }),
+});
+
+const createMessageStub = () => ({
+  id: "message-1",
+  conversationId: "conversation-1",
+  role: "user" as const,
+  content: "hello",
+  timestamp: 1_000,
+});
+
+const createActionConversationStub = () => ({
+  id: "conversation-1",
+  companyId: "company-1",
+  phoneNumber: "967700000001",
+  muted: false,
+});
+
 const createClientStub = () => {
   const queryCalls: unknown[] = [];
   const mutationCalls: unknown[] = [];
@@ -15,25 +56,52 @@ const createClientStub = () => {
   const client: StubConvexAdminClient = {
     action: async (_reference, args) => {
       actionCalls.push(args);
-      return {
-        id: "conversation-1",
-        companyId: "company-1",
-        phoneNumber: "967700000001",
-        muted: false,
-      };
+      const stubArgs = asStubArgs(args);
+      if (!stubArgs) {
+        return createActionConversationStub();
+      }
+
+      if (isInboundAppendAction(stubArgs)) {
+        return {
+          conversation: createActionConversationStub(),
+          wasMuted: false,
+        };
+      }
+
+      return createActionConversationStub();
     },
     mutation: async (_reference, args) => {
       mutationCalls.push(args);
-      return {
-        id: "message-1",
-        conversationId: "conversation-1",
-        role: "user",
-        content: "hello",
-        timestamp: 1_000,
-      };
+      const stubArgs = asStubArgs(args);
+      if (!stubArgs) {
+        return createMessageStub();
+      }
+
+      if (isAnalyticsMutation(stubArgs)) {
+        return undefined;
+      }
+
+      if (isConversationMutation(stubArgs)) {
+        return createConversationStub(stubArgs);
+      }
+
+      return createMessageStub();
     },
     query: async (_reference, args) => {
       queryCalls.push(args);
+      const stubArgs = asStubArgs(args);
+      if (!stubArgs) {
+        return [];
+      }
+
+      if (isListQuery(stubArgs)) {
+        return [];
+      }
+
+      if (isConversationQuery(stubArgs)) {
+        return createActionConversationStub();
+      }
+
       return [];
     },
   };
@@ -110,21 +178,69 @@ describe("createConvexConversationStore", () => {
     });
 
     await store.getOrCreateActiveConversation("company-1", "967700000001");
+    await store.appendInboundCustomerMessage({
+      companyId: "company-1",
+      phoneNumber: "967700000001",
+      content: "hello from inbound",
+      timestamp: 900,
+    });
     await store.appendUserMessage({
       companyId: "company-1",
       conversationId: "conversation-1",
       content: "hello",
       timestamp: 1_000,
     });
+    await store.appendMutedCustomerMessage({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      content: "hello again",
+      timestamp: 1_500,
+    });
+    await store.appendAssistantMessageAndStartHandoff({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      content: "Connecting you with the team.",
+      timestamp: 1_750,
+      source: "assistant_action",
+    });
     await store.getPromptHistory({
       companyId: "company-1",
       conversationId: "conversation-1",
       limit: 20,
     });
+    await store.getOrCreateConversationForInbound("company-1", "967700000001");
+    await store.startHandoff({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      triggerTimestamp: 2_000,
+      source: "assistant_action",
+    });
+    await store.recordMutedCustomerActivity({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      timestamp: 3_000,
+    });
+    await store.getConversation({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+    });
+    await store.listRecentMessages({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      limit: 6,
+    });
+    await store.recordAnalyticsEvent({
+      companyId: "company-1",
+      eventType: "handoff_started",
+      timestamp: 4_000,
+      payload: {
+        source: "assistant_action",
+      },
+    });
 
-    expect(actionCalls).toHaveLength(1);
-    expect(mutationCalls).toHaveLength(1);
-    expect(queryCalls).toHaveLength(1);
+    expect(actionCalls).toHaveLength(3);
+    expect(mutationCalls).toHaveLength(6);
+    expect(queryCalls).toHaveLength(3);
   });
 
   test("creates the client once and reuses it across store operations", async () => {

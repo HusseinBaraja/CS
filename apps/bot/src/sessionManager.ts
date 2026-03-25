@@ -1,6 +1,9 @@
 import { env } from '@cs/config';
 import { logger as defaultLogger } from '@cs/core';
 import {
+  evaluateInboundAccess,
+  resolveAccessControlPolicy,
+  type AccessControlMode,
   type IgnoredInboundEvent,
   type IgnoredInboundEventReason,
   getBotRuntimeReconnectDelayMs,
@@ -112,6 +115,28 @@ const malformedIgnoredReasons = new Set<IgnoredInboundEventReason>([
   "unsupported_message_type",
   "empty_payload",
 ]);
+
+const createAccessControlBlockedEvent = (
+  profile: CompanyRuntimeProfile,
+  message: NormalizedInboundMessage,
+  accessMode: AccessControlMode,
+  accessReason?: string,
+): IgnoredInboundEvent => {
+  return {
+    transport: "whatsapp",
+    companyId: profile.companyId,
+    sessionKey: profile.sessionKey,
+    reason: "access_control_blocked",
+    source: {
+      upsertType: message.source.upsertType,
+      rawMessageId: message.messageId,
+      remoteJid: message.sender.transportId,
+      fromMe: false,
+      accessMode,
+      ...(accessReason !== undefined ? { accessReason } : {}),
+    },
+  };
+};
 
 const cloneStatus = (status: BotSessionStatus): BotSessionStatus => ({
   sessionKey: status.sessionKey,
@@ -255,9 +280,23 @@ export const startTenantSessionManager = async (
       reason: event.reason,
       sessionKey: profile.sessionKey,
       ...(event.source.rawMessageId !== undefined ? { messageId: event.source.rawMessageId } : {}),
+      ...(event.source.accessMode !== undefined ? { accessMode: event.source.accessMode } : {}),
+      ...(event.source.accessReason !== undefined ? { accessReason: event.source.accessReason } : {}),
     };
 
     if (malformedIgnoredReasons.has(event.reason)) {
+      const warn = botLogger.warn?.bind(botLogger) ?? botLogger.info.bind(botLogger);
+      warn(payload, "tenant inbound event ignored");
+      return;
+    }
+
+    if (
+      event.reason === "access_control_blocked" &&
+      event.source.accessReason !== undefined &&
+      event.source.accessReason !== "access_mode_owner_only" &&
+      event.source.accessReason !== "access_mode_single_number_no_match" &&
+      event.source.accessReason !== "access_mode_list_no_match"
+    ) {
       const warn = botLogger.warn?.bind(botLogger) ?? botLogger.info.bind(botLogger);
       warn(payload, "tenant inbound event ignored");
       return;
@@ -307,10 +346,25 @@ export const startTenantSessionManager = async (
     event: Parameters<typeof normalizeInboundMessages>[1],
   ): Promise<void> => {
     const dispatches = normalizeInboundMessages(profile, event);
+    const accessControlPolicy = resolveAccessControlPolicy(profile.config, profile.ownerPhone);
 
     for (const dispatch of dispatches) {
       if (dispatch.kind === "ignored") {
         await routeInboundEvent(profile, dispatch.event);
+        continue;
+      }
+
+      const evaluation = evaluateInboundAccess(accessControlPolicy, dispatch.message.sender.phoneNumber);
+      if (!evaluation.allowed) {
+        await routeInboundEvent(
+          profile,
+          createAccessControlBlockedEvent(
+            profile,
+            dispatch.message,
+            accessControlPolicy.effectiveMode,
+            accessControlPolicy.reason ?? evaluation.reason,
+          ),
+        );
         continue;
       }
 

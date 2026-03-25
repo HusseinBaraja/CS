@@ -1,4 +1,5 @@
 import { logger } from '@cs/core';
+import { createConversationAutoResumeProcessor } from './conversationAutoResume';
 import { createMediaCleanupProcessor } from './mediaCleanup';
 
 interface WorkerLogger {
@@ -7,6 +8,7 @@ interface WorkerLogger {
 }
 
 type MediaCleanupProcessor = ReturnType<typeof createMediaCleanupProcessor>;
+type ConversationAutoResumeProcessor = ReturnType<typeof createConversationAutoResumeProcessor>;
 
 interface WorkerProcess {
   exitCode?: number;
@@ -17,6 +19,7 @@ interface WorkerProcess {
 }
 
 export interface StartWorkerOptions {
+  createConversationAutoResumeProcessor?: () => ConversationAutoResumeProcessor;
   logger?: WorkerLogger;
   createMediaCleanupProcessor?: () => MediaCleanupProcessor;
   workerProcess?: WorkerProcess;
@@ -25,11 +28,14 @@ export interface StartWorkerOptions {
 export const startWorker = async (options: StartWorkerOptions = {}): Promise<void> => {
   const workerLogger = options.logger ?? logger;
   const workerProcess = options.workerProcess ?? process;
+  const conversationAutoResume = (options.createConversationAutoResumeProcessor ?? createConversationAutoResumeProcessor)();
   const mediaCleanup = (options.createMediaCleanupProcessor ?? createMediaCleanupProcessor)();
 
   workerLogger.info({ db: { provider: "convex" } }, "worker initialized");
+  await conversationAutoResume.runTick();
   await mediaCleanup.runTick();
 
+  const stopConversationAutoResume = conversationAutoResume.start();
   const stopMediaCleanup = mediaCleanup.start();
   let shuttingDown = false;
 
@@ -40,10 +46,26 @@ export const startWorker = async (options: StartWorkerOptions = {}): Promise<voi
 
     shuttingDown = true;
 
-    try {
-      await Promise.resolve(stopMediaCleanup());
-    } catch (error) {
-      workerLogger.error({ error, signal }, "worker shutdown failed");
+    const results = await Promise.allSettled([
+      Promise.resolve(stopConversationAutoResume()),
+      Promise.resolve(stopMediaCleanup()),
+    ]);
+
+    let failed = false;
+    for (const [index, result] of results.entries()) {
+      if (result.status === "fulfilled") {
+        continue;
+      }
+
+      failed = true;
+      workerLogger.error({
+        error: result.reason,
+        signal,
+        stopTarget: index === 0 ? "conversationAutoResume" : "mediaCleanup",
+      }, "worker shutdown failed");
+    }
+
+    if (failed) {
       workerProcess.exitCode = 1;
     }
   };

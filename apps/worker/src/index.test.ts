@@ -46,9 +46,26 @@ describe("startWorker", () => {
     await startWorker({
       logger,
       workerProcess: process,
+      createConversationAutoResumeProcessor: () => ({
+        runTick: async () => {
+          events.push("runTick:autoResume");
+          return {
+            resumedCount: 0,
+            skippedCount: 0,
+            failedCount: 0,
+          };
+        },
+        start: () => {
+          events.push("start:autoResume");
+          return () => {
+            stopCallCount += 1;
+            events.push("stop:autoResume");
+          };
+        },
+      }),
       createMediaCleanupProcessor: () => ({
         runTick: async () => {
-          events.push("runTick");
+          events.push("runTick:mediaCleanup");
           return {
             expiredUploadCount: 0,
             completedJobs: 0,
@@ -58,10 +75,10 @@ describe("startWorker", () => {
           };
         },
         start: () => {
-          events.push("start");
+          events.push("start:mediaCleanup");
           return () => {
             stopCallCount += 1;
-            events.push("stop");
+            events.push("stop:mediaCleanup");
           };
         },
       }),
@@ -74,12 +91,24 @@ describe("startWorker", () => {
       },
     ]);
     expect(errorCalls).toEqual([]);
-    expect(events).toEqual(["runTick", "start"]);
+    expect(events).toEqual([
+      "runTick:autoResume",
+      "runTick:mediaCleanup",
+      "start:autoResume",
+      "start:mediaCleanup",
+    ]);
     expect(Array.from(handlers.keys()).sort()).toEqual(["SIGINT", "SIGTERM", "beforeExit"]);
 
     await handlers.get("SIGINT")?.();
-    expect(stopCallCount).toBe(1);
-    expect(events).toEqual(["runTick", "start", "stop"]);
+    expect(stopCallCount).toBe(2);
+    expect(events).toEqual([
+      "runTick:autoResume",
+      "runTick:mediaCleanup",
+      "start:autoResume",
+      "start:mediaCleanup",
+      "stop:autoResume",
+      "stop:mediaCleanup",
+    ]);
   });
 
   test("calls the stop function only once across multiple shutdown signals", async () => {
@@ -90,6 +119,16 @@ describe("startWorker", () => {
     await startWorker({
       logger,
       workerProcess: process,
+      createConversationAutoResumeProcessor: () => ({
+        runTick: async () => ({
+          resumedCount: 0,
+          skippedCount: 0,
+          failedCount: 0,
+        }),
+        start: () => async () => {
+          stopCallCount += 1;
+        },
+      }),
       createMediaCleanupProcessor: () => ({
         runTick: async () => ({
           expiredUploadCount: 0,
@@ -108,16 +147,26 @@ describe("startWorker", () => {
     await handlers.get("SIGTERM")?.();
     await handlers.get("beforeExit")?.();
 
-    expect(stopCallCount).toBe(1);
+    expect(stopCallCount).toBe(2);
   });
 
-  test("logs shutdown errors and marks the process exit code", async () => {
+  test("logs each shutdown error and marks the process exit code", async () => {
     const { logger, errorCalls } = createLoggerStub();
     const { process, handlers } = createProcessStub();
 
     await startWorker({
       logger,
       workerProcess: process,
+      createConversationAutoResumeProcessor: () => ({
+        runTick: async () => ({
+          resumedCount: 0,
+          skippedCount: 0,
+          failedCount: 0,
+        }),
+        start: () => async () => {
+          throw new Error("stop failed");
+        },
+      }),
       createMediaCleanupProcessor: () => ({
         runTick: async () => ({
           expiredUploadCount: 0,
@@ -140,6 +189,15 @@ describe("startWorker", () => {
         payload: {
           error: expect.any(Error),
           signal: "SIGTERM",
+          stopTarget: "conversationAutoResume",
+        },
+        message: "worker shutdown failed",
+      },
+      {
+        payload: {
+          error: expect.any(Error),
+          signal: "SIGTERM",
+          stopTarget: "mediaCleanup",
         },
         message: "worker shutdown failed",
       },
@@ -153,9 +211,15 @@ describe("startWorker", () => {
     await expect(startWorker({
       logger,
       workerProcess: process,
-      createMediaCleanupProcessor: () => ({
+      createConversationAutoResumeProcessor: () => ({
         runTick: async () => {
           throw new Error("tick failed");
+        },
+        start: () => () => undefined,
+      }),
+      createMediaCleanupProcessor: () => ({
+        runTick: async () => {
+          throw new Error("should not be called");
         },
         start: () => () => undefined,
       }),

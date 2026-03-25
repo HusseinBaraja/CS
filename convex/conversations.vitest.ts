@@ -1,3 +1,4 @@
+import type { Id } from '@cs/db';
 import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 import { internal } from './_generated/api';
@@ -584,6 +585,405 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
         .collect()
     );
     expect(stored).toHaveLength(2);
+  });
+
+  it("reuses muted conversations for inbound routing instead of creating a new one", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const existingConversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+        nextAutoResumeAt: 2_000,
+      })
+    );
+
+    const conversation = await t.action(internal.conversations.getOrCreateConversationForInbound, {
+      companyId,
+      phoneNumber: "967700000001",
+      now: 2_000,
+    });
+
+    expect(conversation.id).toBe(existingConversationId);
+    const stored = await t.run(async (ctx) => ctx.db.query("conversations").collect());
+    expect(stored).toHaveLength(1);
+  });
+
+  it("starts handoff once and records an audit event", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    const first = await t.mutation(internal.conversations.startHandoff, {
+      companyId,
+      conversationId,
+      triggerTimestamp: 2_000,
+      source: "assistant_action",
+    });
+    const second = await t.mutation(internal.conversations.startHandoff, {
+      companyId,
+      conversationId,
+      triggerTimestamp: 3_000,
+      source: "assistant_action",
+    });
+
+    expect(first).toMatchObject({
+      id: conversationId,
+      muted: true,
+      mutedAt: 2_000,
+      nextAutoResumeAt: 2_000 + 12 * 60 * 60 * 1_000,
+    });
+    expect(first.lastCustomerMessageAt).toBeUndefined();
+    expect(second).toEqual(first);
+
+    const stateEvents = await t.run(async (ctx) =>
+      ctx.db.query("conversationStateEvents").collect()
+    );
+    expect(stateEvents).toHaveLength(1);
+    expect(stateEvents[0]?.eventType).toBe("handoff_started");
+    const storedConversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+    expect(storedConversation?.handoffSeedTimestamp).toBe(2_000);
+  });
+
+  it("atomically appends the assistant handoff reply while muting the conversation", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    const updated = await t.mutation(internal.conversations.appendAssistantMessageAndStartHandoff, {
+      companyId,
+      conversationId,
+      content: "Connecting you with the team.",
+      timestamp: 2_000,
+      source: "assistant_action",
+    });
+
+    expect(updated).toMatchObject({
+      id: conversationId,
+      muted: true,
+      mutedAt: 2_000,
+      nextAutoResumeAt: 2_000 + 12 * 60 * 60 * 1_000,
+    });
+    expect(updated.lastCustomerMessageAt).toBeUndefined();
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+    });
+    expect(messages).toEqual([{
+      id: expect.any(String),
+      conversationId,
+      role: "assistant",
+      content: "Connecting you with the team.",
+      timestamp: 2_000,
+    }]);
+
+    const stateEvents = await t.run(async (ctx) =>
+      ctx.db.query("conversationStateEvents").collect()
+    );
+    expect(stateEvents).toHaveLength(1);
+    expect(stateEvents[0]).toMatchObject({
+      conversationId,
+      eventType: "handoff_started",
+      timestamp: 2_000,
+      source: "assistant_action",
+    });
+    const storedConversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+    expect(storedConversation?.handoffSeedTimestamp).toBe(2_000);
+  });
+
+  it("resumes muted conversations and clears the live mute state", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+        nextAutoResumeAt: 2_000,
+      })
+    );
+
+    const resumed = await t.mutation(internal.conversations.resumeConversation, {
+      companyId,
+      conversationId,
+      resumedAt: 3_000,
+      source: "worker_auto",
+    });
+
+    expect(resumed).toMatchObject({
+      id: conversationId,
+      muted: false,
+      lastCustomerMessageAt: 1_000,
+    });
+    expect(resumed.nextAutoResumeAt).toBeUndefined();
+    expect(resumed.mutedAt).toBeUndefined();
+    const storedConversation = await t.run(async (ctx) => ctx.db.get(conversationId));
+    expect(storedConversation?.handoffSeedTimestamp).toBeUndefined();
+
+    const stateEvents = await t.run(async (ctx) =>
+      ctx.db.query("conversationStateEvents").collect()
+    );
+    expect(stateEvents).toHaveLength(1);
+    expect(stateEvents[0]?.eventType).toBe("handoff_resumed_auto");
+  });
+
+  it("extends the auto-resume deadline when muted customers send new messages", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+        nextAutoResumeAt: 2_000,
+      })
+    );
+
+    const updated = await t.mutation(internal.conversations.recordMutedCustomerActivity, {
+      companyId,
+      conversationId,
+      timestamp: 5_000,
+    });
+
+    expect(updated.lastCustomerMessageAt).toBe(5_000);
+    expect(updated.nextAutoResumeAt).toBe(5_000 + 12 * 60 * 60 * 1_000);
+    const dueConversations = await t.query(internal.conversations.listDueAutoResumeConversations, {
+      now: 4_000,
+      limit: 10,
+    });
+    expect(dueConversations).toEqual([]);
+  });
+
+  it("atomically appends muted customer messages while extending the auto-resume deadline", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+        nextAutoResumeAt: 2_000,
+      })
+    );
+
+    const updated = await t.mutation(internal.conversations.appendMutedCustomerMessage, {
+      companyId,
+      conversationId,
+      content: "hello again",
+      timestamp: 5_000,
+    });
+
+    expect(updated).toMatchObject({
+      id: conversationId,
+      muted: true,
+      lastCustomerMessageAt: 5_000,
+      nextAutoResumeAt: 5_000 + 12 * 60 * 60 * 1_000,
+    });
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+    });
+    expect(messages).toEqual([{
+      id: expect.any(String),
+      conversationId,
+      role: "user",
+      content: "hello again",
+      timestamp: 5_000,
+    }]);
+  });
+
+  it("atomically appends inbound customer messages for existing muted conversations", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+        nextAutoResumeAt: 2_000,
+      })
+    );
+
+    const result = await t.action(internal.conversations.appendInboundCustomerMessage, {
+      companyId,
+      phoneNumber: "967700000001",
+      content: "hello again",
+      timestamp: 5_000,
+    });
+
+    expect(result).toEqual({
+      conversation: {
+        id: conversationId,
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 5_000,
+        nextAutoResumeAt: 5_000 + 12 * 60 * 60 * 1_000,
+      },
+      wasMuted: true,
+    });
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+    });
+    expect(messages).toEqual([{
+      id: expect.any(String),
+      conversationId,
+      role: "user",
+      content: "hello again",
+      timestamp: 5_000,
+    }]);
+  });
+
+  it("atomically appends inbound customer messages while creating active conversations on demand", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+
+    const result = await t.action(internal.conversations.appendInboundCustomerMessage, {
+      companyId,
+      phoneNumber: "967700000001",
+      content: "hello",
+      timestamp: 2_000,
+    });
+
+    expect(result.wasMuted).toBe(false);
+    expect(result.conversation).toEqual({
+      id: expect.any(String),
+      companyId,
+      phoneNumber: "967700000001",
+      muted: false,
+    });
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId: result.conversation.id as Id<"conversations">,
+    });
+    expect(messages).toEqual([{
+      id: expect.any(String),
+      conversationId: result.conversation.id,
+      role: "user",
+      content: "hello",
+      timestamp: 2_000,
+    }]);
+  });
+
+  it("does not resume a stale due auto-resume candidate after muted activity extends the deadline", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+        nextAutoResumeAt: 2_000,
+      })
+    );
+
+    const dueConversations = await t.query(internal.conversations.listDueAutoResumeConversations, {
+      now: 2_000,
+      limit: 10,
+    });
+    expect(dueConversations).toHaveLength(1);
+
+    await t.mutation(internal.conversations.recordMutedCustomerActivity, {
+      companyId,
+      conversationId,
+      timestamp: 5_000,
+    });
+
+    const resumed = await t.mutation(internal.conversations.resumeConversation, {
+      companyId,
+      conversationId,
+      resumedAt: 2_000,
+      source: "worker_auto",
+    });
+
+    expect(resumed).toMatchObject({
+      id: conversationId,
+      muted: true,
+      mutedAt: 1_000,
+      lastCustomerMessageAt: 5_000,
+      nextAutoResumeAt: 5_000 + 12 * 60 * 60 * 1_000,
+    });
+
+    const stateEvents = await t.run(async (ctx) =>
+      ctx.db.query("conversationStateEvents").collect()
+    );
+    expect(stateEvents).toHaveLength(0);
   });
 
   it("times out when the conversation lock remains held", async () => {

@@ -1,3 +1,5 @@
+import type { AccessControlMode } from './accessControl';
+
 export const INBOUND_ROUTES = [
   "owner_command",
   "customer_conversation",
@@ -18,6 +20,7 @@ export const IGNORED_INBOUND_EVENT_REASONS = [
   "missing_timestamp",
   "unsupported_message_type",
   "empty_payload",
+  "access_control_blocked",
 ] as const;
 
 export type IgnoredInboundEventReason = (typeof IGNORED_INBOUND_EVENT_REASONS)[number];
@@ -66,6 +69,8 @@ export interface IgnoredInboundEvent {
     rawMessageId?: string;
     remoteJid?: string;
     fromMe?: boolean;
+    accessMode?: AccessControlMode;
+    accessReason?: string;
   };
 }
 
