@@ -260,4 +260,64 @@ describe("createConversationAutoResumeProcessor", () => {
       .map((args) => args.resumedAt);
     expect(resumedAts).toEqual([2_001, 2_002]);
   });
+
+  test("logs lock release failures without overriding a successful resume", async () => {
+    const { client } = createClientStub({
+      query: async (_reference, args) => {
+        const input = args as { limit?: number };
+        if (typeof input.limit === "number") {
+          return [{
+            id: "conversation-1",
+            companyId: "company-1",
+            phoneNumber: "967700000001",
+            muted: true,
+            nextAutoResumeAt: 1_000,
+          }];
+        }
+
+        return {
+          id: "conversation-1",
+          companyId: "company-1",
+          phoneNumber: "967700000001",
+          muted: true,
+          nextAutoResumeAt: 1_000,
+        };
+      },
+      mutation: async (_reference, args) => {
+        const record = args as Record<string, unknown>;
+        if ("ownerToken" in record && "now" in record) {
+          return {
+            acquired: true,
+            waitMs: 0,
+          };
+        }
+
+        if ("key" in record && "ownerToken" in record && !("now" in record)) {
+          throw new Error("release failed");
+        }
+
+        return undefined;
+      },
+    });
+    const { logger, errorCalls } = createLoggerStub();
+    const processor = createConversationAutoResumeProcessor({
+      createClient: () => client as never,
+      logger,
+      now: () => 2_000,
+    });
+
+    await expect(processor.runTick()).resolves.toEqual({
+      resumedCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+    });
+    expect(errorCalls).toEqual([{
+      payload: {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        error: "release failed",
+      },
+      message: "conversation auto-resume lock release failed",
+    }]);
+  });
 });

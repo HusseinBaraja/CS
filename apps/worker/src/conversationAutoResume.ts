@@ -29,6 +29,7 @@ const getErrorMessage = (error: unknown): string =>
 const processConversation = async (
   client: ConvexAdminClient,
   conversation: { id: string; companyId: string; nextAutoResumeAt?: number; muted: boolean },
+  logger: WorkerLogger,
   now: number,
 ): Promise<"resumed" | "skipped"> => {
   const ownerToken = crypto.randomUUID();
@@ -62,10 +63,21 @@ const processConversation = async (
 
     return "resumed";
   } finally {
-    await client.mutation(convexInternal.conversations.releaseConversationLock, {
-      key,
-      ownerToken,
-    });
+    try {
+      await client.mutation(convexInternal.conversations.releaseConversationLock, {
+        key,
+        ownerToken,
+      });
+    } catch (error) {
+      logger.error(
+        {
+          companyId: conversation.companyId,
+          conversationId: conversation.id,
+          error: getErrorMessage(error),
+        },
+        "conversation auto-resume lock release failed",
+      );
+    }
   }
 };
 
@@ -95,7 +107,7 @@ export const createConversationAutoResumeProcessor = (
     for (const conversation of dueConversations) {
       try {
         const conversationNow = now();
-        const outcome = await processConversation(client, conversation, conversationNow);
+        const outcome = await processConversation(client, conversation, logger, conversationNow);
         if (outcome === "resumed") {
           result.resumedCount += 1;
         } else {
