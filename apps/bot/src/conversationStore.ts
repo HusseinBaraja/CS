@@ -20,6 +20,7 @@ export interface ConversationStore {
   getOrCreateActiveConversation(companyId: string, phoneNumber: string): Promise<ConversationRecord>;
   getOrCreateConversationForInbound(companyId: string, phoneNumber: string): Promise<ConversationRecord>;
   appendUserMessage(input: AppendConversationMessageInput): Promise<ConversationMessageRecord>;
+  appendMutedCustomerMessage(input: AppendConversationMessageInput): Promise<ConversationRecord>;
   appendAssistantMessage(input: AppendConversationMessageInput): Promise<ConversationMessageRecord>;
   startHandoff(input: {
     companyId: string;
@@ -111,6 +112,15 @@ export const createConvexConversationStore = (
 
   return {
     appendAssistantMessage: (input) => appendMessage("assistant", input),
+    appendMutedCustomerMessage: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.appendMutedCustomerMessage, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          content: input.content,
+          timestamp: input.timestamp,
+        })
+      ),
     appendUserMessage: (input) => appendMessage("user", input),
     getOrCreateActiveConversation: (companyId, phoneNumber) =>
       withClient((client) =>

@@ -736,6 +736,52 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(dueConversations).toEqual([]);
   });
 
+  it("atomically appends muted customer messages while extending the auto-resume deadline", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+        nextAutoResumeAt: 2_000,
+      })
+    );
+
+    const updated = await t.mutation(internal.conversations.appendMutedCustomerMessage, {
+      companyId,
+      conversationId,
+      content: "hello again",
+      timestamp: 5_000,
+    });
+
+    expect(updated).toMatchObject({
+      id: conversationId,
+      muted: true,
+      lastCustomerMessageAt: 5_000,
+      nextAutoResumeAt: 5_000 + 12 * 60 * 60 * 1_000,
+    });
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+    });
+    expect(messages).toEqual([{
+      id: expect.any(String),
+      conversationId,
+      role: "user",
+      content: "hello again",
+      timestamp: 5_000,
+    }]);
+  });
+
   it("does not resume a stale due auto-resume candidate after muted activity extends the deadline", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>

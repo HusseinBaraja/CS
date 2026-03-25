@@ -143,6 +143,12 @@ describe("createConvexConversationStore", () => {
       content: "hello",
       timestamp: 1_000,
     });
+    await store.appendMutedCustomerMessage({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      content: "hello again",
+      timestamp: 1_500,
+    });
     await store.getPromptHistory({
       companyId: "company-1",
       conversationId: "conversation-1",
@@ -179,7 +185,7 @@ describe("createConvexConversationStore", () => {
     });
 
     expect(actionCalls).toHaveLength(2);
-    expect(mutationCalls).toHaveLength(4);
+    expect(mutationCalls).toHaveLength(5);
     expect(queryCalls).toHaveLength(3);
   });
 

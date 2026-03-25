@@ -453,6 +453,39 @@ export const appendConversationMessage = internalMutation({
   },
 });
 
+export const appendMutedCustomerMessage = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    content: v.string(),
+    timestamp: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<ConversationStateDto> => {
+    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    if (!conversation.muted) {
+      throw new Error("Conversation is not muted");
+    }
+
+    const content = normalizeMessageContent(args.content);
+    const timestamp = normalizeTimestamp(args.timestamp, Date.now());
+
+    await ctx.db.insert("messages", {
+      conversationId: args.conversationId,
+      role: "user",
+      content,
+      timestamp,
+    });
+
+    await ctx.db.patch(conversation._id, {
+      lastCustomerMessageAt: timestamp,
+      nextAutoResumeAt: timestamp + AUTO_RESUME_IDLE_MS,
+    });
+
+    const updatedConversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    return toConversationDto(updatedConversation);
+  },
+});
+
 export const listConversationMessages = internalQuery({
   args: {
     companyId: v.id("companies"),

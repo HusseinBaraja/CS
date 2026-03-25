@@ -122,6 +122,15 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
     content: input.content,
     timestamp: input.timestamp,
   }),
+  appendMutedCustomerMessage: async (input) => ({
+    id: input.conversationId,
+    companyId: input.companyId,
+    phoneNumber: "967700000001",
+    muted: true,
+    mutedAt: 1_000,
+    lastCustomerMessageAt: input.timestamp,
+    nextAutoResumeAt: input.timestamp + 1_000,
+  }),
   getOrCreateActiveConversation: async () => ({
     id: "conversation-1",
     companyId: "company-1",
@@ -371,9 +380,25 @@ describe("createCustomerConversationRouter", () => {
     expect(errorCalls).toEqual([]);
   });
 
-  test("records muted customer activity and skips orchestration for muted conversations", async () => {
+  test("atomically persists muted customer messages and skips orchestration for muted conversations", async () => {
+    const operations: string[] = [];
     let orchestratorCalled = false;
     const store = createStore({
+      appendMutedCustomerMessage: async (input) => {
+        operations.push(`muted:${input.content}:${input.timestamp}`);
+        return {
+          id: input.conversationId,
+          companyId: input.companyId,
+          phoneNumber: "967700000001",
+          muted: true,
+          mutedAt: 1_000,
+          lastCustomerMessageAt: input.timestamp,
+          nextAutoResumeAt: input.timestamp + 1_000,
+        };
+      },
+      appendUserMessage: async () => {
+        throw new Error("should not append regular user message when muted");
+      },
       getOrCreateConversationForInbound: async () => ({
         id: "conversation-1",
         companyId: "company-1",
@@ -383,6 +408,9 @@ describe("createCustomerConversationRouter", () => {
         lastCustomerMessageAt: 1_000,
         nextAutoResumeAt: 2_000,
       }),
+      recordMutedCustomerActivity: async () => {
+        throw new Error("should not separately record muted activity");
+      },
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async () => {
@@ -402,6 +430,7 @@ describe("createCustomerConversationRouter", () => {
 
     expect(orchestratorCalled).toBe(false);
     expect(sent).toEqual([]);
+    expect(operations).toEqual(["muted:hello:1700000000000"]);
   });
 
   test("starts handoff, records analytics, and notifies the owner when the assistant requests handoff", async () => {

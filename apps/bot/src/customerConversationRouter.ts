@@ -98,21 +98,22 @@ export const createCustomerConversationRouter = (
       conversationId = conversation.id;
       wasMuted = conversation.muted;
 
+      if (wasMuted) {
+        await options.conversationStore.appendMutedCustomerMessage({
+          companyId: message.companyId,
+          conversationId,
+          content: userMessage,
+          timestamp: message.occurredAtMs,
+        });
+        return;
+      }
+
       await options.conversationStore.appendUserMessage({
         companyId: message.companyId,
         conversationId,
         content: userMessage,
         timestamp: message.occurredAtMs,
       });
-
-      if (wasMuted) {
-        await options.conversationStore.recordMutedCustomerActivity({
-          companyId: message.companyId,
-          conversationId,
-          timestamp: message.occurredAtMs,
-        });
-        return;
-      }
 
       history = await options.conversationStore.getPromptHistory({
         companyId: message.companyId,
