@@ -222,6 +222,68 @@ describe("normalizeInboundMessages", () => {
     expect(stickerResult.message).not.toHaveProperty("replyContext");
   });
 
+  test("extracts quoted reply metadata from audio messages", () => {
+    const result = normalizeSingle({
+      type: "notify",
+      messages: [
+        createMessage({
+          message: {
+            audioMessage: {
+              contextInfo: {
+                stanzaId: "quoted-audio-1",
+              },
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "dispatch",
+      message: {
+        content: {
+          kind: "audio",
+          text: "",
+          hasMedia: true,
+        },
+        replyContext: {
+          referencedMessageId: "quoted-audio-1",
+        },
+      },
+    });
+  });
+
+  test("extracts quoted reply metadata from sticker messages", () => {
+    const result = normalizeSingle({
+      type: "notify",
+      messages: [
+        createMessage({
+          message: {
+            stickerMessage: {
+              contextInfo: {
+                stanzaId: "quoted-sticker-1",
+              },
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "dispatch",
+      message: {
+        content: {
+          kind: "sticker",
+          text: "",
+          hasMedia: true,
+        },
+        replyContext: {
+          referencedMessageId: "quoted-sticker-1",
+        },
+      },
+    });
+  });
+
   test("detects owner commands before customer conversation routing", () => {
     const ownerProfile = createProfile({
       ownerPhone: "+966 500 000 001",

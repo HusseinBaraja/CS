@@ -67,7 +67,9 @@ const getReferencedMessageId = (normalizedContent: NonNullable<ReturnType<typeof
     normalizedContent.extendedTextMessage?.contextInfo?.stanzaId,
     normalizedContent.imageMessage?.contextInfo?.stanzaId,
     normalizedContent.videoMessage?.contextInfo?.stanzaId,
+    normalizedContent.audioMessage?.contextInfo?.stanzaId,
     normalizedContent.documentMessage?.contextInfo?.stanzaId,
+    normalizedContent.stickerMessage?.contextInfo?.stanzaId,
   ];
 
   for (const candidate of candidates) {
