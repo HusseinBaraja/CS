@@ -8,7 +8,14 @@ import type {
 } from '@cs/shared';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
-import { internalAction, internalMutation, internalQuery, type DatabaseReader, type MutationCtx } from './_generated/server';
+import {
+  internalAction,
+  internalMutation,
+  internalQuery,
+  type ActionCtx,
+  type DatabaseReader,
+  type MutationCtx,
+} from './_generated/server';
 
 const CONVERSATION_LOCK_LEASE_MS = 1_000;
 const CONVERSATION_LOCK_POLL_MS = 100;
@@ -221,6 +228,60 @@ const extendConversationLock = async (
   });
 };
 
+const withConversationLock = async <T>(
+  ctx: ActionCtx,
+  input: {
+    companyId: Id<"companies">;
+    phoneNumber: string;
+    now?: number;
+  },
+  work: () => Promise<T>,
+): Promise<T> => {
+  const phoneNumber = normalizePhoneNumber(input.phoneNumber);
+  const ownerToken = crypto.randomUUID();
+  const key = getConversationLockKey(input.companyId, phoneNumber);
+  const startedAt = normalizeTimestamp(input.now, Date.now());
+  const deadline = startedAt + MAX_CONVERSATION_LOCK_WAIT_MS;
+  let currentNow = startedAt;
+
+  for (;;) {
+    const acquisitionNow =
+      input.now === undefined ? normalizeTimestamp(undefined, Date.now()) : currentNow;
+    const acquisition = await ctx.runMutation(internal.conversations.acquireConversationLock, {
+      key,
+      now: acquisitionNow,
+      ownerToken,
+    });
+
+    if (acquisition.acquired) {
+      break;
+    }
+
+    const sleepMs = Math.min(acquisition.waitMs, CONVERSATION_LOCK_POLL_MS);
+    const deadlineNow =
+      input.now === undefined ? normalizeTimestamp(undefined, Date.now()) : currentNow;
+    if (deadlineNow + sleepMs > deadline) {
+      throw new Error(
+        `Timeout acquiring conversation lock for companyId=${input.companyId} phoneNumber=${phoneNumber}`,
+      );
+    }
+
+    if (input.now !== undefined) {
+      currentNow += sleepMs;
+    }
+    await sleep(sleepMs);
+  }
+
+  try {
+    return await work();
+  } finally {
+    await ctx.runMutation(internal.conversations.releaseConversationLock, {
+      key,
+      ownerToken,
+    });
+  }
+};
+
 export const acquireConversationLock = internalMutation({
   args: {
     key: v.string(),
@@ -307,51 +368,12 @@ export const getOrCreateActiveConversation = internalAction({
   },
   handler: async (ctx, args): Promise<ConversationStateDto> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
-    const ownerToken = crypto.randomUUID();
-    const key = getConversationLockKey(args.companyId, phoneNumber);
-    const startedAt = normalizeTimestamp(args.now, Date.now());
-    const deadline = startedAt + MAX_CONVERSATION_LOCK_WAIT_MS;
-    let currentNow = startedAt;
-
-    for (;;) {
-      const acquisitionNow =
-        args.now === undefined ? normalizeTimestamp(undefined, Date.now()) : currentNow;
-      const acquisition = await ctx.runMutation(internal.conversations.acquireConversationLock, {
-        key,
-        now: acquisitionNow,
-        ownerToken,
-      });
-
-      if (acquisition.acquired) {
-        break;
-      }
-
-      const sleepMs = Math.min(acquisition.waitMs, CONVERSATION_LOCK_POLL_MS);
-      const deadlineNow =
-        args.now === undefined ? normalizeTimestamp(undefined, Date.now()) : currentNow;
-      if (deadlineNow + sleepMs > deadline) {
-        throw new Error(
-          `Timeout acquiring conversation lock for companyId=${args.companyId} phoneNumber=${phoneNumber}`,
-        );
-      }
-
-      if (args.now !== undefined) {
-        currentNow += sleepMs;
-      }
-      await sleep(sleepMs);
-    }
-
-    try {
+    return withConversationLock(ctx, args, async () => {
       return await ctx.runMutation(internal.conversations.ensureActiveConversation, {
         companyId: args.companyId,
         phoneNumber,
       });
-    } finally {
-      await ctx.runMutation(internal.conversations.releaseConversationLock, {
-        key,
-        ownerToken,
-      });
-    }
+    });
   },
 });
 
@@ -363,39 +385,7 @@ export const getOrCreateConversationForInbound = internalAction({
   },
   handler: async (ctx, args): Promise<ConversationStateDto> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
-    const ownerToken = crypto.randomUUID();
-    const key = getConversationLockKey(args.companyId, phoneNumber);
-    const startedAt = normalizeTimestamp(args.now, Date.now());
-    const deadline = startedAt + MAX_CONVERSATION_LOCK_WAIT_MS;
-    let currentNow = startedAt;
-
-    for (;;) {
-      const acquisitionNow = args.now === undefined ? normalizeTimestamp(undefined, Date.now()) : currentNow;
-      const acquisition = await ctx.runMutation(internal.conversations.acquireConversationLock, {
-        key,
-        now: acquisitionNow,
-        ownerToken,
-      });
-
-      if (acquisition.acquired) {
-        break;
-      }
-
-      const sleepMs = Math.min(acquisition.waitMs, CONVERSATION_LOCK_POLL_MS);
-      const deadlineNow = args.now === undefined ? normalizeTimestamp(undefined, Date.now()) : currentNow;
-      if (deadlineNow + sleepMs > deadline) {
-        throw new Error(
-          `Timeout acquiring conversation lock for companyId=${args.companyId} phoneNumber=${phoneNumber}`,
-        );
-      }
-
-      if (args.now !== undefined) {
-        currentNow += sleepMs;
-      }
-      await sleep(sleepMs);
-    }
-
-    try {
+    return withConversationLock(ctx, args, async () => {
       const existing = await ctx.runQuery(internal.conversations.getConversationByPhone, {
         companyId: args.companyId,
         phoneNumber,
@@ -408,12 +398,7 @@ export const getOrCreateConversationForInbound = internalAction({
         companyId: args.companyId,
         phoneNumber,
       });
-    } finally {
-      await ctx.runMutation(internal.conversations.releaseConversationLock, {
-        key,
-        ownerToken,
-      });
-    }
+    });
   },
 });
 
