@@ -412,7 +412,76 @@ describe("createConvexConversationStore", () => {
       maxMessages: 20,
     });
 
-    expect(createdClients).toHaveLength(1);
-    expect(createdClients[0]).toBe(client);
+    expect(createdClients).toHaveLength(3);
+    expect(createdClients).toEqual([client, client, client]);
+  });
+
+  test("retries transient Convex transport failures with a fresh client", async () => {
+    const firstError = Object.assign(
+      new Error("The socket connection was closed unexpectedly"),
+      { code: "ECONNRESET" },
+    );
+    const actionCalls: unknown[] = [];
+    const createdClients: StubConvexAdminClient[] = [
+      {
+        action: async () => {
+          throw firstError;
+        },
+        mutation: async () => createMessageStub(),
+        query: async () => [],
+      },
+      {
+        action: async (_reference, args) => {
+          actionCalls.push(args);
+          return createActionConversationStub();
+        },
+        mutation: async () => createMessageStub(),
+        query: async () => [],
+      },
+    ];
+
+    const store = createConvexConversationStore({
+      createClient: () => {
+        const client = createdClients.shift();
+        if (!client) {
+          throw new Error("No client available");
+        }
+
+        return client as never;
+      },
+    });
+
+    const conversation = await store.getOrCreateActiveConversation("company-1", "967700000001");
+
+    expect(conversation.id).toBe("conversation-1");
+    expect(actionCalls).toHaveLength(1);
+  });
+
+  test("does not retry non-transient Convex failures", async () => {
+    const createdClients: StubConvexAdminClient[] = [
+      {
+        action: async () => {
+          throw new Error("Conversation not found for company");
+        },
+        mutation: async () => createMessageStub(),
+        query: async () => [],
+      },
+    ];
+
+    const store = createConvexConversationStore({
+      createClient: () => {
+        const client = createdClients.shift();
+        if (!client) {
+          throw new Error("No client available");
+        }
+
+        return client as never;
+      },
+    });
+
+    await expect(store.getOrCreateActiveConversation("company-1", "967700000001")).rejects.toThrow(
+      "Conversation not found for company",
+    );
+    expect(createdClients).toHaveLength(0);
   });
 });
