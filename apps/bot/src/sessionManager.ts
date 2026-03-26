@@ -639,7 +639,7 @@ export const startTenantSessionManager = async (
   heartbeatId = timer.setInterval(() => renewHeartbeat(), HEARTBEAT_INTERVAL_MS);
 
   if (registerProcessHandlers) {
-    for (const signal of ["SIGINT", "SIGTERM", "beforeExit"] as const) {
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
       botProcess.once(signal, () => stop());
     }
   }

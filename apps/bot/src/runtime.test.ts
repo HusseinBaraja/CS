@@ -183,7 +183,7 @@ describe("startBot", () => {
     });
 
     expect(events).toEqual(["auth", "socket"]);
-    expect(Array.from(handlers.keys()).sort()).toEqual(["SIGINT", "SIGTERM", "beforeExit"]);
+    expect(Array.from(handlers.keys()).sort()).toEqual(["SIGINT", "SIGTERM"]);
     expect(receivedConfigs).toHaveLength(1);
     expect(receivedConfigs[0]?.markOnlineOnConnect).toBe(false);
     expect(receivedConfigs[0]?.syncFullHistory).toBe(false);
@@ -918,7 +918,6 @@ describe("startBot", () => {
 
     await handlers.get("SIGINT")?.();
     await handlers.get("SIGTERM")?.();
-    await handlers.get("beforeExit")?.();
 
     expect(socketStub.endCalls).toEqual([undefined]);
   });

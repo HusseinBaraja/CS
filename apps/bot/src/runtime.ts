@@ -83,7 +83,7 @@ export interface BotSocket {
 export interface BotProcess {
   exitCode?: number;
   once(
-    event: "SIGINT" | "SIGTERM" | "beforeExit",
+    event: "SIGINT" | "SIGTERM",
     handler: (...args: unknown[]) => void | Promise<void>,
   ): unknown;
 }
@@ -551,7 +551,7 @@ export const startBot = async (
   connect();
 
   if (registerProcessHandlers) {
-    for (const signal of ["SIGINT", "SIGTERM", "beforeExit"] as const) {
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
       botProcess.once(signal, () => stop());
     }
   }
