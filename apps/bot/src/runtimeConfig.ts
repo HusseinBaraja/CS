@@ -5,6 +5,7 @@ import { env } from '@cs/config';
 import { normalizeSessionKey } from './sessionKey';
 
 export const BOT_SESSION_KEY = "default" as const;
+export const DEFAULT_BOT_SOCKET_VERSION = [2, 3000, 1027934701] as const;
 const DEFAULT_CONNECT_TIMEOUT_MS = 20_000;
 const DEFAULT_KEEP_ALIVE_INTERVAL_MS = 30_000;
 const DEFAULT_QR_TIMEOUT_MS = 60_000;
@@ -92,7 +93,7 @@ export const createBotRuntimeConfig = (
   return {
     sessionKey,
     authDir: resolveAuthDir(overrides.authDir ?? env.BOT_AUTH_DIR, overrides.moduleDirectory),
-    browser: Browsers.windows("CSCB Bot"),
+    browser: Browsers.macOS("Chrome"),
     conversationHistoryWindowMessages: assertPositiveInteger(
       "BotRuntimeConfig.conversationHistoryWindowMessages",
       overrides.conversationHistoryWindowMessages ?? env.CONVERSATION_HISTORY_WINDOW_MESSAGES,

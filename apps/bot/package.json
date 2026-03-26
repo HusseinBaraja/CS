@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --env-file=../../.env --watch src/index.ts",
+    "dev": "node --watch --env-file=../../.env --import tsx src/main.ts",
+    "start": "node --env-file=../../.env --import tsx src/main.ts",
+    "dev:bun-experimental": "bun --env-file=../../.env --watch src/index.ts",
     "build": "bun --env-file=../../.env build src/index.ts --outdir dist",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
@@ -16,10 +18,13 @@
     "@cs/core": "*",
     "@cs/db": "*",
     "@cs/rag": "*",
-    "@whiskeysockets/baileys": "7.0.0-rc.9"
+    "@whiskeysockets/baileys": "https://codeload.github.com/WhiskeySockets/Baileys/tar.gz/refs/heads/master"
   },
   "x-dependency-notes": {
-    "@whiskeysockets/baileys": "Pinned to 7.0.0-rc.9 because no stable 7.x release is published as of 2026-03-06. Replace with stable 7.x when available."
+    "@whiskeysockets/baileys": "Uses the official edge GitHub build because the published 7.0.0-rc.9 release still fails companion registration in this app. Revisit once a newer stable release is published and verified."
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5"
   }
 }
 

@@ -1,4 +1,8 @@
-import type { BaileysEventMap, UserFacingSocketConfig } from '@whiskeysockets/baileys';
+import {
+  fetchLatestWaWebVersion,
+  type BaileysEventMap,
+  type UserFacingSocketConfig,
+} from '@whiskeysockets/baileys';
 import makeWASocket from '@whiskeysockets/baileys';
 import { logger as defaultLogger } from '@cs/core';
 import {
@@ -12,7 +16,11 @@ import {
   OutboundTransportUnavailableError,
   type OutboundTransport,
 } from './outbound';
-import { type BotRuntimeConfig, createBotRuntimeConfig } from './runtimeConfig';
+import {
+  DEFAULT_BOT_SOCKET_VERSION,
+  type BotRuntimeConfig,
+  createBotRuntimeConfig,
+} from './runtimeConfig';
 
 export type BotLifecycleState = BotRuntimeSessionState;
 
@@ -89,6 +97,7 @@ export interface StartBotOptions {
   logger?: BotLogger;
   runtimeConfig?: BotRuntimeConfig;
   createSocket?: (config: UserFacingSocketConfig) => BotSocket;
+  resolveSocketVersion?: () => Promise<UserFacingSocketConfig["version"]>;
   loadAuthState?: (options: {
     authDir: string;
     sessionKey: string;
@@ -124,6 +133,11 @@ const createBaileysLogger = (botLogger: BotLogger) => {
 
 const defaultCreateSocket = (config: UserFacingSocketConfig): BotSocket =>
   makeWASocket(config) as unknown as BotSocket;
+
+const defaultResolveSocketVersion = async (): Promise<UserFacingSocketConfig["version"]> => {
+  const result = await fetchLatestWaWebVersion();
+  return result.version;
+};
 
 const defaultTimer: BotTimer = {
   setTimeout: (handler, delayMs) => globalThis.setTimeout(handler, delayMs),
@@ -161,6 +175,7 @@ export const startBot = async (
   const botLogger = options.logger ?? defaultLogger;
   const runtimeConfig = options.runtimeConfig ?? createBotRuntimeConfig();
   const createSocket = options.createSocket ?? defaultCreateSocket;
+  const resolveSocketVersion = options.resolveSocketVersion ?? defaultResolveSocketVersion;
   const loadAuthState = options.loadAuthState ?? ((authOptions) => createLocalAuthState(authOptions));
   const onStatusChange = options.onStatusChange;
   const onPairingChange = options.onPairingChange;
@@ -228,6 +243,24 @@ export const startBot = async (
   };
 
   setStatus(initialStatus);
+
+  const socketVersion = await resolveSocketVersion().catch((error) => {
+    const warn = botLogger.warn?.bind(botLogger) ?? botLogger.info.bind(botLogger);
+    warn(
+      {
+        error,
+        fallbackVersion: DEFAULT_BOT_SOCKET_VERSION,
+        sessionKey: runtimeConfig.sessionKey,
+      },
+      "bot socket version resolution failed; falling back to bundled version",
+    );
+
+    return [
+      DEFAULT_BOT_SOCKET_VERSION[0],
+      DEFAULT_BOT_SOCKET_VERSION[1],
+      DEFAULT_BOT_SOCKET_VERSION[2],
+    ] as UserFacingSocketConfig["version"];
+  });
 
   const authState = await loadAuthState({
     authDir: runtimeConfig.authDir,
@@ -383,6 +416,7 @@ export const startBot = async (
       markOnlineOnConnect: runtimeConfig.markOnlineOnConnect,
       qrTimeout: runtimeConfig.qrTimeoutMs,
       syncFullHistory: runtimeConfig.syncFullHistory,
+      version: socketVersion,
     } satisfies UserFacingSocketConfig);
     currentSocket = socket;
 

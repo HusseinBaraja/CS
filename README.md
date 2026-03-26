@@ -7,6 +7,11 @@ Monorepo for the API, bot, CLI, worker, and shared packages.
 - Bun `1.3.9`
 - Node.js `23.x` or newer for tooling compatibility
 
+Runtime note:
+
+- The repo remains Bun-first.
+- The WhatsApp bot is the one runtime exception and now runs on Node because Baileys pairing is not reliable under Bun's current WebSocket compatibility layer.
+
 ## Environment Setup
 
 1. Copy `.env.example` to `.env`.
@@ -75,6 +80,8 @@ bun run dev:bot
 bun run dev:worker
 ```
 
+`bun run dev:bot` still works from the repo root, but it now launches the bot package on Node under the hood. This is intentional and scoped only to the Baileys runtime.
+
 Use `bun run web` from the repository root to start the frontend app on `0.0.0.0:5173` so other devices on the same LAN or hotspot can open it.
 Use `bun run dev:web` when you specifically want the Turbo workspace dev flow instead.
 
@@ -82,6 +89,7 @@ Use `bun run dev:web` when you specifically want the Turbo workspace dev flow in
 
 - AI provider setup and smoke tests: [`docs/operations/ai-provider-setup.md`](docs/operations/ai-provider-setup.md)
 - Product image upload flow: [`docs/operations/product-image-upload-api.md`](docs/operations/product-image-upload-api.md)
+- Local WhatsApp pairing and seeded-tenant smoke testing: [`docs/WHATSAPP_LOCAL_TESTING.md`](docs/WHATSAPP_LOCAL_TESTING.md)
 
 ## Backups
 

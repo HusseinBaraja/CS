@@ -255,5 +255,22 @@ export const getBotRuntimeNextActionHint = (
   }
 };
 
+const toBase64Url = (value: string): string => {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(value).toString("base64url");
+  }
+
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+};
+
 export const createCompanySessionKey = (companyId: string): string =>
-  `company-${Buffer.from(companyId).toString("base64url")}`;
+  `company-${toBase64Url(companyId)}`;
