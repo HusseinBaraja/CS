@@ -389,7 +389,7 @@ describe("createConvexConversationStore", () => {
     ]);
   });
 
-  test("creates the client once and reuses it across store operations", async () => {
+  test("creates a fresh client for each store operation", async () => {
     const { client } = createClientStub();
     const createdClients: StubConvexAdminClient[] = [];
     const store = createConvexConversationStore({

@@ -709,6 +709,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       content: "Connecting you with the team.",
       timestamp: 2_000,
       deliveryState: "sent",
+      handoffSource: "assistant_action",
       transportMessageId: "assistant-1",
     }]);
 
@@ -798,6 +799,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       content: "Assistant reply",
       timestamp: 2_000,
       deliveryState: "sent",
+      providerAcknowledgedAt: 2_050,
       sideEffectsState: "completed",
       analyticsState: "not_applicable",
       ownerNotificationState: "not_applicable",
@@ -1546,6 +1548,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
         lastCustomerMessageAt: 5_000,
         nextAutoResumeAt: 5_000 + 12 * 60 * 60 * 1_000,
       },
+      wasDuplicate: false,
       wasMuted: true,
     });
 
