@@ -1,4 +1,5 @@
 export const DEFAULT_COMPANY_TIMEZONE = "UTC" as const;
+const BOT_RUNTIME_DISCONNECT_CODE_CONNECTION_REPLACED = 440;
 
 export type CompanyRuntimeConfig = Record<string, string | number | boolean>;
 
@@ -107,6 +108,11 @@ const hasLiveSessionLease = (
 ): session is BotRuntimeSessionRecord =>
   session !== null && session.leaseExpiresAt >= now;
 
+const isReplacedConnectionSnapshot = (
+  snapshot: BotRuntimeOperatorSnapshot,
+): boolean =>
+  snapshot.session?.disconnectCode === BOT_RUNTIME_DISCONNECT_CODE_CONNECTION_REPLACED;
+
 export const getBotRuntimeOperatorState = (
   snapshot: BotRuntimeOperatorSnapshot,
   now: number,
@@ -203,11 +209,25 @@ export const getBotRuntimeOperatorSummary = (
         text: "Bot session was logged out and must be paired again.",
       };
     case "closed":
+      if (isReplacedConnectionSnapshot(snapshot)) {
+        return {
+          code: "failed",
+          text: "Bot session was replaced by another active WhatsApp connection.",
+        };
+      }
+
       return {
         code: "closed",
         text: "Bot session closed without an active reconnect loop.",
       };
     case "failed":
+      if (isReplacedConnectionSnapshot(snapshot)) {
+        return {
+          code: "failed",
+          text: "Bot session was replaced by another active WhatsApp connection.",
+        };
+      }
+
       return {
         code: "failed",
         text: "Bot session failed and needs operator attention.",
@@ -250,7 +270,16 @@ export const getBotRuntimeNextActionHint = (
     case "logged_out":
       return "Start a new pairing flow for this tenant.";
     case "closed":
+      if (isReplacedConnectionSnapshot(snapshot)) {
+        return "Ensure only one bot runtime is connected for this tenant, then restart the bot session.";
+      }
+
+      return "Inspect the runtime logs and restart or re-pair the tenant session as needed.";
     case "failed":
+      if (isReplacedConnectionSnapshot(snapshot)) {
+        return "Ensure only one bot runtime is connected for this tenant, then restart the bot session.";
+      }
+
       return "Inspect the runtime logs and restart or re-pair the tenant session as needed.";
   }
 };
