@@ -1,26 +1,26 @@
 import type { CliCommand } from './types';
 import { runInheritedCommand } from '../lib/process';
 
-const runSeed = async (args: string[]): Promise<void> => {
+export const buildSeedArgs = (): string[] => [
+  "convex",
+  "run",
+  "--push",
+  "--typecheck",
+  "disable",
+  "--codegen",
+  "disable",
+  "internal.seed.seedSampleData",
+  "{}",
+];
+
+export const runSeed = async (args: string[]): Promise<void> => {
   if (args.length > 0) {
     throw new Error(`Unexpected arguments for seed: ${args.join(" ")}`);
   }
 
-  await runInheritedCommand(
-    [
-      "convex",
-      "run",
-      "--typecheck",
-      "disable",
-      "--codegen",
-      "disable",
-      "internal.seed.seedSampleData",
-      "{}"
-    ],
-    {
-      cwd: process.cwd()
-    }
-  );
+  await runInheritedCommand(buildSeedArgs(), {
+    cwd: process.cwd()
+  });
 };
 
 export const seedCommand: CliCommand = {

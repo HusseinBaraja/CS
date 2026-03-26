@@ -292,6 +292,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
           companyLanguage: "en",
           language: "en",
         });
+
+        await ctx.db.insert("productVariants", {
+          productId: products[0]._id,
+          variantLabel: `seed cleanup variant ${index}`,
+          attributes: { size: index },
+        });
       }
     });
 
