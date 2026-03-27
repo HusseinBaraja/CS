@@ -259,6 +259,23 @@ export const startTenantSessionManager = async (
     await store.upsertSession(toSessionRecord(runtimeOwnerId, companyId, now(), status));
   };
 
+  const getCurrentProfile = (
+    companyId: string,
+    fallbackProfile: CompanyRuntimeProfile,
+  ): CompanyRuntimeProfile => sessions.get(companyId)?.profile ?? fallbackProfile;
+
+  const updateSessionProfile = (profile: CompanyRuntimeProfile): void => {
+    const existing = sessions.get(profile.companyId);
+    if (!existing) {
+      return;
+    }
+
+    sessions.set(profile.companyId, {
+      ...existing,
+      profile,
+    });
+  };
+
   const clearPairingArtifact = async (profile: CompanyRuntimeProfile): Promise<void> => {
     try {
       await store.clearPairingArtifact(profile.companyId);
@@ -311,8 +328,9 @@ export const startTenantSessionManager = async (
     event: IgnoredInboundEvent | NormalizedInboundMessage,
     route?: "owner_command" | "customer_conversation",
   ): Promise<void> => {
+    const currentProfile = getCurrentProfile(profile.companyId, profile);
     const context: InboundRouteContext = {
-      profile,
+      profile: currentProfile,
       outbound: sessions.get(profile.companyId)?.outbound,
     };
 
@@ -327,14 +345,14 @@ export const startTenantSessionManager = async (
         return;
       }
 
-      logIgnoredInboundEvent(profile, event as IgnoredInboundEvent);
+      logIgnoredInboundEvent(currentProfile, event as IgnoredInboundEvent);
       await inboundRouter.handleIgnored(event as IgnoredInboundEvent, context);
     } catch (error) {
       botLogger.error(
         {
-          companyId: profile.companyId,
+          companyId: currentProfile.companyId,
           error,
-          sessionKey: profile.sessionKey,
+          sessionKey: currentProfile.sessionKey,
         },
         "tenant inbound message routing failed",
       );
@@ -345,21 +363,22 @@ export const startTenantSessionManager = async (
     profile: CompanyRuntimeProfile,
     event: Parameters<typeof normalizeInboundMessages>[1],
   ): Promise<void> => {
-    const dispatches = normalizeInboundMessages(profile, event);
-    const accessControlPolicy = resolveAccessControlPolicy(profile.config, profile.ownerPhone);
+    const currentProfile = getCurrentProfile(profile.companyId, profile);
+    const dispatches = normalizeInboundMessages(currentProfile, event);
+    const accessControlPolicy = resolveAccessControlPolicy(currentProfile.config, currentProfile.ownerPhone);
 
     for (const dispatch of dispatches) {
       if (dispatch.kind === "ignored") {
-        await routeInboundEvent(profile, dispatch.event);
+        await routeInboundEvent(currentProfile, dispatch.event);
         continue;
       }
 
       const evaluation = evaluateInboundAccess(accessControlPolicy, dispatch.message.sender.phoneNumber);
       if (!evaluation.allowed) {
         await routeInboundEvent(
-          profile,
+          currentProfile,
           createAccessControlBlockedEvent(
-            profile,
+            currentProfile,
             dispatch.message,
             accessControlPolicy.effectiveMode,
             accessControlPolicy.reason ?? evaluation.reason,
@@ -368,7 +387,7 @@ export const startTenantSessionManager = async (
         continue;
       }
 
-      await routeInboundEvent(profile, dispatch.message, dispatch.route);
+      await routeInboundEvent(currentProfile, dispatch.message, dispatch.route);
     }
   };
 
@@ -376,20 +395,21 @@ export const startTenantSessionManager = async (
     profile: CompanyRuntimeProfile,
     status: BotSessionStatus,
   ): Promise<void> => {
+    const currentProfile = getCurrentProfile(profile.companyId, profile);
     const nextStatus = cloneStatus(status);
-    const existing = sessions.get(profile.companyId);
-    sessions.set(profile.companyId, {
-      profile,
+    const existing = sessions.get(currentProfile.companyId);
+    sessions.set(currentProfile.companyId, {
+      profile: currentProfile,
       pairing: existing?.pairing ?? null,
       runtimeConfig: existing?.runtimeConfig ?? createRuntimeConfig({
-        sessionKey: profile.sessionKey,
+        sessionKey: currentProfile.sessionKey,
       }),
       status: nextStatus,
       ...(existing?.outbound ? { outbound: existing.outbound } : {}),
       ...(existing?.handle ? { handle: existing.handle } : {}),
     });
 
-    const currentSession = sessions.get(profile.companyId);
+    const currentSession = sessions.get(currentProfile.companyId);
     if (currentSession) {
       const logNow = now();
       const snapshot = toOperatorSnapshot(runtimeOwnerId, logNow, currentSession);
@@ -407,11 +427,11 @@ export const startTenantSessionManager = async (
     }
 
     try {
-      await upsertStatus(profile.companyId, nextStatus);
+      await upsertStatus(currentProfile.companyId, nextStatus);
     } catch (error) {
       botLogger.error(
         {
-          companyId: profile.companyId,
+          companyId: currentProfile.companyId,
           error,
           sessionKey: nextStatus.sessionKey,
         },
@@ -424,16 +444,17 @@ export const startTenantSessionManager = async (
     profile: CompanyRuntimeProfile,
     pairing: BotPairingStatus,
   ): Promise<void> => {
+    const currentProfile = getCurrentProfile(profile.companyId, profile);
     const nextPairing = clonePairing(pairing);
-    const existing = sessions.get(profile.companyId);
+    const existing = sessions.get(currentProfile.companyId);
     if (existing) {
-      sessions.set(profile.companyId, {
+      sessions.set(currentProfile.companyId, {
         ...existing,
         pairing: nextPairing,
       });
     }
 
-    const currentSession = sessions.get(profile.companyId);
+    const currentSession = sessions.get(currentProfile.companyId);
     if (currentSession) {
       const logNow = now();
       const snapshot = toOperatorSnapshot(runtimeOwnerId, logNow, currentSession);
@@ -442,7 +463,7 @@ export const startTenantSessionManager = async (
         botLogger.info(
           {
             ...toOperatorLogPayload(snapshot, logNow),
-            operatorUrl: getOperatorShellUrl(profile.companyId),
+            operatorUrl: getOperatorShellUrl(currentProfile.companyId),
           },
           "bot pairing available",
         );
@@ -457,21 +478,204 @@ export const startTenantSessionManager = async (
     }
 
     if (nextPairing.state === "none") {
-      await clearPairingArtifact(profile);
+      await clearPairingArtifact(currentProfile);
       return;
     }
 
     try {
-      await store.upsertPairingArtifact(toPairingArtifact(runtimeOwnerId, profile.companyId, nextPairing));
+      await store.upsertPairingArtifact(toPairingArtifact(runtimeOwnerId, currentProfile.companyId, nextPairing));
     } catch (error) {
       botLogger.error(
         {
-          companyId: profile.companyId,
+          companyId: currentProfile.companyId,
           error,
           sessionKey: nextPairing.sessionKey,
         },
         "tenant session pairing artifact persistence failed",
       );
+    }
+  };
+
+  const startManagedSession = async (profile: CompanyRuntimeProfile): Promise<void> => {
+    let handle: BotRuntimeHandle | undefined;
+    let runtimeConfig: BotRuntimeConfig | undefined;
+
+    try {
+      await clearPairingArtifact(profile);
+
+      const initialStatus: BotSessionStatus = {
+        sessionKey: profile.sessionKey,
+        state: "initializing",
+        attempt: 0,
+        hasQr: false,
+      };
+      runtimeConfig = createRuntimeConfig({
+        sessionKey: profile.sessionKey,
+      });
+      sessions.set(profile.companyId, {
+        profile,
+        status: initialStatus,
+        pairing: null,
+        runtimeConfig,
+      });
+      await handleStatusChange(profile, initialStatus);
+
+      handle = await startBot({
+        logger: typeof botLogger.child === "function"
+          ? botLogger.child({
+            companyId: profile.companyId,
+            sessionKey: profile.sessionKey,
+          })
+          : botLogger,
+        onMessagesUpsert: (event) => handleMessagesUpsert(profile, event),
+        onPairingChange: (pairing) => handlePairingChange(profile, pairing),
+        onStatusChange: (status) => handleStatusChange(profile, status),
+        registerProcessHandlers: false,
+        runtimeConfig,
+      });
+
+      const currentStatus = cloneStatus(handle.getStatus());
+      const outbound = createOutboundMessenger({
+        logger: typeof botLogger.child === "function"
+          ? botLogger.child({
+            companyId: profile.companyId,
+            sessionKey: profile.sessionKey,
+            surface: "outbound",
+          })
+          : botLogger,
+        transport: handle,
+      });
+      sessions.set(profile.companyId, {
+        outbound,
+        profile: getCurrentProfile(profile.companyId, profile),
+        status: currentStatus,
+        pairing: sessions.get(profile.companyId)?.pairing ?? null,
+        runtimeConfig,
+        handle,
+      });
+      await upsertStatus(profile.companyId, currentStatus);
+    } catch (error) {
+      if (handle) {
+        try {
+          await handle.stop();
+        } catch (stopError) {
+          botLogger.error(
+            {
+              companyId: profile.companyId,
+              error: stopError,
+              sessionKey: profile.sessionKey,
+            },
+            "tenant session shutdown after startup failure failed",
+          );
+        }
+      }
+
+      const failedStatus: BotSessionStatus = {
+        sessionKey: profile.sessionKey,
+        state: "failed",
+        attempt: 0,
+        hasQr: false,
+      };
+      let fallbackConfig = runtimeConfig;
+      if (!fallbackConfig) {
+        try {
+          fallbackConfig = createRuntimeConfig({ sessionKey: profile.sessionKey });
+        } catch {
+          fallbackConfig = createBotRuntimeConfig({ sessionKey: profile.sessionKey });
+        }
+      }
+
+      sessions.set(profile.companyId, {
+        profile,
+        status: failedStatus,
+        pairing: sessions.get(profile.companyId)?.pairing ?? null,
+        runtimeConfig: fallbackConfig,
+      });
+      await upsertStatus(profile.companyId, failedStatus).catch((persistError) => {
+        botLogger.error(
+          {
+            companyId: profile.companyId,
+            error: persistError,
+            sessionKey: profile.sessionKey,
+          },
+          "tenant session status persistence failed",
+        );
+      });
+      botLogger.error(
+        {
+          companyId: profile.companyId,
+          error,
+          sessionKey: profile.sessionKey,
+        },
+        "tenant session startup failed",
+      );
+    }
+  };
+
+  const stopManagedSession = async (
+    companyId: string,
+    options: {
+      clearPersistedState?: boolean;
+    } = {},
+  ): Promise<void> => {
+    const session = sessions.get(companyId);
+    if (!session) {
+      return;
+    }
+
+    sessions.delete(companyId);
+
+    try {
+      await session.handle?.stop();
+    } catch (error) {
+      botLogger.error(
+        {
+          companyId,
+          error,
+          sessionKey: session.profile.sessionKey,
+        },
+        "tenant session shutdown failed",
+      );
+    }
+
+    if (!options.clearPersistedState) {
+      return;
+    }
+
+    try {
+      await store.clearSession(companyId);
+    } catch (error) {
+      botLogger.error(
+        {
+          companyId,
+          error,
+          sessionKey: session.profile.sessionKey,
+        },
+        "tenant session cleanup failed",
+      );
+    }
+
+    await clearPairingArtifact(session.profile);
+  };
+
+  const reconcileManagedSessions = async (): Promise<void> => {
+    const enabledProfiles = await store.listEnabledCompanies();
+    const enabledByCompanyId = new Map(enabledProfiles.map((profile) => [profile.companyId, profile]));
+
+    for (const profile of enabledProfiles) {
+      const existing = sessions.get(profile.companyId);
+      if (!existing) {
+        await startManagedSession(profile);
+        continue;
+      }
+
+      updateSessionProfile(profile);
+    }
+
+    for (const companyId of Array.from(sessions.keys())) {
+      if (!enabledByCompanyId.has(companyId)) {
+        await stopManagedSession(companyId, { clearPersistedState: true });
+      }
     }
   };
 
@@ -507,7 +711,7 @@ export const startTenantSessionManager = async (
     }
 
     await Promise.allSettled(
-      Array.from(sessions.values()).map(async (session) => session.handle?.stop()),
+      Array.from(sessions.keys()).map(async (companyId) => stopManagedSession(companyId)),
     );
 
     await Promise.allSettled([
@@ -516,127 +720,12 @@ export const startTenantSessionManager = async (
     ]);
   };
 
-  const profiles = await store.listEnabledCompanies();
+  await reconcileManagedSessions();
 
-  await Promise.allSettled(
-    profiles.map(async (profile) => {
-      let handle: BotRuntimeHandle | undefined;
-      let runtimeConfig: BotRuntimeConfig | undefined;
-
-      try {
-        await clearPairingArtifact(profile);
-
-        const initialStatus: BotSessionStatus = {
-          sessionKey: profile.sessionKey,
-          state: "initializing",
-          attempt: 0,
-          hasQr: false,
-        };
-        runtimeConfig = createRuntimeConfig({
-          sessionKey: profile.sessionKey,
-        });
-        sessions.set(profile.companyId, {
-          profile,
-          status: initialStatus,
-          pairing: null,
-          runtimeConfig,
-        });
-        await handleStatusChange(profile, initialStatus);
-
-        handle = await startBot({
-          logger: typeof botLogger.child === "function"
-            ? botLogger.child({
-              companyId: profile.companyId,
-              sessionKey: profile.sessionKey,
-            })
-            : botLogger,
-          onMessagesUpsert: (event) => handleMessagesUpsert(profile, event),
-          onPairingChange: (pairing) => handlePairingChange(profile, pairing),
-          onStatusChange: (status) => handleStatusChange(profile, status),
-          registerProcessHandlers: false,
-          runtimeConfig,
-        });
-
-        const currentStatus = cloneStatus(handle.getStatus());
-        const outbound = createOutboundMessenger({
-          logger: typeof botLogger.child === "function"
-            ? botLogger.child({
-              companyId: profile.companyId,
-              sessionKey: profile.sessionKey,
-              surface: "outbound",
-            })
-            : botLogger,
-          transport: handle,
-        });
-        sessions.set(profile.companyId, {
-          outbound,
-          profile,
-          status: currentStatus,
-          pairing: sessions.get(profile.companyId)?.pairing ?? null,
-          runtimeConfig,
-          handle,
-        });
-        await upsertStatus(profile.companyId, currentStatus);
-      } catch (error) {
-        if (handle) {
-          try {
-            await handle.stop();
-          } catch (stopError) {
-            botLogger.error(
-              {
-                companyId: profile.companyId,
-                error: stopError,
-                sessionKey: profile.sessionKey,
-              },
-              "tenant session shutdown after startup failure failed",
-            );
-          }
-        }
-
-        const failedStatus: BotSessionStatus = {
-          sessionKey: profile.sessionKey,
-          state: "failed",
-          attempt: 0,
-          hasQr: false,
-        };
-        let fallbackConfig = runtimeConfig;
-        if (!fallbackConfig) {
-          try {
-            fallbackConfig = createRuntimeConfig({ sessionKey: profile.sessionKey });
-          } catch {
-            fallbackConfig = createBotRuntimeConfig({ sessionKey: profile.sessionKey });
-          }
-        }
-
-        sessions.set(profile.companyId, {
-          profile,
-          status: failedStatus,
-          pairing: sessions.get(profile.companyId)?.pairing ?? null,
-          runtimeConfig: fallbackConfig,
-        });
-        await upsertStatus(profile.companyId, failedStatus).catch((persistError) => {
-          botLogger.error(
-            {
-              companyId: profile.companyId,
-              error: persistError,
-              sessionKey: profile.sessionKey,
-            },
-            "tenant session status persistence failed",
-          );
-        });
-        botLogger.error(
-          {
-            companyId: profile.companyId,
-            error,
-            sessionKey: profile.sessionKey,
-          },
-          "tenant session startup failed",
-        );
-      }
-    }),
-  );
-
-  heartbeatId = timer.setInterval(() => renewHeartbeat(), HEARTBEAT_INTERVAL_MS);
+  heartbeatId = timer.setInterval(async () => {
+    await reconcileManagedSessions();
+    await renewHeartbeat();
+  }, HEARTBEAT_INTERVAL_MS);
 
   if (registerProcessHandlers) {
     for (const signal of ["SIGINT", "SIGTERM"] as const) {

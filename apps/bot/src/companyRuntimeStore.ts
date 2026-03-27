@@ -10,6 +10,7 @@ export interface CompanyRuntimeStore {
   listEnabledCompanies(): Promise<CompanyRuntimeProfile[]>;
   upsertSession(record: BotRuntimeSessionRecord): Promise<void>;
   upsertPairingArtifact(record: BotRuntimePairingArtifact): Promise<void>;
+  clearSession(companyId: string): Promise<void>;
   clearPairingArtifact(companyId: string): Promise<void>;
   releaseSessionsByOwner(runtimeOwnerId: string): Promise<void>;
   releasePairingArtifactsByOwner(runtimeOwnerId: string): Promise<void>;
@@ -98,6 +99,13 @@ export const createConvexCompanyRuntimeStore = (
         client.mutation(convexInternal.companyRuntime.upsertBotRuntimePairingArtifact, {
           ...record,
           companyId: toCompanyId(record.companyId),
+        })
+      );
+    },
+    clearSession: async (companyId) => {
+      await withClient((client) =>
+        client.mutation(convexInternal.companyRuntime.clearBotRuntimeSession, {
+          companyId: toCompanyId(companyId),
         })
       );
     },

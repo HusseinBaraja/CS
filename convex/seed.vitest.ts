@@ -104,9 +104,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
 
     expect(counts.companies[0]).toMatchObject({
       name: seedCompany.name,
-      ownerPhone: seedCompany.ownerPhone,
+      ownerPhone: "967771408660",
       seedKey: seedCompany.seedKey,
       timezone: seedCompany.timezone,
+      config: expect.objectContaining({
+        botEnabled: true,
+      }),
     });
 
     expect(counts.categories.every((category) => category.nameAr && category.descriptionAr)).toBe(true);

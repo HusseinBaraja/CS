@@ -332,6 +332,22 @@ export const clearBotRuntimePairingArtifact = internalMutation({
   },
 });
 
+export const clearBotRuntimeSession = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const rows = await ctx.db
+      .query("botRuntimeSessions")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+    }
+  },
+});
+
 export const releaseBotRuntimeSessionsByOwner = internalMutation({
   args: {
     runtimeOwnerId: v.string(),

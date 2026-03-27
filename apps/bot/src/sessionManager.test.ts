@@ -102,14 +102,18 @@ const createIntervalTimerStub = () => {
 };
 
 const createStoreStub = (
-  companies: CompanyRuntimeProfile[],
+  initialCompanies: CompanyRuntimeProfile[],
 ): SessionManagerStore & {
+  clearedSessions: string[];
   clearedPairingArtifacts: string[];
   pairingUpsertCalls: BotRuntimePairingArtifact[];
   releasedPairingOwners: string[];
+  setCompanies(companies: CompanyRuntimeProfile[]): void;
   upsertCalls: BotRuntimeSessionRecord[];
   releasedOwners: string[];
 } => {
+  let companies = [...initialCompanies];
+  const clearedSessions: string[] = [];
   const clearedPairingArtifacts: string[] = [];
   const pairingUpsertCalls: BotRuntimePairingArtifact[] = [];
   const releasedPairingOwners: string[] = [];
@@ -117,6 +121,9 @@ const createStoreStub = (
   const releasedOwners: string[] = [];
 
   return {
+    clearSession: async (companyId) => {
+      clearedSessions.push(companyId);
+    },
     clearPairingArtifact: async (companyId) => {
       clearedPairingArtifacts.push(companyId);
     },
@@ -127,12 +134,16 @@ const createStoreStub = (
     releaseSessionsByOwner: async (runtimeOwnerId) => {
       releasedOwners.push(runtimeOwnerId);
     },
+    setCompanies: (nextCompanies) => {
+      companies = [...nextCompanies];
+    },
     upsertPairingArtifact: async (record) => {
       pairingUpsertCalls.push(record);
     },
     upsertSession: async (record) => {
       upsertCalls.push(record);
     },
+    clearedSessions,
     clearedPairingArtifacts,
     pairingUpsertCalls,
     releasedPairingOwners,
@@ -314,6 +325,151 @@ describe("startTenantSessionManager", () => {
       },
     ]);
     expect(intervals[0]?.delayMs).toBe(20_000);
+  });
+
+  test("starts newly enabled tenants on the heartbeat reconcile without restarting the manager", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([]);
+    const { timer, intervals } = createIntervalTimerStub();
+    const startCalls: string[] = [];
+
+    const manager = await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      now: () => 1_000,
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        startCalls.push(sessionKey);
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "initializing",
+          attempt: 0,
+          hasQr: false,
+        }));
+      },
+    });
+
+    expect(manager.listSessions()).toEqual([]);
+
+    store.setCompanies([profile]);
+    await intervals[0]?.callback();
+
+    expect(startCalls).toEqual([profile.sessionKey]);
+    expect(manager.listSessions().map((session) => session.profile.companyId)).toEqual(["company-1"]);
+    expect(store.upsertCalls).toEqual([
+      {
+        companyId: "company-1",
+        runtimeOwnerId: "runtime-owner-1",
+        sessionKey: profile.sessionKey,
+        state: "initializing",
+        attempt: 0,
+        hasQr: false,
+        updatedAt: 1_000,
+        leaseExpiresAt: 61_000,
+      },
+      {
+        companyId: "company-1",
+        runtimeOwnerId: "runtime-owner-1",
+        sessionKey: profile.sessionKey,
+        state: "initializing",
+        attempt: 0,
+        hasQr: false,
+        updatedAt: 1_000,
+        leaseExpiresAt: 61_000,
+      },
+      {
+        companyId: "company-1",
+        runtimeOwnerId: "runtime-owner-1",
+        sessionKey: profile.sessionKey,
+        state: "initializing",
+        attempt: 0,
+        hasQr: false,
+        updatedAt: 1_000,
+        leaseExpiresAt: 61_000,
+      },
+    ]);
+  });
+
+  test("stops disabled tenants on reconcile and clears their persisted runtime state", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([profile]);
+    const { timer, intervals } = createIntervalTimerStub();
+    const stopped: string[] = [];
+
+    const manager = await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }), {
+          stop: async () => {
+            stopped.push(sessionKey);
+          },
+        });
+      },
+    });
+
+    expect(manager.getSession("company-1")?.status.state).toBe("open");
+
+    store.setCompanies([]);
+    await intervals[0]?.callback();
+
+    expect(stopped).toEqual([profile.sessionKey]);
+    expect(store.clearedSessions).toEqual(["company-1"]);
+    expect(store.clearedPairingArtifacts).toEqual(["company-1", "company-1"]);
+    expect(manager.listSessions()).toEqual([]);
+  });
+
+  test("refreshes in-memory tenant metadata on reconcile without restarting the session", async () => {
+    const profile = createProfile("company-1", {
+      config: {
+        accessControlMode: "ALL",
+      },
+    });
+    const updatedProfile = createProfile("company-1", {
+      config: {
+        accessControlMode: "LIST",
+        accessControlAllowedNumbers: "967700000003",
+      },
+      name: "Updated Tenant",
+      ownerPhone: "967771408660",
+      timezone: "Asia/Aden",
+    });
+    const store = createStoreStub([profile]);
+    const { timer, intervals } = createIntervalTimerStub();
+    const startCalls: string[] = [];
+
+    const manager = await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        startCalls.push(sessionKey);
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
+      },
+    });
+
+    store.setCompanies([updatedProfile]);
+    await intervals[0]?.callback();
+
+    expect(startCalls).toEqual([profile.sessionKey]);
+    expect(manager.getSession("company-1")?.profile).toEqual(updatedProfile);
   });
 
   test("persists ready QR artifacts and clears them when pairing is removed", async () => {

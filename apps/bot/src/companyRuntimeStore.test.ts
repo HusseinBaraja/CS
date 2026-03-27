@@ -25,6 +25,7 @@ describe("createConvexCompanyRuntimeStore", () => {
     });
 
     await expect(store.clearPairingArtifact("   ")).rejects.toThrow("Invalid companyId");
+    await expect(store.clearSession("   ")).rejects.toThrow("Invalid companyId");
     await expect(store.upsertSession({
       companyId: "   ",
       runtimeOwnerId: "runtime-owner-1",
@@ -37,6 +38,25 @@ describe("createConvexCompanyRuntimeStore", () => {
     })).rejects.toThrow("Invalid companyId");
 
     expect(mutationCalled).toBe(false);
+  });
+
+  test("forwards per-company runtime session cleanup to convex with a normalized company id", async () => {
+    const mutationCalls: Array<{ reference: unknown; args: unknown }> = [];
+    const store = createStore({
+      query: async () => [],
+      mutation: async (reference, args) => {
+        mutationCalls.push({ reference, args });
+        return undefined;
+      },
+      action: async () => undefined,
+    });
+
+    await store.clearSession(" company-123 ");
+
+    expect(mutationCalls).toHaveLength(1);
+    expect(mutationCalls[0]?.args).toEqual({
+      companyId: "company-123",
+    });
   });
 
   test("normalizes missing company runtime function errors into an actionable sync message", async () => {

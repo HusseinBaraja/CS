@@ -73,6 +73,19 @@ bun run test
 ### Targeted development
 
 ```bash
+bun run dev
+```
+
+Starts the long-running app runtimes together:
+
+- API
+- bot
+- web
+- worker
+
+The root `dev` command intentionally excludes the CLI watch process.
+
+```bash
 bun run web
 bun run dev:web
 bun run dev:api
@@ -80,7 +93,9 @@ bun run dev:bot
 bun run dev:worker
 ```
 
-`bun run dev:bot` still works from the repo root, but it now launches the bot package on Node under the hood. This is intentional and scoped only to the Baileys runtime.
+`bun run dev:bot` now starts both the API and the bot from the repo root so the bot operator page at `/runtime/bot` is reachable during local WhatsApp testing.
+
+The bot runtime itself still launches on Node under the hood. This remains intentional and scoped only to the Baileys runtime.
 
 Use `bun run web` from the repository root to start the frontend app on `0.0.0.0:5173` so other devices on the same LAN or hotspot can open it.
 Use `bun run dev:web` when you specifically want the Turbo workspace dev flow instead.
