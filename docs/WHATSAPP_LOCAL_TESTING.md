@@ -28,7 +28,7 @@ You need a valid `.env` with at least:
 - `CONVEX_ADMIN_KEY`
 - `GEMINI_API_KEY`
 
-See [`docs/ENVIRONMENT_VARIABLES.md`](C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/docs/ENVIRONMENT_VARIABLES.md) for the full environment reference.
+See [`docs/ENVIRONMENT_VARIABLES.md`](CS/docs/ENVIRONMENT_VARIABLES.md) for the full environment reference.
 
 ## Seed the mock tenant
 

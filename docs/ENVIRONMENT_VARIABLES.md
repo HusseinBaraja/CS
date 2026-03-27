@@ -1,8 +1,8 @@
 # Environment Variables
 
-This file explains the variables in [`/.env.example`](C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/.env.example).
+This file explains the variables in [`/.env.example`](CS/.env.example).
 
-The source of truth for validation and defaults is [`packages/config/src/index.ts`](C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/packages/config/src/index.ts).
+The source of truth for validation and defaults is [`packages/config/src/index.ts`](CS/packages/config/src/index.ts).
 
 ## General
 
@@ -172,4 +172,4 @@ Also needed:
 - Empty strings for optional secrets are treated as unset.
 - Several defaults are applied automatically by the config layer.
 - The repo is Bun-first overall, but the Baileys bot runtime is intentionally started on Node for local pairing and operation because QR registration is not reliable under Bun's current WebSocket compatibility behavior.
-- The app validates these values through [`packages/config/src/index.ts`](C:/Users/Hussein/Desktop/Things/Zerone/Projects/CS/packages/config/src/index.ts), so if this document and the schema ever disagree, trust the schema.
+- The app validates these values through [`packages/config/src/index.ts`](CS/packages/config/src/index.ts), so if this document and the schema ever disagree, trust the schema.
