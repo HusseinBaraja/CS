@@ -4,6 +4,7 @@ export {
   generateGeminiEmbedding,
   generateGeminiEmbeddings,
 } from "./embeddings";
+export { setGeminiClientFactoryForTests } from "./testUtils";
 
 export { getChatProviderAdapter, CHAT_PROVIDER_NAMES, } from "./chat/adapters";
 export { createChatRuntimeConfig } from "./chat/runtimeConfig";

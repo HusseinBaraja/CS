@@ -168,6 +168,26 @@ const createRuntimeHandle = (
   ...overrides,
 });
 
+const createDeferred = <T>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return {
+    promise,
+    reject,
+    resolve,
+  };
+};
+
+const flushTasks = async () => {
+  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+};
+
 describe("startTenantSessionManager", () => {
   test("starts only enabled tenant sessions and lists them independently", async () => {
     const profiles = [createProfile("company-1"), createProfile("company-2")];
@@ -355,20 +375,11 @@ describe("startTenantSessionManager", () => {
 
     store.setCompanies([profile]);
     await intervals[0]?.callback();
+    await flushTasks();
 
     expect(startCalls).toEqual([profile.sessionKey]);
     expect(manager.listSessions().map((session) => session.profile.companyId)).toEqual(["company-1"]);
     expect(store.upsertCalls).toEqual([
-      {
-        companyId: "company-1",
-        runtimeOwnerId: "runtime-owner-1",
-        sessionKey: profile.sessionKey,
-        state: "initializing",
-        attempt: 0,
-        hasQr: false,
-        updatedAt: 1_000,
-        leaseExpiresAt: 61_000,
-      },
       {
         companyId: "company-1",
         runtimeOwnerId: "runtime-owner-1",
@@ -422,11 +433,270 @@ describe("startTenantSessionManager", () => {
 
     store.setCompanies([]);
     await intervals[0]?.callback();
+    await flushTasks();
 
     expect(stopped).toEqual([profile.sessionKey]);
     expect(store.clearedSessions).toEqual(["company-1"]);
     expect(store.clearedPairingArtifacts).toEqual(["company-1", "company-1"]);
     expect(manager.listSessions()).toEqual([]);
+  });
+
+  test("keeps the session visible until async shutdown cleanup completes", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([profile]);
+    const { timer, intervals } = createIntervalTimerStub();
+    const stopDeferred = createDeferred<void>();
+    const clearDeferred = createDeferred<void>();
+
+    store.clearSession = async (companyId) => {
+      store.clearedSessions.push(companyId);
+      await clearDeferred.promise;
+    };
+
+    const manager = await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }), {
+          stop: async () => {
+            await stopDeferred.promise;
+          },
+        });
+      },
+    });
+
+    store.setCompanies([]);
+    await intervals[0]?.callback();
+    await flushTasks();
+
+    expect(manager.getSession("company-1")?.status.state).toBe("open");
+
+    stopDeferred.resolve();
+    await flushTasks();
+
+    expect(manager.getSession("company-1")?.status.state).toBe("open");
+
+    clearDeferred.resolve();
+    await flushTasks();
+    await flushTasks();
+
+    expect(manager.getSession("company-1")).toBeUndefined();
+    expect(store.clearedSessions).toEqual(["company-1"]);
+    expect(store.clearedPairingArtifacts).toEqual(["company-1", "company-1"]);
+  });
+
+  test("ignores status, pairing, and inbound callbacks after session shutdown begins", async () => {
+    const profile = createProfile("company-1", {
+      config: {
+        accessControlMode: "ALL",
+      },
+    });
+    const store = createStoreStub([profile]);
+    const statusCallbacks = new Map<string, NonNullable<StartBotOptions["onStatusChange"]>>();
+    const pairingCallbacks = new Map<string, NonNullable<StartBotOptions["onPairingChange"]>>();
+    const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+    const routedMessages: string[] = [];
+    const stopDeferred = createDeferred<void>();
+
+    const manager = await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      inboundRouter: {
+        handleCustomerConversation: async (message) => {
+          routedMessages.push(message.messageId);
+        },
+        handleIgnored: async () => undefined,
+        handleOwnerCommand: async () => undefined,
+      },
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        statusCallbacks.set(sessionKey, options.onStatusChange ?? (() => undefined));
+        pairingCallbacks.set(sessionKey, options.onPairingChange ?? (() => undefined));
+        messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }), {
+          stop: async () => {
+            await stopDeferred.promise;
+          },
+        });
+      },
+    });
+
+    const stopPromise = manager.stop();
+    await Promise.resolve();
+
+    await statusCallbacks.get(profile.sessionKey)?.({
+      sessionKey: profile.sessionKey,
+      state: "failed",
+      attempt: 3,
+      hasQr: true,
+    });
+    await pairingCallbacks.get(profile.sessionKey)?.({
+      sessionKey: profile.sessionKey,
+      state: "ready",
+      updatedAt: 5_000,
+      expiresAt: 6_000,
+      qrText: "ignored",
+    });
+    await messageCallbacks.get(profile.sessionKey)?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "ignored-during-stop",
+            remoteJid: "967700000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_000,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+
+    expect(manager.getSession("company-1")?.status).toEqual({
+      sessionKey: "company-company-1",
+      state: "open",
+      attempt: 0,
+      hasQr: false,
+    });
+    expect(store.pairingUpsertCalls).toEqual([]);
+    expect(routedMessages).toEqual([]);
+
+    stopDeferred.resolve();
+    await stopPromise;
+  });
+
+  test("stops a session handle that finishes startup after manager shutdown begins", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([]);
+    const { timer, intervals } = createIntervalTimerStub();
+    const startDeferred = createDeferred<BotRuntimeHandle>();
+    const stopped: string[] = [];
+
+    const manager = await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      startBot: async () => startDeferred.promise,
+    });
+
+    store.setCompanies([profile]);
+    await intervals[0]?.callback();
+    await flushTasks();
+
+    const stopPromise = manager.stop();
+    startDeferred.resolve(createRuntimeHandle(() => ({
+      sessionKey: profile.sessionKey,
+      state: "open",
+      attempt: 0,
+      hasQr: false,
+    }), {
+      stop: async () => {
+        stopped.push(profile.sessionKey);
+      },
+    }));
+
+    await stopPromise;
+
+    expect(stopped).toEqual([profile.sessionKey]);
+    expect(manager.getSession("company-1")).toBeUndefined();
+    expect(manager.getOutbound("company-1")).toBeUndefined();
+  });
+
+  test("renews heartbeat even when reconcile fails", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([profile]);
+    const { logger, errorCalls } = createLoggerStub();
+    const { timer, intervals } = createIntervalTimerStub();
+    let listCalls = 0;
+
+    store.listEnabledCompanies = async () => {
+      listCalls += 1;
+      if (listCalls === 1) {
+        return [profile];
+      }
+
+      throw new Error("reconcile failed");
+    };
+
+    await startTenantSessionManager({
+      logger,
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      now: () => 1_000,
+      startBot: async (options) => createRuntimeHandle(() => ({
+        sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
+        state: "open",
+        attempt: 0,
+        hasQr: false,
+      })),
+    });
+
+    const upsertCallCountBeforeHeartbeat = store.upsertCalls.length;
+    await intervals[0]?.callback();
+    await flushTasks();
+
+    expect(store.upsertCalls).toHaveLength(upsertCallCountBeforeHeartbeat + 1);
+    expect(errorCalls).toContainEqual({
+      payload: {
+        error: expect.any(Error),
+        runtimeOwnerId: "runtime-owner-1",
+      },
+      message: "tenant session reconcile failed",
+    });
+  });
+
+  test("does not start overlapping reconcile runs on successive heartbeat ticks", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([]);
+    const { timer, intervals } = createIntervalTimerStub();
+    const startDeferred = createDeferred<BotRuntimeHandle>();
+    const startedSessionKeys: string[] = [];
+
+    const manager = await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      startBot: async (options) => {
+        startedSessionKeys.push(options.runtimeConfig?.sessionKey ?? "missing");
+        return startDeferred.promise;
+      },
+    });
+
+    store.setCompanies([profile]);
+    await intervals[0]?.callback();
+    await flushTasks();
+    await intervals[0]?.callback();
+    await flushTasks();
+
+    expect(startedSessionKeys).toEqual([profile.sessionKey]);
+
+    startDeferred.resolve(createRuntimeHandle(() => ({
+      sessionKey: profile.sessionKey,
+      state: "open",
+      attempt: 0,
+      hasQr: false,
+    })));
+    await flushTasks();
+    await flushTasks();
+
+    expect(manager.getSession("company-1")?.status.state).toBe("open");
   });
 
   test("refreshes in-memory tenant metadata on reconcile without restarting the session", async () => {

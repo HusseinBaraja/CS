@@ -223,7 +223,12 @@ const listVisibleConversationMessagesDescending = async (
       limit: batchSize,
     });
 
-    visibleMessages.push(...page.page.filter(isVisibleConversationMessage));
+    const remaining = limit - visibleMessages.length;
+    visibleMessages.push(...page.page.filter(isVisibleConversationMessage).slice(0, remaining));
+    if (visibleMessages.length >= limit) {
+      break;
+    }
+
     if (page.isDone || page.continueCursor === cursor || page.page.length === 0) {
       break;
     }
@@ -231,7 +236,7 @@ const listVisibleConversationMessagesDescending = async (
     cursor = page.continueCursor;
   }
 
-  return visibleMessages;
+  return visibleMessages.slice(0, limit);
 };
 
 const resolveMessageByTransportMessageId = async (

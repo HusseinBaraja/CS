@@ -162,12 +162,15 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
 
   it("clears runtime session rows for one company only", async () => {
     const t = convexTest(schema, modules);
+    const nowBeforeClear = Date.now();
 
     const [firstCompanyId, secondCompanyId] = await Promise.all([
       t.run(async (ctx) =>
         ctx.db.insert("companies", {
           name: "First Session Tenant",
           ownerPhone: "966500000918",
+          botRuntimeSessionLeaseOwner: "runtime-owner-1",
+          botRuntimeSessionLeaseExpiresAt: 999_999,
           config: {
             botEnabled: true,
           },
@@ -218,6 +221,60 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
       companyId: secondCompanyId,
       runtimeOwnerId: "runtime-owner-2",
       sessionKey: "company-second",
+    });
+
+    const firstCompany = await t.run(async (ctx) => ctx.db.get(firstCompanyId));
+    expect(firstCompany?.botRuntimeSessionLeaseExpiresAt).toBeLessThanOrEqual(Date.now());
+    expect(firstCompany?.botRuntimeSessionLeaseExpiresAt).toBeGreaterThanOrEqual(nowBeforeClear);
+  });
+
+  it("releases the company session lease when clearing runtime sessions", async () => {
+    const t = convexTest(schema, modules);
+
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Lease Clear Tenant",
+        ownerPhone: "966500000920",
+        botRuntimeSessionLeaseOwner: "runtime-owner-1",
+        botRuntimeSessionLeaseExpiresAt: Date.now() + 60_000,
+        config: {
+          botEnabled: true,
+        },
+      }),
+    );
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("botRuntimeSessions", {
+        companyId,
+        runtimeOwnerId: "runtime-owner-1",
+        sessionKey: "company-lease",
+        state: "open",
+        attempt: 0,
+        hasQr: false,
+        updatedAt: 1_000,
+        leaseExpiresAt: 61_000,
+      });
+    });
+
+    await t.mutation(internal.companyRuntime.clearBotRuntimeSession, {
+      companyId,
+    });
+
+    await expect(
+      t.mutation(internal.companyRuntime.upsertBotRuntimeSession, {
+        companyId,
+        runtimeOwnerId: "runtime-owner-2",
+        sessionKey: "company-lease",
+        state: "connecting",
+        attempt: 1,
+        hasQr: false,
+        updatedAt: 2_000,
+        leaseExpiresAt: 62_000,
+      }),
+    ).resolves.toMatchObject({
+      companyId,
+      runtimeOwnerId: "runtime-owner-2",
+      sessionKey: "company-lease",
     });
   });
 

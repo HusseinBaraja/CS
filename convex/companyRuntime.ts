@@ -345,6 +345,15 @@ export const clearBotRuntimeSession = internalMutation({
     for (const row of rows) {
       await ctx.db.delete(row._id);
     }
+
+    const company = await ctx.db.get(args.companyId);
+    if (!company) {
+      return;
+    }
+
+    await ctx.db.patch(args.companyId, {
+      botRuntimeSessionLeaseExpiresAt: Date.now(),
+    });
   },
 });
 

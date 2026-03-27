@@ -50,6 +50,7 @@ interface ManagedTenantSessionInternal {
   profile: CompanyRuntimeProfile;
   status: BotSessionStatus;
   pairing: BotPairingStatus | null;
+  stopping: boolean;
   runtimeConfig: BotRuntimeConfig;
   handle?: BotRuntimeHandle;
 }
@@ -253,6 +254,7 @@ export const startTenantSessionManager = async (
   const createOutboundMessenger = options.createOutboundMessenger ?? defaultCreateOutboundMessenger;
   const sessions = new Map<string, ManagedTenantSessionInternal>();
   let heartbeatId: unknown;
+  let reconcileInFlight: Promise<void> | null = null;
   let stopping = false;
 
   const upsertStatus = async (companyId: string, status: BotSessionStatus): Promise<void> => {
@@ -263,6 +265,8 @@ export const startTenantSessionManager = async (
     companyId: string,
     fallbackProfile: CompanyRuntimeProfile,
   ): CompanyRuntimeProfile => sessions.get(companyId)?.profile ?? fallbackProfile;
+
+  const isSessionStopping = (companyId: string): boolean => sessions.get(companyId)?.stopping === true;
 
   const updateSessionProfile = (profile: CompanyRuntimeProfile): void => {
     const existing = sessions.get(profile.companyId);
@@ -329,6 +333,10 @@ export const startTenantSessionManager = async (
     route?: "owner_command" | "customer_conversation",
   ): Promise<void> => {
     const currentProfile = getCurrentProfile(profile.companyId, profile);
+    if (stopping || isSessionStopping(currentProfile.companyId)) {
+      return;
+    }
+
     const context: InboundRouteContext = {
       profile: currentProfile,
       outbound: sessions.get(profile.companyId)?.outbound,
@@ -364,6 +372,10 @@ export const startTenantSessionManager = async (
     event: Parameters<typeof normalizeInboundMessages>[1],
   ): Promise<void> => {
     const currentProfile = getCurrentProfile(profile.companyId, profile);
+    if (stopping || isSessionStopping(currentProfile.companyId)) {
+      return;
+    }
+
     const dispatches = normalizeInboundMessages(currentProfile, event);
     const accessControlPolicy = resolveAccessControlPolicy(currentProfile.config, currentProfile.ownerPhone);
 
@@ -396,11 +408,20 @@ export const startTenantSessionManager = async (
     status: BotSessionStatus,
   ): Promise<void> => {
     const currentProfile = getCurrentProfile(profile.companyId, profile);
-    const nextStatus = cloneStatus(status);
+    if (stopping) {
+      return;
+    }
+
     const existing = sessions.get(currentProfile.companyId);
+    if (existing?.stopping) {
+      return;
+    }
+
+    const nextStatus = cloneStatus(status);
     sessions.set(currentProfile.companyId, {
       profile: currentProfile,
       pairing: existing?.pairing ?? null,
+      stopping: false,
       runtimeConfig: existing?.runtimeConfig ?? createRuntimeConfig({
         sessionKey: currentProfile.sessionKey,
       }),
@@ -445,8 +466,16 @@ export const startTenantSessionManager = async (
     pairing: BotPairingStatus,
   ): Promise<void> => {
     const currentProfile = getCurrentProfile(profile.companyId, profile);
+    if (stopping) {
+      return;
+    }
+
     const nextPairing = clonePairing(pairing);
     const existing = sessions.get(currentProfile.companyId);
+    if (existing?.stopping) {
+      return;
+    }
+
     if (existing) {
       sessions.set(currentProfile.companyId, {
         ...existing,
@@ -516,6 +545,7 @@ export const startTenantSessionManager = async (
         profile,
         status: initialStatus,
         pairing: null,
+        stopping: false,
         runtimeConfig,
       });
       await handleStatusChange(profile, initialStatus);
@@ -534,6 +564,12 @@ export const startTenantSessionManager = async (
         runtimeConfig,
       });
 
+      const startedSession = sessions.get(profile.companyId);
+      if (stopping || !startedSession || startedSession.stopping) {
+        await handle.stop();
+        return;
+      }
+
       const currentStatus = cloneStatus(handle.getStatus());
       const outbound = createOutboundMessenger({
         logger: typeof botLogger.child === "function"
@@ -550,6 +586,7 @@ export const startTenantSessionManager = async (
         profile: getCurrentProfile(profile.companyId, profile),
         status: currentStatus,
         pairing: sessions.get(profile.companyId)?.pairing ?? null,
+        stopping: false,
         runtimeConfig,
         handle,
       });
@@ -589,6 +626,7 @@ export const startTenantSessionManager = async (
         profile,
         status: failedStatus,
         pairing: sessions.get(profile.companyId)?.pairing ?? null,
+        stopping: false,
         runtimeConfig: fallbackConfig,
       });
       await upsertStatus(profile.companyId, failedStatus).catch((persistError) => {
@@ -619,11 +657,14 @@ export const startTenantSessionManager = async (
     } = {},
   ): Promise<void> => {
     const session = sessions.get(companyId);
-    if (!session) {
+    if (!session || session.stopping) {
       return;
     }
 
-    sessions.delete(companyId);
+    sessions.set(companyId, {
+      ...session,
+      stopping: true,
+    });
 
     try {
       await session.handle?.stop();
@@ -639,6 +680,8 @@ export const startTenantSessionManager = async (
     }
 
     if (!options.clearPersistedState) {
+      await clearPairingArtifact(session.profile);
+      sessions.delete(companyId);
       return;
     }
 
@@ -656,6 +699,7 @@ export const startTenantSessionManager = async (
     }
 
     await clearPairingArtifact(session.profile);
+    sessions.delete(companyId);
   };
 
   const reconcileManagedSessions = async (): Promise<void> => {
@@ -698,6 +742,28 @@ export const startTenantSessionManager = async (
     await Promise.all(updates);
   };
 
+  const triggerReconcileManagedSessions = (): void => {
+    if (stopping || reconcileInFlight) {
+      return;
+    }
+
+    reconcileInFlight = (async () => {
+      try {
+        await reconcileManagedSessions();
+      } catch (error) {
+        botLogger.error(
+          {
+            error,
+            runtimeOwnerId,
+          },
+          "tenant session reconcile failed",
+        );
+      } finally {
+        reconcileInFlight = null;
+      }
+    })();
+  };
+
   const stop = async (): Promise<void> => {
     if (stopping) {
       return;
@@ -708,6 +774,10 @@ export const startTenantSessionManager = async (
     if (heartbeatId !== undefined) {
       timer.clearInterval(heartbeatId);
       heartbeatId = undefined;
+    }
+
+    if (reconcileInFlight) {
+      await Promise.allSettled([reconcileInFlight]);
     }
 
     await Promise.allSettled(
@@ -723,8 +793,8 @@ export const startTenantSessionManager = async (
   await reconcileManagedSessions();
 
   heartbeatId = timer.setInterval(async () => {
-    await reconcileManagedSessions();
     await renewHeartbeat();
+    triggerReconcileManagedSessions();
   }, HEARTBEAT_INTERVAL_MS);
 
   if (registerProcessHandlers) {

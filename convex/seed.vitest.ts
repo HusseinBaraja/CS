@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { afterEach, describe, expect, it } from 'vitest';
 import { convexTest } from 'convex-test';
-import { setGeminiClientFactoryForTests } from '../packages/ai/src/testUtils';
+import { setGeminiClientFactoryForTests } from '@cs/ai';
 import { internal } from './_generated/api';
 import schema from './schema';
 import { seedCategories, seedCompany, seedCurrencyRate, seedOffers, seedProducts, seedVariants } from './seedData';
@@ -40,6 +40,8 @@ const installGeminiStub = (mode: "success" | "failure" = "success") => {
   }
 
   process.env.GEMINI_API_KEY = "test-gemini-key";
+  resetGeminiClientFactory?.();
+  resetGeminiClientFactory = null;
   resetGeminiClientFactory = setGeminiClientFactoryForTests(() => ({
     models: {
       embedContent: async ({ contents }) => {
@@ -104,7 +106,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
 
     expect(counts.companies[0]).toMatchObject({
       name: seedCompany.name,
-      ownerPhone: "967771408660",
+      ownerPhone: "967700000000",
       seedKey: seedCompany.seedKey,
       timezone: seedCompany.timezone,
       config: expect.objectContaining({
@@ -336,6 +338,20 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(result.counts.embeddings).toBe(seedProducts.length * 2);
     expect(counts.companies).toHaveLength(1);
     expect(counts.products).toHaveLength(seedProducts.length);
+    expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
+  });
+
+  it("replaces an existing Gemini stub before installing a new one", async () => {
+    const t = convexTest(schema, modules);
+
+    installGeminiStub("failure");
+    installGeminiStub("success");
+
+    const result = await t.action(internal.seed.seedSampleData, {});
+    const counts = await collectCounts(t);
+
+    expect(result.counts.embeddings).toBe(seedProducts.length * 2);
+    expect(counts.companies).toHaveLength(1);
     expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
   });
 });
