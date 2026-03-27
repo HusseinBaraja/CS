@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { AuthenticationState, BaileysEventMap, UserFacingSocketConfig } from '@whiskeysockets/baileys';
+import type { AuthenticationState, BaileysEventMap, UserFacingSocketConfig } from './baileys';
 import { type BotConnectionUpdate, type BotPairingStatus, type BotSocket, startBot } from './runtime';
 import { createBotRuntimeConfig } from './runtimeConfig';
 

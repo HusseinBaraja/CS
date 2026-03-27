@@ -2,8 +2,8 @@ import {
   fetchLatestWaWebVersion,
   type BaileysEventMap,
   type UserFacingSocketConfig,
-} from '@whiskeysockets/baileys';
-import makeWASocket from '@whiskeysockets/baileys';
+} from './baileys';
+import makeWASocket from './baileys';
 import { logger as defaultLogger } from '@cs/core';
 import {
   getBotRuntimeReconnectDelayMs,

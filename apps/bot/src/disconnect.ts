@@ -1,4 +1,4 @@
-import { DisconnectReason } from '@whiskeysockets/baileys';
+import { DisconnectReason } from './baileys';
 
 const TRANSIENT_DISCONNECT_CODES = new Set<number>([
   DisconnectReason.connectionClosed,

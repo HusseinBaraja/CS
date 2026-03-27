@@ -214,6 +214,65 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages.map((message: { content: string }) => message.content)).toEqual(["second", "third"]);
   });
 
+  it("returns the latest visible limited messages when newer invisible assistant messages exist", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "visible-first",
+      timestamp: 1_000,
+    });
+    await t.run(async (ctx) =>
+      ctx.db.insert("messages", {
+        conversationId,
+        role: "assistant",
+        content: "invisible-newest",
+        timestamp: 4_000,
+      })
+    );
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "visible-second",
+      timestamp: 3_000,
+    });
+    await t.run(async (ctx) =>
+      ctx.db.insert("messages", {
+        conversationId,
+        role: "assistant",
+        content: "invisible-middle",
+        timestamp: 2_000,
+      })
+    );
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+      limit: 2,
+    });
+
+    expect(messages.map((message: { content: string }) => message.content)).toEqual([
+      "visible-first",
+      "visible-second",
+    ]);
+  });
+
   it("returns the latest prompt turns in ascending order for synthetic timestamps", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>

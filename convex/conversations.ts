@@ -21,6 +21,7 @@ const CONVERSATION_LOCK_LEASE_MS = 15_000;
 const CONVERSATION_LOCK_POLL_MS = 100;
 const MAX_CONVERSATION_LOCK_WAIT_MS = 1_500;
 const TRIM_MESSAGES_BATCH_SIZE = 100;
+const LIST_CONVERSATION_MESSAGES_BATCH_SIZE = 100;
 export const AUTO_RESUME_IDLE_MS = 12 * 60 * 60 * 1_000;
 export const STALE_CONTEXT_RESET_MS = 30 * 60 * 1_000;
 const REFERENCED_HISTORY_SIDE_MESSAGES = 5;
@@ -190,6 +191,23 @@ const listConversationMessageDocsDescending = (
     .order("desc")
     .collect();
 
+const listConversationMessageDocsPageDescending = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  input: {
+    cursor: string | null;
+    limit: number;
+  },
+) =>
+  ctx.db
+    .query("messages")
+    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
+    .order("desc")
+    .paginate({
+      cursor: input.cursor,
+      numItems: input.limit,
+    });
+
 const listConversationMessageDocsAscending = (
   ctx: { db: DatabaseReader },
   conversationId: Id<"conversations">,
@@ -198,6 +216,32 @@ const listConversationMessageDocsAscending = (
     .query("messages")
     .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
     .collect();
+
+const listVisibleConversationMessagesDescending = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  limit: number,
+): Promise<Array<Doc<"messages">>> => {
+  const visibleMessages: Array<Doc<"messages">> = [];
+  let cursor: string | null = null;
+  const batchSize = Math.max(limit, LIST_CONVERSATION_MESSAGES_BATCH_SIZE);
+
+  while (visibleMessages.length < limit) {
+    const page = await listConversationMessageDocsPageDescending(ctx, conversationId, {
+      cursor,
+      limit: batchSize,
+    });
+
+    visibleMessages.push(...page.page.filter(isVisibleConversationMessage));
+    if (page.isDone || page.continueCursor === cursor || page.page.length === 0) {
+      break;
+    }
+
+    cursor = page.continueCursor;
+  }
+
+  return visibleMessages;
+};
 
 const resolveMessageByTransportMessageId = async (
   ctx: { db: DatabaseReader },
@@ -1223,16 +1267,16 @@ export const listConversationMessages = internalQuery({
   handler: async (ctx, args): Promise<ConversationMessageDto[]> => {
     await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const limit = normalizeOptionalLimit(args.limit);
-    const visibleMessages = (await listConversationMessageDocsDescending(ctx, args.conversationId))
-      .filter(isVisibleConversationMessage);
 
     if (limit !== undefined) {
-      return visibleMessages
+      return (await listVisibleConversationMessagesDescending(ctx, args.conversationId, limit))
         .slice(0, limit)
         .reverse()
         .map(toMessageDto);
     }
 
+    const visibleMessages = (await listConversationMessageDocsDescending(ctx, args.conversationId))
+      .filter(isVisibleConversationMessage);
     return visibleMessages
       .reverse()
       .map(toMessageDto);

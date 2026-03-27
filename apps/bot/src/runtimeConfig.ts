@@ -1,6 +1,6 @@
 import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Browsers } from '@whiskeysockets/baileys';
+import { Browsers } from './baileys';
 import { env } from '@cs/config';
 import { normalizeSessionKey } from './sessionKey';
 

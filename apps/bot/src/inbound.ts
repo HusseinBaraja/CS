@@ -9,7 +9,7 @@ import {
   normalizeMessageContent,
   type BaileysEventMap,
   type WAMessage,
-} from '@whiskeysockets/baileys';
+} from './baileys';
 import {
   canonicalizePhoneNumber,
   type CompanyRuntimeProfile,
@@ -255,11 +255,11 @@ export const normalizeInboundMessages = (
   }
 
   const senderJidCandidate =
-    message.key.participantAlt ??
-    message.key.participant ??
-    message.key.remoteJidAlt ??
-    message.key.remoteJid;
-  const senderTransportId = jidNormalizedUser(senderJidCandidate ?? remoteJid);
+    readOptionalString(message.key.participantAlt) ??
+    readOptionalString(message.key.participant) ??
+    readOptionalString(message.key.remoteJidAlt) ??
+    remoteJid;
+  const senderTransportId = jidNormalizedUser(senderJidCandidate);
   const conversationPhoneNumber =
     extractCanonicalPhoneNumber(message.key.remoteJidAlt) ??
     extractCanonicalPhoneNumber(message.key.remoteJid) ??

@@ -1,4 +1,4 @@
-import { DisconnectReason } from '@whiskeysockets/baileys';
+import { DisconnectReason } from './baileys';
 import { describe, expect, test } from 'bun:test';
 import {
   isReplacedConnectionDisconnectCode,
