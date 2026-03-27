@@ -35,7 +35,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
         name: "Disabled Packaging",
         ownerPhone: "966500000903",
         config: {
-          botEnabled: true,
+          botEnabled: false,
         },
       });
       await ctx.db.insert("companies", {

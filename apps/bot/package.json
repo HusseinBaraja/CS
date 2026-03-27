@@ -18,13 +18,11 @@
     "@cs/core": "*",
     "@cs/db": "*",
     "@cs/rag": "*",
-    "baileys": "github:WhiskeySockets/Baileys#802d5f6efa6a78fadb45cd10ce0dbfce5339cbc7"
+    "baileys": "github:WhiskeySockets/Baileys#802d5f6efa6a78fadb45cd10ce0dbfce5339cbc7",
+    "tsx": "^4.20.5"
   },
   "x-dependency-notes": {
     "baileys": "Pinned to WhiskeySockets/Baileys commit 802d5f6efa6a78fadb45cd10ce0dbfce5339cbc7 to preserve the reviewed edge build behavior because the published 7.0.0-rc.9 release still fails companion registration in this app. The GitHub package identifies itself as `baileys`, so the dependency is recorded under that installable name and imported through a local wrapper because this commit ships source files without the published lib build. Advance this pin only after intentionally verifying a newer commit or stable release in this app."
-  },
-  "devDependencies": {
-    "tsx": "^4.20.5"
   }
 }
 

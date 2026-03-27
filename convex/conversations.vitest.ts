@@ -237,14 +237,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       content: "visible-first",
       timestamp: 1_000,
     });
-    await t.run(async (ctx) =>
-      ctx.db.insert("messages", {
-        conversationId,
-        role: "assistant",
-        content: "invisible-newest",
-        timestamp: 4_000,
-      })
-    );
     await t.mutation(internal.conversations.appendConversationMessage, {
       companyId,
       conversationId,
@@ -260,6 +252,16 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
         timestamp: 2_000,
       })
     );
+    for (let index = 0; index < 101; index += 1) {
+      await t.run(async (ctx) =>
+        ctx.db.insert("messages", {
+          conversationId,
+          role: "assistant",
+          content: `invisible-${index}`,
+          timestamp: 10_000 + index,
+        })
+      );
+    }
 
     const messages = await t.query(internal.conversations.listConversationMessages, {
       companyId,
@@ -1951,6 +1953,16 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       conversationId,
       pendingMessageId: failed.id as Id<"messages">,
     });
+    for (let index = 0; index < 120; index += 1) {
+      await t.run(async (ctx) =>
+        ctx.db.insert("messages", {
+          conversationId,
+          role: "assistant",
+          content: `invisible-${index}`,
+          timestamp: 1_176 + index,
+        })
+      );
+    }
 
     const history = await t.query(internal.conversations.getPromptHistoryForInbound, {
       companyId,
@@ -2036,6 +2048,16 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
         timestamp: index * 1_000,
         transportMessageId: `transport-${index}`,
       });
+    }
+    for (let index = 0; index < 120; index += 1) {
+      await t.run(async (ctx) =>
+        ctx.db.insert("messages", {
+          conversationId,
+          role: "assistant",
+          content: `invisible-stale-${index}`,
+          timestamp: 20_000 + index,
+        })
+      );
     }
 
     await t.mutation(internal.conversations.appendConversationMessage, {

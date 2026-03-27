@@ -181,7 +181,7 @@ const isVisibleConversationMessage = (
   message: Pick<Doc<"messages">, "role" | "deliveryState">,
 ): boolean => message.role === "user" || message.deliveryState === "sent";
 
-const listConversationMessageDocsDescending = (
+const listConversationMessageDocsDescending = async (
   ctx: { db: DatabaseReader },
   conversationId: Id<"conversations">,
 ) =>
@@ -207,15 +207,6 @@ const listConversationMessageDocsPageDescending = async (
       cursor: input.cursor,
       numItems: input.limit,
     });
-
-const listConversationMessageDocsAscending = (
-  ctx: { db: DatabaseReader },
-  conversationId: Id<"conversations">,
-) =>
-  ctx.db
-    .query("messages")
-    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
-    .collect();
 
 const listVisibleConversationMessagesDescending = async (
   ctx: { db: DatabaseReader },
@@ -291,6 +282,23 @@ const isMessageBeforeInbound = (
     )
   );
 
+const iterateConversationMessagesDescending = (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+) =>
+  ctx.db
+    .query("messages")
+    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
+    .order("desc");
+
+const iterateConversationMessagesAscending = (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+) =>
+  ctx.db
+    .query("messages")
+    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId));
+
 const collectPriorMessagesDescending = async (
   ctx: { db: DatabaseReader },
   conversationId: Id<"conversations">,
@@ -302,9 +310,8 @@ const collectPriorMessagesDescending = async (
   },
 ): Promise<ConversationMessageDto[]> => {
   const priorMessages: ConversationMessageDto[] = [];
-  const messageDocs = await listConversationMessageDocsDescending(ctx, conversationId);
 
-  for (const messageDoc of messageDocs) {
+  for await (const messageDoc of iterateConversationMessagesDescending(ctx, conversationId)) {
     const message = toMessageDto(messageDoc);
     if (!isMessageBeforeInbound(message, input)) {
       continue;
@@ -313,14 +320,14 @@ const collectPriorMessagesDescending = async (
     priorMessages.push(message);
 
     if (input.stopWhenPriorMessagesFound) {
-      break;
+      return priorMessages;
     }
 
     if (
       input.minimumCount !== undefined
       && priorMessages.length >= input.minimumCount
     ) {
-      break;
+      return priorMessages;
     }
   }
 
@@ -339,9 +346,8 @@ const collectReferencedHistorySliceAscending = async (
   const precedingMessages: ConversationMessageDto[] = [];
   const referencedWindow: ConversationMessageDto[] = [];
   let foundReferencedMessage = false;
-  const messageDocs = await listConversationMessageDocsAscending(ctx, conversationId);
 
-  for (const messageDoc of messageDocs) {
+  for await (const messageDoc of iterateConversationMessagesAscending(ctx, conversationId)) {
     const message = toMessageDto(messageDoc);
     if (!isMessageBeforeInbound(message, input)) {
       continue;
