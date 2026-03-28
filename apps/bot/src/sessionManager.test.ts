@@ -742,6 +742,41 @@ describe("startTenantSessionManager", () => {
     expect(manager.getSession("company-1")?.profile).toEqual(updatedProfile);
   });
 
+  test("retries a failed handle-less startup on a later reconcile", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([profile]);
+    const { timer, intervals } = createIntervalTimerStub();
+    const startCalls: string[] = [];
+
+    await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        startCalls.push(sessionKey);
+
+        if (startCalls.length === 1) {
+          throw new Error("startup failed");
+        }
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
+      },
+    });
+
+    expect(startCalls).toEqual([profile.sessionKey]);
+
+    await intervals[0]?.callback();
+    await flushTasks();
+
+    expect(startCalls).toEqual([profile.sessionKey, profile.sessionKey]);
+  });
+
   test("persists ready QR artifacts and clears them when pairing is removed", async () => {
     const profile = createProfile("company-1");
     const store = createStoreStub([profile]);

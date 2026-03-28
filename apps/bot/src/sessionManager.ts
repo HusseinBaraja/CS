@@ -708,7 +708,15 @@ export const startTenantSessionManager = async (
 
     for (const profile of enabledProfiles) {
       const existing = sessions.get(profile.companyId);
-      if (!existing) {
+      if (existing?.stopping) {
+        continue;
+      }
+
+      if (!existing || (!existing.handle && existing.status.state === "failed")) {
+        if (existing) {
+          sessions.delete(profile.companyId);
+        }
+
         await startManagedSession(profile);
         continue;
       }
