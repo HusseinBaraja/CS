@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch --env-file=../../.env --import ./node_modules/tsx/dist/loader.mjs src/main.ts",
-    "start": "node --env-file=../../.env --import ./node_modules/tsx/dist/loader.mjs src/main.ts",
+    "dev": "node --watch --env-file=../../.env --import tsx src/main.ts",
+    "start": "node --env-file=../../.env --import tsx src/main.ts",
     "dev:bun-experimental": "bun --env-file=../../.env --watch src/main.ts",
     "build": "bun --env-file=../../.env build src/main.ts --outdir dist",
     "typecheck": "tsc --noEmit",
