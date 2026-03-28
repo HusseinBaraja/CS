@@ -1,0 +1,21 @@
+$ bun apps/cli/src/index.ts seed
+Ô£û Failed to run function "internal.seed.seedSampleData":
+Error: [Request ID: 723d37661cecdd60] Server Error
+Uncaught Error: Uncaught Error: This query or mutation function ran multiple paginated queries. Convex only supports a single paginated query in each function.
+
+    at async handler (../convex/seed.ts:298:12)
+[2026-03-26 03:39:07.652 +0800] [31mERROR[39m (31056): [36mcli command failed[39m
+    [35mcontext[39m: {}
+    err: {
+      "type": "Object",
+      "message": "Command failed with exit code 1: bunx convex run --typecheck disable --codegen disable internal.seed.seedSampleData {}",
+      "stack":
+          Error: Command failed with exit code 1: bunx convex run --typecheck disable --codegen disable internal.seed.seedSampleData {}
+              at <anonymous> (C:\Users\Hussein\Desktop\Things\Zerone\Projects\CS\apps\cli\src\lib\process.ts:60:15)
+              at async <anonymous> (C:\Users\Hussein\Desktop\Things\Zerone\Projects\CS\apps\cli\src\commands\seed.ts:9:9)
+              at async <anonymous> (C:\Users\Hussein\Desktop\Things\Zerone\Projects\CS\apps\cli\src\index.ts:35:17)
+              at processTicksAndRejections (native:7:39)
+      "name": "Error",
+      "context": {}
+    }
+error: script "seed" exited with code 1

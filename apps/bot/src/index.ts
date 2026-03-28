@@ -1,4 +1,4 @@
-import { logger } from '@cs/core';
+import { logError, logger } from '@cs/core';
 import { createCatalogChatOrchestrator } from '@cs/rag';
 import { createConvexConversationStore } from './conversationStore';
 import { createCustomerConversationRouter } from './customerConversationRouter';
@@ -18,9 +18,18 @@ const inboundRouter = {
   handleOwnerCommand: async () => undefined,
 };
 
-if (import.meta.main) {
-  startTenantSessionManager({ inboundRouter }).catch((error) => {
-    logger.error({ error }, "bot startup failed");
+export const startBotApp = async (
+  start = startTenantSessionManager,
+  activeLogger = logger,
+): Promise<void> => {
+  try {
+    await start({ inboundRouter });
+  } catch (error) {
+    logError(activeLogger, error, "bot startup failed");
     process.exitCode = 1;
-  });
+  }
+};
+
+if (import.meta.main) {
+  void startBotApp();
 }

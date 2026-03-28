@@ -128,4 +128,29 @@ describe("companyRuntime operator helpers", () => {
       "Inspect the runtime logs and restart or re-pair the tenant session as needed.",
     );
   });
+
+  test("surfaces replaced connections as an explicit conflict state in the operator copy", () => {
+    const snapshot = createSnapshot({
+      session: {
+        companyId: "company-1",
+        runtimeOwnerId: "runtime-owner-1",
+        sessionKey: "company-Y29tcGFueS0x",
+        state: "failed",
+        attempt: 0,
+        hasQr: false,
+        disconnectCode: 440,
+        updatedAt: 1_000,
+        leaseExpiresAt: 61_000,
+      },
+    });
+
+    expect(getBotRuntimeOperatorState(snapshot, 10_000)).toBe("failed");
+    expect(getBotRuntimeOperatorSummary(snapshot, 10_000)).toEqual({
+      code: "failed",
+      text: "Bot session was replaced by another active WhatsApp connection.",
+    });
+    expect(getBotRuntimeNextActionHint(snapshot, 10_000)).toBe(
+      "Ensure only one bot runtime is connected for this tenant, then restart the bot session.",
+    );
+  });
 });

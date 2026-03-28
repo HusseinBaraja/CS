@@ -164,7 +164,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       companyId,
       conversationId,
     });
-    expect(messages.map((message) => message.content)).toEqual(["first", "second", "third"]);
+    expect(messages.map((message: { content: string }) => message.content)).toEqual(["first", "second", "third"]);
   });
 
   it("returns the latest limited messages in ascending timestamp order", async () => {
@@ -211,7 +211,119 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       limit: 2,
     });
 
-    expect(messages.map((message) => message.content)).toEqual(["second", "third"]);
+    expect(messages.map((message: { content: string }) => message.content)).toEqual(["second", "third"]);
+  });
+
+  it("returns the latest visible limited messages when newer invisible assistant messages exist", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "visible-first",
+      timestamp: 1_000,
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "visible-second",
+      timestamp: 3_000,
+    });
+    await t.run(async (ctx) =>
+      ctx.db.insert("messages", {
+        conversationId,
+        role: "assistant",
+        content: "invisible-middle",
+        timestamp: 2_000,
+      })
+    );
+    for (let index = 0; index < 101; index += 1) {
+      await t.run(async (ctx) =>
+        ctx.db.insert("messages", {
+          conversationId,
+          role: "assistant",
+          content: `invisible-${index}`,
+          timestamp: 10_000 + index,
+        })
+      );
+    }
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+      limit: 2,
+    });
+
+    expect(messages.map((message: { content: string }) => message.content)).toEqual([
+      "visible-first",
+      "visible-second",
+    ]);
+  });
+
+  it("never returns more visible messages than the requested limit", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    for (let index = 1; index <= 5; index += 1) {
+      await t.mutation(internal.conversations.appendConversationMessage, {
+        companyId,
+        conversationId,
+        role: index % 2 === 0 ? "assistant" : "user",
+        content: `visible-${index}`,
+        timestamp: index * 1_000,
+      });
+    }
+
+    for (let index = 0; index < 105; index += 1) {
+      await t.run(async (ctx) =>
+        ctx.db.insert("messages", {
+          conversationId,
+          role: "assistant",
+          content: `invisible-${index}`,
+          timestamp: 10_000 + index,
+        })
+      );
+    }
+
+    const messages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+      limit: 3,
+    });
+
+    expect(messages).toHaveLength(3);
+    expect(messages.map((message: { content: string }) => message.content)).toEqual([
+      "visible-3",
+      "visible-4",
+      "visible-5",
+    ]);
   });
 
   it("returns the latest prompt turns in ascending order for synthetic timestamps", async () => {
@@ -709,6 +821,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       content: "Connecting you with the team.",
       timestamp: 2_000,
       deliveryState: "sent",
+      handoffSource: "assistant_action",
       transportMessageId: "assistant-1",
     }]);
 
@@ -798,6 +911,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       content: "Assistant reply",
       timestamp: 2_000,
       deliveryState: "sent",
+      providerAcknowledgedAt: 2_050,
       sideEffectsState: "completed",
       analyticsState: "not_applicable",
       ownerNotificationState: "not_applicable",
@@ -1546,6 +1660,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
         lastCustomerMessageAt: 5_000,
         nextAutoResumeAt: 5_000 + 12 * 60 * 60 * 1_000,
       },
+      wasDuplicate: false,
       wasMuted: true,
     });
 
@@ -1889,6 +2004,16 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       conversationId,
       pendingMessageId: failed.id as Id<"messages">,
     });
+    for (let index = 0; index < 120; index += 1) {
+      await t.run(async (ctx) =>
+        ctx.db.insert("messages", {
+          conversationId,
+          role: "assistant",
+          content: `invisible-${index}`,
+          timestamp: 1_176 + index,
+        })
+      );
+    }
 
     const history = await t.query(internal.conversations.getPromptHistoryForInbound, {
       companyId,
@@ -1965,7 +2090,27 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       })
     );
 
-    for (let index = 1; index <= 15; index += 1) {
+    for (let index = 1; index <= 8; index += 1) {
+      await t.mutation(internal.conversations.appendConversationMessage, {
+        companyId,
+        conversationId,
+        role: index % 2 === 0 ? "assistant" : "user",
+        content: `message-${index}`,
+        timestamp: index * 1_000,
+        transportMessageId: `transport-${index}`,
+      });
+    }
+    for (let index = 0; index < 120; index += 1) {
+      await t.run(async (ctx) =>
+        ctx.db.insert("messages", {
+          conversationId,
+          role: "assistant",
+          content: `invisible-stale-${index}`,
+          timestamp: 8_500 + index,
+        })
+      );
+    }
+    for (let index = 9; index <= 15; index += 1) {
       await t.mutation(internal.conversations.appendConversationMessage, {
         companyId,
         conversationId,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { AuthenticationState, BaileysEventMap, UserFacingSocketConfig } from '@whiskeysockets/baileys';
+import type { AuthenticationState, BaileysEventMap, UserFacingSocketConfig } from './baileys';
 import { type BotConnectionUpdate, type BotPairingStatus, type BotSocket, startBot } from './runtime';
 import { createBotRuntimeConfig } from './runtimeConfig';
 
@@ -13,17 +13,22 @@ const flushPromises = async (): Promise<void> => {
 const createLoggerStub = () => {
   const infoCalls: Array<{ payload: unknown; message: string }> = [];
   const errorCalls: Array<{ payload: unknown; message: string }> = [];
+  const warnCalls: Array<{ payload: unknown; message: string }> = [];
 
   return {
     logger: {
       info: (payload: unknown, message: string) => {
         infoCalls.push({ payload, message });
       },
+      warn: (payload: unknown, message: string) => {
+        warnCalls.push({ payload, message });
+      },
       error: (payload: unknown, message: string) => {
         errorCalls.push({ payload, message });
       },
     },
     infoCalls,
+    warnCalls,
     errorCalls,
   };
 };
@@ -155,11 +160,13 @@ describe("startBot", () => {
     const runtimeConfig = createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" });
     const socketStub = createSocketStub();
     const receivedConfigs: UserFacingSocketConfig[] = [];
+    const version = [2, 3001, 999999999] as [number, number, number];
 
     const handle = await startBot({
       logger,
       runtimeConfig,
       botProcess: process,
+      resolveSocketVersion: async () => version,
       loadAuthState: async () => {
         events.push("auth");
         return {
@@ -176,11 +183,12 @@ describe("startBot", () => {
     });
 
     expect(events).toEqual(["auth", "socket"]);
-    expect(Array.from(handlers.keys()).sort()).toEqual(["SIGINT", "SIGTERM", "beforeExit"]);
+    expect(Array.from(handlers.keys()).sort()).toEqual(["SIGINT", "SIGTERM"]);
     expect(receivedConfigs).toHaveLength(1);
     expect(receivedConfigs[0]?.markOnlineOnConnect).toBe(false);
     expect(receivedConfigs[0]?.syncFullHistory).toBe(false);
     expect(receivedConfigs[0]?.browser).toEqual(runtimeConfig.browser);
+    expect(receivedConfigs[0]?.version).toEqual(version);
     expect(handle.getStatus()).toEqual({
       sessionKey: "default",
       state: "initializing",
@@ -910,7 +918,6 @@ describe("startBot", () => {
 
     await handlers.get("SIGINT")?.();
     await handlers.get("SIGTERM")?.();
-    await handlers.get("beforeExit")?.();
 
     expect(socketStub.endCalls).toEqual([undefined]);
   });
@@ -1003,5 +1010,38 @@ describe("startBot", () => {
         message: "bot auth state persistence failed",
       },
     ]);
+  });
+
+  test("falls back to the bundled socket version when live version resolution fails", async () => {
+    const { logger, warnCalls } = createLoggerStub();
+    const socketStub = createSocketStub();
+    const receivedConfigs: UserFacingSocketConfig[] = [];
+
+    await startBot({
+      logger,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      resolveSocketVersion: async () => {
+        throw new Error("version fetch failed");
+      },
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: (config) => {
+        receivedConfigs.push(config);
+        return socketStub.socket;
+      },
+    });
+
+    expect(receivedConfigs[0]?.version).toEqual([2, 3000, 1027934701]);
+    expect(warnCalls).toContainEqual({
+      payload: {
+        error: expect.any(Error),
+        fallbackVersion: [2, 3000, 1027934701],
+        sessionKey: "default",
+      },
+      message: "bot socket version resolution failed; falling back to bundled version",
+    });
   });
 });

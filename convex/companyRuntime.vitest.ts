@@ -33,7 +33,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
       });
       await ctx.db.insert("companies", {
         name: "Disabled Packaging",
-        ownerPhone: "966500000903",
+        ownerPhone: "967784338919",
         config: {
           botEnabled: false,
         },
@@ -47,7 +47,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
     const profiles = await t.query(internal.companyRuntime.listEnabledBotCompanies, {});
 
     expect(profiles).toHaveLength(2);
-    expect(profiles.map((profile) => profile.name)).toEqual([
+    expect(profiles.map((profile: { name: string }) => profile.name)).toEqual([
       "Alpha Packaging",
       "Zulu Packaging",
     ]);
@@ -60,7 +60,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
       sessionKey: expect.stringMatching(/^company-/),
     });
     expect(profiles[1]?.timezone).toBe("UTC");
-    expect(profiles.every((profile) => profile.sessionKey.startsWith("company-"))).toBe(true);
+    expect(profiles.every((profile: { sessionKey: string }) => profile.sessionKey.startsWith("company-"))).toBe(true);
   });
 
   it("upserts one runtime session row per company", async () => {
@@ -154,10 +154,233 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
 
     await t.mutation(internal.companyRuntime.clearBotRuntimePairingArtifact, {
       companyId,
+      runtimeOwnerId: "runtime-owner-1",
     });
 
     rows = await t.run(async (ctx) => ctx.db.query("botRuntimePairingArtifacts").collect());
     expect(rows).toHaveLength(0);
+  });
+
+  it("only clears pairing artifacts that belong to the requested runtime owner", async () => {
+    const t = convexTest(schema, modules);
+
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Owner Scoped Pairing Tenant",
+        ownerPhone: "966500000921",
+        config: {
+          botEnabled: true,
+        },
+      }),
+    );
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("botRuntimePairingArtifacts", {
+        companyId,
+        runtimeOwnerId: "runtime-owner-1",
+        sessionKey: "company-owner-1",
+        qrText: "qr-one",
+        updatedAt: 1_000,
+        expiresAt: 61_000,
+      });
+      await ctx.db.insert("botRuntimePairingArtifacts", {
+        companyId,
+        runtimeOwnerId: "runtime-owner-2",
+        sessionKey: "company-owner-2",
+        qrText: "qr-two",
+        updatedAt: 2_000,
+        expiresAt: 62_000,
+      });
+    });
+
+    await t.mutation(internal.companyRuntime.clearBotRuntimePairingArtifact, {
+      companyId,
+      runtimeOwnerId: "runtime-owner-1",
+    });
+
+    const rows = await t.run(async (ctx) => ctx.db.query("botRuntimePairingArtifacts").collect());
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      companyId,
+      runtimeOwnerId: "runtime-owner-2",
+      sessionKey: "company-owner-2",
+    });
+  });
+
+  it("clears runtime session rows for one company only", async () => {
+    const t = convexTest(schema, modules);
+    const nowBeforeClear = Date.now();
+
+    const [firstCompanyId, secondCompanyId] = await Promise.all([
+      t.run(async (ctx) =>
+        ctx.db.insert("companies", {
+          name: "First Session Tenant",
+          ownerPhone: "966500000918",
+          botRuntimeSessionLeaseOwner: "runtime-owner-1",
+          botRuntimeSessionLeaseExpiresAt: 999_999,
+          config: {
+            botEnabled: true,
+          },
+        })
+      ),
+      t.run(async (ctx) =>
+        ctx.db.insert("companies", {
+          name: "Second Session Tenant",
+          ownerPhone: "966500000919",
+          config: {
+            botEnabled: true,
+          },
+        })
+      ),
+    ]);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("botRuntimeSessions", {
+        companyId: firstCompanyId,
+        runtimeOwnerId: "runtime-owner-1",
+        sessionKey: "company-first",
+        state: "open",
+        attempt: 0,
+        hasQr: false,
+        updatedAt: 1_000,
+        leaseExpiresAt: 61_000,
+      });
+      await ctx.db.insert("botRuntimeSessions", {
+        companyId: secondCompanyId,
+        runtimeOwnerId: "runtime-owner-2",
+        sessionKey: "company-second",
+        state: "connecting",
+        attempt: 1,
+        hasQr: false,
+        updatedAt: 2_000,
+        leaseExpiresAt: 62_000,
+      });
+    });
+
+    await t.mutation(internal.companyRuntime.clearBotRuntimeSession, {
+      companyId: firstCompanyId,
+      runtimeOwnerId: "runtime-owner-1",
+    });
+
+    const rows = await t.run(async (ctx) => ctx.db.query("botRuntimeSessions").collect());
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      companyId: secondCompanyId,
+      runtimeOwnerId: "runtime-owner-2",
+      sessionKey: "company-second",
+    });
+
+    const firstCompany = await t.run(async (ctx) => ctx.db.get(firstCompanyId));
+    expect(firstCompany?.botRuntimeSessionLeaseExpiresAt).toBeLessThanOrEqual(Date.now());
+    expect(firstCompany?.botRuntimeSessionLeaseExpiresAt).toBeGreaterThanOrEqual(nowBeforeClear);
+  });
+
+  it("releases the company session lease when clearing runtime sessions", async () => {
+    const t = convexTest(schema, modules);
+
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Lease Clear Tenant",
+        ownerPhone: "966500000920",
+        botRuntimeSessionLeaseOwner: "runtime-owner-1",
+        botRuntimeSessionLeaseExpiresAt: Date.now() + 60_000,
+        config: {
+          botEnabled: true,
+        },
+      }),
+    );
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("botRuntimeSessions", {
+        companyId,
+        runtimeOwnerId: "runtime-owner-1",
+        sessionKey: "company-lease",
+        state: "open",
+        attempt: 0,
+        hasQr: false,
+        updatedAt: 1_000,
+        leaseExpiresAt: 61_000,
+      });
+    });
+
+    await t.mutation(internal.companyRuntime.clearBotRuntimeSession, {
+      companyId,
+      runtimeOwnerId: "runtime-owner-1",
+    });
+
+    await expect(
+      t.mutation(internal.companyRuntime.upsertBotRuntimeSession, {
+        companyId,
+        runtimeOwnerId: "runtime-owner-2",
+        sessionKey: "company-lease",
+        state: "connecting",
+        attempt: 1,
+        hasQr: false,
+        updatedAt: 2_000,
+        leaseExpiresAt: 62_000,
+      }),
+    ).resolves.toMatchObject({
+      companyId,
+      runtimeOwnerId: "runtime-owner-2",
+      sessionKey: "company-lease",
+    });
+  });
+
+  it("only clears runtime sessions that belong to the requested runtime owner", async () => {
+    const t = convexTest(schema, modules);
+
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Owner Scoped Session Tenant",
+        ownerPhone: "966500000922",
+        botRuntimeSessionLeaseOwner: "runtime-owner-1",
+        botRuntimeSessionLeaseExpiresAt: Date.now() + 60_000,
+        config: {
+          botEnabled: true,
+        },
+      }),
+    );
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("botRuntimeSessions", {
+        companyId,
+        runtimeOwnerId: "runtime-owner-1",
+        sessionKey: "company-owner-1",
+        state: "open",
+        attempt: 0,
+        hasQr: false,
+        updatedAt: 1_000,
+        leaseExpiresAt: 61_000,
+      });
+      await ctx.db.insert("botRuntimeSessions", {
+        companyId,
+        runtimeOwnerId: "runtime-owner-2",
+        sessionKey: "company-owner-2",
+        state: "open",
+        attempt: 0,
+        hasQr: false,
+        updatedAt: 2_000,
+        leaseExpiresAt: 62_000,
+      });
+    });
+
+    await t.mutation(internal.companyRuntime.clearBotRuntimeSession, {
+      companyId,
+      runtimeOwnerId: "runtime-owner-1",
+    });
+
+    const rows = await t.run(async (ctx) => ctx.db.query("botRuntimeSessions").collect());
+    const company = await t.run(async (ctx) => ctx.db.get(companyId));
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      companyId,
+      runtimeOwnerId: "runtime-owner-2",
+      sessionKey: "company-owner-2",
+    });
+    expect(company?.botRuntimeSessionLeaseExpiresAt).toBeGreaterThan(Date.now());
   });
 
   it("fails fast when duplicate runtime session rows already exist for a company", async () => {

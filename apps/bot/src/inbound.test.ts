@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { BaileysEventMap, WAMessage } from '@whiskeysockets/baileys';
+import type { BaileysEventMap, WAMessage } from './baileys';
 import type { CompanyRuntimeProfile } from '@cs/shared';
 import { normalizeInboundMessages } from './inbound';
 
@@ -63,6 +63,99 @@ describe("normalizeInboundMessages", () => {
         content: {
           kind: "text",
           text: "Hello\nworld",
+          hasMedia: false,
+        },
+        source: {
+          upsertType: "notify",
+        },
+      },
+    });
+  });
+
+  test("uses alternate JID fields when WhatsApp routes messages through LID addressing", () => {
+    const result = normalizeSingle({
+      type: "notify",
+      messages: [
+        createMessage({
+          key: {
+            id: "message-lid",
+            remoteJid: "273907932250285@lid",
+            remoteJidAlt: "967771408660@s.whatsapp.net",
+            participantAlt: "967771408660:4@s.whatsapp.net",
+            fromMe: false,
+          },
+          message: {
+            conversation: "Need catalog",
+          },
+        }),
+      ],
+    });
+
+    expect(result).toEqual({
+      kind: "dispatch",
+      route: "customer_conversation",
+      message: {
+        transport: "whatsapp",
+        companyId: "company-1",
+        sessionKey: "company-company-1",
+        messageId: "message-lid",
+        occurredAtMs: 1_700_000_000_000,
+        conversationPhoneNumber: "967771408660",
+        sender: {
+          phoneNumber: "967771408660",
+          transportId: "967771408660@s.whatsapp.net",
+          role: "customer",
+        },
+        content: {
+          kind: "text",
+          text: "Need catalog",
+          hasMedia: false,
+        },
+        source: {
+          upsertType: "notify",
+        },
+      },
+    });
+  });
+
+  test("skips blank alternate JIDs before choosing sender transport id", () => {
+    const result = normalizeSingle({
+      type: "notify",
+      messages: [
+        createMessage({
+          key: {
+            id: "message-blank-alt",
+            remoteJid: "273907932250285@lid",
+            remoteJidAlt: "   ",
+            participant: "967771408660:9@s.whatsapp.net",
+            participantAlt: "",
+            fromMe: false,
+          },
+          message: {
+            conversation: "Need status",
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "dispatch",
+      route: "customer_conversation",
+      message: {
+        transport: "whatsapp",
+        companyId: "company-1",
+        sessionKey: "company-company-1",
+        messageId: "message-blank-alt",
+        occurredAtMs: 1_700_000_000_000,
+        conversationPhoneNumber: "273907932250285",
+        sender: {
+          phoneNumber: "967771408660",
+          transportId: "967771408660@s.whatsapp.net",
+          role: "customer",
+        },
+        content: {
+          kind: "text",
+          text: "Need status",
           hasMedia: false,
         },
         source: {

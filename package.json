@@ -9,10 +9,10 @@
     "convex"
   ],
   "scripts": {
-    "dev": "turbo run dev --parallel",
+    "dev": "turbo run dev --filter=api --filter=bot --filter=web --filter=worker --parallel",
     "web": "bunx vite apps/web --host 0.0.0.0 --config apps/web/vite.config.ts --port 5173",
     "dev:api": "turbo run dev --filter=api",
-    "dev:bot": "turbo run dev --filter=bot",
+    "dev:bot": "turbo run dev --filter=api --filter=bot --parallel",
     "dev:web": "turbo run dev --filter=web",
     "dev:worker": "turbo run dev --filter=worker",
     "build": "turbo run build",

@@ -1,4 +1,4 @@
-import { DisconnectReason } from '@whiskeysockets/baileys';
+import { DisconnectReason } from './baileys';
 
 const TRANSIENT_DISCONNECT_CODES = new Set<number>([
   DisconnectReason.connectionClosed,
@@ -12,6 +12,7 @@ const FAILED_DISCONNECT_CODES = new Set<number>([
   DisconnectReason.badSession,
   DisconnectReason.multideviceMismatch,
   DisconnectReason.forbidden,
+  DisconnectReason.connectionReplaced,
 ]);
 
 export const getDisconnectCode = (error: unknown): number | undefined => {
@@ -49,6 +50,10 @@ export const shouldReconnectForDisconnectCode = (
 
   return TRANSIENT_DISCONNECT_CODES.has(disconnectCode);
 };
+
+export const isReplacedConnectionDisconnectCode = (
+  disconnectCode: number | undefined,
+): boolean => disconnectCode === DisconnectReason.connectionReplaced;
 
 export const toClosedLifecycleState = (
   disconnectCode: number | undefined,

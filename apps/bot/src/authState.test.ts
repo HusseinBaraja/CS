@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { resolve } from 'node:path';
-import type { AuthenticationState } from '@whiskeysockets/baileys';
+import type { AuthenticationState } from './baileys';
 import { createLocalAuthState } from './authState';
 
 const createAuthenticationState = (): AuthenticationState =>
