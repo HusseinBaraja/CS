@@ -302,7 +302,8 @@ const iterateConversationMessagesAscending = (
 ) =>
   ctx.db
     .query("messages")
-    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId));
+    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
+    .order("asc");
 
 const collectPriorMessagesDescending = async (
   ctx: { db: DatabaseReader },
