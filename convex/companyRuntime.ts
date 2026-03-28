@@ -319,6 +319,7 @@ export const upsertBotRuntimePairingArtifact = internalMutation({
 export const clearBotRuntimePairingArtifact = internalMutation({
   args: {
     companyId: v.id("companies"),
+    runtimeOwnerId: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
     const rows = await ctx.db
@@ -327,7 +328,9 @@ export const clearBotRuntimePairingArtifact = internalMutation({
       .collect();
 
     for (const row of rows) {
-      await ctx.db.delete(row._id);
+      if (row.runtimeOwnerId === args.runtimeOwnerId) {
+        await ctx.db.delete(row._id);
+      }
     }
   },
 });
@@ -335,6 +338,7 @@ export const clearBotRuntimePairingArtifact = internalMutation({
 export const clearBotRuntimeSession = internalMutation({
   args: {
     companyId: v.id("companies"),
+    runtimeOwnerId: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
     const rows = await ctx.db
@@ -343,7 +347,17 @@ export const clearBotRuntimeSession = internalMutation({
       .collect();
 
     for (const row of rows) {
-      await ctx.db.delete(row._id);
+      if (row.runtimeOwnerId === args.runtimeOwnerId) {
+        await ctx.db.delete(row._id);
+      }
+    }
+
+    const remainingRows = await ctx.db
+      .query("botRuntimeSessions")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+    if (remainingRows.length > 0) {
+      return;
     }
 
     const company = await ctx.db.get(args.companyId);

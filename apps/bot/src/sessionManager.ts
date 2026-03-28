@@ -280,9 +280,12 @@ export const startTenantSessionManager = async (
     });
   };
 
-  const clearPairingArtifact = async (profile: CompanyRuntimeProfile): Promise<void> => {
+  const clearPairingArtifact = async (
+    profile: CompanyRuntimeProfile,
+    cleanupRuntimeOwnerId: string,
+  ): Promise<void> => {
     try {
-      await store.clearPairingArtifact(profile.companyId);
+      await store.clearPairingArtifact(profile.companyId, cleanupRuntimeOwnerId);
     } catch (error) {
       botLogger.error(
         {
@@ -507,7 +510,7 @@ export const startTenantSessionManager = async (
     }
 
     if (nextPairing.state === "none") {
-      await clearPairingArtifact(currentProfile);
+      await clearPairingArtifact(currentProfile, runtimeOwnerId);
       return;
     }
 
@@ -530,7 +533,7 @@ export const startTenantSessionManager = async (
     let runtimeConfig: BotRuntimeConfig | undefined;
 
     try {
-      await clearPairingArtifact(profile);
+      await clearPairingArtifact(profile, runtimeOwnerId);
 
       const initialStatus: BotSessionStatus = {
         sessionKey: profile.sessionKey,
@@ -680,13 +683,13 @@ export const startTenantSessionManager = async (
     }
 
     if (!options.clearPersistedState) {
-      await clearPairingArtifact(session.profile);
+      await clearPairingArtifact(session.profile, runtimeOwnerId);
       sessions.delete(companyId);
       return;
     }
 
     try {
-      await store.clearSession(companyId);
+      await store.clearSession(companyId, runtimeOwnerId);
     } catch (error) {
       botLogger.error(
         {
@@ -698,7 +701,7 @@ export const startTenantSessionManager = async (
       );
     }
 
-    await clearPairingArtifact(session.profile);
+    await clearPairingArtifact(session.profile, runtimeOwnerId);
     sessions.delete(companyId);
   };
 

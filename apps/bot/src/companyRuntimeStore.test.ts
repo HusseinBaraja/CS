@@ -24,8 +24,8 @@ describe("createConvexCompanyRuntimeStore", () => {
       action: async () => undefined,
     });
 
-    await expect(store.clearPairingArtifact("   ")).rejects.toThrow("Invalid companyId");
-    await expect(store.clearSession("   ")).rejects.toThrow("Invalid companyId");
+    await expect(store.clearPairingArtifact("   ", "runtime-owner-1")).rejects.toThrow("Invalid companyId");
+    await expect(store.clearSession("   ", "runtime-owner-1")).rejects.toThrow("Invalid companyId");
     await expect(store.upsertSession({
       companyId: "   ",
       runtimeOwnerId: "runtime-owner-1",
@@ -51,11 +51,12 @@ describe("createConvexCompanyRuntimeStore", () => {
       action: async () => undefined,
     });
 
-    await store.clearSession(" company-123 ");
+    await store.clearSession(" company-123 ", "runtime-owner-1");
 
     expect(mutationCalls).toHaveLength(1);
     expect(mutationCalls[0]?.args).toEqual({
       companyId: "company-123",
+      runtimeOwnerId: "runtime-owner-1",
     });
   });
 
