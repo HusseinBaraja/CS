@@ -668,6 +668,80 @@ describe("startTenantSessionManager", () => {
     });
   });
 
+  test("waits for an in-flight heartbeat before releasing runtime ownership", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([profile]);
+    const { timer, intervals } = createIntervalTimerStub();
+    const heartbeatDeferred = createDeferred<void>();
+    let blockHeartbeatWrites = false;
+    let heartbeatWrites = 0;
+
+    store.upsertSession = async (record) => {
+      if (blockHeartbeatWrites && record.state === "open") {
+        heartbeatWrites += 1;
+        await heartbeatDeferred.promise;
+      }
+
+      store.upsertCalls.push(record);
+    };
+
+    const manager = await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      startBot: async (options) => createRuntimeHandle(() => ({
+        sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
+        state: "open",
+        attempt: 0,
+        hasQr: false,
+      })),
+    });
+
+    blockHeartbeatWrites = true;
+    const heartbeatPromise = intervals[0]?.callback();
+    await Promise.resolve();
+
+    const stopPromise = manager.stop();
+    await Promise.resolve();
+
+    expect(heartbeatWrites).toBe(1);
+    expect(store.releasedOwners).toEqual([]);
+    expect(store.clearedSessions).toEqual([]);
+
+    heartbeatDeferred.resolve();
+    await heartbeatPromise;
+    await stopPromise;
+
+    expect(store.releasedOwners).toEqual(["runtime-owner-1"]);
+    expect(store.releasedPairingOwners).toEqual(["runtime-owner-1"]);
+  });
+
+  test("skips heartbeat persistence after global stop has begun", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([profile]);
+    const { timer, intervals } = createIntervalTimerStub();
+
+    const manager = await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      startBot: async (options) => createRuntimeHandle(() => ({
+        sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
+        state: "open",
+        attempt: 0,
+        hasQr: false,
+      })),
+    });
+
+    const upsertCallCountBeforeStop = store.upsertCalls.length;
+    await manager.stop();
+
+    await intervals[0]?.callback();
+    await flushTasks();
+
+    expect(store.upsertCalls).toHaveLength(upsertCallCountBeforeStop);
+  });
+
   test("does not start overlapping reconcile runs on successive heartbeat ticks", async () => {
     const profile = createProfile("company-1");
     const store = createStoreStub([]);

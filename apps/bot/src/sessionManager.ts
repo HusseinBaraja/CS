@@ -254,6 +254,7 @@ export const startTenantSessionManager = async (
   const createOutboundMessenger = options.createOutboundMessenger ?? defaultCreateOutboundMessenger;
   const sessions = new Map<string, ManagedTenantSessionInternal>();
   let heartbeatId: unknown;
+  let heartbeatInFlight: Promise<void> | null = null;
   let reconcileInFlight: Promise<void> | null = null;
   let stopping = false;
 
@@ -736,6 +737,10 @@ export const startTenantSessionManager = async (
 
   const renewHeartbeat = async (): Promise<void> => {
     const updates = Array.from(sessions.values()).map(async (session) => {
+      if (stopping || session.stopping) {
+        return;
+      }
+
       try {
         await upsertStatus(session.profile.companyId, session.status);
       } catch (error) {
@@ -751,6 +756,18 @@ export const startTenantSessionManager = async (
     });
 
     await Promise.all(updates);
+  };
+
+  const runHeartbeat = (): Promise<void> => {
+    if (heartbeatInFlight) {
+      return heartbeatInFlight;
+    }
+
+    heartbeatInFlight = renewHeartbeat().finally(() => {
+      heartbeatInFlight = null;
+    });
+
+    return heartbeatInFlight;
   };
 
   const triggerReconcileManagedSessions = (): void => {
@@ -787,6 +804,10 @@ export const startTenantSessionManager = async (
       heartbeatId = undefined;
     }
 
+    if (heartbeatInFlight) {
+      await Promise.allSettled([heartbeatInFlight]);
+    }
+
     if (reconcileInFlight) {
       await Promise.allSettled([reconcileInFlight]);
     }
@@ -804,7 +825,7 @@ export const startTenantSessionManager = async (
   await reconcileManagedSessions();
 
   heartbeatId = timer.setInterval(async () => {
-    await renewHeartbeat();
+    await runHeartbeat();
     triggerReconcileManagedSessions();
   }, HEARTBEAT_INTERVAL_MS);
 
