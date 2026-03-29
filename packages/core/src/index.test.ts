@@ -5,7 +5,18 @@ import { join } from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
 import { finished } from 'node:stream/promises';
 import { ValidationError } from '@cs/shared';
-import { createLogger, createLoggerRuntimeConfig, createProductionLogDestination, logError } from './index';
+import {
+  createLogger,
+  createLoggerRuntimeConfig,
+  createProductionLogDestination,
+  logError,
+  logEvent,
+  redactJidForLog,
+  redactPhoneLikeValue,
+  serializeErrorForLog,
+  summarizeTextForLog,
+  withLogBindings,
+} from './index';
 
 const parseLogLines = (buffer: string): Record<string, unknown>[] =>
   buffer
@@ -61,7 +72,7 @@ describe("logger", () => {
     const testLogger = createLogger({ level: "info" }, stream);
     testLogger.info(
       { password: "secret-pass", token: "abc123", phoneNumber: "+15551234567" },
-      "safe-log"
+      "safe-log",
     );
 
     await new Promise((resolve) => setImmediate(resolve));
@@ -71,6 +82,19 @@ describe("logger", () => {
     expect(logs[0]?.password).toBe("[REDACTED]");
     expect(logs[0]?.token).toBe("[REDACTED]");
     expect(logs[0]?.phoneNumber).toBe("[REDACTED]");
+  });
+
+  test("serializes errors for structured logs", () => {
+    const error = new ValidationError("Invalid payload", {
+      cause: new Error("Missing field"),
+      context: { module: "bot", action: "process-message" },
+    });
+
+    expect(serializeErrorForLog(error)).toMatchObject({
+      code: "VALIDATION_FAILED",
+      context: { module: "bot", action: "process-message" },
+      message: "Invalid payload",
+    });
   });
 
   test("logs formatted errors with context", async () => {
@@ -83,7 +107,7 @@ describe("logger", () => {
     const testLogger = createLogger({ level: "error" }, stream);
     const error = new ValidationError("Invalid payload", {
       cause: new Error("Missing field"),
-      context: { module: "bot", action: "process-message" }
+      context: { module: "bot", action: "process-message" },
     });
 
     logError(testLogger, error, "Operation failed", { conversationId: "abc-123" });
@@ -94,10 +118,89 @@ describe("logger", () => {
     expect(logs).toHaveLength(1);
     expect(logs[0]?.msg).toBe("Operation failed");
     expect(logs[0]?.context).toEqual({ conversationId: "abc-123" });
-    expect(logs[0]?.err).toMatchObject({
+    expect(logs[0]?.event).toBe("core.log.error");
+    expect(logs[0]?.error).toMatchObject({
       code: "VALIDATION_FAILED",
-      context: { module: "bot", action: "process-message" }
+      context: { module: "bot", action: "process-message" },
     });
+  });
+
+  test("logs structured events with required fields", async () => {
+    const stream = new PassThrough();
+    let output = "";
+    stream.on("data", (chunk: Buffer | string) => {
+      output += chunk.toString();
+    });
+
+    const testLogger = createLogger({ level: "info" }, stream);
+    logEvent(
+      testLogger,
+      "info",
+      {
+        event: "api.request.completed",
+        runtime: "api",
+        surface: "http",
+        outcome: "success",
+        requestId: "req-1",
+      },
+      "request completed",
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const logs = parseLogLines(output);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      event: "api.request.completed",
+      runtime: "api",
+      surface: "http",
+      outcome: "success",
+      requestId: "req-1",
+      msg: "request completed",
+    });
+  });
+
+  test("merges child bindings for loggers without child support", () => {
+    const infoCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
+    const baseLogger = {
+      info(payload: Record<string, unknown>, message: string) {
+        infoCalls.push({ payload, message });
+      },
+      warn() {},
+      error() {},
+    };
+
+    const boundLogger = withLogBindings(baseLogger, { runtime: "bot", companyId: "company-1" });
+    boundLogger.info({ event: "bot.message.received", surface: "router", outcome: "received" }, "inbound");
+
+    expect(infoCalls).toEqual([
+      {
+        payload: {
+          runtime: "bot",
+          companyId: "company-1",
+          event: "bot.message.received",
+          surface: "router",
+          outcome: "received",
+        },
+        message: "inbound",
+      },
+    ]);
+  });
+
+  test("summarizes text without leaking raw content", () => {
+    const summary = summarizeTextForLog("hello\nworld");
+
+    expect(summary).toMatchObject({
+      textLength: 11,
+      textLineCount: 2,
+    });
+    expect(summary.textSha256).toBeDefined();
+    expect(Object.values(summary)).not.toContain("hello\nworld");
+  });
+
+  test("redacts phone-like values and JIDs", () => {
+    expect(redactPhoneLikeValue("+967-777-123-456")).toBe("***3456");
+    expect(redactJidForLog("967777123456@s.whatsapp.net")).toBe("***3456@s.whatsapp.net");
   });
 
   test("writes production logs to rotating files and prunes expired ones", async () => {
@@ -109,12 +212,12 @@ describe("logger", () => {
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       LOG_DIR: logDir,
-      LOG_RETENTION_DAYS: 7
+      LOG_RETENTION_DAYS: 7,
     });
 
     const destination = createProductionLogDestination({
       LOG_DIR: logDir,
-      LOG_RETENTION_DAYS: 7
+      LOG_RETENTION_DAYS: 7,
     }) as Writable & { stream: Writable | null };
     const logger = createLogger({}, destination, runtimeConfig);
 
@@ -145,18 +248,18 @@ describe("logger", () => {
     const destination = createProductionLogDestination(
       {
         LOG_DIR: logDir,
-        LOG_RETENTION_DAYS: 14
+        LOG_RETENTION_DAYS: 14,
       },
       {
-        now: () => currentDate
-      }
+        now: () => currentDate,
+      },
     ) as Writable & { stream: Writable | null; currentDate: string };
 
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       LOG_DIR: logDir,
-      LOG_RETENTION_DAYS: 14
+      LOG_RETENTION_DAYS: 14,
     });
     const logger = createLogger({}, destination, runtimeConfig);
 
@@ -168,7 +271,7 @@ describe("logger", () => {
     logger.info("day-two-trigger");
     await waitForCondition(
       () => destination.currentDate === "2026-03-07",
-      "expected rotation to switch to the next daily log file"
+      "expected rotation to switch to the next daily log file",
     );
     logger.info("day-two");
     await waitForAsyncWork();
@@ -187,7 +290,7 @@ describe("logger", () => {
       override _write(
         _chunk: Buffer | string,
         _encoding: BufferEncoding,
-        callback: (error?: Error | null) => void
+        callback: (error?: Error | null) => void,
       ): void {
         callback(new Error("simulated stream failure"));
       }
@@ -210,7 +313,7 @@ describe("logger", () => {
     const destination = createProductionLogDestination(
       {
         LOG_DIR: logDir,
-        LOG_RETENTION_DAYS: 14
+        LOG_RETENTION_DAYS: 14,
       },
       {
         createStream: () => {
@@ -224,15 +327,15 @@ describe("logger", () => {
         fallbackStream,
         onStreamError: (error) => {
           reportedErrors.push(error);
-        }
-      }
+        },
+      },
     ) as Writable & { stream: Writable | null };
 
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       LOG_DIR: logDir,
-      LOG_RETENTION_DAYS: 14
+      LOG_RETENTION_DAYS: 14,
     });
     const logger = createLogger({}, destination, runtimeConfig);
 
@@ -275,14 +378,14 @@ describe("logger", () => {
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       LOG_DIR: join(tmpdir(), "cs-init-failure"),
-      LOG_RETENTION_DAYS: 14
+      LOG_RETENTION_DAYS: 14,
     });
 
     let streamCreationCount = 0;
     const destination = createProductionLogDestination(
       {
         LOG_DIR: runtimeConfig.LOG_DIR,
-        LOG_RETENTION_DAYS: runtimeConfig.LOG_RETENTION_DAYS
+        LOG_RETENTION_DAYS: runtimeConfig.LOG_RETENTION_DAYS,
       },
       {
         createStream: () => {
@@ -296,14 +399,14 @@ describe("logger", () => {
         fallbackStream,
         onStreamError: (error) => {
           reportedErrors.push(error);
-        }
-      }
+        },
+      },
     ) as Writable & { stream: Writable | null };
 
     const logger = createLogger({}, destination, runtimeConfig);
     await waitForCondition(
       () => reportedErrors.some((error) => error.message.includes("simulated initial rotation failure")),
-      "expected initial background rotation failure to be reported"
+      "expected initial background rotation failure to be reported",
     );
 
     expect(() => logger.info("startup-falls-back")).not.toThrow();
@@ -320,7 +423,7 @@ describe("logger", () => {
     expect(fallbackLogs.some((entry) => entry.msg === "startup-falls-back")).toBe(true);
     expect(recoveredLogs.some((entry) => entry.msg === "startup-recovers")).toBe(true);
     expect(reportedErrors.some((error) => error.message.includes("simulated initial rotation failure"))).toBe(
-      true
+      true,
     );
   });
 
@@ -338,7 +441,7 @@ describe("logger", () => {
     const destination = createProductionLogDestination(
       {
         LOG_DIR: logDir,
-        LOG_RETENTION_DAYS: 14
+        LOG_RETENTION_DAYS: 14,
       },
       {
         now: () => currentDate,
@@ -352,15 +455,15 @@ describe("logger", () => {
         },
         onStreamError: (error) => {
           reportedErrors.push(error);
-        }
-      }
+        },
+      },
     ) as Writable & { stream: Writable | null };
 
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       LOG_DIR: logDir,
-      LOG_RETENTION_DAYS: 14
+      LOG_RETENTION_DAYS: 14,
     });
     const logger = createLogger({}, destination, runtimeConfig);
 
@@ -372,7 +475,7 @@ describe("logger", () => {
     expect(() => logger.info("after-rollover-failure")).not.toThrow();
     await waitForCondition(
       () => reportedErrors.some((error) => error.message.includes("simulated rollover failure")),
-      "expected rollover failure to be reported"
+      "expected rollover failure to be reported",
     );
 
     destination.end();
@@ -401,7 +504,7 @@ describe("logger", () => {
     const destination = createProductionLogDestination(
       {
         LOG_DIR: logDir,
-        LOG_RETENTION_DAYS: 14
+        LOG_RETENTION_DAYS: 14,
       },
       {
         now: () => currentDate,
@@ -411,8 +514,8 @@ describe("logger", () => {
         },
         onStreamError: (error) => {
           reportedErrors.push(error);
-        }
-      }
+        },
+      },
     ) as Writable & {
       cleanupExpiredLogs: () => Promise<void>;
       currentDate: string;
@@ -427,7 +530,7 @@ describe("logger", () => {
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       LOG_DIR: logDir,
-      LOG_RETENTION_DAYS: 14
+      LOG_RETENTION_DAYS: 14,
     });
     const logger = createLogger({}, destination, runtimeConfig);
 
