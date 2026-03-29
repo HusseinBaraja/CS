@@ -168,6 +168,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
       ctx.db.insert("companies", {
         name: "Owner Scoped Pairing Tenant",
         ownerPhone: "966500000921",
+        botRuntimePairingLeaseOwner: "runtime-owner-2",
+        botRuntimePairingLeaseExpiresAt: Date.now() + 60_000,
         config: {
           botEnabled: true,
         },
@@ -199,12 +201,62 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companyRuntime",
     });
 
     const rows = await t.run(async (ctx) => ctx.db.query("botRuntimePairingArtifacts").collect());
+    const company = await t.run(async (ctx) => ctx.db.get(companyId));
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       companyId,
       runtimeOwnerId: "runtime-owner-2",
       sessionKey: "company-owner-2",
+    });
+    expect(company?.botRuntimePairingLeaseExpiresAt).toBeGreaterThan(Date.now());
+  });
+
+  it("releases the company pairing lease when clearing the last pairing artifact", async () => {
+    const t = convexTest(schema, modules);
+
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Pairing Lease Clear Tenant",
+        ownerPhone: "966500000925",
+        botRuntimePairingLeaseOwner: "runtime-owner-1",
+        botRuntimePairingLeaseExpiresAt: Date.now() + 60_000,
+        config: {
+          botEnabled: true,
+        },
+      }),
+    );
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("botRuntimePairingArtifacts", {
+        companyId,
+        runtimeOwnerId: "runtime-owner-1",
+        sessionKey: "company-lease",
+        qrText: "qr-lease",
+        updatedAt: 1_000,
+        expiresAt: 61_000,
+      });
+    });
+
+    await t.mutation(internal.companyRuntime.clearBotRuntimePairingArtifact, {
+      companyId,
+      runtimeOwnerId: "runtime-owner-1",
+    });
+
+    await expect(
+      t.mutation(internal.companyRuntime.upsertBotRuntimePairingArtifact, {
+        companyId,
+        runtimeOwnerId: "runtime-owner-2",
+        sessionKey: "company-lease",
+        qrText: "qr-next",
+        updatedAt: 2_000,
+        expiresAt: 62_000,
+      }),
+    ).resolves.toMatchObject({
+      companyId,
+      runtimeOwnerId: "runtime-owner-2",
+      sessionKey: "company-lease",
+      qrText: "qr-next",
     });
   });
 

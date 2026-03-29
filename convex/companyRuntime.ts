@@ -341,16 +341,15 @@ export const clearBotRuntimePairingArtifact = internalMutation({
     runtimeOwnerId: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const rows = await ctx.db
-      .query("botRuntimePairingArtifacts")
-      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
-      .collect();
+    const rows = await loadPairingArtifactRows(ctx, args.companyId);
 
     for (const row of rows) {
       if (row.runtimeOwnerId === args.runtimeOwnerId) {
         await ctx.db.delete(row._id);
       }
     }
+
+    await expirePairingLeaseIfNoArtifactsRemain(ctx, args.companyId);
   },
 });
 
