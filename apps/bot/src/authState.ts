@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
-import type { AuthenticationState } from '@whiskeysockets/baileys';
-import { useMultiFileAuthState } from '@whiskeysockets/baileys';
+import type { AuthenticationState } from './baileys';
+import { useMultiFileAuthState } from './baileys';
 import { BOT_SESSION_KEY } from './runtimeConfig';
 import { normalizeSessionKey } from './sessionKey';
 

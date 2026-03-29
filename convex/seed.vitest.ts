@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
+import { afterEach, describe, expect, it } from 'vitest';
 import { convexTest } from 'convex-test';
-import { describe, expect, it } from 'vitest';
+import { setGeminiClientFactoryForTests } from '@cs/ai';
 import { internal } from './_generated/api';
 import schema from './schema';
 import { seedCategories, seedCompany, seedCurrencyRate, seedOffers, seedProducts, seedVariants } from './seedData';
@@ -9,6 +10,54 @@ const modules =
   typeof import.meta.glob === "function"
     ? import.meta.glob(["./**/*.ts", "!./**/*.vitest.ts", "!./vitest.config.ts"])
     : ({} as Record<string, () => Promise<any>>);
+
+const createEmbedding = (seed: number): number[] =>
+  Array.from({ length: 768 }, (_, index) => seed + index / 1000);
+
+let resetGeminiClientFactory: (() => void) | null = null;
+let originalGeminiApiKey: string | undefined;
+let hasStoredGeminiApiKey = false;
+
+afterEach(() => {
+  resetGeminiClientFactory?.();
+  resetGeminiClientFactory = null;
+  if (hasStoredGeminiApiKey) {
+    if (originalGeminiApiKey === undefined) {
+      delete process.env.GEMINI_API_KEY;
+    } else {
+      process.env.GEMINI_API_KEY = originalGeminiApiKey;
+    }
+  }
+
+  originalGeminiApiKey = undefined;
+  hasStoredGeminiApiKey = false;
+});
+
+const installGeminiStub = (mode: "success" | "failure" = "success") => {
+  if (!hasStoredGeminiApiKey) {
+    originalGeminiApiKey = process.env.GEMINI_API_KEY;
+    hasStoredGeminiApiKey = true;
+  }
+
+  process.env.GEMINI_API_KEY = "test-gemini-key";
+  resetGeminiClientFactory?.();
+  resetGeminiClientFactory = null;
+  resetGeminiClientFactory = setGeminiClientFactoryForTests(() => ({
+    models: {
+      embedContent: async ({ contents }) => {
+        if (mode === "failure") {
+          throw new Error("seed embedding generation failed");
+        }
+
+        return {
+          embeddings: (contents ?? []).map((_content, index) => ({
+            values: createEmbedding(index + 1),
+          })),
+        };
+      },
+    },
+  }));
+};
 
 const collectCounts = async (t: ReturnType<typeof convexTest>) =>
   t.run(async (ctx) => {
@@ -40,6 +89,7 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
 describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => {
   it("creates the expected bilingual demo catalog", async () => {
     const t = convexTest(schema, modules);
+    installGeminiStub();
 
     const result = await t.action(internal.seed.seedSampleData, {});
     const counts = await collectCounts(t);
@@ -51,12 +101,17 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(counts.productVariants).toHaveLength(seedVariants.length);
     expect(counts.offers).toHaveLength(seedOffers.length);
     expect(counts.currencyRates).toHaveLength(1);
+    expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
+    expect(result.counts.embeddings).toBe(seedProducts.length * 2);
 
     expect(counts.companies[0]).toMatchObject({
       name: seedCompany.name,
-      ownerPhone: seedCompany.ownerPhone,
+      ownerPhone: "967700000000",
       seedKey: seedCompany.seedKey,
       timezone: seedCompany.timezone,
+      config: expect.objectContaining({
+        botEnabled: true,
+      }),
     });
 
     expect(counts.categories.every((category) => category.nameAr && category.descriptionAr)).toBe(true);
@@ -66,10 +121,18 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
 
     const productIds = new Set(counts.products.map((product) => product._id));
     expect(counts.productVariants.every((variant) => productIds.has(variant.productId))).toBe(true);
+    expect(counts.embeddings.every((embedding) => counts.companies[0]?._id === embedding.companyId)).toBe(true);
+    expect(new Set(counts.embeddings.map((embedding) => embedding.language))).toEqual(new Set(["ar", "en"]));
+    expect(
+      counts.products.every((product) =>
+        counts.embeddings.filter((embedding) => embedding.productId === product._id).length === 2,
+      ),
+    ).toBe(true);
   });
 
   it("is idempotent when run multiple times", async () => {
     const t = convexTest(schema, modules);
+    installGeminiStub();
 
     const firstRun = await t.action(internal.seed.seedSampleData, {});
     const secondRun = await t.action(internal.seed.seedSampleData, {});
@@ -83,6 +146,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(counts.productVariants).toHaveLength(seedVariants.length);
     expect(counts.offers).toHaveLength(seedOffers.length);
     expect(counts.currencyRates).toHaveLength(1);
+    expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
   });
 
   it("uses a single seed lock owner and releases it after completion", async () => {
@@ -148,6 +212,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
 
   it("does not clear non-seed tenants that happen to share the seed owner phone", async () => {
     const t = convexTest(schema, modules);
+    installGeminiStub();
 
     const preservedTenant = await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", {
@@ -178,6 +243,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
   it("clears seeded tenant data over multiple cleanup batches before reseeding", async () => {
     const t = convexTest(schema, modules);
     const oversizedBatchCount = 70;
+    installGeminiStub();
 
     await t.action(internal.seed.seedSampleData, {});
 
@@ -231,6 +297,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
           companyLanguage: "en",
           language: "en",
         });
+
+        await ctx.db.insert("productVariants", {
+          productId: products[0]._id,
+          variantLabel: `seed cleanup variant ${index}`,
+          attributes: { size: index },
+        });
       }
     });
 
@@ -247,6 +319,39 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(counts.conversations).toHaveLength(0);
     expect(counts.messages).toHaveLength(0);
     expect(counts.analyticsEvents).toHaveLength(0);
-    expect(counts.embeddings).toHaveLength(0);
+    expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
+  });
+
+  it("fails seeding when embedding sync fails and succeeds on a later retry", async () => {
+    const t = convexTest(schema, modules);
+    installGeminiStub("failure");
+
+    await expect(t.action(internal.seed.seedSampleData, {})).rejects.toThrow(
+      "AI_PROVIDER_FAILED: seed embedding generation failed",
+    );
+
+    installGeminiStub("success");
+
+    const result = await t.action(internal.seed.seedSampleData, {});
+    const counts = await collectCounts(t);
+
+    expect(result.counts.embeddings).toBe(seedProducts.length * 2);
+    expect(counts.companies).toHaveLength(1);
+    expect(counts.products).toHaveLength(seedProducts.length);
+    expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
+  });
+
+  it("replaces an existing Gemini stub before installing a new one", async () => {
+    const t = convexTest(schema, modules);
+
+    installGeminiStub("failure");
+    installGeminiStub("success");
+
+    const result = await t.action(internal.seed.seedSampleData, {});
+    const counts = await collectCounts(t);
+
+    expect(result.counts.embeddings).toBe(seedProducts.length * 2);
+    expect(counts.companies).toHaveLength(1);
+    expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
   });
 });

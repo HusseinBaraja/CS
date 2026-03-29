@@ -3,7 +3,7 @@ import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { CLEANUP_BATCH_SIZE } from './companyCleanup';
+import { CLEANUP_BATCH_SIZE, type CleanupBatchResult, type CleanupCursor } from './companyCleanup';
 import schema from './schema';
 
 const modules =
@@ -500,6 +500,50 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     expect(secondMessageBatch.stage).toBe("messages");
     expect(secondMessageBatch.deletedCount).toBe(oversizedBatchCount - CLEANUP_BATCH_SIZE);
     expect(secondMessageBatch.nextCursor).toBeNull();
+  });
+
+  it("completes cleanup across both child batch stages without paginated query errors", async () => {
+    const t = convexTest(schema, modules);
+    const oversizedBatchCount = 70;
+    const { companyId } = await createTenantFixture(t, {
+      messageCount: oversizedBatchCount,
+      analyticsEventCount: 2,
+      embeddingCount: 2,
+      variantCount: oversizedBatchCount,
+      productCount: 3,
+      conversationCount: 3,
+    });
+
+    const stageSequence: string[] = [];
+    let cursor: CleanupCursor | null = null;
+
+    for (;;) {
+      const result: CleanupBatchResult = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+        companyId,
+        ...(cursor ? { cursor } : {}),
+      });
+
+      stageSequence.push(result.stage);
+      cursor = result.nextCursor;
+
+      if (result.done) {
+        break;
+      }
+    }
+
+    const counts = await collectCounts(t);
+
+    expect(stageSequence).toContain("productVariants");
+    expect(stageSequence).toContain("messages");
+    expect(stageSequence.at(-1)).toBe("companies");
+    expect(counts.companies).toHaveLength(0);
+    expect(counts.categories).toHaveLength(0);
+    expect(counts.products).toHaveLength(0);
+    expect(counts.productVariants).toHaveLength(0);
+    expect(counts.conversations).toHaveLength(0);
+    expect(counts.messages).toHaveLength(0);
+    expect(counts.embeddings).toHaveLength(0);
+    expect(counts.analyticsEvents).toHaveLength(0);
   });
 
   it("completes child cleanup batches when a single parent spans multiple pages", async () => {

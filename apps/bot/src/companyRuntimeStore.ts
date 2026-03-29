@@ -10,7 +10,9 @@ export interface CompanyRuntimeStore {
   listEnabledCompanies(): Promise<CompanyRuntimeProfile[]>;
   upsertSession(record: BotRuntimeSessionRecord): Promise<void>;
   upsertPairingArtifact(record: BotRuntimePairingArtifact): Promise<void>;
-  clearPairingArtifact(companyId: string): Promise<void>;
+  clearSession(companyId: string, runtimeOwnerId: string): Promise<void>;
+  clearPairingArtifact(companyId: string, runtimeOwnerId: string): Promise<void>;
+  clearPairingArtifactsByCompany(companyId: string): Promise<void>;
   releaseSessionsByOwner(runtimeOwnerId: string): Promise<void>;
   releasePairingArtifactsByOwner(runtimeOwnerId: string): Promise<void>;
 }
@@ -18,6 +20,26 @@ export interface CompanyRuntimeStore {
 export interface ConvexCompanyRuntimeStoreOptions {
   createClient?: () => ConvexAdminClient;
 }
+
+const MISSING_FUNCTION_PATTERNS = [
+  "Could not find public function",
+  "Could not find internal function",
+  "Did you forget to run `npx convex dev` or `npx convex deploy`?",
+] as const;
+
+export const normalizeCompanyRuntimeStoreError = (error: unknown): unknown => {
+  if (
+    error instanceof Error &&
+    MISSING_FUNCTION_PATTERNS.some((pattern) => error.message.includes(pattern))
+  ) {
+    return new Error(
+      "Configured Convex deployment is missing bot runtime backend functions. Sync the backend with `bunx convex dev --once` for the active CONVEX_DEPLOYMENT.",
+      { cause: error },
+    );
+  }
+
+  return error;
+};
 
 const toCompanyId = (companyId: string): Id<"companies"> => {
   const normalizedCompanyId = companyId.trim();
@@ -33,8 +55,13 @@ export const createConvexCompanyRuntimeStore = (
 ): CompanyRuntimeStore => {
   const createClient = options.createClient ?? createConvexAdminClient;
 
-  const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> =>
-    callback(createClient());
+  const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> => {
+    try {
+      return await callback(createClient());
+    } catch (error) {
+      throw normalizeCompanyRuntimeStoreError(error);
+    }
+  };
 
   return {
     listEnabledCompanies: async () =>
@@ -76,9 +103,25 @@ export const createConvexCompanyRuntimeStore = (
         })
       );
     },
-    clearPairingArtifact: async (companyId) => {
+    clearSession: async (companyId, runtimeOwnerId) => {
+      await withClient((client) =>
+        client.mutation(convexInternal.companyRuntime.clearBotRuntimeSession, {
+          companyId: toCompanyId(companyId),
+          runtimeOwnerId,
+        })
+      );
+    },
+    clearPairingArtifact: async (companyId, runtimeOwnerId) => {
       await withClient((client) =>
         client.mutation(convexInternal.companyRuntime.clearBotRuntimePairingArtifact, {
+          companyId: toCompanyId(companyId),
+          runtimeOwnerId,
+        })
+      );
+    },
+    clearPairingArtifactsByCompany: async (companyId) => {
+      await withClient((client) =>
+        client.mutation(convexInternal.companyRuntime.clearBotRuntimePairingArtifactsByCompany, {
           companyId: toCompanyId(companyId),
         })
       );

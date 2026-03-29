@@ -146,6 +146,20 @@ export interface ConvexConversationStoreOptions {
 }
 
 const CONVEX_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+const TRANSIENT_CONVEX_ERROR_CODES = new Set(["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN"]);
+
+const isTransientConvexStoreError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const errorWithCode = error as Error & { code?: string };
+  if (typeof errorWithCode.code === "string" && TRANSIENT_CONVEX_ERROR_CODES.has(errorWithCode.code)) {
+    return true;
+  }
+
+  return error.message.includes("The socket connection was closed unexpectedly");
+};
 
 const toConvexId = <TableName extends "companies" | "conversations" | "messages">(
   tableName: TableName,
@@ -175,10 +189,18 @@ export const createConvexConversationStore = (
   options: ConvexConversationStoreOptions = {},
 ): ConversationStore => {
   const createClient = options.createClient ?? createConvexAdminClient;
-  const client = createClient();
 
-  const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> =>
-    callback(client);
+  const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> => {
+    try {
+      return await callback(createClient());
+    } catch (error) {
+      if (!isTransientConvexStoreError(error)) {
+        throw error;
+      }
+
+      return callback(createClient());
+    }
+  };
 
   const appendMessage = (
     role: "user" | "assistant",

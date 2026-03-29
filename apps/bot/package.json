@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --env-file=../../.env --watch src/index.ts",
-    "build": "bun --env-file=../../.env build src/index.ts --outdir dist",
+    "dev": "node --watch --env-file=../../.env --import tsx src/main.ts",
+    "start": "node --env-file=../../.env --import tsx src/main.ts",
+    "dev:bun-experimental": "bun --env-file=../../.env --watch src/main.ts",
+    "build": "bun --env-file=../../.env build src/main.ts --outdir dist",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "check": "bun run typecheck && bun run lint",
@@ -16,10 +18,11 @@
     "@cs/core": "*",
     "@cs/db": "*",
     "@cs/rag": "*",
-    "@whiskeysockets/baileys": "7.0.0-rc.9"
+    "baileys": "github:WhiskeySockets/Baileys#802d5f6efa6a78fadb45cd10ce0dbfce5339cbc7",
+    "tsx": "^4.20.5"
   },
   "x-dependency-notes": {
-    "@whiskeysockets/baileys": "Pinned to 7.0.0-rc.9 because no stable 7.x release is published as of 2026-03-06. Replace with stable 7.x when available."
+    "baileys": "Pinned to WhiskeySockets/Baileys commit 802d5f6efa6a78fadb45cd10ce0dbfce5339cbc7 to preserve the reviewed edge build behavior because the published 7.0.0-rc.9 release still fails companion registration in this app. The GitHub package identifies itself as `baileys`, so the dependency is recorded under that installable name and imported through a local wrapper because this commit ships source files without the published lib build. Advance this pin only after intentionally verifying a newer commit or stable release in this app."
   }
 }
 

@@ -9,7 +9,7 @@ import {
   normalizeMessageContent,
   type BaileysEventMap,
   type WAMessage,
-} from '@whiskeysockets/baileys';
+} from './baileys';
 import {
   canonicalizePhoneNumber,
   type CompanyRuntimeProfile,
@@ -57,6 +57,22 @@ const normalizeText = (text: string | null | undefined): string =>
 const normalizeDisplayName = (value: string | null | undefined): string | undefined => {
   const normalized = typeof value === "string" ? value.trim() : "";
   return normalized.length > 0 ? normalized : undefined;
+};
+
+const extractCanonicalPhoneNumber = (jid: string | null | undefined): string | null => {
+  if (typeof jid !== "string" || jid.trim().length === 0) {
+    return null;
+  }
+
+  const decodedUser = jidDecode(jid)?.user;
+  const decodedPhoneNumber = canonicalizePhoneNumber(decodedUser ?? "");
+  if (decodedPhoneNumber) {
+    return decodedPhoneNumber;
+  }
+
+  const rawUser = jid.split("@", 1)[0] ?? "";
+  const baseUser = rawUser.split(":", 1)[0] ?? rawUser;
+  return canonicalizePhoneNumber(baseUser ?? "");
 };
 
 const readOptionalString = (value: unknown): string | undefined =>
@@ -238,8 +254,20 @@ export const normalizeInboundMessages = (
     } satisfies InboundDispatch;
   }
 
-  const senderTransportId = jidNormalizedUser(message.key.participant ?? remoteJid);
-  const senderPhoneNumber = canonicalizePhoneNumber(jidDecode(senderTransportId)?.user ?? "");
+  const senderJidCandidate =
+    readOptionalString(message.key.participantAlt) ??
+    readOptionalString(message.key.participant) ??
+    readOptionalString(message.key.remoteJidAlt) ??
+    remoteJid;
+  const senderTransportId = jidNormalizedUser(senderJidCandidate);
+  const conversationPhoneNumber =
+    extractCanonicalPhoneNumber(message.key.remoteJidAlt) ??
+    extractCanonicalPhoneNumber(message.key.remoteJid) ??
+    extractCanonicalPhoneNumber(senderTransportId);
+  const senderPhoneNumber =
+    extractCanonicalPhoneNumber(message.key.participantAlt) ??
+    extractCanonicalPhoneNumber(message.key.participant) ??
+    conversationPhoneNumber;
   if (!senderPhoneNumber) {
     return {
       kind: "ignored",
@@ -278,7 +306,7 @@ export const normalizeInboundMessages = (
     sessionKey: profile.sessionKey,
     messageId: message.key.id,
     occurredAtMs,
-    conversationPhoneNumber: senderPhoneNumber,
+    conversationPhoneNumber: conversationPhoneNumber ?? senderPhoneNumber,
     sender: {
       phoneNumber: senderPhoneNumber,
       transportId: senderTransportId,

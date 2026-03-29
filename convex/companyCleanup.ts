@@ -103,66 +103,71 @@ const collectProductVariantIdsBatch = async (
   let productCursor = cursor?.productCursor ?? null;
   let currentProductId = cursor?.currentProductId;
   let variantCursor = cursor?.variantCursor ?? null;
+  let canProcessProducts = productCursor === null && currentProductId === undefined;
 
-  while (variantIds.length < limit) {
-    if (!currentProductId) {
-      const productPage = await ctx.db
-        .query("products")
-        .withIndex("by_company", (q) => q.eq("companyId", companyId))
-        .paginate({
-          numItems: 1,
-          cursor: productCursor,
-        });
-      const nextProduct = productPage.page[0];
-      if (!nextProduct) {
-        return {
-          ids: variantIds,
-          nextCursor: null,
-        };
-      }
-
-      currentProductId = nextProduct._id;
-      productCursor = productPage.continueCursor;
-      variantCursor = null;
-    }
-
-    const remaining = limit - variantIds.length;
-    const productId = currentProductId;
-    const variantPage = await ctx.db
-      .query("productVariants")
-      .withIndex("by_product", (q) => q.eq("productId", productId))
-      .paginate({
-        numItems: remaining,
-        cursor: variantCursor,
-      });
-    variantIds.push(...variantPage.page.map((variant) => variant._id));
-
-    if (!variantPage.isDone) {
+  for await (const product of ctx.db
+    .query("products")
+    .withIndex("by_company", (q) => q.eq("companyId", companyId))) {
+    if (variantIds.length >= limit) {
       return {
         ids: variantIds,
         nextCursor: {
           stage: "productVariants",
           productCursor,
-          currentProductId,
+          currentProductId: product._id,
           variantCursor: null,
         },
       };
     }
 
+    if (currentProductId !== undefined) {
+      if (product._id !== currentProductId) {
+        continue;
+      }
+    } else if (!canProcessProducts) {
+      if (product._id === productCursor) {
+        canProcessProducts = true;
+      }
+      continue;
+    }
+
+    let canProcessVariants = variantCursor === null;
+
+    for await (const variant of ctx.db
+      .query("productVariants")
+      .withIndex("by_product", (q) => q.eq("productId", product._id))) {
+      if (!canProcessVariants) {
+        if (variant._id === variantCursor) {
+          canProcessVariants = true;
+        } else {
+          continue;
+        }
+      }
+
+      if (variantIds.length >= limit) {
+        return {
+          ids: variantIds,
+          nextCursor: {
+            stage: "productVariants",
+            productCursor,
+            currentProductId: product._id,
+            variantCursor: variant._id,
+          },
+        };
+      }
+
+      variantIds.push(variant._id);
+    }
+
     currentProductId = undefined;
+    productCursor = product._id;
     variantCursor = null;
+    canProcessProducts = true;
   }
 
   return {
     ids: variantIds,
-    nextCursor: productCursor !== null
-      ? {
-        stage: "productVariants",
-        productCursor,
-        currentProductId,
-        variantCursor,
-      }
-      : null,
+    nextCursor: null,
   };
 };
 
@@ -179,66 +184,71 @@ const collectMessageIdsBatch = async (
   let conversationCursor = cursor?.conversationCursor ?? null;
   let currentConversationId = cursor?.currentConversationId;
   let messageCursor = cursor?.messageCursor ?? null;
+  let canProcessConversations = conversationCursor === null && currentConversationId === undefined;
 
-  while (messageIds.length < limit) {
-    if (!currentConversationId) {
-      const conversationPage = await ctx.db
-        .query("conversations")
-        .withIndex("by_company_phone_and_muted", (q) => q.eq("companyId", companyId))
-        .paginate({
-          numItems: 1,
-          cursor: conversationCursor,
-        });
-      const nextConversation = conversationPage.page[0];
-      if (!nextConversation) {
-        return {
-          ids: messageIds,
-          nextCursor: null,
-        };
-      }
-
-      currentConversationId = nextConversation._id;
-      conversationCursor = conversationPage.continueCursor;
-      messageCursor = null;
-    }
-
-    const remaining = limit - messageIds.length;
-    const conversationId = currentConversationId;
-    const messagePage = await ctx.db
-      .query("messages")
-      .withIndex("by_conversation", (q) => q.eq("conversationId", conversationId))
-      .paginate({
-        numItems: remaining,
-        cursor: messageCursor,
-      });
-    messageIds.push(...messagePage.page.map((message) => message._id));
-
-    if (!messagePage.isDone) {
+  for await (const conversation of ctx.db
+    .query("conversations")
+    .withIndex("by_company_phone_and_muted", (q) => q.eq("companyId", companyId))) {
+    if (messageIds.length >= limit) {
       return {
         ids: messageIds,
         nextCursor: {
           stage: "messages",
           conversationCursor,
-          currentConversationId,
+          currentConversationId: conversation._id,
           messageCursor: null,
         },
       };
     }
 
+    if (currentConversationId !== undefined) {
+      if (conversation._id !== currentConversationId) {
+        continue;
+      }
+    } else if (!canProcessConversations) {
+      if (conversation._id === conversationCursor) {
+        canProcessConversations = true;
+      }
+      continue;
+    }
+
+    let canProcessMessages = messageCursor === null;
+
+    for await (const message of ctx.db
+      .query("messages")
+      .withIndex("by_conversation", (q) => q.eq("conversationId", conversation._id))) {
+      if (!canProcessMessages) {
+        if (message._id === messageCursor) {
+          canProcessMessages = true;
+        } else {
+          continue;
+        }
+      }
+
+      if (messageIds.length >= limit) {
+        return {
+          ids: messageIds,
+          nextCursor: {
+            stage: "messages",
+            conversationCursor,
+            currentConversationId: conversation._id,
+            messageCursor: message._id,
+          },
+        };
+      }
+
+      messageIds.push(message._id);
+    }
+
     currentConversationId = undefined;
+    conversationCursor = conversation._id;
     messageCursor = null;
+    canProcessConversations = true;
   }
 
   return {
     ids: messageIds,
-    nextCursor: conversationCursor !== null
-      ? {
-        stage: "messages",
-        conversationCursor,
-        currentConversationId,
-        messageCursor,
-      }
-      : null,
+    nextCursor: null,
   };
 };
 

@@ -21,7 +21,7 @@ const CONVERSATION_LOCK_LEASE_MS = 15_000;
 const CONVERSATION_LOCK_POLL_MS = 100;
 const MAX_CONVERSATION_LOCK_WAIT_MS = 1_500;
 const TRIM_MESSAGES_BATCH_SIZE = 100;
-const PROMPT_HISTORY_SCAN_BATCH_SIZE = 100;
+const LIST_CONVERSATION_MESSAGES_BATCH_SIZE = 100;
 export const AUTO_RESUME_IDLE_MS = 12 * 60 * 60 * 1_000;
 export const STALE_CONTEXT_RESET_MS = 30 * 60 * 1_000;
 const REFERENCED_HISTORY_SIDE_MESSAGES = 5;
@@ -181,7 +181,17 @@ const isVisibleConversationMessage = (
   message: Pick<Doc<"messages">, "role" | "deliveryState">,
 ): boolean => message.role === "user" || message.deliveryState === "sent";
 
-const listConversationMessageDocsPage = async (
+const listConversationMessageDocsDescending = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+) =>
+  ctx.db
+    .query("messages")
+    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
+    .order("desc")
+    .collect();
+
+const listConversationMessageDocsPageDescending = async (
   ctx: { db: DatabaseReader },
   conversationId: Id<"conversations">,
   input: {
@@ -198,21 +208,36 @@ const listConversationMessageDocsPage = async (
       numItems: input.limit,
     });
 
-const listConversationMessageDocsPageAscending = async (
+const listVisibleConversationMessagesDescending = async (
   ctx: { db: DatabaseReader },
   conversationId: Id<"conversations">,
-  input: {
-    cursor: string | null;
-    limit: number;
-  },
-) =>
-  ctx.db
-    .query("messages")
-    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
-    .paginate({
-      cursor: input.cursor,
-      numItems: input.limit,
+  limit: number,
+): Promise<Array<Doc<"messages">>> => {
+  const visibleMessages: Array<Doc<"messages">> = [];
+  let cursor: string | null = null;
+  const batchSize = Math.max(limit, LIST_CONVERSATION_MESSAGES_BATCH_SIZE);
+
+  while (visibleMessages.length < limit) {
+    const page = await listConversationMessageDocsPageDescending(ctx, conversationId, {
+      cursor,
+      limit: batchSize,
     });
+
+    const remaining = limit - visibleMessages.length;
+    visibleMessages.push(...page.page.filter(isVisibleConversationMessage).slice(0, remaining));
+    if (visibleMessages.length >= limit) {
+      break;
+    }
+
+    if (page.isDone || page.continueCursor === cursor || page.page.length === 0) {
+      break;
+    }
+
+    cursor = page.continueCursor;
+  }
+
+  return visibleMessages;
+};
 
 const resolveMessageByTransportMessageId = async (
   ctx: { db: DatabaseReader },
@@ -246,24 +271,6 @@ const resolveExistingMessageInsert = async (
   return resolveMessageByTransportMessageId(ctx, conversationId, transportMessageId);
 };
 
-const filterMessagesBeforeInbound = (
-  messages: ConversationMessageDto[],
-  input: {
-    inboundTimestamp: number;
-    currentTransportMessageId?: string;
-  },
-): ConversationMessageDto[] =>
-  messages.filter((message) =>
-    isVisibleConversationMessage(message)
-    && (
-      message.timestamp < input.inboundTimestamp
-      || (
-        message.timestamp === input.inboundTimestamp
-        && message.transportMessageId !== input.currentTransportMessageId
-      )
-    )
-  );
-
 const isMessageBeforeInbound = (
   message: ConversationMessageDto,
   input: {
@@ -280,6 +287,24 @@ const isMessageBeforeInbound = (
     )
   );
 
+const iterateConversationMessagesDescending = (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+) =>
+  ctx.db
+    .query("messages")
+    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
+    .order("desc");
+
+const iterateConversationMessagesAscending = (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+) =>
+  ctx.db
+    .query("messages")
+    .withIndex("by_conversation_time", (q) => q.eq("conversationId", conversationId))
+    .order("asc");
+
 const collectPriorMessagesDescending = async (
   ctx: { db: DatabaseReader },
   conversationId: Id<"conversations">,
@@ -291,38 +316,25 @@ const collectPriorMessagesDescending = async (
   },
 ): Promise<ConversationMessageDto[]> => {
   const priorMessages: ConversationMessageDto[] = [];
-  let cursor: string | null = null;
 
-  for (;;) {
-    const page = await listConversationMessageDocsPage(ctx, conversationId, {
-      cursor,
-      limit: PROMPT_HISTORY_SCAN_BATCH_SIZE,
-    });
-    const filteredPage = filterMessagesBeforeInbound(
-      page.page.map(toMessageDto),
-      input,
-    );
-    priorMessages.push(...filteredPage);
+  for await (const messageDoc of iterateConversationMessagesDescending(ctx, conversationId)) {
+    const message = toMessageDto(messageDoc);
+    if (!isMessageBeforeInbound(message, input)) {
+      continue;
+    }
 
-    if (
-      input.stopWhenPriorMessagesFound
-      && priorMessages.length > 0
-    ) {
-      break;
+    priorMessages.push(message);
+
+    if (input.stopWhenPriorMessagesFound) {
+      return priorMessages;
     }
 
     if (
       input.minimumCount !== undefined
       && priorMessages.length >= input.minimumCount
     ) {
-      break;
+      return priorMessages;
     }
-
-    if (page.isDone || page.page.length === 0) {
-      break;
-    }
-
-    cursor = page.continueCursor;
   }
 
   return priorMessages;
@@ -339,46 +351,32 @@ const collectReferencedHistorySliceAscending = async (
 ): Promise<ConversationMessageDto[]> => {
   const precedingMessages: ConversationMessageDto[] = [];
   const referencedWindow: ConversationMessageDto[] = [];
-  let cursor: string | null = null;
   let foundReferencedMessage = false;
 
-  for (;;) {
-    const page = await listConversationMessageDocsPageAscending(ctx, conversationId, {
-      cursor,
-      limit: PROMPT_HISTORY_SCAN_BATCH_SIZE,
-    });
+  for await (const messageDoc of iterateConversationMessagesAscending(ctx, conversationId)) {
+    const message = toMessageDto(messageDoc);
+    if (!isMessageBeforeInbound(message, input)) {
+      continue;
+    }
 
-    for (const messageDoc of page.page) {
-      const message = toMessageDto(messageDoc);
-      if (!isMessageBeforeInbound(message, input)) {
+    if (!foundReferencedMessage) {
+      if (message.id === input.referencedMessageId) {
+        foundReferencedMessage = true;
+        referencedWindow.push(...precedingMessages, message);
         continue;
       }
 
-      if (!foundReferencedMessage) {
-        if (message.id === input.referencedMessageId) {
-          foundReferencedMessage = true;
-          referencedWindow.push(...precedingMessages, message);
-          continue;
-        }
-
-        precedingMessages.push(message);
-        if (precedingMessages.length > REFERENCED_HISTORY_SIDE_MESSAGES) {
-          precedingMessages.shift();
-        }
-        continue;
+      precedingMessages.push(message);
+      if (precedingMessages.length > REFERENCED_HISTORY_SIDE_MESSAGES) {
+        precedingMessages.shift();
       }
-
-      referencedWindow.push(message);
-      if (referencedWindow.length >= (REFERENCED_HISTORY_SIDE_MESSAGES * 2) + 1) {
-        return referencedWindow;
-      }
+      continue;
     }
 
-    if (page.isDone || page.page.length === 0 || page.continueCursor === cursor) {
-      break;
+    referencedWindow.push(message);
+    if (referencedWindow.length >= (REFERENCED_HISTORY_SIDE_MESSAGES * 2) + 1) {
+      return referencedWindow;
     }
-
-    cursor = page.continueCursor;
   }
 
   return foundReferencedMessage ? referencedWindow : [];
@@ -1283,35 +1281,16 @@ export const listConversationMessages = internalQuery({
     const limit = normalizeOptionalLimit(args.limit);
 
     if (limit !== undefined) {
-      const visibleMessages: Array<Doc<"messages">> = [];
-      let cursor: string | null = null;
-
-      while (visibleMessages.length < limit) {
-        const page = await listConversationMessageDocsPage(ctx, args.conversationId, {
-          cursor,
-          limit: Math.max(limit, PROMPT_HISTORY_SCAN_BATCH_SIZE),
-        });
-
-        visibleMessages.push(...page.page.filter(isVisibleConversationMessage));
-        if (page.isDone || page.continueCursor === cursor) {
-          break;
-        }
-
-        cursor = page.continueCursor;
-      }
-
-      return visibleMessages
-        .slice(0, limit)
+      return (await listVisibleConversationMessagesDescending(ctx, args.conversationId, limit))
         .reverse()
         .map(toMessageDto);
     }
 
-    const messages = await ctx.db
-      .query("messages")
-      .withIndex("by_conversation_time", (q) => q.eq("conversationId", args.conversationId))
-      .order("asc")
-      .collect();
-    return messages.filter(isVisibleConversationMessage).map(toMessageDto);
+    const visibleMessages = (await listConversationMessageDocsDescending(ctx, args.conversationId))
+      .filter(isVisibleConversationMessage);
+    return visibleMessages
+      .reverse()
+      .map(toMessageDto);
   },
 });
 

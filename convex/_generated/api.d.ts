@@ -18,6 +18,7 @@ import type * as currencyRates from "../currencyRates.js";
 import type * as helpers from "../helpers.js";
 import type * as mediaCleanup from "../mediaCleanup.js";
 import type * as offers from "../offers.js";
+import type * as productEmbeddingRuntime from "../productEmbeddingRuntime.js";
 import type * as productMedia from "../productMedia.js";
 import type * as products from "../products.js";
 import type * as seed from "../seed.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   helpers: typeof helpers;
   mediaCleanup: typeof mediaCleanup;
   offers: typeof offers;
+  productEmbeddingRuntime: typeof productEmbeddingRuntime;
   productMedia: typeof productMedia;
   products: typeof products;
   seed: typeof seed;

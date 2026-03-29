@@ -126,6 +126,25 @@ const loadPairingArtifactRows = async (
     .withIndex("by_company", (q) => q.eq("companyId", companyId))
     .collect();
 
+const expirePairingLeaseIfNoArtifactsRemain = async (
+  ctx: MutationCtx,
+  companyId: Id<"companies">,
+): Promise<void> => {
+  const remainingRows = await loadPairingArtifactRows(ctx, companyId);
+  if (remainingRows.length > 0) {
+    return;
+  }
+
+  const company = await ctx.db.get(companyId);
+  if (!company) {
+    return;
+  }
+
+  await ctx.db.patch(companyId, {
+    botRuntimePairingLeaseExpiresAt: Date.now(),
+  });
+};
+
 const isBotEnabled = (config: CompanyRuntimeConfig | undefined): boolean =>
   config?.botEnabled === true;
 
@@ -319,16 +338,69 @@ export const upsertBotRuntimePairingArtifact = internalMutation({
 export const clearBotRuntimePairingArtifact = internalMutation({
   args: {
     companyId: v.id("companies"),
+    runtimeOwnerId: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const rows = await ctx.db
-      .query("botRuntimePairingArtifacts")
-      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
-      .collect();
+    const rows = await loadPairingArtifactRows(ctx, args.companyId);
+
+    for (const row of rows) {
+      if (row.runtimeOwnerId === args.runtimeOwnerId) {
+        await ctx.db.delete(row._id);
+      }
+    }
+
+    await expirePairingLeaseIfNoArtifactsRemain(ctx, args.companyId);
+  },
+});
+
+export const clearBotRuntimePairingArtifactsByCompany = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const rows = await loadPairingArtifactRows(ctx, args.companyId);
 
     for (const row of rows) {
       await ctx.db.delete(row._id);
     }
+
+    await expirePairingLeaseIfNoArtifactsRemain(ctx, args.companyId);
+  },
+});
+
+export const clearBotRuntimeSession = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    runtimeOwnerId: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const rows = await ctx.db
+      .query("botRuntimeSessions")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+
+    for (const row of rows) {
+      if (row.runtimeOwnerId === args.runtimeOwnerId) {
+        await ctx.db.delete(row._id);
+      }
+    }
+
+    const remainingRows = await ctx.db
+      .query("botRuntimeSessions")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+    if (remainingRows.length > 0) {
+      return;
+    }
+
+    const company = await ctx.db.get(args.companyId);
+    if (!company) {
+      return;
+    }
+
+    await ctx.db.patch(args.companyId, {
+      botRuntimeSessionLeaseExpiresAt: Date.now(),
+    });
   },
 });
 

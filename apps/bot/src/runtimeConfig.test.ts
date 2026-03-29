@@ -12,8 +12,8 @@ describe("createBotRuntimeConfig", () => {
 
     expect(config.sessionKey).toBe(BOT_SESSION_KEY);
     expect(config.authDir).toBe(resolve(moduleDirectory, "..", "..", "..", "data", "bot", "auth"));
-    expect(config.browser[0]).toBe("Windows");
-    expect(config.browser[1]).toBe("CSCB Bot");
+    expect(config.browser[0]).toBe("Mac OS");
+    expect(config.browser[1]).toBe("Chrome");
     expect(typeof config.browser[2]).toBe("string");
     expect(config.browser[2].length).toBeGreaterThan(0);
     expect(config.markOnlineOnConnect).toBe(false);
