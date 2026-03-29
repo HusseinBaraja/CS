@@ -26,6 +26,12 @@ const createCatalogChatResult = (text: string, query = "hello") => ({
     reason: "no_hits" as const,
     query,
     language: "en" as const,
+    resolution: {
+      strategy: "standalone" as const,
+      recentTurnsUsed: 0,
+      detectedOptionCount: 0,
+      standaloneQuery: query,
+    },
     candidates: [],
     contextBlocks: [],
   },

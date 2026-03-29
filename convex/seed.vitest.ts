@@ -4,7 +4,15 @@ import { convexTest } from 'convex-test';
 import { setGeminiClientFactoryForTests } from '@cs/ai';
 import { internal } from './_generated/api';
 import schema from './schema';
-import { seedCategories, seedCompany, seedCurrencyRate, seedOffers, seedProducts, seedVariants } from './seedData';
+import {
+  resolveSeedCompany,
+  seedCategories,
+  seedCompany,
+  seedCurrencyRate,
+  seedOffers,
+  seedProducts,
+  seedVariants,
+} from './seedData';
 
 const modules =
   typeof import.meta.glob === "function"
@@ -87,6 +95,15 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
   });
 
 describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => {
+  it("reads the seeded owner phone from env config", () => {
+    expect(
+      resolveSeedCompany({
+        CONVEX_URL: "https://example.convex.cloud",
+        SEED_OWNER_PHONE: " 967700000000 ",
+      }).ownerPhone,
+    ).toBe("967700000000");
+  });
+
   it("creates the expected bilingual demo catalog", async () => {
     const t = convexTest(schema, modules);
     installGeminiStub();
@@ -106,7 +123,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
 
     expect(counts.companies[0]).toMatchObject({
       name: seedCompany.name,
-      ownerPhone: "967700000000",
+      ownerPhone: seedCompany.ownerPhone,
       seedKey: seedCompany.seedKey,
       timezone: seedCompany.timezone,
       config: expect.objectContaining({

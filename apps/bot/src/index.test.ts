@@ -7,6 +7,9 @@ describe("startBotApp", () => {
   test("logs serialized startup failures instead of raw error objects", async () => {
     const stream = new PassThrough();
     let output = "";
+    const botProcess = {
+      exitCode: undefined as number | undefined,
+    };
     stream.on("data", (chunk: Buffer | string) => {
       output += chunk.toString();
     });
@@ -17,6 +20,7 @@ describe("startBotApp", () => {
         throw new Error("Configured Convex deployment is missing bot runtime backend functions.");
       },
       logger,
+      botProcess,
     );
 
     await new Promise((resolve) => setImmediate(resolve));
@@ -35,5 +39,6 @@ describe("startBotApp", () => {
         name: "Error",
       }),
     });
+    expect(botProcess.exitCode).toBe(1);
   });
 });

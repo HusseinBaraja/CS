@@ -18,6 +18,12 @@ const groundedRetrievalResult = (
   outcome: "grounded",
   query: "Burger Box",
   language: "en",
+  resolution: {
+    strategy: "standalone",
+    recentTurnsUsed: 0,
+    detectedOptionCount: 0,
+    standaloneQuery: "Burger Box",
+  },
   topScore: 0.92,
   candidates: [
     {
@@ -76,16 +82,22 @@ const createChatManagerStub = (
 
 const createLoggerStub = (): {
   logger: CatalogChatLogger;
+  infoCalls: Array<{ payload: Record<string, unknown>; message: string }>;
   errorCalls: Array<{ payload: Record<string, unknown>; message: string }>;
 } => {
+  const infoCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
   const errorCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
 
   return {
     logger: {
+      info(payload, message) {
+        infoCalls.push({ payload, message });
+      },
       error(payload, message) {
         errorCalls.push({ payload, message });
       },
     },
+    infoCalls,
     errorCalls,
   };
 };
@@ -262,6 +274,12 @@ describe("createCatalogChatOrchestrator", () => {
         reason: "empty_query",
         query: "",
         language: "en",
+        resolution: {
+          strategy: "standalone",
+          recentTurnsUsed: 0,
+          detectedOptionCount: 0,
+          standaloneQuery: "",
+        },
         candidates: [],
         contextBlocks: [],
       }),
@@ -299,6 +317,12 @@ describe("createCatalogChatOrchestrator", () => {
         reason: "empty_query",
         query: "",
         language: "en",
+        resolution: {
+          strategy: "standalone",
+          recentTurnsUsed: 0,
+          detectedOptionCount: 0,
+          standaloneQuery: "",
+        },
         candidates: [],
         contextBlocks: [],
       },
@@ -314,6 +338,12 @@ describe("createCatalogChatOrchestrator", () => {
         reason: "no_hits",
         query: "bottle",
         language: "en",
+        resolution: {
+          strategy: "standalone",
+          recentTurnsUsed: 0,
+          detectedOptionCount: 0,
+          standaloneQuery: "bottle",
+        },
         candidates: [],
         contextBlocks: [],
       }),
@@ -348,6 +378,12 @@ describe("createCatalogChatOrchestrator", () => {
         reason: "below_min_score",
         query: "container",
         language: "en",
+        resolution: {
+          strategy: "standalone",
+          recentTurnsUsed: 0,
+          detectedOptionCount: 0,
+          standaloneQuery: "container",
+        },
         topScore: 0.2,
         candidates: groundedRetrievalResult().candidates,
         contextBlocks: [],
@@ -430,7 +466,7 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(errorCalls).toHaveLength(1);
-    expect(errorCalls[0]).toEqual({
+    expect(errorCalls[0]).toMatchObject({
       message: "catalog chat provider call failed",
       payload: {
         companyId: COMPANY_ID,
@@ -443,6 +479,14 @@ describe("createCatalogChatOrchestrator", () => {
           candidateCount: 1,
           contextBlockCount: 1,
           language: "en",
+          resolution: {
+            strategy: "standalone",
+            recentTurnsUsed: 0,
+            detectedOptionCount: 0,
+            hasStandaloneQuery: true,
+            hasContextualQuery: false,
+          },
+          chosenTopProductIds: ["product-1"],
         },
         error: {
           name: "Error",
@@ -515,6 +559,64 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect((errorCalls[0]?.payload.providerTextPreview as string).length).toBe(500);
+  });
+
+  test("logs sanitized retrieval resolution metadata without raw query text", async () => {
+    const { logger, infoCalls } = createLoggerStub();
+    const orchestrator = createCatalogChatOrchestrator({
+      logger,
+      retrievalService: createRetrievalService(groundedRetrievalResult({
+        resolution: {
+          strategy: "merged",
+          recentTurnsUsed: 2,
+          detectedOptionCount: 0,
+          standaloneQuery: "Burger Box",
+          contextualQuery: "language:en\nlatest_user:burger box",
+        },
+      })),
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        model: "gemini-2.0-flash",
+        text: '{"schemaVersion":"v1","text":"We have burger boxes.","action":{"type":"none"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      conversation: {
+        conversationId: "conversation-1",
+      },
+      requestId: "request-1",
+      userMessage: "Burger Box",
+    });
+
+    expect(infoCalls).toHaveLength(1);
+    expect(infoCalls[0]).toEqual({
+      message: "catalog chat retrieval resolved",
+      payload: {
+        companyId: COMPANY_ID,
+        conversationId: "conversation-1",
+        requestId: "request-1",
+        retrieval: {
+          outcome: "grounded",
+          topScore: 0.92,
+          candidateCount: 1,
+          contextBlockCount: 1,
+          language: "en",
+          resolution: {
+            strategy: "merged",
+            recentTurnsUsed: 2,
+            detectedOptionCount: 0,
+            hasStandaloneQuery: true,
+            hasContextualQuery: true,
+          },
+          chosenTopProductIds: ["product-1"],
+        },
+      },
+    });
   });
 
   test("forwards conversation and request metadata into the chat-manager log context", async () => {
@@ -610,5 +712,41 @@ describe("createCatalogChatOrchestrator", () => {
     expect(promptInput?.conversationHistory).toEqual(history);
     expect(promptInput?.allowedActions).toEqual(["none", "clarify"]);
     expect(result.assistant.action.type).toBe("none");
+  });
+
+  test("passes caller-supplied history into retrieval for contextual query shaping", async () => {
+    const retrievalCalls: Array<Record<string, unknown>> = [];
+    const history = [
+      { role: "user" as const, text: "بكم طقم المائدة المغلف" },
+      {
+        role: "assistant" as const,
+        text: [
+          "طقم أدوات المائدة المغلف متوفر بنوعين:",
+          "1. الطقم الممتاز (Premium Set): 0.34 ريال سعودي.",
+          "2. الطقم القياسي (Standard Set): 0.28 ريال سعودي.",
+        ].join("\n"),
+      },
+    ];
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(groundedRetrievalResult(), retrievalCalls),
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        text: '{"schemaVersion":"v1","text":"سعر الطقم الممتاز هو 0.34 ريال سعودي.","action":{"type":"none"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      conversation: {
+        conversationId: "conversation-1",
+        history,
+      },
+      userMessage: "الاول",
+    });
+
+    expect(retrievalCalls[0]?.conversationHistory).toEqual(history);
   });
 });
