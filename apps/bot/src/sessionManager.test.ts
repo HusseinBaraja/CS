@@ -889,6 +889,56 @@ describe("startTenantSessionManager", () => {
     expect(startCalls).toEqual([profile.sessionKey, profile.sessionKey]);
   });
 
+  test("continues manager startup after the initial reconcile fails", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([]);
+    const { logger, errorCalls } = createLoggerStub();
+    const { timer, intervals } = createIntervalTimerStub();
+    const startCalls: string[] = [];
+    let listCalls = 0;
+
+    store.listEnabledCompanies = async () => {
+      listCalls += 1;
+      if (listCalls === 1) {
+        throw new Error("initial reconcile failed");
+      }
+
+      return [profile];
+    };
+
+    const manager = await startTenantSessionManager({
+      logger,
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      startBot: async (options) => {
+        startCalls.push(options.runtimeConfig?.sessionKey ?? "missing");
+        return createRuntimeHandle(() => ({
+          sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
+      },
+    });
+
+    expect(manager.listSessions()).toEqual([]);
+    expect(intervals).toHaveLength(1);
+    expect(errorCalls).toContainEqual({
+      payload: {
+        error: expect.any(Error),
+        runtimeOwnerId: "runtime-owner-1",
+      },
+      message: "initial tenant session reconcile failed; continuing and letting heartbeat retry",
+    });
+
+    await intervals[0]?.callback();
+    await flushTasks();
+
+    expect(startCalls).toEqual([profile.sessionKey]);
+    expect(manager.listSessions().map((session) => session.profile.companyId)).toEqual(["company-1"]);
+  });
+
   test("persists ready QR artifacts and clears them when pairing is removed", async () => {
     const profile = createProfile("company-1");
     const store = createStoreStub([profile]);

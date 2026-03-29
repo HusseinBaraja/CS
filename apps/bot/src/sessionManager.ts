@@ -822,7 +822,17 @@ export const startTenantSessionManager = async (
     ]);
   };
 
-  await reconcileManagedSessions();
+  try {
+    await reconcileManagedSessions();
+  } catch (error) {
+    botLogger.error(
+      {
+        error,
+        runtimeOwnerId,
+      },
+      "initial tenant session reconcile failed; continuing and letting heartbeat retry",
+    );
+  }
 
   heartbeatId = timer.setInterval(async () => {
     await runHeartbeat();
