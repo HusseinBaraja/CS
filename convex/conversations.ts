@@ -1282,7 +1282,6 @@ export const listConversationMessages = internalQuery({
 
     if (limit !== undefined) {
       return (await listVisibleConversationMessagesDescending(ctx, args.conversationId, limit))
-        .slice(0, limit)
         .reverse()
         .map(toMessageDto);
     }
