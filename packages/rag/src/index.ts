@@ -123,18 +123,20 @@ export interface RetrievedProductCandidate {
   product: RetrievedProductContext;
 }
 
+export interface RetrievalResolution {
+  strategy: "standalone" | "contextual_recent_thread" | "merged";
+  recentTurnsUsed: number;
+  detectedOptionCount: number;
+  standaloneQuery: string;
+  contextualQuery?: string;
+}
+
 export interface RetrieveCatalogContextResult {
   outcome: RetrievalOutcome;
   reason?: RetrievalReason;
   query: string;
   language: ChatLanguage;
-  resolution: {
-    strategy: "standalone" | "contextual_recent_thread" | "merged";
-    recentTurnsUsed: number;
-    detectedOptionCount: number;
-    standaloneQuery: string;
-    contextualQuery?: string;
-  };
+  resolution: RetrievalResolution;
   topScore?: number;
   candidates: RetrievedProductCandidate[];
   contextBlocks: GroundingContextBlock[];
@@ -519,9 +521,9 @@ const buildResolution = (input: {
   contextualQuery?: string;
   recentTurnsUsed: number;
   detectedOptionCount: number;
-}) => ({
+}): RetrievalResolution => ({
   strategy: input.contextualQuery
-    ? (input.detectedOptionCount >= 2 ? "contextual_recent_thread" : "merged")
+    ? (input.detectedOptionCount >= 2 ? "contextual_recent_thread" as const : "merged" as const)
     : "standalone",
   recentTurnsUsed: input.recentTurnsUsed,
   detectedOptionCount: input.detectedOptionCount,
