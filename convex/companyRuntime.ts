@@ -126,6 +126,25 @@ const loadPairingArtifactRows = async (
     .withIndex("by_company", (q) => q.eq("companyId", companyId))
     .collect();
 
+const expirePairingLeaseIfNoArtifactsRemain = async (
+  ctx: MutationCtx,
+  companyId: Id<"companies">,
+): Promise<void> => {
+  const remainingRows = await loadPairingArtifactRows(ctx, companyId);
+  if (remainingRows.length > 0) {
+    return;
+  }
+
+  const company = await ctx.db.get(companyId);
+  if (!company) {
+    return;
+  }
+
+  await ctx.db.patch(companyId, {
+    botRuntimePairingLeaseExpiresAt: Date.now(),
+  });
+};
+
 const isBotEnabled = (config: CompanyRuntimeConfig | undefined): boolean =>
   config?.botEnabled === true;
 
@@ -332,6 +351,21 @@ export const clearBotRuntimePairingArtifact = internalMutation({
         await ctx.db.delete(row._id);
       }
     }
+  },
+});
+
+export const clearBotRuntimePairingArtifactsByCompany = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const rows = await loadPairingArtifactRows(ctx, args.companyId);
+
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+    }
+
+    await expirePairingLeaseIfNoArtifactsRemain(ctx, args.companyId);
   },
 });
 

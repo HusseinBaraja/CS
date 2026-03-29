@@ -534,7 +534,7 @@ export const startTenantSessionManager = async (
     let runtimeConfig: BotRuntimeConfig | undefined;
 
     try {
-      await clearPairingArtifact(profile, runtimeOwnerId);
+      await store.clearPairingArtifactsByCompany(profile.companyId);
 
       const initialStatus: BotSessionStatus = {
         sessionKey: profile.sessionKey,

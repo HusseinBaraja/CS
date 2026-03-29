@@ -25,6 +25,7 @@ describe("createConvexCompanyRuntimeStore", () => {
     });
 
     await expect(store.clearPairingArtifact("   ", "runtime-owner-1")).rejects.toThrow("Invalid companyId");
+    await expect(store.clearPairingArtifactsByCompany("   ")).rejects.toThrow("Invalid companyId");
     await expect(store.clearSession("   ", "runtime-owner-1")).rejects.toThrow("Invalid companyId");
     await expect(store.upsertSession({
       companyId: "   ",
@@ -57,6 +58,25 @@ describe("createConvexCompanyRuntimeStore", () => {
     expect(mutationCalls[0]?.args).toEqual({
       companyId: "company-123",
       runtimeOwnerId: "runtime-owner-1",
+    });
+  });
+
+  test("forwards company-scoped pairing artifact cleanup to convex with a normalized company id", async () => {
+    const mutationCalls: Array<{ reference: unknown; args: unknown }> = [];
+    const store = createStore({
+      query: async () => [],
+      mutation: async (reference, args) => {
+        mutationCalls.push({ reference, args });
+        return undefined;
+      },
+      action: async () => undefined,
+    });
+
+    await store.clearPairingArtifactsByCompany(" company-123 ");
+
+    expect(mutationCalls).toHaveLength(1);
+    expect(mutationCalls[0]?.args).toEqual({
+      companyId: "company-123",
     });
   });
 

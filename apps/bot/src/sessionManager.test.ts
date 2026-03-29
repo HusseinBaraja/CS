@@ -106,6 +106,7 @@ const createStoreStub = (
 ): SessionManagerStore & {
   clearedSessions: string[];
   clearedPairingArtifacts: string[];
+  companyClearedPairingArtifacts: string[];
   pairingUpsertCalls: BotRuntimePairingArtifact[];
   releasedPairingOwners: string[];
   setCompanies(companies: CompanyRuntimeProfile[]): void;
@@ -115,6 +116,7 @@ const createStoreStub = (
   let companies = [...initialCompanies];
   const clearedSessions: string[] = [];
   const clearedPairingArtifacts: string[] = [];
+  const companyClearedPairingArtifacts: string[] = [];
   const pairingUpsertCalls: BotRuntimePairingArtifact[] = [];
   const releasedPairingOwners: string[] = [];
   const upsertCalls: BotRuntimeSessionRecord[] = [];
@@ -126,6 +128,9 @@ const createStoreStub = (
     },
     clearPairingArtifact: async (companyId, runtimeOwnerId) => {
       clearedPairingArtifacts.push(`${companyId}:${runtimeOwnerId}`);
+    },
+    clearPairingArtifactsByCompany: async (companyId) => {
+      companyClearedPairingArtifacts.push(companyId);
     },
     listEnabledCompanies: async () => companies,
     releasePairingArtifactsByOwner: async (runtimeOwnerId) => {
@@ -145,6 +150,7 @@ const createStoreStub = (
     },
     clearedSessions,
     clearedPairingArtifacts,
+    companyClearedPairingArtifacts,
     pairingUpsertCalls,
     releasedPairingOwners,
     releasedOwners,
@@ -209,11 +215,41 @@ describe("startTenantSessionManager", () => {
     });
 
     expect(startCalls).toEqual(["company-company-1", "company-company-2"]);
+    expect(store.companyClearedPairingArtifacts).toEqual(["company-1", "company-2"]);
     expect(manager.listSessions().map((session) => session.profile.companyId)).toEqual([
       "company-1",
       "company-2",
     ]);
     expect(manager.getSession("company-1")?.status.sessionKey).toBe("company-company-1");
+  });
+
+  test("clears stale pairing artifacts for the company before starting a runtime", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([profile]);
+    const cleanupOrder: string[] = [];
+
+    store.clearPairingArtifactsByCompany = async (companyId) => {
+      cleanupOrder.push(`startup:${companyId}`);
+      store.companyClearedPairingArtifacts.push(companyId);
+    };
+
+    await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      startBot: async () => {
+        cleanupOrder.push("startBot");
+        return createRuntimeHandle(() => ({
+          sessionKey: profile.sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
+      },
+    });
+
+    expect(cleanupOrder).toEqual(["startup:company-1", "startBot"]);
+    expect(store.companyClearedPairingArtifacts).toEqual(["company-1"]);
+    expect(store.clearedPairingArtifacts).toEqual([]);
   });
 
   test("keeps tenant status isolated when one tenant reconnects and another logs out", async () => {
@@ -436,11 +472,9 @@ describe("startTenantSessionManager", () => {
     await flushTasks();
 
     expect(stopped).toEqual([profile.sessionKey]);
+    expect(store.companyClearedPairingArtifacts).toEqual(["company-1"]);
     expect(store.clearedSessions).toEqual(["company-1:runtime-owner-1"]);
-    expect(store.clearedPairingArtifacts).toEqual([
-      "company-1:runtime-owner-1",
-      "company-1:runtime-owner-1",
-    ]);
+    expect(store.clearedPairingArtifacts).toEqual(["company-1:runtime-owner-1"]);
     expect(manager.listSessions()).toEqual([]);
   });
 
@@ -492,11 +526,9 @@ describe("startTenantSessionManager", () => {
     await flushTasks();
 
     expect(manager.getSession("company-1")).toBeUndefined();
+    expect(store.companyClearedPairingArtifacts).toEqual(["company-1"]);
     expect(store.clearedSessions).toEqual(["company-1:runtime-owner-1"]);
-    expect(store.clearedPairingArtifacts).toEqual([
-      "company-1:runtime-owner-1",
-      "company-1:runtime-owner-1",
-    ]);
+    expect(store.clearedPairingArtifacts).toEqual(["company-1:runtime-owner-1"]);
   });
 
   test("ignores status, pairing, and inbound callbacks after session shutdown begins", async () => {
@@ -901,10 +933,8 @@ describe("startTenantSessionManager", () => {
         expiresAt: 61_000,
       },
     ]);
-    expect(store.clearedPairingArtifacts).toEqual([
-      "company-1:runtime-owner-1",
-      "company-1:runtime-owner-1",
-    ]);
+    expect(store.companyClearedPairingArtifacts).toEqual(["company-1"]);
+    expect(store.clearedPairingArtifacts).toEqual(["company-1:runtime-owner-1"]);
   });
 
   test("logs reconnect scheduling and pairing visibility with tenant context", async () => {
