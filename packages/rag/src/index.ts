@@ -1,26 +1,21 @@
 import {
   type AssistantActionType,
   type AssistantStructuredOutput,
+  buildGroundedChatPrompt,
   type ChatLanguage,
   type ChatProviderManager,
   type ChatResponse,
-  buildGroundedChatPrompt,
   createChatProviderManager,
   detectChatLanguage,
+  GEMINI_EMBEDDING_DIMENSIONS,
   generateGeminiEmbedding,
   getAllowedActions,
-  GEMINI_EMBEDDING_DIMENSIONS,
   type GroundingContextBlock,
   type LanguageDetectionResult,
   parseAssistantStructuredOutput,
   type PromptHistoryTurn,
 } from '@cs/ai';
-import {
-  type ConvexAdminClient,
-  type Id,
-  convexInternal,
-  createConvexAdminClient,
-} from '@cs/db';
+import { type ConvexAdminClient, convexInternal, createConvexAdminClient, type Id } from '@cs/db';
 
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_MAX_CONTEXT_BLOCKS = 3;
@@ -465,9 +460,9 @@ const summarizeTurnForThread = (
     };
   }
 
-  const firstNonOptionLine = lines.find((line) => !OPTION_LINE_PATTERN.test(line)) ?? lines[0] ?? "";
+  const firstNonOptionLine = lines.find((line) => !OPTION_LINE_PATTERN.test(line));
   return {
-    summary: normalizeInlineText(firstNonOptionLine),
+    summary: firstNonOptionLine ? normalizeInlineText(firstNonOptionLine) : "options_list",
     optionLines,
   };
 };
