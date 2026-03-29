@@ -7,15 +7,29 @@ const createLoggerStub = () => {
   const infoCalls: Array<{ payload: unknown; message: string }> = [];
   const errorCalls: Array<{ payload: unknown; message: string }> = [];
 
-  return {
-    logger: {
-      info: (payload: unknown, message: string) => {
-        infoCalls.push({ payload, message });
-      },
-      error: (payload: unknown, message: string) => {
-        errorCalls.push({ payload, message });
-      },
+  const createLogger = (bindings: Record<string, unknown> = {}) => ({
+    info: (payload: unknown, message: string) => {
+      infoCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message,
+      });
     },
+    warn: () => undefined,
+    error: (payload: unknown, message: string) => {
+      errorCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message,
+      });
+    },
+    child: (childBindings: Record<string, unknown>) => createLogger({ ...bindings, ...childBindings }),
+  });
+
+  return {
+    logger: createLogger(),
     infoCalls,
     errorCalls,
   };
@@ -37,7 +51,7 @@ const createProcessStub = () => {
 };
 
 describe("startWorker", () => {
-  test("runs an initial tick, logs the provider directly, and registers graceful shutdown handlers", async () => {
+  test("runs initial ticks, logs startup completion, and registers graceful shutdown handlers", async () => {
     const events: string[] = [];
     const { logger, infoCalls, errorCalls } = createLoggerStub();
     const { process, handlers } = createProcessStub();
@@ -103,8 +117,14 @@ describe("startWorker", () => {
 
     expect(infoCalls).toEqual([
       {
-        payload: { db: { provider: "convex" } },
-        message: "worker initialized",
+        payload: {
+          event: "worker.startup.completed",
+          runtime: "worker",
+          surface: "lifecycle",
+          outcome: "success",
+          dbProvider: "convex",
+        },
+        message: "worker startup completed",
       },
     ]);
     expect(errorCalls).toEqual([]);
@@ -229,7 +249,14 @@ describe("startWorker", () => {
     expect(errorCalls).toEqual([
       {
         payload: {
-          error: expect.any(Error),
+          event: "worker.shutdown.failed",
+          runtime: "worker",
+          surface: "lifecycle",
+          outcome: "failed",
+          error: expect.objectContaining({
+            message: "stop failed",
+            name: "Error",
+          }),
           signal: "SIGTERM",
           stopTarget: "conversationAutoResume",
         },
@@ -237,7 +264,14 @@ describe("startWorker", () => {
       },
       {
         payload: {
-          error: expect.any(Error),
+          event: "worker.shutdown.failed",
+          runtime: "worker",
+          surface: "lifecycle",
+          outcome: "failed",
+          error: expect.objectContaining({
+            message: "stop failed",
+            name: "Error",
+          }),
           signal: "SIGTERM",
           stopTarget: "pendingAssistantReconciliation",
         },
@@ -245,7 +279,14 @@ describe("startWorker", () => {
       },
       {
         payload: {
-          error: expect.any(Error),
+          event: "worker.shutdown.failed",
+          runtime: "worker",
+          surface: "lifecycle",
+          outcome: "failed",
+          error: expect.objectContaining({
+            message: "stop failed",
+            name: "Error",
+          }),
           signal: "SIGTERM",
           stopTarget: "mediaCleanup",
         },

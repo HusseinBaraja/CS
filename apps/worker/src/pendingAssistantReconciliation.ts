@@ -1,12 +1,18 @@
 import { logger as defaultLogger } from '@cs/core';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
 import { canonicalizePhoneNumber, formatOwnerNotification, type ConversationMessageDto } from '@cs/shared';
+import {
+  logWorkerItemFailed,
+  logWorkerTickCompleted,
+  logWorkerTickFailed,
+  type WorkerLogger,
+  withWorkerJobLogger,
+} from './logging';
 
 const DEFAULT_PENDING_ASSISTANT_RECONCILIATION_INTERVAL_MS = 60_000;
 const DEFAULT_PENDING_ASSISTANT_RECONCILIATION_BATCH_SIZE = 50;
 const DEFAULT_PENDING_ASSISTANT_GRACE_PERIOD_MS = 15_000;
-
-type WorkerLogger = Pick<typeof defaultLogger, "info" | "error">;
+const JOB_NAME = "pendingAssistantReconciliation";
 type OwnerNotificationSender = (input: { recipientJid: string; text: string }) => Promise<void>;
 type AssistantHandoffSource = "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback";
 
@@ -28,9 +34,6 @@ export interface PendingAssistantReconciliationTickResult {
 
 const getConversationLockKey = (companyId: string, phoneNumber: string): string =>
   `conversation:${companyId}:${phoneNumber}`;
-
-const getErrorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
 
 const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
   `pendingMessage:${pendingMessageId}:handoff_started`;
@@ -172,12 +175,15 @@ const reconcilePendingAssistantMessage = async (
         ownerToken,
       });
     } catch (error) {
-      logger.error(
+      logWorkerItemFailed(
+        logger,
+        error,
         {
+          jobName: JOB_NAME,
           companyId: candidate.companyId,
           conversationId: candidate.conversationId,
-          error: getErrorMessage(error),
           messageId: candidate.messageId,
+          step: "lock_release",
         },
         "pending assistant reconciliation lock release failed",
       );
@@ -192,11 +198,12 @@ export const createPendingAssistantReconciliationProcessor = (
   const createClient = options.createClient ?? createConvexAdminClient;
   const gracePeriodMs = options.gracePeriodMs ?? DEFAULT_PENDING_ASSISTANT_GRACE_PERIOD_MS;
   const intervalMs = options.intervalMs ?? DEFAULT_PENDING_ASSISTANT_RECONCILIATION_INTERVAL_MS;
-  const logger = options.logger ?? defaultLogger;
+  const logger = withWorkerJobLogger(options.logger ?? defaultLogger, JOB_NAME);
   const now = options.now ?? Date.now;
   const sendOwnerNotification = options.sendOwnerNotification;
 
   const runTick = async (): Promise<PendingAssistantReconciliationTickResult> => {
+    const startedAt = Date.now();
     const client = createClient();
     const tickNow = now();
     const candidates = await client.query(convexInternal.conversations.listPendingAssistantMessages, {
@@ -228,11 +235,13 @@ export const createPendingAssistantReconciliationProcessor = (
         }
       } catch (error) {
         result.failedCount += 1;
-        logger.error(
+        logWorkerItemFailed(
+          logger,
+          error,
           {
+            jobName: JOB_NAME,
             companyId: candidate.companyId,
             conversationId: candidate.conversationId,
-            error: getErrorMessage(error),
             messageId: candidate.messageId,
           },
           "pending assistant reconciliation failed",
@@ -240,9 +249,20 @@ export const createPendingAssistantReconciliationProcessor = (
       }
     }
 
-    if (result.reconciledCount > 0 || result.failedCount > 0) {
-      logger.info(result, "pending assistant reconciliation tick processed");
-    }
+    logWorkerTickCompleted(
+      logger,
+      {
+        jobName: JOB_NAME,
+        processedCount: result.reconciledCount + result.skippedCount + result.failedCount,
+        succeededCount: result.reconciledCount + result.skippedCount,
+        failedCount: result.failedCount,
+        retryCount: 0,
+        durationMs: Date.now() - startedAt,
+        reconciledCount: result.reconciledCount,
+        skippedCount: result.skippedCount,
+      },
+      "pending assistant reconciliation tick completed",
+    );
 
     return result;
   };
@@ -253,7 +273,13 @@ export const createPendingAssistantReconciliationProcessor = (
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const logTickFailure = (error: unknown) => {
-      logger.error({ error: getErrorMessage(error) }, "pending assistant reconciliation tick failed");
+      logWorkerTickFailed(
+        logger,
+        JOB_NAME,
+        error,
+        0,
+        "pending assistant reconciliation tick failed",
+      );
     };
 
     const scheduleNext = () => {

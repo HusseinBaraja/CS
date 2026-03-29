@@ -38,24 +38,31 @@ const createClientStub = (overrides: Partial<{
 const createLoggerStub = () => {
   const infoCalls: LoggerCall[] = [];
   const errorCalls: LoggerCall[] = [];
-
-  const captureCall = (calls: LoggerCall[], args: unknown[]) => {
-    const [payload = {}, message = ""] = args;
-    calls.push({
-      payload: (payload ?? {}) as Record<string, unknown>,
-      message: typeof message === "string" ? message : String(message),
-    });
-  };
+  const createLogger = (bindings: Record<string, unknown> = {}) => ({
+    info: (...args: unknown[]) => {
+      const [payload = {}, message = ""] = args;
+      infoCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : {} as Record<string, unknown>,
+        message: typeof message === "string" ? message : String(message),
+      });
+    },
+    warn: () => undefined,
+    error: (...args: unknown[]) => {
+      const [payload = {}, message = ""] = args;
+      errorCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : {} as Record<string, unknown>,
+        message: typeof message === "string" ? message : String(message),
+      });
+    },
+    child: (childBindings: Record<string, unknown>) => createLogger({ ...bindings, ...childBindings }),
+  });
 
   return {
-    logger: {
-      info: (...args: unknown[]) => {
-        captureCall(infoCalls, args);
-      },
-      error: (...args: unknown[]) => {
-        captureCall(errorCalls, args);
-      },
-    },
+    logger: createLogger(),
     infoCalls,
     errorCalls,
   };
@@ -126,11 +133,20 @@ describe("createPendingAssistantReconciliationProcessor", () => {
     })).toBe(true);
     expect(infoCalls).toEqual([{
       payload: {
+        event: "worker.job.tick_completed",
+        runtime: "worker",
+        surface: "job",
+        jobName: "pendingAssistantReconciliation",
+        outcome: "success",
+        processedCount: 1,
+        succeededCount: 1,
+        retryCount: 0,
+        durationMs: expect.any(Number),
         reconciledCount: 1,
         skippedCount: 0,
         failedCount: 0,
       },
-      message: "pending assistant reconciliation tick processed",
+      message: "pending assistant reconciliation tick completed",
     }]);
     expect(errorCalls).toEqual([]);
   });
@@ -252,20 +268,37 @@ describe("createPendingAssistantReconciliationProcessor", () => {
 
     expect(errorCalls[0]).toEqual({
       payload: {
+        event: "worker.job.item_failed",
+        runtime: "worker",
+        surface: "job",
+        jobName: "pendingAssistantReconciliation",
+        outcome: "failed",
         companyId: "company-1",
         conversationId: "conversation-1",
-        error: "commit failed",
+        error: expect.objectContaining({
+          message: "commit failed",
+          name: "Error",
+        }),
         messageId: "message-1",
       },
       message: "pending assistant reconciliation failed",
     });
     expect(infoCalls).toEqual([{
       payload: {
+        event: "worker.job.tick_completed",
+        runtime: "worker",
+        surface: "job",
+        jobName: "pendingAssistantReconciliation",
+        outcome: "partial_success",
+        processedCount: 2,
+        succeededCount: 1,
+        retryCount: 0,
+        durationMs: expect.any(Number),
         reconciledCount: 1,
         skippedCount: 0,
         failedCount: 1,
       },
-      message: "pending assistant reconciliation tick processed",
+      message: "pending assistant reconciliation tick completed",
     }]);
   });
 

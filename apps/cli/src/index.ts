@@ -1,6 +1,12 @@
 #!/usr/bin/env bun
 import { env } from '@cs/config';
-import { logError, logger } from '@cs/core';
+import {
+  logEvent,
+  logger,
+  serializeErrorForLog,
+  type StructuredLogger,
+  withLogBindings,
+} from '@cs/core';
 import { backupCommand } from './commands/backup';
 import { seedCommand } from './commands/seed';
 import type { CliCommand } from './commands/types';
@@ -17,27 +23,116 @@ const printUsage = (): void => {
   }
 };
 
-const main = async (): Promise<void> => {
-  const [commandName, ...args] = process.argv.slice(2);
+export interface RunCliOptions {
+  argv?: string[];
+  commands?: CliCommand[];
+  logger?: StructuredLogger;
+  printUsage?: () => void;
+}
+
+export const runCli = async (options: RunCliOptions = {}): Promise<void> => {
+  const [commandName, ...args] = (options.argv ?? process.argv.slice(2));
+  const activeLogger = withLogBindings(options.logger ?? logger, {
+    runtime: "cli",
+    surface: "command",
+  });
+  const availableCommands = options.commands ?? commands;
+  const usagePrinter = options.printUsage ?? printUsage;
 
   if (!commandName) {
-    logger.info({ env: env.NODE_ENV }, "cli ready");
-    printUsage();
+    logEvent(
+      activeLogger,
+      "info",
+      {
+        event: "cli.command.completed",
+        runtime: "cli",
+        surface: "command",
+        outcome: "usage_shown",
+        commandName: "help",
+        env: env.NODE_ENV,
+      },
+      "cli usage shown",
+    );
+    usagePrinter();
     return;
   }
 
-  const command = commands.find((candidate) => candidate.name === commandName);
+  const command = availableCommands.find((candidate) => candidate.name === commandName);
+  const commandLogger = withLogBindings(activeLogger, {
+    commandName,
+  });
+
   if (!command) {
-    printUsage();
-    throw new Error(`Unknown command: ${commandName}`);
+    usagePrinter();
+    const error = new Error(`Unknown command: ${commandName}`);
+    logEvent(
+      commandLogger,
+      "error",
+      {
+        event: "cli.command.failed",
+        runtime: "cli",
+        surface: "command",
+        outcome: "failed",
+        commandName,
+        error: serializeErrorForLog(error),
+      },
+      "cli command failed",
+    );
+    throw error;
   }
 
-  await command.run(args);
+  const startedAt = Date.now();
+  logEvent(
+    commandLogger,
+    "info",
+    {
+      event: "cli.command.started",
+      runtime: "cli",
+      surface: "command",
+      outcome: "started",
+      commandName,
+    },
+    "cli command started",
+  );
+
+  try {
+    await command.run(args);
+    logEvent(
+      commandLogger,
+      "info",
+      {
+        event: "cli.command.completed",
+        runtime: "cli",
+        surface: "command",
+        outcome: "success",
+        commandName,
+        durationMs: Date.now() - startedAt,
+      },
+      "cli command completed",
+    );
+  } catch (error) {
+    logEvent(
+      commandLogger,
+      "error",
+      {
+        event: "cli.command.failed",
+        runtime: "cli",
+        surface: "command",
+        outcome: "failed",
+        commandName,
+        durationMs: Date.now() - startedAt,
+        error: serializeErrorForLog(error),
+      },
+      "cli command failed",
+    );
+    throw error;
+  }
 };
 
-try {
-  await main();
-} catch (error) {
-  logError(logger, error, "cli command failed");
-  process.exitCode = 1;
+if (import.meta.main) {
+  try {
+    await runCli();
+  } catch {
+    process.exitCode = 1;
+  }
 }
