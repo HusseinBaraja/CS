@@ -32,35 +32,44 @@ const createLoggerStub = () => {
   const warnCalls: Array<{ payload: unknown; message: string }> = [];
   const debugCalls: Array<{ payload: unknown; message: string }> = [];
 
-  return {
-    logger: {
-      debug: (payload: unknown, message: string) => {
-        debugCalls.push({ payload, message });
-      },
-      info: (payload: unknown, message: string) => {
-        infoCalls.push({ payload, message });
-      },
-      error: (payload: unknown, message: string) => {
-        errorCalls.push({ payload, message });
-      },
-      warn: (payload: unknown, message: string) => {
-        warnCalls.push({ payload, message });
-      },
-      child: () => ({
-        debug: (payload: unknown, message: string) => {
-          debugCalls.push({ payload, message });
-        },
-        info: (payload: unknown, message: string) => {
-          infoCalls.push({ payload, message });
-        },
-        error: (payload: unknown, message: string) => {
-          errorCalls.push({ payload, message });
-        },
-        warn: (payload: unknown, message: string) => {
-          warnCalls.push({ payload, message });
-        },
-      }),
+  const createLogger = (bindings: Record<string, unknown> = {}) => ({
+    debug: (payload: unknown, message: string) => {
+      debugCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message,
+      });
     },
+    info: (payload: unknown, message: string) => {
+      infoCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message,
+      });
+    },
+    error: (payload: unknown, message: string) => {
+      errorCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message,
+      });
+    },
+    warn: (payload: unknown, message: string) => {
+      warnCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message,
+      });
+    },
+    child: (childBindings: Record<string, unknown>) => createLogger({ ...bindings, ...childBindings }),
+  });
+
+  return {
+    logger: createLogger(),
     debugCalls,
     errorCalls,
     infoCalls,
@@ -693,8 +702,15 @@ describe("startTenantSessionManager", () => {
     expect(store.upsertCalls).toHaveLength(upsertCallCountBeforeHeartbeat + 1);
     expect(errorCalls).toContainEqual({
       payload: {
-        error: expect.any(Error),
+        error: expect.objectContaining({
+          message: "reconcile failed",
+          name: "Error",
+        }),
+        event: "bot.session.reconcile_failed",
+        outcome: "error",
+        runtime: "bot",
         runtimeOwnerId: "runtime-owner-1",
+        surface: "session_manager",
       },
       message: "tenant session reconcile failed",
     });
@@ -926,8 +942,15 @@ describe("startTenantSessionManager", () => {
     expect(intervals).toHaveLength(1);
     expect(errorCalls).toContainEqual({
       payload: {
-        error: expect.any(Error),
+        error: expect.objectContaining({
+          message: "initial reconcile failed",
+          name: "Error",
+        }),
+        event: "bot.session.initial_reconcile_failed",
+        outcome: "error",
+        runtime: "bot",
         runtimeOwnerId: "runtime-owner-1",
+        surface: "session_manager",
       },
       message: "initial tenant session reconcile failed; continuing and letting heartbeat retry",
     });
@@ -1039,7 +1062,11 @@ describe("startTenantSessionManager", () => {
       payload: {
         companyId: "company-1",
         companyName: "Tenant company-1",
+        event: "bot.session.reconnect_scheduled",
+        outcome: "scheduled",
+        runtime: "bot",
         sessionKey: profile.sessionKey,
+        surface: "session",
         state: "reconnecting",
         attempt: 2,
         disconnectCode: 428,
@@ -1058,7 +1085,11 @@ describe("startTenantSessionManager", () => {
     expect(pairingLog?.payload).toEqual({
       companyId: "company-1",
       companyName: "Tenant company-1",
+      event: "bot.session.pairing_available",
+      outcome: "ready",
+      runtime: "bot",
       sessionKey: profile.sessionKey,
+      surface: "session",
       state: "reconnecting",
       attempt: 2,
       disconnectCode: 428,
@@ -1074,7 +1105,11 @@ describe("startTenantSessionManager", () => {
       payload: {
         companyId: "company-1",
         companyName: "Tenant company-1",
+        event: "bot.session.pairing_expired",
+        outcome: "expired",
+        runtime: "bot",
         sessionKey: profile.sessionKey,
+        surface: "session",
         state: "reconnecting",
         attempt: 2,
         disconnectCode: 428,
@@ -1135,8 +1170,15 @@ describe("startTenantSessionManager", () => {
       {
         payload: {
           companyId: "company-1",
-          error: expect.any(Error),
+          error: expect.objectContaining({
+            message: "startup failed",
+            name: "Error",
+          }),
+          event: "bot.session.startup_failed",
+          outcome: "failed",
+          runtime: "bot",
           sessionKey: "company-company-1",
+          surface: "session",
         },
         message: "tenant session startup failed",
       },
@@ -1201,8 +1243,15 @@ describe("startTenantSessionManager", () => {
     expect(errorCalls).toContainEqual({
       payload: {
         companyId: "company-1",
-        error: expect.any(Error),
+        error: expect.objectContaining({
+          message: "invalid runtime config",
+          name: "Error",
+        }),
+        event: "bot.session.startup_failed",
+        outcome: "failed",
+        runtime: "bot",
         sessionKey: "company-company-1",
+        surface: "session",
       },
       message: "tenant session startup failed",
     });
@@ -1243,8 +1292,15 @@ describe("startTenantSessionManager", () => {
     expect(errorCalls).toContainEqual({
       payload: {
         companyId: "company-1",
-        error: expect.any(Error),
+        error: expect.objectContaining({
+          message: "outbound setup failed",
+          name: "Error",
+        }),
+        event: "bot.session.startup_failed",
+        outcome: "failed",
+        runtime: "bot",
         sessionKey: "company-company-1",
+        surface: "session",
       },
       message: "tenant session startup failed",
     });
@@ -1463,8 +1519,17 @@ describe("startTenantSessionManager", () => {
     expect(errorCalls).toContainEqual({
       payload: {
         companyId: "company-1",
-        error: expect.any(Error),
+        error: expect.objectContaining({
+          message: "router failed",
+          name: "Error",
+        }),
+        event: "bot.router.routing_failed",
+        outcome: "error",
+        requestId: "company-1-message",
+        route: "customer_conversation",
+        runtime: "bot",
         sessionKey: "company-company-1",
+        surface: "router",
       },
       message: "tenant inbound message routing failed",
     });
@@ -1484,37 +1549,82 @@ describe("startTenantSessionManager", () => {
       }),
     ];
     const store = createStoreStub(profiles);
+    const { logger, infoCalls } = createLoggerStub();
     const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
-    const customerContexts: Array<{ companyId: string; hasOutbound: boolean; profileCompanyId: string }> = [];
-    const ownerContexts: Array<{ companyId: string; hasOutbound: boolean; profileCompanyId: string }> = [];
-    const ignoredContexts: Array<{ companyId: string; hasOutbound: boolean; profileCompanyId: string }> = [];
+    const customerContexts: Array<{
+      companyId: string;
+      hasOutbound: boolean;
+      profileCompanyId: string;
+      requestId?: string;
+      sessionKey?: string;
+      runtime?: string;
+      surface?: string;
+    }> = [];
+    const ownerContexts: Array<{
+      companyId: string;
+      hasOutbound: boolean;
+      profileCompanyId: string;
+      requestId?: string;
+      sessionKey?: string;
+      runtime?: string;
+      surface?: string;
+    }> = [];
+    const ignoredContexts: Array<{
+      companyId: string;
+      hasOutbound: boolean;
+      profileCompanyId: string;
+      requestId?: string;
+      sessionKey?: string;
+      runtime?: string;
+      surface?: string;
+    }> = [];
 
     await startTenantSessionManager({
       runtimeOwnerId: "runtime-owner-1",
       store,
       inboundRouter: {
         handleCustomerConversation: async (message, context) => {
+          context.logger.info({}, "inspect");
+          // Pull the merged bindings back from the shared logger stub.
+          const loggerCall = infoCalls.at(-1);
           customerContexts.push({
             companyId: message.companyId,
             hasOutbound: context.outbound !== undefined,
             profileCompanyId: context.profile.companyId,
+            requestId: (loggerCall?.payload as Record<string, unknown> | undefined)?.requestId as string | undefined,
+            runtime: (loggerCall?.payload as Record<string, unknown> | undefined)?.runtime as string | undefined,
+            sessionKey: (loggerCall?.payload as Record<string, unknown> | undefined)?.sessionKey as string | undefined,
+            surface: (loggerCall?.payload as Record<string, unknown> | undefined)?.surface as string | undefined,
           });
         },
         handleIgnored: async (event, context) => {
+          context.logger.info({}, "inspect");
+          const loggerCall = infoCalls.at(-1);
           ignoredContexts.push({
             companyId: event.companyId,
             hasOutbound: context.outbound !== undefined,
             profileCompanyId: context.profile.companyId,
+            requestId: (loggerCall?.payload as Record<string, unknown> | undefined)?.requestId as string | undefined,
+            runtime: (loggerCall?.payload as Record<string, unknown> | undefined)?.runtime as string | undefined,
+            sessionKey: (loggerCall?.payload as Record<string, unknown> | undefined)?.sessionKey as string | undefined,
+            surface: (loggerCall?.payload as Record<string, unknown> | undefined)?.surface as string | undefined,
           });
         },
         handleOwnerCommand: async (message, context) => {
+          context.logger.info({}, "inspect");
+          const loggerCall = infoCalls.at(-1);
           ownerContexts.push({
             companyId: message.companyId,
             hasOutbound: context.outbound !== undefined,
             profileCompanyId: context.profile.companyId,
+            requestId: (loggerCall?.payload as Record<string, unknown> | undefined)?.requestId as string | undefined,
+            runtime: (loggerCall?.payload as Record<string, unknown> | undefined)?.runtime as string | undefined,
+            sessionKey: (loggerCall?.payload as Record<string, unknown> | undefined)?.sessionKey as string | undefined,
+            surface: (loggerCall?.payload as Record<string, unknown> | undefined)?.surface as string | undefined,
           });
         },
       },
+      logger,
       startBot: async (options) => {
         const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
         messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
@@ -1587,23 +1697,39 @@ describe("startTenantSessionManager", () => {
       companyId: "company-1",
       hasOutbound: true,
       profileCompanyId: "company-1",
+      requestId: "owner-command",
+      runtime: "bot",
+      sessionKey: "company-company-1",
+      surface: "router",
     }]);
     expect(customerContexts).toEqual([
       {
         companyId: "company-1",
         hasOutbound: true,
         profileCompanyId: "company-1",
+        requestId: "customer-text",
+        runtime: "bot",
+        sessionKey: "company-company-1",
+        surface: "router",
       },
       {
         companyId: "company-2",
         hasOutbound: true,
         profileCompanyId: "company-2",
+        requestId: "customer-text-company-2",
+        runtime: "bot",
+        sessionKey: "company-company-2",
+        surface: "router",
       },
     ]);
     expect(ignoredContexts).toEqual([{
       companyId: "company-1",
       hasOutbound: true,
       profileCompanyId: "company-1",
+      requestId: "ignored-group",
+      runtime: "bot",
+      sessionKey: "company-company-1",
+      surface: "router",
     }]);
   });
 
@@ -1933,10 +2059,16 @@ describe("startTenantSessionManager", () => {
     }]);
     expect(warnCalls).toContainEqual({
       payload: {
+        event: "bot.router.inbound_ignored",
+        runtime: "bot",
+        surface: "router",
+        outcome: "ignored",
         companyId: "company-1",
         reason: "access_control_blocked",
         sessionKey: profile.sessionKey,
+        requestId: "blocked-customer",
         messageId: "blocked-customer",
+        remoteJid: "***0001@s.whatsapp.net",
         accessMode: "OWNER_ONLY",
         accessReason: "access_mode_single_number_invalid",
       },

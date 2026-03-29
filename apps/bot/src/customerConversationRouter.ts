@@ -1,5 +1,14 @@
 import type { CatalogChatOrchestrator } from '@cs/rag';
 import {
+  logEvent,
+  redactJidForLog,
+  redactPhoneLikeValue,
+  serializeErrorForLog,
+  summarizeTextForLog,
+  type StructuredLogger,
+  withLogBindings,
+} from '@cs/core';
+import {
   canonicalizePhoneNumber,
   formatOwnerNotification,
   type NormalizedInboundMessage,
@@ -7,9 +16,7 @@ import {
 import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId, type ConversationStore } from './conversationStore';
 
-export interface CustomerConversationLogger {
-  error(payload: unknown, message: string): void;
-}
+export type CustomerConversationLogger = StructuredLogger;
 
 export interface CustomerConversationRouterOptions {
   catalogChatOrchestrator: CatalogChatOrchestrator;
@@ -22,19 +29,25 @@ export interface CustomerConversationRouterOptions {
 const DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES = 20;
 const OWNER_HANDOFF_HISTORY_LIMIT = 6;
 
-const redactPhoneNumber = (value: string): string => {
-  const digits = value.replace(/\D/g, "");
-  if (digits.length === 0) {
-    return "[redacted]";
-  }
+const summarizeAssistantText = (value: string) => {
+  const summary = summarizeTextForLog(value);
 
-  const suffix = digits.slice(-4);
-  return `***${suffix}`;
+  return {
+    assistantTextLength: summary.textLength,
+    assistantTextLineCount: summary.textLineCount,
+    assistantTextSha256: summary.textSha256,
+  };
 };
 
-const summarizeAssistantText = (value: string): { assistantTextLength: number } => ({
-  assistantTextLength: value.length,
-});
+const summarizeUserText = (value: string) => {
+  const summary = summarizeTextForLog(value);
+
+  return {
+    userTextLength: summary.textLength,
+    userTextLineCount: summary.textLineCount,
+    userTextSha256: summary.textSha256,
+  };
+};
 
 const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
   `pendingMessage:${pendingMessageId}:handoff_started`;
@@ -66,11 +79,26 @@ export const createCustomerConversationRouter = (
     options.conversationHistoryWindowMessages ?? DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES;
 
   return async (message, context): Promise<void> => {
+    let routeLogger = withLogBindings(options.logger, {
+      companyId: message.companyId,
+      requestId: message.messageId,
+      runtime: "bot",
+      sessionKey: message.sessionKey,
+      surface: "router",
+    });
+
     if (!context.outbound) {
-      options.logger.error(
+      logEvent(
+        routeLogger,
+        "error",
         {
+          event: "bot.router.outbound_unavailable",
+          runtime: "bot",
+          surface: "router",
+          outcome: "error",
           companyId: message.companyId,
           conversationPhoneNumber: message.conversationPhoneNumber,
+          error: serializeErrorForLog(new Error("Outbound messenger unavailable")),
           messageId: message.messageId,
           sessionKey: message.sessionKey,
         },
@@ -94,10 +122,47 @@ export const createCustomerConversationRouter = (
           : {}),
       });
       conversationId = inboundAppend.conversation.id;
+      routeLogger = withLogBindings(routeLogger, {
+        conversationId,
+      });
 
       if (inboundAppend.wasDuplicate || inboundAppend.wasMuted) {
+        logEvent(
+          routeLogger,
+          "info",
+          {
+            event: "bot.router.inbound_persisted",
+            runtime: "bot",
+            surface: "router",
+            outcome: inboundAppend.wasDuplicate ? "duplicate" : "muted",
+            companyId: message.companyId,
+            conversationId,
+            messageId: message.messageId,
+            pendingMessageId: undefined,
+            sessionKey: message.sessionKey,
+            ...summarizeUserText(userMessage),
+          },
+          "customer conversation inbound message recorded",
+        );
         return;
       }
+
+      logEvent(
+        routeLogger,
+        "info",
+        {
+          event: "bot.router.inbound_persisted",
+          runtime: "bot",
+          surface: "router",
+          outcome: "accepted",
+          companyId: message.companyId,
+          conversationId,
+          messageId: message.messageId,
+          sessionKey: message.sessionKey,
+          ...summarizeUserText(userMessage),
+        },
+        "customer conversation inbound message recorded",
+      );
 
       history = await options.conversationStore.getPromptHistoryForInbound({
         companyId: message.companyId,
@@ -110,13 +175,19 @@ export const createCustomerConversationRouter = (
         limit: conversationHistoryWindowMessages,
       });
     } catch (error) {
-      options.logger.error(
+      logEvent(
+        routeLogger,
+        "error",
         {
           companyId: message.companyId,
           conversationPhoneNumber: message.conversationPhoneNumber,
-          error,
+          error: serializeErrorForLog(error),
+          event: "bot.router.persistence_failed",
           messageId: message.messageId,
+          outcome: "error",
+          runtime: "bot",
           sessionKey: message.sessionKey,
+          surface: "router",
         },
         "customer conversation persistence failed",
       );
@@ -149,13 +220,19 @@ export const createCustomerConversationRouter = (
           : "invalid_model_output_fallback";
       }
     } catch (error) {
-      options.logger.error(
+      logEvent(
+        routeLogger,
+        "error",
         {
           companyId: message.companyId,
           conversationId,
-          error,
+          error: serializeErrorForLog(error),
+          event: "bot.router.orchestration_failed",
           messageId: message.messageId,
+          outcome: "error",
+          runtime: "bot",
           sessionKey: message.sessionKey,
+          surface: "router",
         },
         "customer conversation orchestration failed",
       );
@@ -173,15 +250,39 @@ export const createCustomerConversationRouter = (
         ...(handoffSource ? { source: handoffSource } : {}),
       });
       pendingMessageId = pendingMessage.id;
+      logEvent(
+        routeLogger,
+        "info",
+        {
+          event: "bot.router.assistant_pending_created",
+          runtime: "bot",
+          surface: "router",
+          outcome: "pending",
+          companyId: message.companyId,
+          conversationId,
+          messageId: message.messageId,
+          pendingMessageId,
+          sessionKey: message.sessionKey,
+          ...(handoffSource ? { handoffSource } : {}),
+          ...summarizeAssistantText(assistantText),
+        },
+        "customer conversation assistant reply queued",
+      );
     } catch (error) {
-      options.logger.error(
+      logEvent(
+        routeLogger,
+        "error",
         {
           ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
-          error,
+          error: serializeErrorForLog(error),
+          event: "bot.router.assistant_persistence_failed",
           messageId: message.messageId,
+          outcome: "error",
+          runtime: "bot",
           sessionKey: message.sessionKey,
+          surface: "router",
         },
         "customer conversation assistant persistence failed",
       );
@@ -191,21 +292,29 @@ export const createCustomerConversationRouter = (
     let outboundMessageId: string | undefined;
     try {
       const sendReceipts = await context.outbound.sendText({
+        logger: routeLogger,
         recipientJid: `${message.sender.phoneNumber}@s.whatsapp.net`,
         text: assistantText,
       });
       outboundMessageId = sendReceipts[0]?.messageId;
     } catch (error) {
-      options.logger.error(
+      logEvent(
+        routeLogger,
+        "error",
         {
           ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
-          error,
+          error: serializeErrorForLog(error),
+          event: "bot.router.outbound_send_failed",
           messageId: message.messageId,
+          outcome: "error",
           pendingMessageId,
-          recipientPhoneNumber: redactPhoneNumber(message.sender.phoneNumber),
+          recipientJid: redactJidForLog(`${message.sender.phoneNumber}@s.whatsapp.net`),
+          recipientPhoneNumber: redactPhoneLikeValue(message.sender.phoneNumber),
+          runtime: "bot",
           sessionKey: message.sessionKey,
+          surface: "router",
         },
         "customer conversation outbound send failed",
       );
@@ -216,14 +325,20 @@ export const createCustomerConversationRouter = (
           pendingMessageId,
         });
       } catch (markFailedError) {
-        options.logger.error(
+        logEvent(
+          routeLogger,
+          "error",
           {
             companyId: message.companyId,
             conversationId,
-            error: markFailedError,
+            error: serializeErrorForLog(markFailedError),
+            event: "bot.router.pending_failure_persistence_failed",
             messageId: message.messageId,
+            outcome: "error",
             pendingMessageId,
+            runtime: "bot",
             sessionKey: message.sessionKey,
+            surface: "router",
           },
           "customer conversation pending assistant failure persistence failed",
         );
@@ -240,16 +355,22 @@ export const createCustomerConversationRouter = (
         ...(outboundMessageId ? { transportMessageId: outboundMessageId } : {}),
       });
     } catch (error) {
-      options.logger.error(
+      logEvent(
+        routeLogger,
+        "error",
         {
           ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
-          error,
+          error: serializeErrorForLog(error),
+          event: "bot.router.assistant_acknowledgement_failed",
           messageId: message.messageId,
           outboundMessageId,
+          outcome: "error",
           pendingMessageId,
+          runtime: "bot",
           sessionKey: message.sessionKey,
+          surface: "router",
         },
         "customer conversation assistant acknowledgement persistence failed",
       );
@@ -264,20 +385,46 @@ export const createCustomerConversationRouter = (
         ...(outboundMessageId ? { transportMessageId: outboundMessageId } : {}),
       });
     } catch (error) {
-      options.logger.error(
+      logEvent(
+        routeLogger,
+        "error",
         {
           ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
-          error,
+          error: serializeErrorForLog(error),
+          event: "bot.router.assistant_commit_failed",
           messageId: message.messageId,
+          outcome: "error",
           pendingMessageId,
+          runtime: "bot",
           sessionKey: message.sessionKey,
+          surface: "router",
         },
         "customer conversation assistant persistence failed",
       );
       return;
     }
+
+    logEvent(
+      routeLogger,
+      "info",
+      {
+        event: "bot.router.assistant_committed",
+        runtime: "bot",
+        surface: "router",
+        outcome: handoffSource ? "handoff" : "sent",
+        companyId: message.companyId,
+        conversationId,
+        messageId: message.messageId,
+        ...(outboundMessageId ? { outboundMessageId } : {}),
+        pendingMessageId,
+        sessionKey: message.sessionKey,
+        ...(handoffSource ? { handoffSource } : {}),
+        ...summarizeAssistantText(assistantText),
+      },
+      "customer conversation assistant reply committed",
+    );
 
     if (handoffSource) {
       try {
@@ -305,14 +452,20 @@ export const createCustomerConversationRouter = (
           analyticsCompleted: true,
         });
       } catch (error) {
-        options.logger.error(
+        logEvent(
+          routeLogger,
+          "error",
           {
             companyId: message.companyId,
             conversationId,
-            error,
+            error: serializeErrorForLog(error),
+            event: "bot.router.handoff_analytics_failed",
             handoffSource,
             messageId: message.messageId,
+            outcome: "error",
+            runtime: "bot",
             sessionKey: message.sessionKey,
+            surface: "router",
           },
           "customer conversation handoff analytics failed",
         );
@@ -320,12 +473,18 @@ export const createCustomerConversationRouter = (
 
       const ownerPhoneNumber = canonicalizePhoneNumber(context.profile.ownerPhone);
       if (!ownerPhoneNumber) {
-        options.logger.error(
+        logEvent(
+          routeLogger,
+          "error",
           {
             companyId: message.companyId,
             conversationId,
-            ownerPhone: redactPhoneNumber(context.profile.ownerPhone),
+            event: "bot.router.owner_phone_unavailable",
+            outcome: "error",
+            ownerPhone: redactPhoneLikeValue(context.profile.ownerPhone),
+            runtime: "bot",
             sessionKey: message.sessionKey,
+            surface: "router",
           },
           "customer conversation owner phone unavailable for handoff notification",
         );
@@ -338,6 +497,7 @@ export const createCustomerConversationRouter = (
           });
 
           await context.outbound.sendText({
+            logger: routeLogger,
             recipientJid: `${ownerPhoneNumber}@s.whatsapp.net`,
             text: formatOwnerNotification({
               companyName: context.profile.name,
@@ -359,15 +519,21 @@ export const createCustomerConversationRouter = (
             ownerNotificationCompleted: true,
           });
         } catch (error) {
-          options.logger.error(
+          logEvent(
+            routeLogger,
+            "error",
             {
               companyId: message.companyId,
               conversationId,
-              error,
+              error: serializeErrorForLog(error),
+              event: "bot.router.owner_notification_failed",
               handoffSource,
-              ownerPhoneNumber: redactPhoneNumber(ownerPhoneNumber),
+              outcome: "error",
+              ownerPhoneNumber: redactPhoneLikeValue(ownerPhoneNumber),
               messageId: message.messageId,
+              runtime: "bot",
               sessionKey: message.sessionKey,
+              surface: "router",
             },
             "customer conversation owner handoff notification failed",
           );
@@ -382,14 +548,20 @@ export const createCustomerConversationRouter = (
         maxMessages: conversationHistoryWindowMessages,
       });
     } catch (error) {
-      options.logger.error(
+      logEvent(
+        routeLogger,
+        "error",
         {
           ...summarizeAssistantText(assistantText),
           companyId: message.companyId,
           conversationId,
-          error,
+          error: serializeErrorForLog(error),
+          event: "bot.router.history_trim_failed",
           messageId: message.messageId,
+          outcome: "error",
+          runtime: "bot",
           sessionKey: message.sessionKey,
+          surface: "router",
         },
         "customer conversation history trimming failed",
       );

@@ -1,5 +1,11 @@
 import { env } from '@cs/config';
-import { logger as defaultLogger } from '@cs/core';
+import {
+  logEvent,
+  logger as defaultLogger,
+  redactJidForLog,
+  serializeErrorForLog,
+  withLogBindings,
+} from '@cs/core';
 import {
   evaluateInboundAccess,
   resolveAccessControlPolicy,
@@ -93,6 +99,7 @@ export interface InboundMessageRouter {
 export interface InboundRouteContext {
   outbound?: OutboundMessenger;
   profile: CompanyRuntimeProfile;
+  logger: BotLogger;
 }
 
 const defaultTimer: SessionManagerTimer = {
@@ -174,6 +181,17 @@ const clonePairing = (pairing: BotPairingStatus): BotPairingStatus => ({
   ...(pairing.qrText !== undefined ? { qrText: pairing.qrText } : {}),
 });
 
+const createSessionLogger = (
+  logger: BotLogger,
+  profile: CompanyRuntimeProfile,
+  surface: string,
+): BotLogger =>
+  withLogBindings(logger, {
+    companyId: profile.companyId,
+    sessionKey: profile.sessionKey,
+    surface,
+  });
+
 const getOperatorShellUrl = (companyId: string): string => {
   return `http://127.0.0.1:${env.API_PORT}${OPERATOR_SHELL_PATH}?companyId=${encodeURIComponent(companyId)}`;
 };
@@ -241,7 +259,9 @@ const toPairingArtifact = (
 export const startTenantSessionManager = async (
   options: StartTenantSessionManagerOptions = {},
 ): Promise<TenantSessionManagerHandle> => {
-  const botLogger = options.logger ?? defaultLogger;
+  const botLogger = withLogBindings(options.logger ?? defaultLogger, {
+    runtime: "bot",
+  });
   const botProcess = options.botProcess ?? process;
   const now = options.now ?? Date.now;
   const registerProcessHandlers = options.registerProcessHandlers ?? true;
@@ -288,10 +308,16 @@ export const startTenantSessionManager = async (
     try {
       await store.clearPairingArtifact(profile.companyId, cleanupRuntimeOwnerId);
     } catch (error) {
-      botLogger.error(
+      logEvent(
+        createSessionLogger(botLogger, profile, "session"),
+        "error",
         {
+          event: "bot.session.pairing_artifact_cleanup_failed",
+          runtime: "bot",
+          surface: "session",
+          outcome: "error",
+          error: serializeErrorForLog(error),
           companyId: profile.companyId,
-          error,
           sessionKey: profile.sessionKey,
         },
         "tenant session pairing artifact cleanup failed",
@@ -301,10 +327,16 @@ export const startTenantSessionManager = async (
 
   const logIgnoredInboundEvent = (profile: CompanyRuntimeProfile, event: IgnoredInboundEvent): void => {
     const payload = {
+      event: "bot.router.inbound_ignored",
+      runtime: "bot",
+      surface: "router",
+      outcome: "ignored",
       companyId: profile.companyId,
       reason: event.reason,
       sessionKey: profile.sessionKey,
+      ...(event.source.rawMessageId !== undefined ? { requestId: event.source.rawMessageId } : {}),
       ...(event.source.rawMessageId !== undefined ? { messageId: event.source.rawMessageId } : {}),
+      ...(event.source.remoteJid !== undefined ? { remoteJid: redactJidForLog(event.source.remoteJid) } : {}),
       ...(event.source.accessMode !== undefined ? { accessMode: event.source.accessMode } : {}),
       ...(event.source.accessReason !== undefined ? { accessReason: event.source.accessReason } : {}),
     };
@@ -344,6 +376,16 @@ export const startTenantSessionManager = async (
     const context: InboundRouteContext = {
       profile: currentProfile,
       outbound: sessions.get(profile.companyId)?.outbound,
+      logger: withLogBindings(createSessionLogger(botLogger, currentProfile, "router"), {
+        ...(route ? { route } : {}),
+        ...(route
+          ? {
+            requestId: (event as NormalizedInboundMessage).messageId,
+          }
+          : (event as IgnoredInboundEvent).source.rawMessageId !== undefined
+            ? { requestId: (event as IgnoredInboundEvent).source.rawMessageId }
+            : {}),
+      }),
     };
 
     try {
@@ -360,10 +402,16 @@ export const startTenantSessionManager = async (
       logIgnoredInboundEvent(currentProfile, event as IgnoredInboundEvent);
       await inboundRouter.handleIgnored(event as IgnoredInboundEvent, context);
     } catch (error) {
-      botLogger.error(
+      logEvent(
+        context.logger,
+        "error",
         {
+          event: "bot.router.routing_failed",
+          runtime: "bot",
+          surface: "router",
+          outcome: "error",
           companyId: currentProfile.companyId,
-          error,
+          error: serializeErrorForLog(error),
           sessionKey: currentProfile.sessionKey,
         },
         "tenant inbound message routing failed",
@@ -444,8 +492,16 @@ export const startTenantSessionManager = async (
           nextStatus.attempt,
           currentSession.runtimeConfig.reconnectBackoff,
         );
-        botLogger.info(
-          toOperatorLogPayload(snapshot, logNow, nextRetryAt),
+        logEvent(
+          createSessionLogger(botLogger, currentProfile, "session"),
+          "info",
+          {
+            event: "bot.session.reconnect_scheduled",
+            runtime: "bot",
+            surface: "session",
+            outcome: "scheduled",
+            ...toOperatorLogPayload(snapshot, logNow, nextRetryAt),
+          },
           "bot reconnect scheduled",
         );
       }
@@ -454,10 +510,16 @@ export const startTenantSessionManager = async (
     try {
       await upsertStatus(currentProfile.companyId, nextStatus);
     } catch (error) {
-      botLogger.error(
+      logEvent(
+        createSessionLogger(botLogger, currentProfile, "session"),
+        "error",
         {
+          event: "bot.session.status_persistence_failed",
+          runtime: "bot",
+          surface: "session",
+          outcome: "error",
           companyId: currentProfile.companyId,
-          error,
+          error: serializeErrorForLog(error),
           sessionKey: nextStatus.sessionKey,
         },
         "tenant session status persistence failed",
@@ -493,8 +555,14 @@ export const startTenantSessionManager = async (
       const snapshot = toOperatorSnapshot(runtimeOwnerId, logNow, currentSession);
 
       if (nextPairing.state === "ready") {
-        botLogger.info(
+        logEvent(
+          createSessionLogger(botLogger, currentProfile, "session"),
+          "info",
           {
+            event: "bot.session.pairing_available",
+            runtime: "bot",
+            surface: "session",
+            outcome: "ready",
             ...toOperatorLogPayload(snapshot, logNow),
             operatorUrl: getOperatorShellUrl(currentProfile.companyId),
           },
@@ -503,8 +571,16 @@ export const startTenantSessionManager = async (
       }
 
       if (nextPairing.state === "expired") {
-        botLogger.info(
-          toOperatorLogPayload(snapshot, logNow),
+        logEvent(
+          createSessionLogger(botLogger, currentProfile, "session"),
+          "info",
+          {
+            event: "bot.session.pairing_expired",
+            runtime: "bot",
+            surface: "session",
+            outcome: "expired",
+            ...toOperatorLogPayload(snapshot, logNow),
+          },
           "bot pairing expired",
         );
       }
@@ -518,10 +594,16 @@ export const startTenantSessionManager = async (
     try {
       await store.upsertPairingArtifact(toPairingArtifact(runtimeOwnerId, currentProfile.companyId, nextPairing));
     } catch (error) {
-      botLogger.error(
+      logEvent(
+        createSessionLogger(botLogger, currentProfile, "session"),
+        "error",
         {
+          event: "bot.session.pairing_artifact_persistence_failed",
+          runtime: "bot",
+          surface: "session",
+          outcome: "error",
           companyId: currentProfile.companyId,
-          error,
+          error: serializeErrorForLog(error),
           sessionKey: nextPairing.sessionKey,
         },
         "tenant session pairing artifact persistence failed",
@@ -555,12 +637,7 @@ export const startTenantSessionManager = async (
       await handleStatusChange(profile, initialStatus);
 
       handle = await startBot({
-        logger: typeof botLogger.child === "function"
-          ? botLogger.child({
-            companyId: profile.companyId,
-            sessionKey: profile.sessionKey,
-          })
-          : botLogger,
+        logger: createSessionLogger(botLogger, profile, "session"),
         onMessagesUpsert: (event) => handleMessagesUpsert(profile, event),
         onPairingChange: (pairing) => handlePairingChange(profile, pairing),
         onStatusChange: (status) => handleStatusChange(profile, status),
@@ -576,13 +653,7 @@ export const startTenantSessionManager = async (
 
       const currentStatus = cloneStatus(handle.getStatus());
       const outbound = createOutboundMessenger({
-        logger: typeof botLogger.child === "function"
-          ? botLogger.child({
-            companyId: profile.companyId,
-            sessionKey: profile.sessionKey,
-            surface: "outbound",
-          })
-          : botLogger,
+        logger: createSessionLogger(botLogger, profile, "outbound"),
         transport: handle,
       });
       sessions.set(profile.companyId, {
@@ -600,10 +671,16 @@ export const startTenantSessionManager = async (
         try {
           await handle.stop();
         } catch (stopError) {
-          botLogger.error(
+          logEvent(
+            createSessionLogger(botLogger, profile, "session"),
+            "error",
             {
+              event: "bot.session.startup_cleanup_failed",
+              runtime: "bot",
+              surface: "session",
+              outcome: "error",
               companyId: profile.companyId,
-              error: stopError,
+              error: serializeErrorForLog(stopError),
               sessionKey: profile.sessionKey,
             },
             "tenant session shutdown after startup failure failed",
@@ -634,19 +711,31 @@ export const startTenantSessionManager = async (
         runtimeConfig: fallbackConfig,
       });
       await upsertStatus(profile.companyId, failedStatus).catch((persistError) => {
-        botLogger.error(
+        logEvent(
+          createSessionLogger(botLogger, profile, "session"),
+          "error",
           {
+            event: "bot.session.status_persistence_failed",
+            runtime: "bot",
+            surface: "session",
+            outcome: "error",
             companyId: profile.companyId,
-            error: persistError,
+            error: serializeErrorForLog(persistError),
             sessionKey: profile.sessionKey,
           },
           "tenant session status persistence failed",
         );
       });
-      botLogger.error(
+      logEvent(
+        createSessionLogger(botLogger, profile, "session"),
+        "error",
         {
+          event: "bot.session.startup_failed",
+          runtime: "bot",
+          surface: "session",
+          outcome: "failed",
           companyId: profile.companyId,
-          error,
+          error: serializeErrorForLog(error),
           sessionKey: profile.sessionKey,
         },
         "tenant session startup failed",
@@ -673,10 +762,16 @@ export const startTenantSessionManager = async (
     try {
       await session.handle?.stop();
     } catch (error) {
-      botLogger.error(
+      logEvent(
+        createSessionLogger(botLogger, session.profile, "session"),
+        "error",
         {
           companyId,
-          error,
+          event: "bot.session.shutdown_failed",
+          runtime: "bot",
+          surface: "session",
+          outcome: "error",
+          error: serializeErrorForLog(error),
           sessionKey: session.profile.sessionKey,
         },
         "tenant session shutdown failed",
@@ -692,10 +787,16 @@ export const startTenantSessionManager = async (
     try {
       await store.clearSession(companyId, runtimeOwnerId);
     } catch (error) {
-      botLogger.error(
+      logEvent(
+        createSessionLogger(botLogger, session.profile, "session"),
+        "error",
         {
           companyId,
-          error,
+          event: "bot.session.cleanup_failed",
+          runtime: "bot",
+          surface: "session",
+          outcome: "error",
+          error: serializeErrorForLog(error),
           sessionKey: session.profile.sessionKey,
         },
         "tenant session cleanup failed",
@@ -744,10 +845,16 @@ export const startTenantSessionManager = async (
       try {
         await upsertStatus(session.profile.companyId, session.status);
       } catch (error) {
-        botLogger.error(
+        logEvent(
+          createSessionLogger(botLogger, session.profile, "session"),
+          "error",
           {
             companyId: session.profile.companyId,
-            error,
+            event: "bot.session.heartbeat_persistence_failed",
+            runtime: "bot",
+            surface: "session",
+            outcome: "error",
+            error: serializeErrorForLog(error),
             sessionKey: session.status.sessionKey,
           },
           "tenant session heartbeat persistence failed",
@@ -779,10 +886,19 @@ export const startTenantSessionManager = async (
       try {
         await reconcileManagedSessions();
       } catch (error) {
-        botLogger.error(
-          {
-            error,
+        logEvent(
+          withLogBindings(botLogger, {
             runtimeOwnerId,
+            surface: "session_manager",
+          }),
+          "error",
+          {
+            runtimeOwnerId,
+            event: "bot.session.reconcile_failed",
+            runtime: "bot",
+            surface: "session_manager",
+            outcome: "error",
+            error: serializeErrorForLog(error),
           },
           "tenant session reconcile failed",
         );
@@ -825,10 +941,19 @@ export const startTenantSessionManager = async (
   try {
     await reconcileManagedSessions();
   } catch (error) {
-    botLogger.error(
-      {
-        error,
+    logEvent(
+      withLogBindings(botLogger, {
         runtimeOwnerId,
+        surface: "session_manager",
+      }),
+      "error",
+      {
+        runtimeOwnerId,
+        event: "bot.session.initial_reconcile_failed",
+        runtime: "bot",
+        surface: "session_manager",
+        outcome: "error",
+        error: serializeErrorForLog(error),
       },
       "initial tenant session reconcile failed; continuing and letting heartbeat retry",
     );

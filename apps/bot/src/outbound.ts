@@ -4,6 +4,13 @@ import {
   PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS,
 } from '@cs/storage';
 import {
+  logEvent,
+  redactJidForLog,
+  serializeErrorForLog,
+  type StructuredLogger,
+  withLogBindings,
+} from '@cs/core';
+import {
   renderOutboundText,
   type RenderOutboundTextInput,
 } from '@cs/shared';
@@ -17,9 +24,7 @@ export type OutboundFailureClassification =
   | "non_retryable_transport"
   | "unknown";
 
-export interface OutboundLogger {
-  error(payload: unknown, message: string): void;
-}
+export type OutboundLogger = StructuredLogger;
 
 export interface OutboundTimer {
   setTimeout(handler: () => void, delayMs: number): unknown;
@@ -93,17 +98,20 @@ export interface SendTextInput {
   recipientJid: string;
   text: OutboundTextValue;
   pacing?: OutboundStepPacing;
+  logger?: OutboundLogger;
 }
 
 export interface SendMediaInput {
   recipientJid: string;
   step: OutboundImageStep | OutboundDocumentStep;
+  logger?: OutboundLogger;
 }
 
 export interface SendSequenceInput {
   recipientJid: string;
   steps: readonly OutboundSequenceStep[];
   betweenStepsDelayMs?: number;
+  logger?: OutboundLogger;
 }
 
 export interface OutboundMessenger {
@@ -157,6 +165,8 @@ const defaultTimer: OutboundTimer = {
 };
 
 const defaultLogger: OutboundLogger = {
+  info: () => undefined,
+  warn: () => undefined,
   error: () => undefined,
 };
 
@@ -467,7 +477,10 @@ export const createOutboundMessenger = (
   options: CreateOutboundMessengerOptions,
 ): OutboundMessenger => {
   const createStorage = options.createStorage ?? createR2Storage;
-  const logger = options.logger ?? defaultLogger;
+  const logger = withLogBindings(options.logger ?? defaultLogger, {
+    runtime: "bot",
+    surface: "outbound",
+  });
   const timer = options.timer ?? defaultTimer;
   let storage: ObjectStorage | undefined;
 
@@ -579,6 +592,7 @@ export const createOutboundMessenger = (
   return {
     sendText: async (input): Promise<OutboundSendReceipt[]> => {
       return sendSequence({
+        ...(input.logger ? { logger: input.logger } : {}),
         recipientJid: input.recipientJid,
         steps: [
           {
@@ -591,6 +605,7 @@ export const createOutboundMessenger = (
     },
     sendMedia: async (input): Promise<OutboundSendReceipt[]> => {
       return sendSequence({
+        ...(input.logger ? { logger: input.logger } : {}),
         recipientJid: input.recipientJid,
         steps: [input.step],
       });
@@ -599,39 +614,70 @@ export const createOutboundMessenger = (
   };
 
   async function sendSequence(input: SendSequenceInput): Promise<OutboundSendReceipt[]> {
-      if (input.steps.length === 0) {
-        throw new OutboundValidationError("steps must contain at least one outbound message");
-      }
-
-      const betweenStepsDelayMs = normalizeDelayMs(input.betweenStepsDelayMs, "betweenStepsDelayMs");
-      const sentReceipts: OutboundSendReceipt[] = [];
-
-      for (const [stepIndex, step] of input.steps.entries()) {
-        try {
-          const receipt = await sendStep(input.recipientJid, step, stepIndex, [...sentReceipts]);
-          sentReceipts.push(receipt);
-        } catch (error) {
-          if (error instanceof OutboundSequenceError) {
-            logger.error(
-              {
-                attempts: error.attempts,
-                classification: error.classification,
-                recipientJid: error.recipientJid,
-                sentCount: error.sentReceipts.length,
-                stepIndex: error.stepIndex,
-              },
-              "outbound sequence send failed",
-            );
-          }
-
-          throw error;
-        }
-
-        if (betweenStepsDelayMs > 0 && stepIndex < input.steps.length - 1) {
-          await sleep(timer, betweenStepsDelayMs);
-        }
-      }
-
-      return sentReceipts;
+    if (input.steps.length === 0) {
+      throw new OutboundValidationError("steps must contain at least one outbound message");
     }
+
+    const sequenceLogger = withLogBindings(input.logger ?? logger, {
+      runtime: "bot",
+      surface: "outbound",
+    });
+    const startedAt = Date.now();
+    const betweenStepsDelayMs = normalizeDelayMs(input.betweenStepsDelayMs, "betweenStepsDelayMs");
+    const sentReceipts: OutboundSendReceipt[] = [];
+
+    for (const [stepIndex, step] of input.steps.entries()) {
+      try {
+        const receipt = await sendStep(input.recipientJid, step, stepIndex, [...sentReceipts]);
+        sentReceipts.push(receipt);
+      } catch (error) {
+        if (error instanceof OutboundSequenceError) {
+          logEvent(
+            sequenceLogger,
+            "error",
+            {
+              event: "bot.outbound.sequence_failed",
+              runtime: "bot",
+              surface: "outbound",
+              outcome: "failed",
+              attempts: error.attempts,
+              classification: error.classification,
+              durationMs: Date.now() - startedAt,
+              error: serializeErrorForLog(error.cause ?? error),
+              recipientJid: redactJidForLog(error.recipientJid),
+              sentCount: error.sentReceipts.length,
+              stepCount: input.steps.length,
+              stepIndex: error.stepIndex,
+            },
+            "outbound sequence send failed",
+          );
+        }
+
+        throw error;
+      }
+
+      if (betweenStepsDelayMs > 0 && stepIndex < input.steps.length - 1) {
+        await sleep(timer, betweenStepsDelayMs);
+      }
+    }
+
+    logEvent(
+      sequenceLogger,
+      "info",
+      {
+        attempts: sentReceipts.reduce((total, receipt) => total + receipt.attempts, 0),
+        durationMs: Date.now() - startedAt,
+        event: "bot.outbound.sequence_completed",
+        outcome: "success",
+        recipientJid: redactJidForLog(input.recipientJid),
+        runtime: "bot",
+        sentCount: sentReceipts.length,
+        stepCount: input.steps.length,
+        surface: "outbound",
+      },
+      "outbound sequence completed",
+    );
+
+    return sentReceipts;
+  }
 };

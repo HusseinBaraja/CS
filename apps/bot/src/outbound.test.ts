@@ -11,14 +11,20 @@ import {
 } from './outbound';
 
 const createLoggerStub = () => {
+  const infoCalls: Array<{ payload: unknown; message: string }> = [];
   const errorCalls: Array<{ payload: unknown; message: string }> = [];
 
   return {
     logger: {
+      info: (payload: unknown, message: string) => {
+        infoCalls.push({ payload, message });
+      },
+      warn: () => undefined,
       error: (payload: unknown, message: string) => {
         errorCalls.push({ payload, message });
       },
     },
+    infoCalls,
     errorCalls,
   };
 };
@@ -142,8 +148,10 @@ describe("classifyOutboundError", () => {
 
 describe("createOutboundMessenger", () => {
   test("sends rendered text through the stable messenger interface", async () => {
+    const { logger, infoCalls } = createLoggerStub();
     const transport = createTransportStub();
     const outbound = createOutboundMessenger({
+      logger,
       transport,
     });
 
@@ -174,6 +182,20 @@ describe("createOutboundMessenger", () => {
         },
       },
     ]);
+    expect(infoCalls).toContainEqual({
+      message: "outbound sequence completed",
+      payload: {
+        attempts: 1,
+        durationMs: expect.any(Number),
+        event: "bot.outbound.sequence_completed",
+        outcome: "success",
+        recipientJid: "***0001@s.whatsapp.net",
+        runtime: "bot",
+        sentCount: 1,
+        stepCount: 1,
+        surface: "outbound",
+      },
+    });
   });
 
   test("resolves storage-backed media lazily and sends image captions", async () => {
@@ -360,9 +382,19 @@ describe("createOutboundMessenger", () => {
         payload: {
           attempts: 2,
           classification: "retryable_transport",
-          recipientJid: "967700000005@s.whatsapp.net",
+          durationMs: expect.any(Number),
+          error: expect.objectContaining({
+            message: "Non-error value thrown",
+            name: "UnknownError",
+          }),
+          event: "bot.outbound.sequence_failed",
+          outcome: "failed",
+          recipientJid: "***0005@s.whatsapp.net",
+          runtime: "bot",
           sentCount: 1,
+          stepCount: 3,
           stepIndex: 1,
+          surface: "outbound",
         },
         message: "outbound sequence send failed",
       },
