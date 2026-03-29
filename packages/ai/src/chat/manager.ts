@@ -1,4 +1,11 @@
 import { AIError, ERROR_CODES } from '@cs/shared';
+import {
+  logEvent,
+  serializeErrorForLog,
+  type StructuredLogPayload,
+  type StructuredLogger,
+  withLogBindings,
+} from '@cs/core';
 import type {
   ChatProviderAdapter,
   ChatProviderHealth,
@@ -16,11 +23,7 @@ import {
 import { normalizeChatRequest } from './normalize';
 import { type ChatRuntimeConfig, createChatRuntimeConfig } from './runtimeConfig';
 
-export interface ChatManagerLogger {
-  info(payload: Record<string, unknown>, message: string): void;
-  warn(payload: Record<string, unknown>, message: string): void;
-  error(payload: Record<string, unknown>, message: string): void;
-}
+export type ChatManagerLogger = StructuredLogger;
 
 export interface ChatManagerLogContext {
   companyId?: string;
@@ -34,6 +37,7 @@ export interface ChatManagerCallOptions {
   timeoutMs?: number;
   maxRetriesPerProvider?: number;
   logContext?: ChatManagerLogContext;
+  logger?: ChatManagerLogger;
 }
 
 export interface ChatProviderAttemptFailure {
@@ -51,6 +55,7 @@ export interface ChatProviderProbeOptions {
   timeoutMs?: number;
   maxRetries?: number;
   logContext?: ChatManagerLogContext;
+  logger?: ChatManagerLogger;
 }
 
 export type ChatProviderChainTerminalDisposition =
@@ -157,11 +162,32 @@ const toHealthFailure = (
       }),
 });
 
-const withLogContext = (
-  payload: Record<string, unknown>,
+const toLogBindings = (
   logContext: ChatManagerLogContext | undefined,
-): Record<string, unknown> =>
-  logContext ? { ...payload, context: logContext } : payload;
+): Record<string, unknown> => ({
+  ...(logContext?.companyId ? { companyId: logContext.companyId } : {}),
+  ...(logContext?.conversationId ? { conversationId: logContext.conversationId } : {}),
+  ...(logContext?.requestId ? { requestId: logContext.requestId } : {}),
+  ...(logContext?.feature ? { feature: logContext.feature } : {}),
+});
+
+const createEventLogger = (
+  baseLogger: ChatManagerLogger | undefined,
+  overrideLogger: ChatManagerLogger | undefined,
+  surface: "chat" | "probe",
+  logContext: ChatManagerLogContext | undefined,
+): ChatManagerLogger | undefined => {
+  const activeLogger = overrideLogger ?? baseLogger;
+  if (!activeLogger) {
+    return undefined;
+  }
+
+  return withLogBindings(activeLogger, {
+    runtime: "ai",
+    surface,
+    ...toLogBindings(logContext),
+  });
+};
 
 const assertKnownProviders = (
   providers: readonly ChatProviderName[],
@@ -259,16 +285,17 @@ export const createChatProviderManager = (
   const resolveAdapter = options.resolveAdapter ?? getChatProviderAdapter;
   const logger = options.logger;
   const safeLog = (
-    level: keyof ChatManagerLogger,
+    eventLogger: ChatManagerLogger | undefined,
+    level: "info" | "warn" | "error",
     message: string,
-    buildPayload: () => Record<string, unknown>,
+    buildPayload: () => StructuredLogPayload,
   ): void => {
-    if (!logger) {
+    if (!eventLogger) {
       return;
     }
 
     try {
-      logger[level](buildPayload(), message);
+      logEvent(eventLogger, level, buildPayload(), message);
     } catch (error) {
       try {
         console.warn("chat manager logging failed", {
@@ -289,6 +316,12 @@ export const createChatProviderManager = (
       throwIfAborted(callOptions.signal);
       const runtimeConfig = resolveRuntimeConfig();
       throwIfAborted(callOptions.signal);
+      const eventLogger = createEventLogger(
+        logger,
+        callOptions.logger,
+        "chat",
+        callOptions.logContext,
+      );
 
       const startedAt = Date.now();
       const failures: ChatProviderAttemptFailure[] = [];
@@ -313,20 +346,21 @@ export const createChatProviderManager = (
           throwIfAborted(callOptions.signal);
 
           safeLog(
+            eventLogger,
             "info",
-            failures.length > 0
-              ? "ai provider request succeeded after failover"
-              : "ai provider request succeeded",
-            () => withLogContext(
-              {
-                provider,
-                model: response.model ?? providerConfig.model,
-                durationMs: Date.now() - startedAt,
-                failoverOccurred: failures.length > 0,
-                attemptedProviders: [...failures.map((failure) => failure.provider), provider],
-              },
-              callOptions.logContext,
-            ),
+            "ai provider request completed",
+            () => ({
+              event: "ai.provider.request_completed",
+              runtime: "ai",
+              surface: "chat",
+              outcome: "success",
+              provider,
+              model: response.model ?? providerConfig.model,
+              durationMs: Date.now() - startedAt,
+              failoverOccurred: failures.length > 0,
+              attemptedProviders: [...failures.map((failure) => failure.provider), provider],
+              ...(response.usage ? { usage: response.usage } : {}),
+            }),
           );
 
           return response;
@@ -342,24 +376,45 @@ export const createChatProviderManager = (
           failures.push(failure);
 
           const nextProvider = runtimeConfig.providerOrder[index + 1];
+          const willFailOver =
+            providerError.disposition !== "do_not_retry" && nextProvider !== undefined;
 
-          if (providerError.disposition !== "do_not_retry" && nextProvider !== undefined) {
+          safeLog(
+            eventLogger,
+            willFailOver ? "warn" : "error",
+            "ai provider attempt failed",
+            () => ({
+              event: "ai.provider.attempt_failed",
+              runtime: "ai",
+              surface: "chat",
+              outcome: willFailOver ? "retrying" : "failed",
+              provider,
+              model: failure.model,
+              errorKind: failure.kind,
+              disposition: failure.disposition,
+              ...(failure.statusCode !== undefined
+                ? { statusCode: failure.statusCode }
+                : {}),
+              ...(nextProvider !== undefined ? { nextProvider } : {}),
+              error: serializeErrorForLog(providerError),
+            }),
+          );
+
+          if (willFailOver) {
             safeLog(
+              eventLogger,
               "warn",
-              "ai provider request failed; failing over to next provider",
-              () => withLogContext(
-                {
-                  provider,
-                  model: failure.model,
-                  errorKind: failure.kind,
-                  disposition: failure.disposition,
-                  ...(failure.statusCode !== undefined
-                    ? { statusCode: failure.statusCode }
-                    : {}),
-                  nextProvider,
-                },
-                callOptions.logContext,
-              ),
+              "ai provider failover selected",
+              () => ({
+                event: "ai.provider.failover",
+                runtime: "ai",
+                surface: "chat",
+                outcome: "failover",
+                provider,
+                model: failure.model,
+                nextProvider,
+                attemptedProviders: failures.map((attemptFailure) => attemptFailure.provider),
+              }),
             );
             continue;
           }
@@ -374,17 +429,22 @@ export const createChatProviderManager = (
           );
 
           safeLog(
+            eventLogger,
             "error",
-            "ai provider request failed",
-            () => withLogContext(
-              {
-                attemptedProviders: chainError.attemptedProviders,
-                failures: chainError.failures,
-                terminalProvider: chainError.terminalProvider,
-                terminalDisposition: chainError.terminalDisposition,
-              },
-              callOptions.logContext,
-            ),
+            "ai provider chain failed",
+            () => ({
+              event: "ai.provider.chain_failed",
+              runtime: "ai",
+              surface: "chat",
+              outcome: chainError.terminalDisposition,
+              attemptedProviders: chainError.attemptedProviders,
+              failures: chainError.failures,
+              ...(chainError.terminalProvider !== undefined
+                ? { terminalProvider: chainError.terminalProvider }
+                : {}),
+              terminalDisposition: chainError.terminalDisposition,
+              error: serializeErrorForLog(providerError),
+            }),
           );
 
           throw chainError;
@@ -398,6 +458,12 @@ export const createChatProviderManager = (
       throwIfAborted(probeOptions.signal);
       const runtimeConfig = resolveRuntimeConfig();
       throwIfAborted(probeOptions.signal);
+      const eventLogger = createEventLogger(
+        logger,
+        probeOptions.logger,
+        "probe",
+        probeOptions.logContext,
+      );
       const providers = assertKnownProviders(
         probeOptions.providers ?? runtimeConfig.providerOrder,
       );
@@ -431,29 +497,33 @@ export const createChatProviderManager = (
 
       if (unhealthyProviders.length > 0) {
         safeLog(
+          eventLogger,
           "warn",
-          "ai provider probes completed with unhealthy providers",
-          () => withLogContext(
-            {
-              providers,
-              healthyProviderCount: results.length - unhealthyProviders.length,
-              unhealthyProviders,
-            },
-            probeOptions.logContext,
-          ),
+          "ai provider probes completed",
+          () => ({
+            event: "ai.provider.probe_completed",
+            runtime: "ai",
+            surface: "probe",
+            outcome: "degraded",
+            providers,
+            healthyProviderCount: results.length - unhealthyProviders.length,
+            unhealthyProviders,
+          }),
         );
       } else {
         safeLog(
+          eventLogger,
           "info",
-          "ai provider probes completed successfully",
-          () => withLogContext(
-            {
-              providers,
-              healthyProviderCount: results.length - unhealthyProviders.length,
-              unhealthyProviders,
-            },
-            probeOptions.logContext,
-          ),
+          "ai provider probes completed",
+          () => ({
+            event: "ai.provider.probe_completed",
+            runtime: "ai",
+            surface: "probe",
+            outcome: "healthy",
+            providers,
+            healthyProviderCount: results.length - unhealthyProviders.length,
+            unhealthyProviders,
+          }),
         );
       }
 

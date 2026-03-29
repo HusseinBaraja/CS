@@ -50,18 +50,23 @@ const createLoggerStub = (): {
   const warnCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
   const errorCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
 
-  return {
-    logger: {
-      info(payload, message) {
-        infoCalls.push({ payload, message });
-      },
-      warn(payload, message) {
-        warnCalls.push({ payload, message });
-      },
-      error(payload, message) {
-        errorCalls.push({ payload, message });
-      },
+  const createLogger = (bindings: Record<string, unknown> = {}): ChatManagerLogger => ({
+    info(payload, message) {
+      infoCalls.push({ payload: { ...bindings, ...payload }, message });
     },
+    warn(payload, message) {
+      warnCalls.push({ payload: { ...bindings, ...payload }, message });
+    },
+    error(payload, message) {
+      errorCalls.push({ payload: { ...bindings, ...payload }, message });
+    },
+    child(childBindings) {
+      return createLogger({ ...bindings, ...childBindings });
+    },
+  });
+
+  return {
+    logger: createLogger(),
     infoCalls,
     warnCalls,
     errorCalls,
@@ -144,16 +149,18 @@ describe("createChatProviderManager", () => {
     expect(warnCalls).toHaveLength(0);
     expect(infoCalls).toHaveLength(1);
     expect(infoCalls[0]).toMatchObject({
-      message: "ai provider request succeeded",
+      message: "ai provider request completed",
       payload: {
+        event: "ai.provider.request_completed",
+        runtime: "ai",
+        surface: "chat",
+        outcome: "success",
+        companyId: "company-1",
+        requestId: "req-1",
         provider: "deepseek",
         model: "deepseek-chat",
         failoverOccurred: false,
         attemptedProviders: ["deepseek"],
-        context: {
-          companyId: "company-1",
-          requestId: "req-1",
-        },
       },
     });
   });
@@ -192,19 +199,45 @@ describe("createChatProviderManager", () => {
       { provider: "deepseek", kind: "chat" },
       { provider: "gemini", kind: "chat" },
     ]);
-    expect(warnCalls).toHaveLength(1);
+    expect(warnCalls).toHaveLength(2);
     expect(warnCalls[0]).toMatchObject({
-      message: "ai provider request failed; failing over to next provider",
+      message: "ai provider attempt failed",
       payload: {
+        event: "ai.provider.attempt_failed",
+        runtime: "ai",
+        surface: "chat",
+        outcome: "retrying",
         provider: "deepseek",
+        model: "deepseek-chat",
         errorKind: "rate_limit",
         disposition: "failover_provider",
         nextProvider: "gemini",
+        error: expect.objectContaining({
+          message: "DeepSeek throttled",
+          name: "ChatProviderError",
+        }),
+      },
+    });
+    expect(warnCalls[1]).toMatchObject({
+      message: "ai provider failover selected",
+      payload: {
+        event: "ai.provider.failover",
+        runtime: "ai",
+        surface: "chat",
+        outcome: "failover",
+        provider: "deepseek",
+        model: "deepseek-chat",
+        nextProvider: "gemini",
+        attemptedProviders: ["deepseek"],
       },
     });
     expect(infoCalls[0]).toMatchObject({
-      message: "ai provider request succeeded after failover",
+      message: "ai provider request completed",
       payload: {
+        event: "ai.provider.request_completed",
+        runtime: "ai",
+        surface: "chat",
+        outcome: "success",
         provider: "gemini",
         failoverOccurred: true,
         attemptedProviders: ["deepseek", "gemini"],
@@ -281,7 +314,23 @@ describe("createChatProviderManager", () => {
       terminalDisposition: "do_not_retry",
     });
     expect(calls).toEqual([{ provider: "deepseek", kind: "chat" }]);
-    expect(errorCalls).toHaveLength(1);
+    expect(errorCalls).toHaveLength(2);
+    expect(errorCalls[0]).toMatchObject({
+      message: "ai provider attempt failed",
+      payload: {
+        event: "ai.provider.attempt_failed",
+        outcome: "failed",
+        provider: "deepseek",
+      },
+    });
+    expect(errorCalls[1]).toMatchObject({
+      message: "ai provider chain failed",
+      payload: {
+        event: "ai.provider.chain_failed",
+        outcome: "do_not_retry",
+        terminalProvider: "deepseek",
+      },
+    });
   });
 
   test("surfaces a normalized chain error after all providers fail", async () => {
@@ -590,6 +639,8 @@ describe("createChatProviderManager", () => {
     expect(serializedLogs).not.toContain("deepseek-secret-key");
     expect(serializedLogs).toContain("company-1");
     expect(serializedLogs).toContain("conversation-1");
+    expect(serializedLogs).toContain("ai.provider.attempt_failed");
+    expect(serializedLogs).toContain("ai.provider.request_completed");
   });
 
   test("continues chat success flow when info logging throws", async () => {
@@ -633,7 +684,7 @@ describe("createChatProviderManager", () => {
           "chat manager logging failed",
           {
             level: "info",
-            message: "ai provider request succeeded",
+            message: "ai provider request completed",
             error: "logger info failed",
           },
         ],
@@ -693,7 +744,15 @@ describe("createChatProviderManager", () => {
           "chat manager logging failed",
           {
             level: "warn",
-            message: "ai provider request failed; failing over to next provider",
+            message: "ai provider attempt failed",
+            error: "logger warn failed",
+          },
+        ],
+        [
+          "chat manager logging failed",
+          {
+            level: "warn",
+            message: "ai provider failover selected",
             error: "logger warn failed",
           },
         ],
@@ -769,11 +828,15 @@ describe("createChatProviderManager", () => {
     expect(infoCalls).toHaveLength(0);
     expect(warnCalls).toHaveLength(1);
     expect(warnCalls[0]).toMatchObject({
-      message: "ai provider probes completed with unhealthy providers",
+      message: "ai provider probes completed",
       payload: {
+        event: "ai.provider.probe_completed",
+        runtime: "ai",
+        surface: "probe",
+        outcome: "degraded",
+        feature: "startup-check",
         providers: ["gemini", "deepseek"],
         unhealthyProviders: ["gemini"],
-        context: { feature: "startup-check" },
       },
     });
   });
@@ -838,7 +901,7 @@ describe("createChatProviderManager", () => {
           "chat manager logging failed",
           {
             level: "warn",
-            message: "ai provider probes completed with unhealthy providers",
+            message: "ai provider probes completed",
             error: "logger warn failed",
           },
         ],
@@ -895,7 +958,15 @@ describe("createChatProviderManager", () => {
           "chat manager logging failed",
           {
             level: "error",
-            message: "ai provider request failed",
+            message: "ai provider attempt failed",
+            error: "logger error failed",
+          },
+        ],
+        [
+          "chat manager logging failed",
+          {
+            level: "error",
+            message: "ai provider chain failed",
             error: "logger error failed",
           },
         ],

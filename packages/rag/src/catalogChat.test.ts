@@ -76,16 +76,25 @@ const createChatManagerStub = (
 
 const createLoggerStub = (): {
   logger: CatalogChatLogger;
+  infoCalls: Array<{ payload: Record<string, unknown>; message: string }>;
   errorCalls: Array<{ payload: Record<string, unknown>; message: string }>;
 } => {
+  const infoCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
   const errorCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
 
   return {
     logger: {
+      info(payload, message) {
+        infoCalls.push({ payload, message });
+      },
+      warn() {
+        return undefined;
+      },
       error(payload, message) {
         errorCalls.push({ payload, message });
       },
     },
+    infoCalls,
     errorCalls,
   };
 };
@@ -256,6 +265,7 @@ describe("createCatalogChatOrchestrator", () => {
 
   test("skips provider invocation and returns a clarification fallback for blank input", async () => {
     const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
+    const { logger, infoCalls } = createLoggerStub();
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService({
         outcome: "empty",
@@ -265,6 +275,7 @@ describe("createCatalogChatOrchestrator", () => {
         candidates: [],
         contextBlocks: [],
       }),
+      logger,
       chatManager: createChatManagerStub(async () => {
         throw new Error("should not be called");
       }, chatCalls),
@@ -304,10 +315,27 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(chatCalls).toHaveLength(0);
+    expect(infoCalls[0]).toMatchObject({
+      message: "catalog retrieval completed",
+      payload: {
+        event: "rag.retrieval.completed",
+        runtime: "rag",
+        surface: "retrieval",
+        outcome: "empty",
+        retrieval: {
+          outcome: "empty",
+          reason: "empty_query",
+          candidateCount: 0,
+          contextBlockCount: 0,
+          language: "en",
+        },
+      },
+    });
   });
 
   test("skips provider invocation on no_hits and returns a scope-safe fallback", async () => {
     const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
+    const { logger, infoCalls } = createLoggerStub();
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService({
         outcome: "empty",
@@ -317,6 +345,7 @@ describe("createCatalogChatOrchestrator", () => {
         candidates: [],
         contextBlocks: [],
       }),
+      logger,
       chatManager: createChatManagerStub(async () => {
         throw new Error("should not be called");
       }, chatCalls),
@@ -338,10 +367,20 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(chatCalls).toHaveLength(0);
+    expect(infoCalls[0]).toMatchObject({
+      payload: {
+        event: "rag.retrieval.completed",
+        outcome: "empty",
+        retrieval: {
+          reason: "no_hits",
+        },
+      },
+    });
   });
 
   test("skips provider invocation on below_min_score and returns a low-signal fallback", async () => {
     const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
+    const { logger, infoCalls } = createLoggerStub();
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService({
         outcome: "low_signal",
@@ -352,6 +391,7 @@ describe("createCatalogChatOrchestrator", () => {
         candidates: groundedRetrievalResult().candidates,
         contextBlocks: [],
       }),
+      logger,
       chatManager: createChatManagerStub(async () => {
         throw new Error("should not be called");
       }, chatCalls),
@@ -373,6 +413,15 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(chatCalls).toHaveLength(0);
+    expect(infoCalls[0]).toMatchObject({
+      payload: {
+        event: "rag.retrieval.completed",
+        outcome: "low_signal",
+        retrieval: {
+          topScore: 0.2,
+        },
+      },
+    });
   });
 
   test("survives a primary-provider failure and succeeds after failover", async () => {
@@ -399,7 +448,7 @@ describe("createCatalogChatOrchestrator", () => {
   });
 
   test("returns a handoff fallback when all providers fail", async () => {
-    const { logger, errorCalls } = createLoggerStub();
+    const { logger, errorCalls, infoCalls } = createLoggerStub();
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
       logger,
@@ -419,6 +468,14 @@ describe("createCatalogChatOrchestrator", () => {
       userMessage: "Burger Box",
     });
 
+    expect(infoCalls[0]).toMatchObject({
+      payload: {
+        event: "rag.retrieval.completed",
+        outcome: "grounded",
+        requestId: "request-1",
+        conversationId: "conversation-1",
+      },
+    });
     expect(result).toMatchObject({
       outcome: "provider_failure_fallback",
       assistant: {
@@ -430,9 +487,13 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(errorCalls).toHaveLength(1);
-    expect(errorCalls[0]).toEqual({
-      message: "catalog chat provider call failed",
+    expect(errorCalls[0]).toMatchObject({
+      message: "catalog chat provider fallback selected",
       payload: {
+        event: "rag.catalog_chat.provider_fallback",
+        runtime: "rag",
+        surface: "orchestrator",
+        outcome: "provider_failure_fallback",
         companyId: COMPANY_ID,
         conversationId: "conversation-1",
         requestId: "request-1",
@@ -454,7 +515,7 @@ describe("createCatalogChatOrchestrator", () => {
   });
 
   test("returns a handoff fallback when provider text is invalid JSON", async () => {
-    const { logger, errorCalls } = createLoggerStub();
+    const { logger, errorCalls, infoCalls } = createLoggerStub();
     const invalidText = "{".repeat(600);
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
@@ -490,9 +551,19 @@ describe("createCatalogChatOrchestrator", () => {
         responseId: "resp-invalid",
       },
     });
+    expect(infoCalls[0]).toMatchObject({
+      payload: {
+        event: "rag.retrieval.completed",
+        outcome: "grounded",
+      },
+    });
     expect(errorCalls).toHaveLength(1);
     expect(errorCalls[0]?.message).toBe("catalog chat structured output parsing failed");
     expect(errorCalls[0]?.payload).toMatchObject({
+      event: "rag.catalog_chat.parse_failed",
+      runtime: "rag",
+      surface: "orchestrator",
+      outcome: "invalid_model_output_fallback",
       companyId: COMPANY_ID,
       responseLanguage: "en",
       retrieval: {
@@ -508,19 +579,24 @@ describe("createCatalogChatOrchestrator", () => {
         finishReason: "stop",
         responseId: "resp-invalid",
       },
-      providerTextPreview: invalidText.slice(0, 500),
+      providerTextLength: 600,
+      providerTextLineCount: 1,
+      providerTextSha256: expect.any(String),
       error: {
         name: "Error",
         message: "Assistant structured output must be valid JSON",
       },
     });
-    expect((errorCalls[0]?.payload.providerTextPreview as string).length).toBe(500);
+    const serializedLogs = JSON.stringify(errorCalls);
+    expect(serializedLogs).not.toContain(invalidText);
   });
 
   test("forwards conversation and request metadata into the chat-manager log context", async () => {
     const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
+    const { logger } = createLoggerStub();
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
+      logger,
       chatManager: createChatManagerStub(async () => ({
         provider: "gemini",
         text: '{"schemaVersion":"v1","text":"We have burger boxes.","action":{"type":"none"}}',
@@ -547,6 +623,7 @@ describe("createCatalogChatOrchestrator", () => {
       signal: undefined,
       timeoutMs: 2_500,
       maxRetriesPerProvider: 2,
+      logger: expect.any(Object),
       logContext: {
         companyId: COMPANY_ID,
         conversationId: "conversation-1",

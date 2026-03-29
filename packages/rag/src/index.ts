@@ -16,6 +16,13 @@ import {
   type PromptHistoryTurn,
 } from '@cs/ai';
 import {
+  logEvent,
+  serializeErrorForLog,
+  summarizeTextForLog,
+  type StructuredLogger,
+  withLogBindings,
+} from '@cs/core';
+import {
   type ConvexAdminClient,
   type Id,
   convexInternal,
@@ -168,6 +175,7 @@ export interface CatalogChatInput {
   conversation?: CatalogChatConversationContext;
   userMessage: string;
   requestId?: string;
+  logger?: StructuredLogger;
   signal?: AbortSignal;
   retrieval?: {
     maxResults?: number;
@@ -200,9 +208,7 @@ export interface CatalogChatOrchestrator {
   respond(input: CatalogChatInput): Promise<CatalogChatResult>;
 }
 
-export interface CatalogChatLogger {
-  error(payload: Record<string, unknown>, message: string): void;
-}
+export type CatalogChatLogger = StructuredLogger;
 
 export interface CreateCatalogChatOrchestratorOptions {
   retrievalService?: ProductRetrievalService;
@@ -212,8 +218,6 @@ export interface CreateCatalogChatOrchestratorOptions {
   parseStructuredOutput?: typeof parseAssistantStructuredOutput;
   logger?: CatalogChatLogger;
 }
-
-const MAX_PROVIDER_TEXT_PREVIEW_LENGTH = 500;
 
 const normalizePositiveInteger = (value: number | undefined, fallback: number): number => {
   if (value === undefined) {
@@ -231,45 +235,6 @@ const normalizeNonNegativeInteger = (value: number | undefined, fallback: number
 
   const normalized = Math.trunc(value);
   return normalized >= 0 ? normalized : fallback;
-};
-
-const serializeUnknown = (value: unknown): unknown => {
-  if (value === null || value === undefined) {
-    return value;
-  }
-
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((entry) => serializeUnknown(entry));
-  }
-
-  if (typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, serializeUnknown(entry)]),
-    );
-  }
-
-  return String(value);
-};
-
-const serializeError = (error: unknown): Record<string, unknown> => {
-  if (error instanceof Error) {
-    const cause = (error as Error & { cause?: unknown }).cause;
-    return {
-      name: error.name,
-      message: error.message,
-      ...(error.stack ? { stack: error.stack } : {}),
-      ...(cause !== undefined ? { cause: serializeUnknown(cause) } : {}),
-    };
-  }
-
-  return {
-    name: "UnknownError",
-    value: serializeUnknown(error),
-  };
 };
 
 const serializeValue = (value: unknown): string => {
@@ -535,10 +500,25 @@ export const createProductRetrievalService = (
   };
 };
 
-const buildProviderTextPreview = (text: string): string =>
-  text.length <= MAX_PROVIDER_TEXT_PREVIEW_LENGTH
-    ? text
-    : text.slice(0, MAX_PROVIDER_TEXT_PREVIEW_LENGTH);
+const summarizeQueryForLog = (text: string) => {
+  const summary = summarizeTextForLog(text);
+
+  return {
+    queryTextLength: summary.textLength,
+    queryTextLineCount: summary.textLineCount,
+    queryTextSha256: summary.textSha256,
+  };
+};
+
+const summarizeProviderTextForLog = (text: string) => {
+  const summary = summarizeTextForLog(text);
+
+  return {
+    providerTextLength: summary.textLength,
+    providerTextLineCount: summary.textLineCount,
+    providerTextSha256: summary.textSha256,
+  };
+};
 
 const buildRetrievalLogContext = (
   retrieval: RetrieveCatalogContextResult,
@@ -618,18 +598,30 @@ const buildAssistantFallback = (
 };
 
 const defaultCatalogChatLogger: CatalogChatLogger = {
-  error(payload, message) {
-    globalThis.console?.error?.(message, payload);
+  info() {
+    return undefined;
+  },
+  warn() {
+    return undefined;
+  },
+  error() {
+    return undefined;
   },
 };
 
-const safeLogError = (
+const safeLogEvent = (
   logger: CatalogChatLogger,
-  payload: Record<string, unknown>,
+  level: "info" | "warn" | "error",
+  payload: {
+    event: string;
+    runtime: string;
+    surface: string;
+    outcome: string;
+  } & Record<string, unknown>,
   message: string,
 ): void => {
   try {
-    logger.error(payload, message);
+    logEvent(logger, level, payload, message);
   } catch {
     // Logging must never interfere with catalog chat fallbacks.
   }
@@ -647,6 +639,18 @@ export const createCatalogChatOrchestrator = (
 
   return {
     async respond(input: CatalogChatInput): Promise<CatalogChatResult> {
+      const routeLogger = withLogBindings(input.logger ?? logger, {
+        runtime: "rag",
+        surface: "orchestrator",
+        companyId: input.tenant.companyId,
+        ...(input.conversation?.conversationId
+          ? { conversationId: input.conversation.conversationId }
+          : {}),
+        ...(input.requestId ? { requestId: input.requestId } : {}),
+      });
+      const retrievalLogger = withLogBindings(routeLogger, {
+        surface: "retrieval",
+      });
       const language = detectLanguage(input.userMessage, {
         preferredLanguage: input.tenant.preferredLanguage,
         defaultLanguage: input.tenant.defaultLanguage,
@@ -660,6 +664,20 @@ export const createCatalogChatOrchestrator = (
         maxContextBlocks: input.retrieval?.maxContextBlocks,
         minScore: input.retrieval?.minScore,
       });
+      safeLogEvent(
+        retrievalLogger,
+        "info",
+        {
+          event: "rag.retrieval.completed",
+          runtime: "rag",
+          surface: "retrieval",
+          outcome: retrieval.outcome,
+          responseLanguage: language.responseLanguage,
+          retrieval: buildRetrievalLogContext(retrieval),
+          ...summarizeQueryForLog(input.userMessage),
+        },
+        "catalog retrieval completed",
+      );
 
       if (retrieval.outcome === "empty") {
         const assistant = buildAssistantFallback(
@@ -698,6 +716,7 @@ export const createCatalogChatOrchestrator = (
           signal: input.signal,
           timeoutMs: input.provider?.timeoutMs,
           maxRetriesPerProvider: input.provider?.maxRetriesPerProvider,
+          logger: input.logger ?? logger,
           logContext: {
             companyId: input.tenant.companyId,
             ...(input.conversation?.conversationId
@@ -708,9 +727,14 @@ export const createCatalogChatOrchestrator = (
           },
         });
       } catch (error) {
-        safeLogError(
-          logger,
+        safeLogEvent(
+          routeLogger,
+          "error",
           {
+            event: "rag.catalog_chat.provider_fallback",
+            runtime: "rag",
+            surface: "orchestrator",
+            outcome: "provider_failure_fallback",
             companyId: input.tenant.companyId,
             ...(input.conversation?.conversationId
               ? { conversationId: input.conversation.conversationId }
@@ -718,9 +742,9 @@ export const createCatalogChatOrchestrator = (
             ...(input.requestId ? { requestId: input.requestId } : {}),
             responseLanguage: language.responseLanguage,
             retrieval: buildRetrievalLogContext(retrieval),
-            error: serializeError(error),
+            error: serializeErrorForLog(error),
           },
-          "catalog chat provider call failed",
+          "catalog chat provider fallback selected",
         );
         return {
           outcome: "provider_failure_fallback",
@@ -743,9 +767,14 @@ export const createCatalogChatOrchestrator = (
           provider: pickProviderMetadata(providerResponse),
         };
       } catch (error) {
-        safeLogError(
-          logger,
+        safeLogEvent(
+          routeLogger,
+          "error",
           {
+            event: "rag.catalog_chat.parse_failed",
+            runtime: "rag",
+            surface: "orchestrator",
+            outcome: "invalid_model_output_fallback",
             companyId: input.tenant.companyId,
             ...(input.conversation?.conversationId
               ? { conversationId: input.conversation.conversationId }
@@ -754,8 +783,8 @@ export const createCatalogChatOrchestrator = (
             responseLanguage: language.responseLanguage,
             retrieval: buildRetrievalLogContext(retrieval),
             provider: pickProviderMetadata(providerResponse),
-            providerTextPreview: buildProviderTextPreview(providerResponse.text),
-            error: serializeError(error),
+            ...summarizeProviderTextForLog(providerResponse.text),
+            error: serializeErrorForLog(error),
           },
           "catalog chat structured output parsing failed",
         );

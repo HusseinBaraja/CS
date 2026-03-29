@@ -205,6 +205,7 @@ export const createCustomerConversationRouter = (
           conversationId,
           history,
         },
+        logger: routeLogger,
         requestId: message.messageId,
         userMessage,
       });
