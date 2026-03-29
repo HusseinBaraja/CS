@@ -21,12 +21,13 @@ const inboundRouter = {
 export const startBotApp = async (
   start = startTenantSessionManager,
   activeLogger = logger,
+  botProcess: { exitCode?: number } = process,
 ): Promise<void> => {
   try {
     await start({ inboundRouter });
   } catch (error) {
     logError(activeLogger, error, "bot startup failed");
-    process.exitCode = 1;
+    botProcess.exitCode = 1;
   }
 };
 
