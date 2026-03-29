@@ -236,7 +236,7 @@ const listVisibleConversationMessagesDescending = async (
     cursor = page.continueCursor;
   }
 
-  return visibleMessages.slice(0, limit);
+  return visibleMessages;
 };
 
 const resolveMessageByTransportMessageId = async (
