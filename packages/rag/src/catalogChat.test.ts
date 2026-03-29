@@ -18,6 +18,12 @@ const groundedRetrievalResult = (
   outcome: "grounded",
   query: "Burger Box",
   language: "en",
+  resolution: {
+    strategy: "standalone",
+    recentTurnsUsed: 0,
+    detectedOptionCount: 0,
+    standaloneQuery: "Burger Box",
+  },
   topScore: 0.92,
   candidates: [
     {
@@ -262,6 +268,12 @@ describe("createCatalogChatOrchestrator", () => {
         reason: "empty_query",
         query: "",
         language: "en",
+        resolution: {
+          strategy: "standalone",
+          recentTurnsUsed: 0,
+          detectedOptionCount: 0,
+          standaloneQuery: "",
+        },
         candidates: [],
         contextBlocks: [],
       }),
@@ -299,6 +311,12 @@ describe("createCatalogChatOrchestrator", () => {
         reason: "empty_query",
         query: "",
         language: "en",
+        resolution: {
+          strategy: "standalone",
+          recentTurnsUsed: 0,
+          detectedOptionCount: 0,
+          standaloneQuery: "",
+        },
         candidates: [],
         contextBlocks: [],
       },
@@ -314,6 +332,12 @@ describe("createCatalogChatOrchestrator", () => {
         reason: "no_hits",
         query: "bottle",
         language: "en",
+        resolution: {
+          strategy: "standalone",
+          recentTurnsUsed: 0,
+          detectedOptionCount: 0,
+          standaloneQuery: "bottle",
+        },
         candidates: [],
         contextBlocks: [],
       }),
@@ -348,6 +372,12 @@ describe("createCatalogChatOrchestrator", () => {
         reason: "below_min_score",
         query: "container",
         language: "en",
+        resolution: {
+          strategy: "standalone",
+          recentTurnsUsed: 0,
+          detectedOptionCount: 0,
+          standaloneQuery: "container",
+        },
         topScore: 0.2,
         candidates: groundedRetrievalResult().candidates,
         contextBlocks: [],
@@ -430,7 +460,7 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(errorCalls).toHaveLength(1);
-    expect(errorCalls[0]).toEqual({
+    expect(errorCalls[0]).toMatchObject({
       message: "catalog chat provider call failed",
       payload: {
         companyId: COMPANY_ID,
@@ -443,6 +473,13 @@ describe("createCatalogChatOrchestrator", () => {
           candidateCount: 1,
           contextBlockCount: 1,
           language: "en",
+          resolution: {
+            strategy: "standalone",
+            recentTurnsUsed: 0,
+            detectedOptionCount: 0,
+            standaloneQuery: "Burger Box",
+          },
+          chosenTopProductIds: ["product-1"],
         },
         error: {
           name: "Error",
@@ -610,5 +647,41 @@ describe("createCatalogChatOrchestrator", () => {
     expect(promptInput?.conversationHistory).toEqual(history);
     expect(promptInput?.allowedActions).toEqual(["none", "clarify"]);
     expect(result.assistant.action.type).toBe("none");
+  });
+
+  test("passes caller-supplied history into retrieval for contextual query shaping", async () => {
+    const retrievalCalls: Array<Record<string, unknown>> = [];
+    const history = [
+      { role: "user" as const, text: "بكم طقم المائدة المغلف" },
+      {
+        role: "assistant" as const,
+        text: [
+          "طقم أدوات المائدة المغلف متوفر بنوعين:",
+          "1. الطقم الممتاز (Premium Set): 0.34 ريال سعودي.",
+          "2. الطقم القياسي (Standard Set): 0.28 ريال سعودي.",
+        ].join("\n"),
+      },
+    ];
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(groundedRetrievalResult(), retrievalCalls),
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        text: '{"schemaVersion":"v1","text":"سعر الطقم الممتاز هو 0.34 ريال سعودي.","action":{"type":"none"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      conversation: {
+        conversationId: "conversation-1",
+        history,
+      },
+      userMessage: "الاول",
+    });
+
+    expect(retrievalCalls[0]?.conversationHistory).toEqual(history);
   });
 });
