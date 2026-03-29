@@ -516,15 +516,21 @@ const buildResolution = (input: {
   contextualQuery?: string;
   recentTurnsUsed: number;
   detectedOptionCount: number;
-}): RetrievalResolution => ({
-  strategy: input.contextualQuery
-    ? (input.detectedOptionCount >= 2 ? "contextual_recent_thread" as const : "merged" as const)
-    : "standalone",
-  recentTurnsUsed: input.recentTurnsUsed,
-  detectedOptionCount: input.detectedOptionCount,
-  standaloneQuery: input.standaloneQuery,
-  ...(input.contextualQuery ? { contextualQuery: input.contextualQuery } : {}),
-});
+}): RetrievalResolution => {
+  let strategy: RetrievalResolution["strategy"] = "standalone";
+
+  if (input.contextualQuery) {
+    strategy = input.detectedOptionCount >= 2 ? "contextual_recent_thread" : "merged";
+  }
+
+  return {
+    strategy,
+    recentTurnsUsed: input.recentTurnsUsed,
+    detectedOptionCount: input.detectedOptionCount,
+    standaloneQuery: input.standaloneQuery,
+    ...(input.contextualQuery ? { contextualQuery: input.contextualQuery } : {}),
+  };
+};
 
 export const buildRetrievalQueryText = (
   input: Pick<GenerateRetrievalQueryEmbeddingInput, "query" | "language">,
