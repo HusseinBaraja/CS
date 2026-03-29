@@ -757,6 +757,16 @@ const buildProviderTextPreview = (text: string): string =>
     ? text
     : text.slice(0, MAX_PROVIDER_TEXT_PREVIEW_LENGTH);
 
+const buildRetrievalResolutionLogContext = (
+  resolution: RetrievalResolution,
+): Record<string, unknown> => ({
+  strategy: resolution.strategy,
+  recentTurnsUsed: resolution.recentTurnsUsed,
+  detectedOptionCount: resolution.detectedOptionCount,
+  hasStandaloneQuery: resolution.standaloneQuery.length > 0,
+  hasContextualQuery: resolution.contextualQuery !== undefined,
+});
+
 const buildRetrievalLogContext = (
   retrieval: RetrieveCatalogContextResult,
 ): Record<string, unknown> => ({
@@ -766,7 +776,7 @@ const buildRetrievalLogContext = (
   candidateCount: retrieval.candidates.length,
   contextBlockCount: retrieval.contextBlocks.length,
   language: retrieval.language,
-  resolution: retrieval.resolution,
+  resolution: buildRetrievalResolutionLogContext(retrieval.resolution),
   chosenTopProductIds: retrieval.candidates.slice(0, 3).map((candidate) => candidate.productId),
 });
 

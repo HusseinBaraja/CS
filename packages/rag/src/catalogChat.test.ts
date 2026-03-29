@@ -82,16 +82,22 @@ const createChatManagerStub = (
 
 const createLoggerStub = (): {
   logger: CatalogChatLogger;
+  infoCalls: Array<{ payload: Record<string, unknown>; message: string }>;
   errorCalls: Array<{ payload: Record<string, unknown>; message: string }>;
 } => {
+  const infoCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
   const errorCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
 
   return {
     logger: {
+      info(payload, message) {
+        infoCalls.push({ payload, message });
+      },
       error(payload, message) {
         errorCalls.push({ payload, message });
       },
     },
+    infoCalls,
     errorCalls,
   };
 };
@@ -477,7 +483,8 @@ describe("createCatalogChatOrchestrator", () => {
             strategy: "standalone",
             recentTurnsUsed: 0,
             detectedOptionCount: 0,
-            standaloneQuery: "Burger Box",
+            hasStandaloneQuery: true,
+            hasContextualQuery: false,
           },
           chosenTopProductIds: ["product-1"],
         },
@@ -552,6 +559,64 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect((errorCalls[0]?.payload.providerTextPreview as string).length).toBe(500);
+  });
+
+  test("logs sanitized retrieval resolution metadata without raw query text", async () => {
+    const { logger, infoCalls } = createLoggerStub();
+    const orchestrator = createCatalogChatOrchestrator({
+      logger,
+      retrievalService: createRetrievalService(groundedRetrievalResult({
+        resolution: {
+          strategy: "merged",
+          recentTurnsUsed: 2,
+          detectedOptionCount: 0,
+          standaloneQuery: "Burger Box",
+          contextualQuery: "language:en\nlatest_user:burger box",
+        },
+      })),
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        model: "gemini-2.0-flash",
+        text: '{"schemaVersion":"v1","text":"We have burger boxes.","action":{"type":"none"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      conversation: {
+        conversationId: "conversation-1",
+      },
+      requestId: "request-1",
+      userMessage: "Burger Box",
+    });
+
+    expect(infoCalls).toHaveLength(1);
+    expect(infoCalls[0]).toEqual({
+      message: "catalog chat retrieval resolved",
+      payload: {
+        companyId: COMPANY_ID,
+        conversationId: "conversation-1",
+        requestId: "request-1",
+        retrieval: {
+          outcome: "grounded",
+          topScore: 0.92,
+          candidateCount: 1,
+          contextBlockCount: 1,
+          language: "en",
+          resolution: {
+            strategy: "merged",
+            recentTurnsUsed: 2,
+            detectedOptionCount: 0,
+            hasStandaloneQuery: true,
+            hasContextualQuery: true,
+          },
+          chosenTopProductIds: ["product-1"],
+        },
+      },
+    });
   });
 
   test("forwards conversation and request metadata into the chat-manager log context", async () => {
