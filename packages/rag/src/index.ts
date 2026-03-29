@@ -714,8 +714,7 @@ export const createProductRetrievalService = (
               || rightProductId.localeCompare(leftProductId);
           }
 
-          return Math.max(rightStandaloneScore, rightContextualScore) - Math.max(leftStandaloneScore, leftContextualScore)
-            || rightStandaloneScore - leftStandaloneScore
+          return rightStandaloneScore - leftStandaloneScore
             || rightContextualScore - leftContextualScore
             || rightProductId.localeCompare(leftProductId);
         })
@@ -724,11 +723,7 @@ export const createProductRetrievalService = (
             return entry.contextual ?? entry.standalone;
           }
 
-          const standaloneScore = entry.standalone?.score ?? Number.NEGATIVE_INFINITY;
-          const contextualScore = entry.contextual?.score ?? Number.NEGATIVE_INFINITY;
-          return standaloneScore >= contextualScore
-            ? (entry.standalone ?? entry.contextual)
-            : (entry.contextual ?? entry.standalone);
+          return entry.standalone ?? entry.contextual;
         })
         .filter((candidate): candidate is RetrievedProductCandidate => Boolean(candidate));
 

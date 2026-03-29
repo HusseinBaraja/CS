@@ -642,8 +642,15 @@ describe("@cs/rag", () => {
 
         return [
           {
+            _id: "embedding-tray-context",
+            _score: 0.99,
+            productId: "product-tray",
+            textContent: "Contextual tray hit",
+            language: "ar",
+          },
+          {
             _id: "embedding-cutlery-context",
-            _score: 0.72,
+            _score: 0.98,
             productId: "product-cutlery",
             textContent: "Contextual cutlery hit",
             language: "ar",
@@ -692,6 +699,11 @@ describe("@cs/rag", () => {
       "product-tray",
       "product-cutlery",
     ]);
+    expect(result.candidates[0]).toMatchObject({
+      productId: "product-tray",
+      matchedEmbeddingId: "embedding-tray-standalone",
+      score: 0.93,
+    });
   });
 
   test("falls back to standalone hits when contextual retrieval fails", async () => {
