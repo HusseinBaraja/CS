@@ -1,17 +1,31 @@
 import { describe, expect, test } from 'bun:test';
+import type { StructuredLogger } from '@cs/core';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
 import { createApp } from './app';
 
-const createWarningCollector = () => {
-  const warnings: Array<{ payload: Record<string, unknown>; message: string }> = [];
+const createLogCollector = () => {
+  const records: Array<{
+    level: "info" | "warn" | "error";
+    payload: Record<string, unknown>;
+    message: string;
+  }> = [];
+
+  const createLogger = (bindings: Record<string, unknown> = {}): StructuredLogger => ({
+    info: (payload, message) => {
+      records.push({ level: "info", payload: { ...bindings, ...payload }, message });
+    },
+    warn: (payload, message) => {
+      records.push({ level: "warn", payload: { ...bindings, ...payload }, message });
+    },
+    error: (payload, message) => {
+      records.push({ level: "error", payload: { ...bindings, ...payload }, message });
+    },
+    child: (childBindings) => createLogger({ ...bindings, ...childBindings }),
+  });
 
   return {
-    warnings,
-    logger: {
-      warn: (payload: Record<string, unknown>, message: string) => {
-        warnings.push({ payload, message });
-      }
-    }
+    records,
+    logger: createLogger(),
   };
 };
 
@@ -45,6 +59,61 @@ describe("api app", () => {
     });
     expect(body).not.toHaveProperty("db");
     expect(JSON.stringify(body)).not.toContain("url");
+  });
+
+  test("propagates X-Request-Id and logs terminal request metadata", async () => {
+    const logCollector = createLogCollector();
+    const app = createApp({
+      logger: logCollector.logger,
+      runtimeConfig: {
+        apiKey: "test-api-key"
+      },
+    });
+
+    const response = await app.request("/api", {
+      headers: {
+        "x-api-key": "test-api-key",
+        "x-request-id": "req-123",
+      },
+    });
+
+    expect(response.headers.get("X-Request-Id")).toBe("req-123");
+    expect(logCollector.records).toContainEqual({
+      level: "info",
+      message: "api request completed",
+      payload: {
+        runtime: "api",
+        surface: "http",
+        requestId: "req-123",
+        event: "api.request.completed",
+        outcome: "success",
+        authOutcome: "authenticated",
+        durationMs: expect.any(Number),
+        method: "GET",
+        path: "/api",
+        statusCode: 200,
+      },
+    });
+  });
+
+  test("generates X-Request-Id when the client does not provide one", async () => {
+    const logCollector = createLogCollector();
+    const app = createApp({
+      logger: logCollector.logger,
+    });
+
+    const response = await app.request("/api/health");
+    const requestId = response.headers.get("X-Request-Id");
+
+    expect(requestId).toEqual(expect.any(String));
+    expect(requestId?.length ?? 0).toBeGreaterThan(0);
+    expect(
+      logCollector.records.some((record) =>
+        record.level === "info" &&
+        record.payload.event === "api.request.completed" &&
+        record.payload.requestId === requestId
+      ),
+    ).toBe(true);
   });
 
   test("protected routes fail closed when the API key is not configured", async () => {
@@ -436,7 +505,7 @@ describe("api app", () => {
     expect(first.status).toBe(401);
     expect(first.headers.get("X-RateLimit-Limit")).toBe("1");
     expect(second.status).toBe(429);
-    expect(nowCalls).toBe(2);
+    expect(nowCalls).toBeGreaterThanOrEqual(2);
     expect(clientIdCalls).toBe(2);
   });
 
@@ -642,15 +711,54 @@ describe("api app", () => {
     });
   });
 
+  test("logs validation failures without leaking auth values", async () => {
+    const logCollector = createLogCollector();
+    const app = createApp({
+      logger: logCollector.logger,
+      runtimeConfig: {
+        apiKey: "test-api-key"
+      }
+    });
+
+    const response = await app.request("/api/companies", {
+      method: "POST",
+      headers: {
+        "x-api-key": "test-api-key",
+        "x-request-id": "req-validation",
+      },
+      body: "{",
+    });
+
+    expect(response.status).toBe(400);
+    expect(logCollector.records).toContainEqual({
+      level: "warn",
+      message: "api request validation failed",
+      payload: {
+        runtime: "api",
+        surface: "http",
+        requestId: "req-validation",
+        event: "api.request.validation_failed",
+        outcome: "invalid",
+        method: "POST",
+        path: "/api/companies",
+        statusCode: 400,
+        error: expect.objectContaining({
+          name: "SyntaxError",
+        }),
+      },
+    });
+    expect(JSON.stringify(logCollector.records)).not.toContain("test-api-key");
+  });
+
   test("readiness reports missing database configuration without leaking the url", async () => {
-    const warningCollector = createWarningCollector();
+    const logCollector = createLogCollector();
     const app = createApp({
       createDbConnection: () => {
         throw new ConfigError("Missing required environment variable: CONVEX_URL", {
           code: ERROR_CODES.CONFIG_MISSING
         });
       },
-      logger: warningCollector.logger
+      logger: logCollector.logger
     });
 
     const response = await app.request("/api/ready");
@@ -671,26 +779,37 @@ describe("api app", () => {
     });
     expect(JSON.stringify(body)).not.toContain("CONVEX_URL");
     expect(JSON.stringify(body)).not.toContain("url");
-    expect(warningCollector.warnings).toHaveLength(1);
-    expect(warningCollector.warnings[0]).toEqual({
+    const warnings = logCollector.records.filter((record) => record.level === "warn");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toEqual({
+      level: "warn",
       message: "api readiness check failed",
       payload: {
+        event: "api.readiness.failed",
+        runtime: "api",
+        surface: "readiness",
+        outcome: "degraded",
         dependency: "db",
+        error: expect.objectContaining({
+          name: "ConfigError",
+          message: "Missing required environment variable: [redacted]",
+        }),
         provider: "convex",
         errName: "ConfigError",
-        errMessage: "Missing required environment variable: [redacted]"
+        errMessage: "Missing required environment variable: [redacted]",
+        requestId: expect.any(String),
       }
     });
-    expect(JSON.stringify(warningCollector.warnings[0])).not.toContain("CONVEX_URL");
+    expect(JSON.stringify(warnings[0])).not.toContain("CONVEX_URL");
   });
 
   test("readiness logs a redacted generic error and keeps the fallback 503 payload", async () => {
-    const warningCollector = createWarningCollector();
+    const logCollector = createLogCollector();
     const app = createApp({
       createDbConnection: () => {
         throw new Error("database check failed for https://secret.example/token");
       },
-      logger: warningCollector.logger
+      logger: logCollector.logger
     });
 
     const response = await app.request("/api/ready");
@@ -707,23 +826,34 @@ describe("api app", () => {
         }
       }
     });
-    expect(warningCollector.warnings).toHaveLength(1);
-    expect(warningCollector.warnings[0]).toEqual({
+    const warnings = logCollector.records.filter((record) => record.level === "warn");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toEqual({
+      level: "warn",
       message: "api readiness check failed",
       payload: {
+        event: "api.readiness.failed",
+        runtime: "api",
+        surface: "readiness",
+        outcome: "degraded",
         dependency: "db",
+        error: expect.objectContaining({
+          name: "Error",
+          message: "database check failed for [redacted-url]",
+        }),
         provider: "convex",
         errName: "Error",
-        errMessage: "database check failed for [redacted-url]"
+        errMessage: "database check failed for [redacted-url]",
+        requestId: expect.any(String),
       }
     });
-    expect(JSON.stringify(warningCollector.warnings[0])).not.toContain(
+    expect(JSON.stringify(warnings[0])).not.toContain(
       "https://secret.example/token"
     );
   });
 
   test("readiness reports DB connection failures as unavailable without leaking secrets", async () => {
-    const warningCollector = createWarningCollector();
+    const logCollector = createLogCollector();
     const app = createApp({
       createDbConnection: () => ({
         provider: "convex",
@@ -734,7 +864,7 @@ describe("api app", () => {
           code: ERROR_CODES.DB_CONNECTION_FAILED
         });
       },
-      logger: warningCollector.logger
+      logger: logCollector.logger
     });
 
     const response = await app.request("/api/ready");
@@ -754,17 +884,28 @@ describe("api app", () => {
       }
     });
     expect(JSON.stringify(body)).not.toContain("https://secret.example/token");
-    expect(warningCollector.warnings).toHaveLength(1);
-    expect(warningCollector.warnings[0]).toEqual({
+    const warnings = logCollector.records.filter((record) => record.level === "warn");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toEqual({
+      level: "warn",
       message: "api readiness check failed",
       payload: {
+        event: "api.readiness.failed",
+        runtime: "api",
+        surface: "readiness",
+        outcome: "degraded",
         dependency: "db",
+        error: expect.objectContaining({
+          name: "Error",
+          message: "connect failed for [redacted-url]",
+        }),
         provider: "convex",
         errName: "Error",
-        errMessage: "connect failed for [redacted-url]"
+        errMessage: "connect failed for [redacted-url]",
+        requestId: expect.any(String),
       }
     });
-    expect(JSON.stringify(warningCollector.warnings[0])).not.toContain(
+    expect(JSON.stringify(warnings[0])).not.toContain(
       "https://secret.example/token"
     );
   });

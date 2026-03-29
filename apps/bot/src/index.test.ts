@@ -1,7 +1,13 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { PassThrough } from 'node:stream';
 import { createLogger } from '@cs/core';
 import { startBotApp } from './index';
+
+const originalExitCode = process.exitCode;
+
+afterEach(() => {
+  process.exitCode = originalExitCode ?? 0;
+});
 
 describe("startBotApp", () => {
   test("logs serialized startup failures instead of raw error objects", async () => {

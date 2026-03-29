@@ -62,11 +62,13 @@ export const createApiKeyAuthMiddleware = (
       c.req.method === "OPTIONS" ||
       exemptPaths.has(c.req.path)
     ) {
+      c.set("authOutcome", "not_required");
       await next();
       return;
     }
 
     if (!options.apiKey) {
+      c.set("authOutcome", "not_configured");
       return c.json(
         createErrorResponse(
           ERROR_CODES.CONFIG_MISSING,
@@ -78,6 +80,7 @@ export const createApiKeyAuthMiddleware = (
 
     const providedApiKey = getApiKey(c, headerName);
     if (!providedApiKey) {
+      c.set("authOutcome", "missing");
       return c.json(
         createErrorResponse(ERROR_CODES.AUTH_FAILED, "Missing API key"),
         401
@@ -85,6 +88,7 @@ export const createApiKeyAuthMiddleware = (
     }
 
     if (!safeEqual(providedApiKey, options.apiKey)) {
+      c.set("authOutcome", "invalid");
       return c.json(
         createErrorResponse(ERROR_CODES.AUTH_TOKEN_INVALID, "Invalid API key"),
         403
@@ -92,6 +96,7 @@ export const createApiKeyAuthMiddleware = (
     }
 
     c.set("authenticatedClientId", authenticatedClientId!);
+    c.set("authOutcome", "authenticated");
     await next();
   };
 };
