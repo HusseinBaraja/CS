@@ -1,9 +1,10 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import type { GroundingContextBlock } from '@cs/ai';
 import type { ConvexAdminClient, Id } from '@cs/db';
 import { buildRetrievalQueryText, createProductRetrievalService, generateRetrievalQueryEmbedding } from './index';
 
 const COMPANY_ID = "company-1" as Id<"companies">;
+const originalConsoleError = globalThis.console?.error;
 
 const createClientStub = (overrides: Partial<{
   action: (reference: unknown, args: unknown) => Promise<unknown>;
@@ -57,6 +58,12 @@ const createProduct = (overrides: Partial<{
   ...(overrides.baseCurrency ? { baseCurrency: overrides.baseCurrency } : {}),
   images: overrides.images ?? [],
   variants: overrides.variants ?? [],
+});
+
+afterEach(() => {
+  if (globalThis.console) {
+    globalThis.console.error = originalConsoleError;
+  }
 });
 
 describe("@cs/rag", () => {
@@ -684,6 +691,154 @@ describe("@cs/rag", () => {
     expect(result.candidates.map((candidate) => candidate.productId)).toEqual([
       "product-tray",
       "product-cutlery",
+    ]);
+  });
+
+  test("falls back to standalone hits when contextual retrieval fails", async () => {
+    const consoleErrors: Array<{ message: unknown; payload: unknown }> = [];
+    if (globalThis.console) {
+      globalThis.console.error = (message?: unknown, payload?: unknown) => {
+        consoleErrors.push({ message, payload });
+      };
+    }
+
+    const { client, calls } = createClientStub({
+      action: async (_reference, args) => {
+        const { embedding } = args as { embedding: number[] };
+        if (embedding[0] === 1) {
+          return [
+            {
+              _id: "embedding-tray-standalone",
+              _score: 0.93,
+              productId: "product-tray",
+              textContent: "Standalone tray hit",
+              language: "ar",
+            },
+          ];
+        }
+
+        throw new Error("contextual vector search unavailable");
+      },
+      query: async () => [
+        createProduct({
+          id: "product-tray",
+          nameEn: "Foil Tray",
+          nameAr: "صينية ألمنيوم فويل",
+        }),
+      ],
+    });
+    const service = createProductRetrievalService({
+      createClient: () => client,
+      generateEmbedding: async (_text) => [calls.actions.length + 1],
+    });
+
+    const result = await service.retrieveCatalogContext({
+      companyId: COMPANY_ID,
+      query: "صينية ألمنيوم فويل",
+      language: "ar",
+      conversationHistory: [
+        { role: "user", text: "بكم طقم المائدة المغلف" },
+        { role: "assistant", text: "سعر الطقم الممتاز هو 0.34 ريال سعودي." },
+      ],
+    });
+
+    expect(result.outcome).toBe("grounded");
+    expect(result.topScore).toBe(0.93);
+    expect(result.resolution).toEqual({
+      strategy: "standalone",
+      recentTurnsUsed: 2,
+      detectedOptionCount: 0,
+      standaloneQuery: "صينية ألمنيوم فويل",
+    });
+    expect(result.candidates.map((candidate) => candidate.productId)).toEqual(["product-tray"]);
+    expect(consoleErrors).toEqual([
+      {
+        message: "catalog contextual retrieval failed; falling back to standalone",
+        payload: {
+          companyId: COMPANY_ID,
+          language: "ar",
+          recentTurnsUsed: 2,
+          detectedOptionCount: 0,
+          hasContextualQuery: true,
+          error: expect.objectContaining({
+            name: "Error",
+            message: "contextual vector search unavailable",
+          }),
+        },
+      },
+    ]);
+  });
+
+  test("returns no_hits instead of rejecting when contextual retrieval fails after empty standalone hits", async () => {
+    const consoleErrors: Array<{ message: unknown; payload: unknown }> = [];
+    if (globalThis.console) {
+      globalThis.console.error = (message?: unknown, payload?: unknown) => {
+        consoleErrors.push({ message, payload });
+      };
+    }
+
+    const { client } = createClientStub({
+      action: async (_reference, args) => {
+        const { embedding } = args as { embedding: number[] };
+        if (embedding[0] === 1) {
+          return [];
+        }
+
+        throw new Error("contextual embedding failed");
+      },
+    });
+    let embeddingCallCount = 0;
+    const service = createProductRetrievalService({
+      createClient: () => client,
+      generateEmbedding: async () => {
+        embeddingCallCount += 1;
+        if (embeddingCallCount === 1) {
+          return [1];
+        }
+
+        throw new Error("contextual embedding failed");
+      },
+    });
+
+    const result = await service.retrieveCatalogContext({
+      companyId: COMPANY_ID,
+      query: "صينية ألمنيوم فويل",
+      language: "ar",
+      conversationHistory: [
+        { role: "user", text: "بكم طقم المائدة المغلف" },
+        { role: "assistant", text: "سعر الطقم الممتاز هو 0.34 ريال سعودي." },
+      ],
+    });
+
+    expect(result).toEqual({
+      outcome: "empty",
+      reason: "no_hits",
+      query: "صينية ألمنيوم فويل",
+      language: "ar",
+      resolution: {
+        strategy: "standalone",
+        recentTurnsUsed: 2,
+        detectedOptionCount: 0,
+        standaloneQuery: "صينية ألمنيوم فويل",
+      },
+      candidates: [],
+      contextBlocks: [],
+    });
+    expect(consoleErrors).toEqual([
+      {
+        message: "catalog contextual retrieval failed; falling back to standalone",
+        payload: {
+          companyId: COMPANY_ID,
+          language: "ar",
+          recentTurnsUsed: 2,
+          detectedOptionCount: 0,
+          hasContextualQuery: true,
+          error: expect.objectContaining({
+            name: "Error",
+            message: "contextual embedding failed",
+          }),
+        },
+      },
     ]);
   });
 });

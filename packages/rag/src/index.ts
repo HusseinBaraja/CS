@@ -583,7 +583,7 @@ export const createProductRetrievalService = (
         language: input.language,
         conversationHistory: input.conversationHistory,
       });
-      const baseResolution = buildResolution({
+      let resolution = buildResolution({
         standaloneQuery: normalizedQuery,
         contextualQuery: contextualQuery?.queryText,
         recentTurnsUsed: contextualQuery?.recentTurnsUsed ?? 0,
@@ -616,9 +616,30 @@ export const createProductRetrievalService = (
         query: normalizedQuery,
         language: input.language,
       }));
-      const contextualHits = contextualQuery
-        ? await runRetrievalView(contextualQuery.queryText)
-        : [];
+      let contextualHits: VectorSearchHit[] = [];
+      if (contextualQuery) {
+        try {
+          contextualHits = await runRetrievalView(contextualQuery.queryText);
+        } catch (error) {
+          resolution = buildResolution({
+            standaloneQuery: normalizedQuery,
+            recentTurnsUsed: contextualQuery.recentTurnsUsed,
+            detectedOptionCount: contextualQuery.detectedOptionCount,
+          });
+          try {
+            globalThis.console?.error?.("catalog contextual retrieval failed; falling back to standalone", {
+              companyId: input.companyId,
+              language: input.language,
+              recentTurnsUsed: contextualQuery.recentTurnsUsed,
+              detectedOptionCount: contextualQuery.detectedOptionCount,
+              hasContextualQuery: true,
+              error: serializeError(error),
+            });
+          } catch {
+            // Diagnostics must never interrupt retrieval fallbacks.
+          }
+        }
+      }
       const allProductIds = [...new Set([
         ...standaloneHits.map((hit) => hit.productId),
         ...contextualHits.map((hit) => hit.productId),
@@ -630,7 +651,7 @@ export const createProductRetrievalService = (
           reason: "no_hits",
           query: normalizedQuery,
           language: input.language,
-          resolution: baseResolution,
+          resolution,
           candidates: [],
           contextBlocks: [],
         };
@@ -717,7 +738,7 @@ export const createProductRetrievalService = (
           reason: "no_hits",
           query: normalizedQuery,
           language: input.language,
-          resolution: baseResolution,
+          resolution,
           candidates: [],
           contextBlocks: [],
         };
@@ -730,7 +751,7 @@ export const createProductRetrievalService = (
           reason: "below_min_score",
           query: normalizedQuery,
           language: input.language,
-          resolution: baseResolution,
+          resolution,
           topScore,
           candidates,
           contextBlocks: [],
@@ -741,7 +762,7 @@ export const createProductRetrievalService = (
         outcome: "grounded",
         query: normalizedQuery,
         language: input.language,
-        resolution: baseResolution,
+        resolution,
         topScore,
         candidates,
         contextBlocks: candidates
