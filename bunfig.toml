@@ -1,3 +1,0 @@
-[test]
-# Convex tests use the `*.vitest.ts` suffix so Bun's native test runner
-# does not discover them; run them through Vitest via `bun run test`.
