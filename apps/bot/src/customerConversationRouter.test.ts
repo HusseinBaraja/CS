@@ -957,6 +957,11 @@ describe("createCustomerConversationRouter", () => {
         info: () => undefined,
         warn: () => undefined,
         error: () => undefined,
+        child: () => ({
+          info: () => undefined,
+          warn: () => undefined,
+          error: () => undefined,
+        }),
       },
       profile: {
         companyId: "company-2",
