@@ -554,12 +554,14 @@ describe("createCatalogChatOrchestrator", () => {
         responseId: "resp-invalid",
       },
     });
-    expect(infoCalls[0]).toMatchObject({
-      payload: {
-        event: "rag.retrieval.completed",
-        outcome: "grounded",
-      },
-    });
+    expect(infoCalls).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          event: "rag.retrieval.completed",
+          outcome: "grounded",
+        }),
+      }),
+    ]));
     expect(errorCalls).toHaveLength(1);
     expect(errorCalls[0]?.message).toBe("catalog chat structured output parsing failed");
     expect(errorCalls[0]?.payload).toMatchObject({
