@@ -38,6 +38,10 @@ export const redactPhoneLikeValue = (value: string): string => {
     return "[redacted]";
   }
 
+  if (digits.length <= PHONE_SUFFIX_LENGTH) {
+    return "[redacted]";
+  }
+
   const suffix = digits.slice(-PHONE_SUFFIX_LENGTH);
   return `***${suffix}`;
 };

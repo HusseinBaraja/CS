@@ -199,7 +199,10 @@ describe("logger", () => {
   });
 
   test("redacts phone-like values and JIDs", () => {
+    expect(redactPhoneLikeValue("12")).toBe("[redacted]");
+    expect(redactPhoneLikeValue("1234")).toBe("[redacted]");
     expect(redactPhoneLikeValue("+967-777-123-456")).toBe("***3456");
+    expect(redactJidForLog("1234@s.whatsapp.net")).toBe("[redacted]@s.whatsapp.net");
     expect(redactJidForLog("967777123456@s.whatsapp.net")).toBe("***3456@s.whatsapp.net");
   });
 
