@@ -187,6 +187,46 @@ describe("logger", () => {
     ]);
   });
 
+  test("throws when a logger is missing the requested method for logEvent", () => {
+    const loggerWithoutDebug = {
+      info() {},
+      warn() {},
+      error() {},
+    };
+
+    expect(() =>
+      logEvent(
+        loggerWithoutDebug,
+        "debug",
+        {
+          event: "bot.message.received",
+          outcome: "received",
+          runtime: "bot",
+          surface: "router",
+        },
+        "inbound",
+      )).toThrow('Structured logger is missing "debug" method');
+  });
+
+  test("throws when a bound logger is missing the requested method", () => {
+    const loggerWithoutDebug = {
+      info() {},
+      warn() {},
+      error() {},
+    };
+    const boundLogger = withLogBindings(loggerWithoutDebug, { runtime: "bot" });
+
+    expect(() =>
+      boundLogger.debug?.(
+        {
+          event: "bot.message.received",
+          surface: "router",
+          outcome: "received",
+        },
+        "inbound",
+      )).toThrow('Structured logger is missing "debug" method');
+  });
+
   test("summarizes text without leaking raw content", () => {
     const summary = summarizeTextForLog("hello\nworld");
 

@@ -16,6 +16,18 @@ const mergePayload = (
   ...payload,
 });
 
+const getLogMethod = (
+  logger: StructuredLogger,
+  level: StructuredLogLevel,
+): ((payload: Record<string, unknown>, message: string) => void) => {
+  const method = logger[level];
+  if (typeof method !== "function") {
+    throw new Error(`Structured logger is missing "${level}" method`);
+  }
+
+  return method.bind(logger);
+};
+
 export const serializeErrorForLog = (
   error: unknown,
   context: Record<string, unknown> = {},
@@ -69,7 +81,7 @@ export const withLogBindings = (
   const wrap =
     (method: keyof Pick<StructuredLogger, "debug" | "info" | "warn" | "error">) =>
     (payload: Record<string, unknown>, message: string): void => {
-      logger[method]?.(mergePayload(bindings, payload), message);
+      getLogMethod(logger, method)(mergePayload(bindings, payload), message);
     };
 
   return {
@@ -87,5 +99,5 @@ export const logEvent = (
   payload: StructuredLogPayloadInput,
   message: string,
 ): void => {
-  logger[level]?.(payload, message);
+  getLogMethod(logger, level)(payload, message);
 };
