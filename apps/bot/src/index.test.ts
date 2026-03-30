@@ -35,10 +35,10 @@ describe("startBotApp", () => {
     expect(logs).toHaveLength(1);
     expect(logs[0]?.msg).toBe("bot startup failed");
     expect(logs[0]).toMatchObject({
-      event: "core.log.error",
-      runtime: "core",
-      surface: "logger",
-      outcome: "error",
+      event: "bot.runtime.startup_failed",
+      runtime: "bot",
+      surface: "runtime",
+      outcome: "failed",
       error: expect.objectContaining({
         context: {},
         message: "Configured Convex deployment is missing bot runtime backend functions.",

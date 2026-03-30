@@ -95,6 +95,7 @@ If a path hands off or fails, keep the same `requestId` and inspect the first ev
 | `api` | `http` | `api.request.validation_failed` | `invalid` | Validation and malformed JSON failures |
 | `bot` | `session` | `bot.session.state_changed` | `initializing`, `connecting`, `awaiting_pairing`, `open`, `reconnecting`, `failed` | Session lifecycle tracing |
 | `bot` | `session` | `bot.session.reconnect_scheduled` | `scheduled` | Reconnect backoff planning |
+| `bot` | `runtime` | `bot.runtime.startup_failed` | `failed` | Bot application startup failed before the tenant session manager came up |
 | `bot` | `router` | `bot.router.inbound_persisted` | `accepted`, `duplicate`, `muted` | Customer inbound persistence milestone |
 | `bot` | `router` | `bot.router.orchestration_failed` | `error` | Router-level failure before assistant send |
 | `bot` | `router` | `bot.router.assistant_pending_created` | `pending` | Assistant reply queued for delivery |

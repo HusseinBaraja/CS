@@ -146,7 +146,9 @@ describe("logger", () => {
       context: { module: "bot", action: "process-message" },
     });
 
-    logError(testLogger, error, "Operation failed", { conversationId: "abc-123" });
+    logError(testLogger, error, "Operation failed", {
+      context: { conversationId: "abc-123" },
+    });
 
     await new Promise((resolve) => setImmediate(resolve));
 
@@ -158,6 +160,49 @@ describe("logger", () => {
     expect(logs[0]?.error).toMatchObject({
       code: "VALIDATION_FAILED",
       context: { module: "bot", action: "process-message" },
+    });
+  });
+
+  test("allows logError callers to override the event envelope", async () => {
+    const stream = new PassThrough();
+    let output = "";
+    stream.on("data", (chunk: Buffer | string) => {
+      output += chunk.toString();
+    });
+
+    const testLogger = createLogger({ level: "error" }, stream);
+    logError(
+      testLogger,
+      new Error("startup failed"),
+      "bot startup failed",
+      {
+        context: { retryable: false },
+        envelopeOverrides: {
+          event: "bot.runtime.startup_failed",
+          runtime: "bot",
+          surface: "runtime",
+          outcome: "failed",
+          sessionKey: "company-company-1",
+        },
+      },
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const logs = parseLogLines(output);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      event: "bot.runtime.startup_failed",
+      runtime: "bot",
+      surface: "runtime",
+      outcome: "failed",
+      sessionKey: "company-company-1",
+      context: { retryable: false },
+      error: expect.objectContaining({
+        message: "startup failed",
+        name: "Error",
+      }),
+      msg: "bot startup failed",
     });
   });
 

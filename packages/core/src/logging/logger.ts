@@ -3,7 +3,7 @@ import pino from 'pino';
 import { env } from '@cs/config';
 import { serializeErrorForLog } from './helpers';
 import { createProductionLogDestination, type LoggerRuntimeConfig } from './stream';
-import type { StructuredLogger } from './types';
+import type { StructuredLogPayload, StructuredLogger } from './types';
 
 const redactPaths = [
   "password",
@@ -104,18 +104,30 @@ export const createLogger = (
 
 export const logger = createLogger();
 
+export interface LogErrorOptions {
+  context?: Record<string, unknown>;
+  envelopeOverrides?: Partial<StructuredLogPayload> & Record<string, unknown>;
+}
+
 export const logError = (
   log: StructuredLogger,
   error: unknown,
   message: string,
-  context: Record<string, unknown> = {},
+  options: LogErrorOptions = {},
 ): void => {
+  const defaultEnvelope: StructuredLogPayload = {
+    event: "core.log.error",
+    runtime: "core",
+    surface: "logger",
+    outcome: "error",
+  };
+
+  const context = options.context ?? {};
+
   log.error(
     {
-      event: "core.log.error",
-      runtime: "core",
-      surface: "logger",
-      outcome: "error",
+      ...defaultEnvelope,
+      ...(options.envelopeOverrides ?? {}),
       error: serializeErrorForLog(error),
       ...(Object.keys(context).length > 0 ? { context } : {}),
     },

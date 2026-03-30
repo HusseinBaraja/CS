@@ -25,7 +25,14 @@ export const startBotApp = async (
   try {
     await start({ inboundRouter });
   } catch (error) {
-    logError(activeLogger, error, "bot startup failed");
+    logError(activeLogger, error, "bot startup failed", {
+      envelopeOverrides: {
+        event: "bot.runtime.startup_failed",
+        runtime: "bot",
+        surface: "runtime",
+        outcome: "failed",
+      },
+    });
     process.exitCode = 1;
   }
 };
