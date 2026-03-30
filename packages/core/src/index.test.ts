@@ -409,7 +409,134 @@ describe("logger", () => {
     rmSync(logDir, { recursive: true, force: true });
   });
 
-  test("handles destination stream errors without crashing", async () => {
+  test("startup writes wait for scheduled rotation before choosing a destination", async () => {
+    const logDir = mkdtempSync(join(tmpdir(), "cs-startup-pending-"));
+    const scheduledTasks: Array<() => void> = [];
+    let activeOutput = "";
+    let fallbackOutput = "";
+    const activeStream = new PassThrough();
+    const fallbackStream = new PassThrough();
+    activeStream.on("data", (chunk: Buffer | string) => {
+      activeOutput += chunk.toString();
+    });
+    fallbackStream.on("data", (chunk: Buffer | string) => {
+      fallbackOutput += chunk.toString();
+    });
+
+    const destination = createProductionLogDestination(
+      {
+        LOG_DIR: logDir,
+        LOG_RETENTION_DAYS: 14,
+      },
+      {
+        createStream: () => activeStream,
+        fallbackStream,
+        scheduleTask: (task) => {
+          scheduledTasks.push(task);
+        },
+      },
+    ) as Writable & { stream: Writable | null };
+    const runtimeConfig = createLoggerRuntimeConfig({
+      NODE_ENV: "production",
+      LOG_LEVEL: "info",
+      LOG_DIR: logDir,
+      LOG_RETENTION_DAYS: 14,
+    });
+    const logger = createLogger({}, destination, runtimeConfig);
+
+    expect(destination.stream).toBeNull();
+    logger.info("queued-before-startup-rotation");
+    await waitForAsyncWork();
+
+    expect(parseLogLines(activeOutput)).toHaveLength(0);
+    expect(parseLogLines(fallbackOutput)).toHaveLength(0);
+
+    const scheduledRotation = scheduledTasks.shift();
+    expect(scheduledRotation).toBeDefined();
+    scheduledRotation?.();
+
+    await waitForCondition(
+      () => parseLogLines(activeOutput).some((entry) => entry.msg === "queued-before-startup-rotation"),
+      "expected queued startup write to flush into the created stream",
+    );
+
+    destination.end();
+    await finished(destination);
+    rmSync(logDir, { recursive: true, force: true });
+  });
+
+  test("post-midnight writes wait for scheduled rotation and land in the new day stream", async () => {
+    const logDir = mkdtempSync(join(tmpdir(), "cs-midnight-pending-"));
+    const scheduledTasks: Array<() => void> = [];
+    let currentDate = new Date("2026-03-06T08:00:00");
+    let dayOneOutput = "";
+    let dayTwoOutput = "";
+    const dayOneStream = new PassThrough();
+    const dayTwoStream = new PassThrough();
+    dayOneStream.on("data", (chunk: Buffer | string) => {
+      dayOneOutput += chunk.toString();
+    });
+    dayTwoStream.on("data", (chunk: Buffer | string) => {
+      dayTwoOutput += chunk.toString();
+    });
+
+    let streamCreationCount = 0;
+    const destination = createProductionLogDestination(
+      {
+        LOG_DIR: logDir,
+        LOG_RETENTION_DAYS: 14,
+      },
+      {
+        now: () => currentDate,
+        createStream: () => {
+          streamCreationCount += 1;
+          return streamCreationCount === 1 ? dayOneStream : dayTwoStream;
+        },
+        scheduleTask: (task) => {
+          scheduledTasks.push(task);
+        },
+      },
+    ) as Writable & { currentDate: string; stream: Writable | null };
+    const runtimeConfig = createLoggerRuntimeConfig({
+      NODE_ENV: "production",
+      LOG_LEVEL: "info",
+      LOG_DIR: logDir,
+      LOG_RETENTION_DAYS: 14,
+    });
+    const logger = createLogger({}, destination, runtimeConfig);
+
+    const initialRotation = scheduledTasks.shift();
+    expect(initialRotation).toBeDefined();
+    initialRotation?.();
+    await waitForCondition(() => destination.stream === dayOneStream, "expected day-one stream to be active");
+    while (scheduledTasks.length > 0) {
+      scheduledTasks.shift()?.();
+    }
+
+    logger.info("day-one");
+    await waitForAsyncWork();
+
+    currentDate = new Date("2026-03-07T08:00:00");
+    logger.info("queued-for-day-two");
+    await waitForAsyncWork();
+
+    expect(parseLogLines(dayOneOutput).some((entry) => entry.msg === "queued-for-day-two")).toBe(false);
+
+    while (scheduledTasks.length > 0) {
+      scheduledTasks.shift()?.();
+    }
+
+    await waitForCondition(
+      () => parseLogLines(dayTwoOutput).some((entry) => entry.msg === "queued-for-day-two"),
+      "expected queued rollover write to flush into the new day stream",
+    );
+
+    destination.end();
+    await finished(destination);
+    rmSync(logDir, { recursive: true, force: true });
+  });
+
+  test("falls back after destination stream errors without retrying rotation", async () => {
     class FailingWriteStream extends Writable {
       override _write(
         _chunk: Buffer | string,
@@ -421,13 +548,8 @@ describe("logger", () => {
     }
 
     const logDir = mkdtempSync(join(tmpdir(), "cs-stream-error-"));
-    let recoveredOutput = "";
     let fallbackOutput = "";
-    const recoveredStream = new PassThrough();
     const fallbackStream = new PassThrough();
-    recoveredStream.on("data", (chunk: Buffer | string) => {
-      recoveredOutput += chunk.toString();
-    });
     fallbackStream.on("data", (chunk: Buffer | string) => {
       fallbackOutput += chunk.toString();
     });
@@ -442,11 +564,7 @@ describe("logger", () => {
       {
         createStream: () => {
           streamCreationCount += 1;
-          if (streamCreationCount === 1) {
-            return new FailingWriteStream();
-          }
-
-          return recoveredStream;
+          return new FailingWriteStream();
         },
         fallbackStream,
         onStreamError: (error) => {
@@ -468,35 +586,27 @@ describe("logger", () => {
     await waitForAsyncWork();
 
     expect(() => logger.info("second-write-falls-back")).not.toThrow();
-    await waitForCondition(() => destination.stream === recoveredStream, "expected recovered stream to be active");
-
-    expect(() => logger.info("third-write-recovers")).not.toThrow();
     await waitForAsyncWork();
 
     destination.end();
     await finished(destination as Writable);
 
     const fallbackLogs = parseLogLines(fallbackOutput);
-    const logs = parseLogLines(recoveredOutput);
     expect(fallbackLogs.some((entry) => entry.msg === "first-write-fails")).toBe(true);
     expect(fallbackLogs.some((entry) => entry.msg === "second-write-falls-back")).toBe(true);
-    expect(logs.some((entry) => entry.msg === "third-write-recovers")).toBe(true);
     expect(reportedErrors[0]?.message).toContain("simulated stream failure");
+    expect(streamCreationCount).toBe(1);
+    expect(destination.stream).toBeNull();
 
     rmSync(logDir, { recursive: true, force: true });
   });
 
-  test("falls back to stderr and retries rotation after initial setup failure", async () => {
+  test("falls back to stderr and stops retrying after initial setup failure", async () => {
     const reportedErrors: Error[] = [];
     let fallbackOutput = "";
-    let recoveredOutput = "";
     const fallbackStream = new PassThrough();
-    const recoveredStream = new PassThrough();
     fallbackStream.on("data", (chunk: Buffer | string) => {
       fallbackOutput += chunk.toString();
-    });
-    recoveredStream.on("data", (chunk: Buffer | string) => {
-      recoveredOutput += chunk.toString();
     });
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
@@ -514,11 +624,7 @@ describe("logger", () => {
       {
         createStream: () => {
           streamCreationCount += 1;
-          if (streamCreationCount === 1) {
-            throw new Error("simulated initial rotation failure");
-          }
-
-          return recoveredStream;
+          throw new Error("simulated initial rotation failure");
         },
         fallbackStream,
         onStreamError: (error) => {
@@ -534,21 +640,21 @@ describe("logger", () => {
     );
 
     expect(() => logger.info("startup-falls-back")).not.toThrow();
-    await waitForCondition(() => destination.stream === recoveredStream, "expected retry rotation to recover");
-
-    expect(() => logger.info("startup-recovers")).not.toThrow();
+    await waitForAsyncWork();
+    expect(() => logger.info("startup-still-fallback")).not.toThrow();
     await waitForAsyncWork();
 
     destination.end();
     await finished(destination as Writable);
 
     const fallbackLogs = parseLogLines(fallbackOutput);
-    const recoveredLogs = parseLogLines(recoveredOutput);
     expect(fallbackLogs.some((entry) => entry.msg === "startup-falls-back")).toBe(true);
-    expect(recoveredLogs.some((entry) => entry.msg === "startup-recovers")).toBe(true);
+    expect(fallbackLogs.some((entry) => entry.msg === "startup-still-fallback")).toBe(true);
     expect(reportedErrors.some((error) => error.message.includes("simulated initial rotation failure"))).toBe(
       true,
     );
+    expect(streamCreationCount).toBe(1);
+    expect(destination.stream).toBeNull();
   });
 
   test("keeps the previous stream if rotation fails during rollover", async () => {
@@ -601,6 +707,10 @@ describe("logger", () => {
       () => reportedErrors.some((error) => error.message.includes("simulated rollover failure")),
       "expected rollover failure to be reported",
     );
+    expect(destination.stream).toBe(activeStream);
+
+    expect(() => logger.info("after-rollover-stays-on-old-stream")).not.toThrow();
+    await waitForAsyncWork();
 
     destination.end();
     await finished(destination as Writable);
@@ -608,7 +718,9 @@ describe("logger", () => {
     const logs = parseLogLines(output);
     expect(logs.some((entry) => entry.msg === "before-rollover")).toBe(true);
     expect(logs.some((entry) => entry.msg === "after-rollover-failure")).toBe(true);
+    expect(logs.some((entry) => entry.msg === "after-rollover-stays-on-old-stream")).toBe(true);
     expect(reportedErrors.some((error) => error.message.includes("simulated rollover failure"))).toBe(true);
+    expect(streamCreationCount).toBe(2);
 
     rmSync(logDir, { recursive: true, force: true });
   });

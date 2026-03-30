@@ -51,6 +51,12 @@ class DailyRotatingFileStream extends Writable {
   private currentDate = "";
   private rotationEnabled = true;
   private stream: Writable | null = null;
+  private pendingWrites: Array<{
+    callback: (error?: Error | null) => void;
+    chunk: Buffer | string;
+    encoding: BufferEncoding;
+  }> = [];
+  private rotationPending = false;
   private rotationScheduled = false;
   private rotationInProgress = false;
   private cleanupScheduled = false;
@@ -90,12 +96,228 @@ class DailyRotatingFileStream extends Writable {
   ): void {
     this.triggerRotationIfNeeded();
 
+    if (this.rotationPending || this.rotationInProgress) {
+      this.pendingWrites.push({ chunk, encoding, callback });
+      return;
+    }
+
+    this.writeResolvedDestination(chunk, encoding, callback);
+  }
+
+  override _final(callback: (error?: Error | null) => void): void {
+    this.isShuttingDown = true;
+
+    if (!this.stream) {
+      callback();
+      return;
+    }
+
+    const closingStream = this.stream;
+    closingStream.off("error", this.handleStreamError);
+    closingStream.once("error", (streamError) => {
+      this.onStreamError(this.toError(streamError));
+    });
+    closingStream.end(() => callback());
+    this.stream = null;
+  }
+
+  override _destroy(error: Error | null, callback: (error?: Error | null) => void): void {
+    this.isShuttingDown = true;
+
+    if (this.stream) {
+      const destroyingStream = this.stream;
+      destroyingStream.off("error", this.handleStreamError);
+      destroyingStream.once("error", (streamError) => {
+        this.onStreamError(this.toError(streamError));
+      });
+      destroyingStream.destroy();
+      this.stream = null;
+    }
+
+    callback(error);
+  }
+
+  private triggerRotationIfNeeded(): void {
+    if (
+      this.isShuttingDown ||
+      !this.rotationEnabled ||
+      this.rotationScheduled ||
+      this.rotationInProgress ||
+      !this.needsRotation()
+    ) {
+      return;
+    }
+
+    this.rotationPending = true;
+    this.rotationScheduled = true;
+    this.scheduleTask(() => {
+      this.rotationScheduled = false;
+
+      if (this.isShuttingDown || this.rotationInProgress || !this.needsRotation()) {
+        this.rotationPending = false;
+        this.flushPendingWrites();
+        return;
+      }
+
+      this.rotationInProgress = true;
+      void this.rotateSafely().finally(() => {
+        this.rotationInProgress = false;
+        this.rotationPending = false;
+        this.flushPendingWrites();
+      });
+    });
+  }
+
+  private needsRotation(): boolean {
+    return !this.stream || formatLogDate(this.now()) !== this.currentDate;
+  }
+
+  private async rotateSafely(): Promise<void> {
+    try {
+      await this.rotate();
+    } catch (error) {
+      this.markRotationFailure(error);
+    }
+  }
+
+  private async rotate(): Promise<void> {
+    await mkdir(this.config.LOG_DIR, { recursive: true });
+
+    if (this.isShuttingDown) {
+      return;
+    }
+
+    const now = this.now();
+    const currentDate = formatLogDate(now);
+    const nextPath = getLogFilePath(this.config.LOG_DIR, now);
+
+    if (this.currentDate === currentDate && this.stream) {
+      return;
+    }
+
+    const previousStream = this.stream;
+    const previousDate = this.currentDate;
+    let nextStream: Writable | null = null;
+
+    try {
+      nextStream = this.createStream(nextPath);
+
+      if (this.isShuttingDown) {
+        nextStream.destroy();
+        return;
+      }
+
+      nextStream.on("error", this.handleStreamError);
+      this.stream = nextStream;
+      this.currentDate = currentDate;
+      this.rotationEnabled = true;
+      this.triggerCleanup();
+
+      if (previousStream) {
+        previousStream.off("error", this.handleStreamError);
+        previousStream.once("error", (streamError) => {
+          this.onStreamError(this.toError(streamError));
+        });
+        previousStream.end();
+      }
+    } catch (error) {
+      nextStream?.off("error", this.handleStreamError);
+      nextStream?.destroy();
+      this.stream = previousStream;
+      this.currentDate = previousDate;
+      throw error;
+    }
+  }
+
+  private handleStreamError = (error: unknown): void => {
+    const activeStream = this.stream;
+    if (!activeStream) {
+      return;
+    }
+
+    this.onStreamError(this.toError(error));
+    this.rotationEnabled = false;
+    activeStream.off("error", this.handleStreamError);
+    activeStream.destroy();
+    this.stream = null;
+  };
+
+  private triggerCleanup(): void {
+    if (this.isShuttingDown || this.cleanupScheduled || this.cleanupInProgress) {
+      return;
+    }
+
+    this.cleanupScheduled = true;
+    this.scheduleTask(() => {
+      this.cleanupScheduled = false;
+
+      if (this.isShuttingDown || this.cleanupInProgress) {
+        return;
+      }
+
+      this.cleanupInProgress = true;
+      void this.cleanupExpiredLogs()
+        .catch((error) => {
+          this.onStreamError(this.toError(error));
+        })
+        .finally(() => {
+          this.cleanupInProgress = false;
+        });
+    });
+  }
+
+  private markRotationFailure(error: unknown): void {
+    this.onStreamError(this.toError(error));
+    this.rotationEnabled = false;
+
+    if (!this.stream) {
+      this.currentDate = "";
+    }
+  }
+
+  private flushPendingWrites(): void {
+    if (this.rotationPending || this.rotationInProgress || this.pendingWrites.length === 0) {
+      return;
+    }
+
+    const writes = this.pendingWrites;
+    this.pendingWrites = [];
+
+    const flushNext = (): void => {
+      const nextWrite = writes.shift();
+      if (!nextWrite) {
+        return;
+      }
+
+      this.writeResolvedDestination(nextWrite.chunk, nextWrite.encoding, (error) => {
+        nextWrite.callback(error);
+        flushNext();
+      });
+    };
+
+    flushNext();
+  }
+
+  private writeResolvedDestination(
+    chunk: Buffer | string,
+    encoding: BufferEncoding,
+    callback: (error?: Error | null) => void,
+  ): void {
     const activeStream = this.stream;
     if (!activeStream) {
       this.writeFallback(chunk, encoding, callback);
       return;
     }
 
+    this.writeToActiveStream(activeStream, chunk, encoding, callback);
+  }
+
+  private writeToActiveStream(
+    activeStream: Writable,
+    chunk: Buffer | string,
+    encoding: BufferEncoding,
+    callback: (error?: Error | null) => void,
+  ): void {
     let completed = false;
     const completeWrite = () => {
       if (completed) {
@@ -147,169 +369,6 @@ class DailyRotatingFileStream extends Writable {
       });
     } catch (error) {
       failWrite(error);
-    }
-  }
-
-  override _final(callback: (error?: Error | null) => void): void {
-    this.isShuttingDown = true;
-
-    if (!this.stream) {
-      callback();
-      return;
-    }
-
-    const closingStream = this.stream;
-    closingStream.off("error", this.handleStreamError);
-    closingStream.once("error", (streamError) => {
-      this.onStreamError(this.toError(streamError));
-    });
-    closingStream.end(() => callback());
-    this.stream = null;
-  }
-
-  override _destroy(error: Error | null, callback: (error?: Error | null) => void): void {
-    this.isShuttingDown = true;
-
-    if (this.stream) {
-      const destroyingStream = this.stream;
-      destroyingStream.off("error", this.handleStreamError);
-      destroyingStream.once("error", (streamError) => {
-        this.onStreamError(this.toError(streamError));
-      });
-      destroyingStream.destroy();
-      this.stream = null;
-    }
-
-    callback(error);
-  }
-
-  private triggerRotationIfNeeded(): void {
-    if (
-      this.isShuttingDown ||
-      this.rotationScheduled ||
-      this.rotationInProgress ||
-      !this.needsRotation()
-    ) {
-      return;
-    }
-
-    this.rotationScheduled = true;
-    this.scheduleTask(() => {
-      this.rotationScheduled = false;
-
-      if (this.isShuttingDown || this.rotationInProgress || !this.needsRotation()) {
-        return;
-      }
-
-      this.rotationInProgress = true;
-      void this.rotateSafely().finally(() => {
-        this.rotationInProgress = false;
-      });
-    });
-  }
-
-  private needsRotation(): boolean {
-    return !this.stream || formatLogDate(this.now()) !== this.currentDate;
-  }
-
-  private async rotateSafely(): Promise<void> {
-    try {
-      await this.rotate();
-    } catch (error) {
-      this.markRotationFailure(error);
-    }
-  }
-
-  private async rotate(): Promise<void> {
-    await mkdir(this.config.LOG_DIR, { recursive: true });
-
-    if (this.isShuttingDown) {
-      return;
-    }
-
-    const now = this.now();
-    const currentDate = formatLogDate(now);
-    const nextPath = getLogFilePath(this.config.LOG_DIR, now);
-
-    if (this.currentDate === currentDate && this.stream) {
-      return;
-    }
-
-    const previousStream = this.stream;
-    const previousDate = this.currentDate;
-    const nextStream = this.createStream(nextPath);
-
-    try {
-      if (this.isShuttingDown) {
-        nextStream.destroy();
-        return;
-      }
-
-      nextStream.on("error", this.handleStreamError);
-      this.stream = nextStream;
-      this.currentDate = currentDate;
-      this.rotationEnabled = true;
-      this.triggerCleanup();
-
-      if (previousStream) {
-        previousStream.off("error", this.handleStreamError);
-        previousStream.once("error", (streamError) => {
-          this.onStreamError(this.toError(streamError));
-        });
-        previousStream.end();
-      }
-    } catch (error) {
-      nextStream.off("error", this.handleStreamError);
-      nextStream.destroy();
-      this.stream = previousStream;
-      this.currentDate = previousDate;
-      this.markRotationFailure(error);
-    }
-  }
-
-  private handleStreamError = (error: unknown): void => {
-    const activeStream = this.stream;
-    if (!activeStream) {
-      return;
-    }
-
-    this.onStreamError(this.toError(error));
-    this.rotationEnabled = false;
-    activeStream.off("error", this.handleStreamError);
-    activeStream.destroy();
-    this.stream = null;
-  };
-
-  private triggerCleanup(): void {
-    if (this.isShuttingDown || this.cleanupScheduled || this.cleanupInProgress) {
-      return;
-    }
-
-    this.cleanupScheduled = true;
-    this.scheduleTask(() => {
-      this.cleanupScheduled = false;
-
-      if (this.isShuttingDown || this.cleanupInProgress) {
-        return;
-      }
-
-      this.cleanupInProgress = true;
-      void this.cleanupExpiredLogs()
-        .catch((error) => {
-          this.onStreamError(this.toError(error));
-        })
-        .finally(() => {
-          this.cleanupInProgress = false;
-        });
-    });
-  }
-
-  private markRotationFailure(error: unknown): void {
-    this.onStreamError(this.toError(error));
-    this.rotationEnabled = false;
-
-    if (!this.stream) {
-      this.currentDate = "";
     }
   }
 
