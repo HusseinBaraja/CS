@@ -365,6 +365,85 @@ describe("logger", () => {
     rmSync(logDir, { recursive: true, force: true });
   });
 
+  test("clamps invalid retention values and keeps the current day", async () => {
+    const logDir = mkdtempSync(join(tmpdir(), "cs-retention-clamp-"));
+    const todayLog = join(logDir, "cs-2026-03-06.log");
+    const previousDayLog = join(logDir, "cs-2026-03-05.log");
+    const olderLog = join(logDir, "cs-2026-03-04.log");
+    writeFileSync(todayLog, "today");
+    writeFileSync(previousDayLog, "previous");
+    writeFileSync(olderLog, "older");
+
+    const destination = createProductionLogDestination(
+      {
+        LOG_DIR: logDir,
+        LOG_RETENTION_DAYS: 0,
+      },
+      {
+        now: () => new Date("2026-03-06T23:30:00"),
+        createStream: () => new PassThrough(),
+      },
+    ) as Writable;
+
+    await waitForCondition(
+      () => existsSync(todayLog) && !existsSync(previousDayLog) && !existsSync(olderLog),
+      "expected retention clamp to keep only the current calendar day",
+    );
+
+    destination.end();
+    await finished(destination);
+    rmSync(logDir, { recursive: true, force: true });
+  });
+
+  test("retention uses calendar days rather than 24-hour windows", async () => {
+    const lateNight = new Date("2026-03-06T23:30:00");
+    const runCleanup = async (retentionDays: number, logDir: string): Promise<void> => {
+      const destination = createProductionLogDestination(
+        {
+          LOG_DIR: logDir,
+          LOG_RETENTION_DAYS: retentionDays,
+        },
+        {
+          now: () => lateNight,
+          createStream: () => new PassThrough(),
+        },
+      ) as Writable & { cleanupExpiredLogs: () => Promise<void> };
+
+      await destination.cleanupExpiredLogs();
+      destination.end();
+      await finished(destination);
+    };
+
+    const calendarLogDir = mkdtempSync(join(tmpdir(), "cs-retention-calendar-"));
+    const todayLog = join(calendarLogDir, "cs-2026-03-06.log");
+    const yesterdayLog = join(calendarLogDir, "cs-2026-03-05.log");
+    const twoDaysAgoLog = join(calendarLogDir, "cs-2026-03-04.log");
+    writeFileSync(todayLog, "today");
+    writeFileSync(yesterdayLog, "yesterday");
+    writeFileSync(twoDaysAgoLog, "older");
+
+    await runCleanup(2, calendarLogDir);
+
+    expect(existsSync(todayLog)).toBe(true);
+    expect(existsSync(yesterdayLog)).toBe(true);
+    expect(existsSync(twoDaysAgoLog)).toBe(false);
+
+    rmSync(calendarLogDir, { recursive: true, force: true });
+
+    const flooredLogDir = mkdtempSync(join(tmpdir(), "cs-retention-floored-"));
+    const flooredTodayLog = join(flooredLogDir, "cs-2026-03-06.log");
+    const flooredYesterdayLog = join(flooredLogDir, "cs-2026-03-05.log");
+    writeFileSync(flooredTodayLog, "today");
+    writeFileSync(flooredYesterdayLog, "yesterday");
+
+    await runCleanup(1.9, flooredLogDir);
+
+    expect(existsSync(flooredTodayLog)).toBe(true);
+    expect(existsSync(flooredYesterdayLog)).toBe(false);
+
+    rmSync(flooredLogDir, { recursive: true, force: true });
+  });
+
   test("rotates log files when the date changes", async () => {
     const logDir = mkdtempSync(join(tmpdir(), "cs-rotate-"));
     let currentDate = new Date("2026-03-06T08:00:00");

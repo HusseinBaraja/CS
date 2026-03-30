@@ -411,9 +411,15 @@ class DailyRotatingFileStream extends Writable {
   }
 
   private async cleanupExpiredLogs(): Promise<void> {
-    const retentionStart = toStartOfDay(this.now()).getTime();
-    const retentionWindow = (this.config.LOG_RETENTION_DAYS - 1) * 24 * 60 * 60 * 1000;
-    const oldestAllowed = retentionStart - retentionWindow;
+    const now = this.now();
+    const retentionDays = Number.isFinite(this.config.LOG_RETENTION_DAYS)
+      ? Math.max(1, Math.floor(this.config.LOG_RETENTION_DAYS))
+      : 1;
+    const oldestAllowed = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - (retentionDays - 1),
+    ).getTime();
 
     for (const entry of await readdir(this.config.LOG_DIR)) {
       const fileDate = parseLogDate(entry);
