@@ -48,12 +48,48 @@ const redactPaths = [
   "error.cause.context.ownerPhone",
 ] as const;
 
+const baseRedactOptions = {
+  paths: [...redactPaths],
+  censor: "[REDACTED]",
+};
+
 const baseLoggerOptions: LoggerOptions = {
   level: env.LOG_LEVEL,
-  redact: {
-    paths: [...redactPaths],
-    censor: "[REDACTED]",
-  },
+  redact: baseRedactOptions,
+};
+
+type RedactObject = Exclude<Exclude<LoggerOptions["redact"], string[]>, undefined>;
+
+const isRedactObject = (redact: unknown): redact is RedactObject =>
+  typeof redact === "object" && redact !== null && !Array.isArray(redact);
+
+const mergeRedactOptions = (redact: unknown): RedactObject => {
+  if (redact === undefined || redact === false) {
+    return {
+      ...baseRedactOptions,
+      paths: [...baseRedactOptions.paths],
+    };
+  }
+
+  if (Array.isArray(redact)) {
+    return {
+      ...baseRedactOptions,
+      paths: [...baseRedactOptions.paths, ...redact],
+    };
+  }
+
+  if (!isRedactObject(redact)) {
+    return {
+      ...baseRedactOptions,
+      paths: [...baseRedactOptions.paths],
+    };
+  }
+
+  return {
+    ...redact,
+    paths: [...baseRedactOptions.paths, ...(Array.isArray(redact.paths) ? redact.paths : [])],
+    censor: redact.censor ?? baseRedactOptions.censor,
+  };
 };
 
 export const createLoggerRuntimeConfig = (
@@ -83,6 +119,7 @@ export const createLogger = (
     ...baseLoggerOptions,
     level: runtimeConfig.LOG_LEVEL,
     ...options,
+    redact: mergeRedactOptions(options.redact),
   };
 
   const structuredDestination =

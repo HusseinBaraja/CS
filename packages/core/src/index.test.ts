@@ -120,6 +120,40 @@ describe("logger", () => {
     });
   });
 
+  test("preserves baseline redaction when callers add custom redact rules", async () => {
+    const stream = new PassThrough();
+    let output = "";
+    stream.on("data", (chunk: Buffer | string) => {
+      output += chunk.toString();
+    });
+
+    const testLogger = createLogger(
+      {
+        level: "info",
+        redact: {
+          paths: ["customSecret"],
+          censor: "[MASKED]",
+        },
+      },
+      stream,
+    );
+
+    testLogger.info(
+      {
+        password: "secret-pass",
+        customSecret: "custom-value",
+      },
+      "safe-log",
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const logs = parseLogLines(output);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]?.password).toBe("[MASKED]");
+    expect(logs[0]?.customSecret).toBe("[MASKED]");
+  });
+
   test("serializes errors for structured logs", () => {
     const error = new ValidationError("Invalid payload", {
       cause: new Error("Missing field"),
