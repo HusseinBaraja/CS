@@ -16,6 +16,7 @@ const createLoggerStub = () => {
 
   return {
     logger: {
+      debug: () => undefined,
       info: (payload: unknown, message: string) => {
         infoCalls.push({ payload, message });
       },

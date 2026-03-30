@@ -12,7 +12,7 @@ export type StructuredLogPayloadInput =
   & Partial<Pick<StructuredLogPayload, "runtime" | "surface">>;
 
 export interface StructuredLogger {
-  debug?(payload: Record<string, unknown>, message: string): void;
+  debug(payload: Record<string, unknown>, message: string): void;
   info(payload: Record<string, unknown>, message: string): void;
   warn(payload: Record<string, unknown>, message: string): void;
   error(payload: Record<string, unknown>, message: string): void;

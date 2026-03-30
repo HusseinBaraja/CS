@@ -16,6 +16,14 @@ const createLoggerStub = () => {
   const warnCalls: Array<{ payload: unknown; message: string }> = [];
 
   const createLogger = (bindings: Record<string, unknown> = {}) => ({
+    debug: (payload: unknown, message: string) => {
+      infoCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message,
+      });
+    },
     info: (payload: unknown, message: string) => {
       infoCalls.push({
         payload: typeof payload === "object" && payload !== null

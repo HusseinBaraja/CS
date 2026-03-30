@@ -11,6 +11,9 @@ const createLogCollector = () => {
   }> = [];
 
   const createLogger = (bindings: Record<string, unknown> = {}): StructuredLogger => ({
+    debug: (payload, message) => {
+      records.push({ level: "info", payload: { ...bindings, ...payload }, message });
+    },
     info: (payload, message) => {
       records.push({ level: "info", payload: { ...bindings, ...payload }, message });
     },

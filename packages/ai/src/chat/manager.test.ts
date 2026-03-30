@@ -51,6 +51,9 @@ const createLoggerStub = (): {
   const errorCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
 
   const createLogger = (bindings: Record<string, unknown> = {}): ChatManagerLogger => ({
+    debug(payload, message) {
+      infoCalls.push({ payload: { ...bindings, ...payload }, message });
+    },
     info(payload, message) {
       infoCalls.push({ payload: { ...bindings, ...payload }, message });
     },
@@ -654,6 +657,9 @@ describe("createChatProviderManager", () => {
       const manager = createChatProviderManager({
         runtimeConfig,
         logger: {
+          debug() {
+            return undefined;
+          },
           info() {
             throw new Error("logger info failed");
           },
@@ -705,6 +711,9 @@ describe("createChatProviderManager", () => {
       const manager = createChatProviderManager({
         runtimeConfig,
         logger: {
+          debug() {
+            return undefined;
+          },
           info() {
             return undefined;
           },
@@ -852,6 +861,9 @@ describe("createChatProviderManager", () => {
       const manager = createChatProviderManager({
         runtimeConfig,
         logger: {
+          debug() {
+            return undefined;
+          },
           info() {
             throw new Error("unexpected info call");
           },
@@ -922,6 +934,9 @@ describe("createChatProviderManager", () => {
       const manager = createChatProviderManager({
         runtimeConfig,
         logger: {
+          debug() {
+            return undefined;
+          },
           info() {
             throw new Error("unexpected info call");
           },

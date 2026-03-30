@@ -63,6 +63,9 @@ const createLogger = () => {
 
   return {
     logger: {
+      debug: (payload: unknown, message: string) => {
+        infoCalls.push({ payload, message });
+      },
       error: (payload: unknown, message: string) => {
         errorCalls.push({ payload, message });
       },
@@ -104,10 +107,12 @@ const createOutbound = () => {
 
 const createContext = (outbound?: OutboundMessenger): InboundRouteContext => ({
   logger: {
+    debug: () => undefined,
     info: () => undefined,
     warn: () => undefined,
     error: () => undefined,
     child: () => ({
+      debug: () => undefined,
       info: () => undefined,
       warn: () => undefined,
       error: () => undefined,
@@ -955,10 +960,12 @@ describe("createCustomerConversationRouter", () => {
     await router(createMessage({ companyId: "company-1" }), createContext(outbound));
     await router(createMessage({ companyId: "company-2", sessionKey: "session-2" }), {
       logger: {
+        debug: () => undefined,
         info: () => undefined,
         warn: () => undefined,
         error: () => undefined,
         child: () => ({
+          debug: () => undefined,
           info: () => undefined,
           warn: () => undefined,
           error: () => undefined,

@@ -25,6 +25,7 @@ const createLoggerStub = () => {
 
   return {
     logger: {
+      debug: () => undefined,
       info: () => undefined,
       warn: (payload, message) => {
         warnCalls.push({ payload, message });

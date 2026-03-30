@@ -278,6 +278,7 @@ describe("logger", () => {
   test("merges child bindings for loggers without child support", () => {
     const infoCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
     const baseLogger = {
+      debug() {},
       info(payload: Record<string, unknown>, message: string) {
         infoCalls.push({ payload, message });
       },
@@ -311,7 +312,7 @@ describe("logger", () => {
 
     expect(() =>
       logEvent(
-        loggerWithoutDebug,
+        loggerWithoutDebug as never,
         "debug",
         {
           event: "bot.message.received",
@@ -329,7 +330,7 @@ describe("logger", () => {
       warn() {},
       error() {},
     };
-    const boundLogger = withLogBindings(loggerWithoutDebug, { runtime: "bot" });
+    const boundLogger = withLogBindings(loggerWithoutDebug as never, { runtime: "bot" });
 
     expect(() =>
       boundLogger.debug?.(

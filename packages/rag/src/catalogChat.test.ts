@@ -84,6 +84,9 @@ const createLoggerStub = (): {
 
   return {
     logger: {
+      debug() {
+        return undefined;
+      },
       info(payload, message) {
         infoCalls.push({ payload, message });
       },

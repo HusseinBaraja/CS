@@ -9,6 +9,9 @@ const createLoggerStub = () => {
   const warnCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
 
   const createLogger = (bindings: Record<string, unknown> = {}) => ({
+    debug: (payload: Record<string, unknown>, message: string) => {
+      infoCalls.push({ payload: { ...bindings, ...payload }, message });
+    },
     info: (payload: Record<string, unknown>, message: string) => {
       infoCalls.push({ payload: { ...bindings, ...payload }, message });
     },

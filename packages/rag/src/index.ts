@@ -596,6 +596,9 @@ const buildAssistantFallback = (
 };
 
 const defaultCatalogChatLogger: CatalogChatLogger = {
+  debug() {
+    return undefined;
+  },
   info() {
     return undefined;
   },

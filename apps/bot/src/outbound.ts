@@ -165,6 +165,7 @@ const defaultTimer: OutboundTimer = {
 };
 
 const defaultLogger: OutboundLogger = {
+  debug: () => undefined,
   info: () => undefined,
   warn: () => undefined,
   error: () => undefined,
