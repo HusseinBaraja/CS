@@ -106,18 +106,16 @@ const createOutbound = () => {
 };
 
 const createContext = (outbound?: OutboundMessenger): InboundRouteContext => ({
-  logger: {
-    debug: () => undefined,
-    info: () => undefined,
-    warn: () => undefined,
-    error: () => undefined,
-    child: () => ({
+  logger: (() => {
+    const stub: InboundRouteContext["logger"] = {
       debug: () => undefined,
       info: () => undefined,
       warn: () => undefined,
       error: () => undefined,
-    }),
-  },
+      child: () => stub,
+    };
+    return stub;
+  })(),
   profile: {
     companyId: "company-1",
     name: "Tenant 1",
@@ -959,18 +957,16 @@ describe("createCustomerConversationRouter", () => {
 
     await router(createMessage({ companyId: "company-1" }), createContext(outbound));
     await router(createMessage({ companyId: "company-2", sessionKey: "session-2" }), {
-      logger: {
-        debug: () => undefined,
-        info: () => undefined,
-        warn: () => undefined,
-        error: () => undefined,
-        child: () => ({
+      logger: (() => {
+        const stub: InboundRouteContext["logger"] = {
           debug: () => undefined,
           info: () => undefined,
           warn: () => undefined,
           error: () => undefined,
-        }),
-      },
+          child: () => stub,
+        };
+        return stub;
+      })(),
       profile: {
         companyId: "company-2",
         name: "Tenant 2",
