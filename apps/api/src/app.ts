@@ -214,7 +214,11 @@ export const createApp = (options: ApiAppOptions = {}) => {
   });
 
   app.use("*", async (c, next) => {
-    const requestId = c.req.header("x-request-id")?.trim() || createRequestId();
+    const incomingRequestId = c.req.header("x-request-id")?.trim();
+    const requestId =
+      incomingRequestId && /^[A-Za-z0-9._:-]{1,128}$/u.test(incomingRequestId)
+        ? incomingRequestId
+        : createRequestId();
     const startedAt = (options.now ?? Date.now)();
     const requestLogger = withLogBindings(appLogger, {
       surface: "http",
@@ -224,7 +228,6 @@ export const createApp = (options: ApiAppOptions = {}) => {
     c.set("requestId", requestId);
     c.set("requestLogger", requestLogger);
     c.header(REQUEST_ID_HEADER, requestId);
-
     await next();
 
     // Re-apply the request id in case downstream middleware replaced the response object.
