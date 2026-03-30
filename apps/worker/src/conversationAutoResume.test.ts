@@ -34,15 +34,31 @@ const createLoggerStub = () => {
   const infoCalls: Array<{ payload: unknown; message: string }> = [];
   const errorCalls: Array<{ payload: unknown; message: string }> = [];
 
-  const createLogger = (bindings: Record<string, unknown> = {}) => ({
-    debug: (...args: unknown[]) => {
-      const [payload = {}, message = ""] = args;
-      infoCalls.push({
-        payload: typeof payload === "object" && payload !== null
-          ? { ...bindings, ...payload }
-          : payload,
-        message: typeof message === "string" ? message : String(message),
-      });
+  const createLoggerStub = () => {
+    const debugCalls: Array<{ payload: unknown; message: string }> = [];
+    const infoCalls: Array<{ payload: unknown; message: string }> = [];
+    const errorCalls: Array<{ payload: unknown; message: string }> = [];
+
+    const createLogger = (bindings: Record<string, unknown> = {}) => ({
+      debug: (...args: unknown[]) => {
+        const [payload = {}, message = ""] = args;
+        debugCalls.push({
+          payload: typeof payload === "object" && payload !== null
+            ? { ...bindings, ...payload }
+            : payload,
+          message: typeof message === "string" ? message : String(message),
+        });
+      },
+      // ... other logger methods
+    });
+
+    return {
+      logger: createLogger(),
+      debugCalls,
+      infoCalls,
+      errorCalls,
+    };
+  };
     },
     info: (...args: unknown[]) => {
       const [payload = {}, message = ""] = args;

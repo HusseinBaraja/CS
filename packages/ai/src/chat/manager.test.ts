@@ -231,7 +231,6 @@ describe("createChatProviderManager", () => {
         provider: "deepseek",
         model: "deepseek-chat",
         nextProvider: "gemini",
-        attemptedProviders: ["deepseek"],
       },
     });
     expect(infoCalls[0]).toMatchObject({
