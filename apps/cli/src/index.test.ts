@@ -137,4 +137,36 @@ describe("runCli", () => {
       },
     ]);
   });
+
+  test("prints injected commands when using the default usage printer", async () => {
+    const { logger } = createLoggerStub();
+    const commands: CliCommand[] = [
+      {
+        name: "custom",
+        description: "custom command",
+        run: async () => undefined,
+      },
+    ];
+    const originalConsoleLog = console.log;
+    const logLines: string[] = [];
+    console.log = (...args: unknown[]) => {
+      logLines.push(args.map((arg) => String(arg)).join(" "));
+    };
+
+    try {
+      await runCli({
+        argv: [],
+        commands,
+        logger,
+      });
+    } finally {
+      console.log = originalConsoleLog;
+    }
+
+    expect(logLines).toContain("Usage: cs <command> [options]");
+    expect(logLines).toContain("Commands:");
+    expect(logLines.some((line) => line.includes("custom") && line.includes("custom command"))).toBe(true);
+    expect(logLines.some((line) => line.includes("backup"))).toBe(false);
+    expect(logLines.some((line) => line.includes("seed"))).toBe(false);
+  });
 });

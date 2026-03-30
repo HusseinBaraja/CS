@@ -13,12 +13,12 @@ import type { CliCommand } from './commands/types';
 
 const commands: CliCommand[] = [seedCommand, backupCommand];
 
-const printUsage = (): void => {
+const printUsage = (availableCommands: CliCommand[] = commands): void => {
   console.log("Usage: cs <command> [options]");
   console.log("");
   console.log("Commands:");
 
-  for (const command of commands) {
+  for (const command of availableCommands) {
     console.log(`  ${command.name.padEnd(7)} ${command.description}`);
   }
 };
@@ -37,7 +37,7 @@ export const runCli = async (options: RunCliOptions = {}): Promise<void> => {
     surface: "command",
   });
   const availableCommands = options.commands ?? commands;
-  const usagePrinter = options.printUsage ?? printUsage;
+  const usagePrinter = options.printUsage ?? (() => printUsage(availableCommands));
 
   if (!commandName) {
     usagePrinter();
