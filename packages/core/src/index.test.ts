@@ -399,6 +399,28 @@ describe("logger", () => {
     rmSync(logDir, { recursive: true, force: true });
   });
 
+  test("does not touch LOG_DIR when creating a non-production logger without a destination", async () => {
+    const logDir = join(
+      tmpdir(),
+      `cs-non-production-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    const runtimeConfig = createLoggerRuntimeConfig({
+      NODE_ENV: "test",
+      LOG_LEVEL: "info",
+      LOG_DIR: logDir,
+      LOG_RETENTION_DAYS: 7,
+    });
+
+    expect(existsSync(logDir)).toBe(false);
+    const testLogger = createLogger({}, undefined, runtimeConfig);
+
+    await waitForAsyncWork();
+    testLogger.info("pretty-only");
+    await waitForAsyncWork();
+
+    expect(existsSync(logDir)).toBe(false);
+  });
+
   test("clamps invalid retention values and keeps the current day", async () => {
     const logDir = mkdtempSync(join(tmpdir(), "cs-retention-clamp-"));
     const todayLog = join(logDir, "cs-2026-03-06.log");

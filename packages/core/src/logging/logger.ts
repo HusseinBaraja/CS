@@ -122,21 +122,21 @@ export const createLogger = (
     redact: mergeRedactOptions(options.redact),
   };
 
-  const structuredDestination =
-    destination ??
+  if (destination) {
+    return pino(finalOptions, destination);
+  }
+
+  if (runtimeConfig.NODE_ENV !== "production") {
+    return pino(finalOptions, createPrettyStream());
+  }
+
+  return pino(
+    finalOptions,
     createProductionLogDestination({
       LOG_DIR: runtimeConfig.LOG_DIR,
       LOG_RETENTION_DAYS: runtimeConfig.LOG_RETENTION_DAYS,
-    });
-
-  if (!destination && runtimeConfig.NODE_ENV !== "production") {
-    return pino(finalOptions, pino.multistream([
-      { stream: structuredDestination },
-      { stream: createPrettyStream() },
-    ]));
-  }
-
-  return pino(finalOptions, structuredDestination);
+    }),
+  );
 };
 
 export const logger = createLogger();
