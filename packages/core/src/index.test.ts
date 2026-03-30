@@ -5,7 +5,18 @@ import { join } from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
 import { finished } from 'node:stream/promises';
 import { ValidationError } from '@cs/shared';
-import { createLogger, createLoggerRuntimeConfig, createProductionLogDestination, logError } from './index';
+import {
+  createLogger,
+  createLoggerRuntimeConfig,
+  createProductionLogDestination,
+  logError,
+  logEvent,
+  redactJidForLog,
+  redactPhoneLikeValue,
+  serializeErrorForLog,
+  summarizeTextForLog,
+  withLogBindings,
+} from './index';
 
 const parseLogLines = (buffer: string): Record<string, unknown>[] =>
   buffer
@@ -60,8 +71,28 @@ describe("logger", () => {
 
     const testLogger = createLogger({ level: "info" }, stream);
     testLogger.info(
-      { password: "secret-pass", token: "abc123", phoneNumber: "+15551234567" },
-      "safe-log"
+      {
+        password: "secret-pass",
+        token: "abc123",
+        phoneNumber: "+15551234567",
+        error: {
+          context: {
+            apiKey: "sensitive-api-key",
+            phoneNumber: "+967700000001",
+          },
+          cause: {
+            context: {
+              token: "nested-token",
+            },
+            message: "nested cause",
+            name: "NestedError",
+          },
+          code: "VALIDATION_FAILED",
+          message: "top-level message",
+          name: "ValidationError",
+        },
+      },
+      "safe-log",
     );
 
     await new Promise((resolve) => setImmediate(resolve));
@@ -71,6 +102,69 @@ describe("logger", () => {
     expect(logs[0]?.password).toBe("[REDACTED]");
     expect(logs[0]?.token).toBe("[REDACTED]");
     expect(logs[0]?.phoneNumber).toBe("[REDACTED]");
+    expect(logs[0]?.error).toMatchObject({
+      code: "VALIDATION_FAILED",
+      message: "top-level message",
+      name: "ValidationError",
+      context: {
+        apiKey: "[REDACTED]",
+        phoneNumber: "[REDACTED]",
+      },
+      cause: {
+        message: "nested cause",
+        name: "NestedError",
+        context: {
+          token: "[REDACTED]",
+        },
+      },
+    });
+  });
+
+  test("preserves baseline redaction when callers add custom redact rules", async () => {
+    const stream = new PassThrough();
+    let output = "";
+    stream.on("data", (chunk: Buffer | string) => {
+      output += chunk.toString();
+    });
+
+    const testLogger = createLogger(
+      {
+        level: "info",
+        redact: {
+          paths: ["customSecret"],
+          censor: "[MASKED]",
+        },
+      },
+      stream,
+    );
+
+    testLogger.info(
+      {
+        password: "secret-pass",
+        customSecret: "custom-value",
+      },
+      "safe-log",
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const logs = parseLogLines(output);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]?.password).toBe("[MASKED]");
+    expect(logs[0]?.customSecret).toBe("[MASKED]");
+  });
+
+  test("serializes errors for structured logs", () => {
+    const error = new ValidationError("Invalid payload", {
+      cause: new Error("Missing field"),
+      context: { module: "bot", action: "process-message" },
+    });
+
+    expect(serializeErrorForLog(error)).toMatchObject({
+      code: "VALIDATION_FAILED",
+      context: { module: "bot", action: "process-message" },
+      message: "Invalid payload",
+    });
   });
 
   test("logs formatted errors with context", async () => {
@@ -83,10 +177,12 @@ describe("logger", () => {
     const testLogger = createLogger({ level: "error" }, stream);
     const error = new ValidationError("Invalid payload", {
       cause: new Error("Missing field"),
-      context: { module: "bot", action: "process-message" }
+      context: { module: "bot", action: "process-message" },
     });
 
-    logError(testLogger, error, "Operation failed", { conversationId: "abc-123" });
+    logError(testLogger, error, "Operation failed", {
+      context: { conversationId: "abc-123" },
+    });
 
     await new Promise((resolve) => setImmediate(resolve));
 
@@ -94,10 +190,176 @@ describe("logger", () => {
     expect(logs).toHaveLength(1);
     expect(logs[0]?.msg).toBe("Operation failed");
     expect(logs[0]?.context).toEqual({ conversationId: "abc-123" });
-    expect(logs[0]?.err).toMatchObject({
+    expect(logs[0]?.event).toBe("core.log.error");
+    expect(logs[0]?.error).toMatchObject({
       code: "VALIDATION_FAILED",
-      context: { module: "bot", action: "process-message" }
+      context: { module: "bot", action: "process-message" },
     });
+  });
+
+  test("allows logError callers to override the event envelope", async () => {
+    const stream = new PassThrough();
+    let output = "";
+    stream.on("data", (chunk: Buffer | string) => {
+      output += chunk.toString();
+    });
+
+    const testLogger = createLogger({ level: "error" }, stream);
+    logError(
+      testLogger,
+      new Error("startup failed"),
+      "bot startup failed",
+      {
+        context: { retryable: false },
+        envelopeOverrides: {
+          event: "bot.runtime.startup_failed",
+          runtime: "bot",
+          surface: "runtime",
+          outcome: "failed",
+          sessionKey: "company-company-1",
+        },
+      },
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const logs = parseLogLines(output);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      event: "bot.runtime.startup_failed",
+      runtime: "bot",
+      surface: "runtime",
+      outcome: "failed",
+      sessionKey: "company-company-1",
+      context: { retryable: false },
+      error: expect.objectContaining({
+        message: "startup failed",
+        name: "Error",
+      }),
+      msg: "bot startup failed",
+    });
+  });
+
+  test("logs structured events with required fields", async () => {
+    const stream = new PassThrough();
+    let output = "";
+    stream.on("data", (chunk: Buffer | string) => {
+      output += chunk.toString();
+    });
+
+    const testLogger = createLogger({ level: "info" }, stream);
+    logEvent(
+      testLogger,
+      "info",
+      {
+        event: "api.request.completed",
+        runtime: "api",
+        surface: "http",
+        outcome: "success",
+        requestId: "req-1",
+      },
+      "request completed",
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const logs = parseLogLines(output);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      event: "api.request.completed",
+      runtime: "api",
+      surface: "http",
+      outcome: "success",
+      requestId: "req-1",
+      msg: "request completed",
+    });
+  });
+
+  test("merges child bindings for loggers without child support", () => {
+    const infoCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
+    const baseLogger = {
+      debug() {},
+      info(payload: Record<string, unknown>, message: string) {
+        infoCalls.push({ payload, message });
+      },
+      warn() {},
+      error() {},
+    };
+
+    const boundLogger = withLogBindings(baseLogger, { runtime: "bot", companyId: "company-1" });
+    boundLogger.info({ event: "bot.message.received", surface: "router", outcome: "received" }, "inbound");
+
+    expect(infoCalls).toEqual([
+      {
+        payload: {
+          runtime: "bot",
+          companyId: "company-1",
+          event: "bot.message.received",
+          surface: "router",
+          outcome: "received",
+        },
+        message: "inbound",
+      },
+    ]);
+  });
+
+  test("throws when a logger is missing the requested method for logEvent", () => {
+    const loggerWithoutDebug = {
+      info() {},
+      warn() {},
+      error() {},
+    };
+
+    expect(() =>
+      logEvent(
+        loggerWithoutDebug as never,
+        "debug",
+        {
+          event: "bot.message.received",
+          outcome: "received",
+          runtime: "bot",
+          surface: "router",
+        },
+        "inbound",
+      )).toThrow('Structured logger is missing "debug" method');
+  });
+
+  test("throws when a bound logger is missing the requested method", () => {
+    const loggerWithoutDebug = {
+      info() {},
+      warn() {},
+      error() {},
+    };
+    const boundLogger = withLogBindings(loggerWithoutDebug as never, { runtime: "bot" });
+
+    expect(() =>
+      boundLogger.debug?.(
+        {
+          event: "bot.message.received",
+          surface: "router",
+          outcome: "received",
+        },
+        "inbound",
+      )).toThrow('Structured logger is missing "debug" method');
+  });
+
+  test("summarizes text without leaking raw content", () => {
+    const summary = summarizeTextForLog("hello\nworld");
+
+    expect(summary).toMatchObject({
+      textLength: 11,
+      textLineCount: 2,
+    });
+    expect(summary).not.toHaveProperty("textSha256");
+    expect(Object.values(summary)).not.toContain("hello\nworld");
+  });
+
+  test("redacts phone-like values and JIDs", () => {
+    expect(redactPhoneLikeValue("12")).toBe("[redacted]");
+    expect(redactPhoneLikeValue("1234")).toBe("[redacted]");
+    expect(redactPhoneLikeValue("+967-777-123-456")).toBe("***3456");
+    expect(redactJidForLog("1234@s.whatsapp.net")).toBe("[redacted]@s.whatsapp.net");
+    expect(redactJidForLog("967777123456@s.whatsapp.net")).toBe("***3456@s.whatsapp.net");
   });
 
   test("writes production logs to rotating files and prunes expired ones", async () => {
@@ -109,12 +371,12 @@ describe("logger", () => {
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       LOG_DIR: logDir,
-      LOG_RETENTION_DAYS: 7
+      LOG_RETENTION_DAYS: 7,
     });
 
     const destination = createProductionLogDestination({
       LOG_DIR: logDir,
-      LOG_RETENTION_DAYS: 7
+      LOG_RETENTION_DAYS: 7,
     }) as Writable & { stream: Writable | null };
     const logger = createLogger({}, destination, runtimeConfig);
 
@@ -138,6 +400,107 @@ describe("logger", () => {
     rmSync(logDir, { recursive: true, force: true });
   });
 
+  test("does not touch LOG_DIR when creating a non-production logger without a destination", async () => {
+    const logDir = join(
+      tmpdir(),
+      `cs-non-production-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    const runtimeConfig = createLoggerRuntimeConfig({
+      NODE_ENV: "test",
+      LOG_LEVEL: "info",
+      LOG_DIR: logDir,
+      LOG_RETENTION_DAYS: 7,
+    });
+
+    expect(existsSync(logDir)).toBe(false);
+    const testLogger = createLogger({}, undefined, runtimeConfig);
+
+    await waitForAsyncWork();
+    testLogger.info("pretty-only");
+    await waitForAsyncWork();
+
+    expect(existsSync(logDir)).toBe(false);
+  });
+
+  test("clamps invalid retention values and keeps the current day", async () => {
+    const logDir = mkdtempSync(join(tmpdir(), "cs-retention-clamp-"));
+    const todayLog = join(logDir, "cs-2026-03-06.log");
+    const previousDayLog = join(logDir, "cs-2026-03-05.log");
+    const olderLog = join(logDir, "cs-2026-03-04.log");
+    writeFileSync(todayLog, "today");
+    writeFileSync(previousDayLog, "previous");
+    writeFileSync(olderLog, "older");
+
+    const destination = createProductionLogDestination(
+      {
+        LOG_DIR: logDir,
+        LOG_RETENTION_DAYS: 0,
+      },
+      {
+        now: () => new Date("2026-03-06T23:30:00"),
+        createStream: () => new PassThrough(),
+      },
+    ) as Writable;
+
+    await waitForCondition(
+      () => existsSync(todayLog) && !existsSync(previousDayLog) && !existsSync(olderLog),
+      "expected retention clamp to keep only the current calendar day",
+    );
+
+    destination.end();
+    await finished(destination);
+    rmSync(logDir, { recursive: true, force: true });
+  });
+
+  test("retention uses calendar days rather than 24-hour windows", async () => {
+    const lateNight = new Date("2026-03-06T23:30:00");
+    const runCleanup = async (retentionDays: number, logDir: string): Promise<void> => {
+      const destination = createProductionLogDestination(
+        {
+          LOG_DIR: logDir,
+          LOG_RETENTION_DAYS: retentionDays,
+        },
+        {
+          now: () => lateNight,
+          createStream: () => new PassThrough(),
+        },
+      ) as Writable & { cleanupExpiredLogs: () => Promise<void> };
+
+      await destination.cleanupExpiredLogs();
+      destination.end();
+      await finished(destination);
+    };
+
+    const calendarLogDir = mkdtempSync(join(tmpdir(), "cs-retention-calendar-"));
+    const todayLog = join(calendarLogDir, "cs-2026-03-06.log");
+    const yesterdayLog = join(calendarLogDir, "cs-2026-03-05.log");
+    const twoDaysAgoLog = join(calendarLogDir, "cs-2026-03-04.log");
+    writeFileSync(todayLog, "today");
+    writeFileSync(yesterdayLog, "yesterday");
+    writeFileSync(twoDaysAgoLog, "older");
+
+    await runCleanup(2, calendarLogDir);
+
+    expect(existsSync(todayLog)).toBe(true);
+    expect(existsSync(yesterdayLog)).toBe(true);
+    expect(existsSync(twoDaysAgoLog)).toBe(false);
+
+    rmSync(calendarLogDir, { recursive: true, force: true });
+
+    const flooredLogDir = mkdtempSync(join(tmpdir(), "cs-retention-floored-"));
+    const flooredTodayLog = join(flooredLogDir, "cs-2026-03-06.log");
+    const flooredYesterdayLog = join(flooredLogDir, "cs-2026-03-05.log");
+    writeFileSync(flooredTodayLog, "today");
+    writeFileSync(flooredYesterdayLog, "yesterday");
+
+    await runCleanup(1.9, flooredLogDir);
+
+    expect(existsSync(flooredTodayLog)).toBe(true);
+    expect(existsSync(flooredYesterdayLog)).toBe(false);
+
+    rmSync(flooredLogDir, { recursive: true, force: true });
+  });
+
   test("rotates log files when the date changes", async () => {
     const logDir = mkdtempSync(join(tmpdir(), "cs-rotate-"));
     let currentDate = new Date("2026-03-06T08:00:00");
@@ -145,18 +508,18 @@ describe("logger", () => {
     const destination = createProductionLogDestination(
       {
         LOG_DIR: logDir,
-        LOG_RETENTION_DAYS: 14
+        LOG_RETENTION_DAYS: 14,
       },
       {
-        now: () => currentDate
-      }
+        now: () => currentDate,
+      },
     ) as Writable & { stream: Writable | null; currentDate: string };
 
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       LOG_DIR: logDir,
-      LOG_RETENTION_DAYS: 14
+      LOG_RETENTION_DAYS: 14,
     });
     const logger = createLogger({}, destination, runtimeConfig);
 
@@ -168,7 +531,7 @@ describe("logger", () => {
     logger.info("day-two-trigger");
     await waitForCondition(
       () => destination.currentDate === "2026-03-07",
-      "expected rotation to switch to the next daily log file"
+      "expected rotation to switch to the next daily log file",
     );
     logger.info("day-two");
     await waitForAsyncWork();
@@ -182,25 +545,147 @@ describe("logger", () => {
     rmSync(logDir, { recursive: true, force: true });
   });
 
-  test("handles destination stream errors without crashing", async () => {
+  test("startup writes wait for scheduled rotation before choosing a destination", async () => {
+    const logDir = mkdtempSync(join(tmpdir(), "cs-startup-pending-"));
+    const scheduledTasks: Array<() => void> = [];
+    let activeOutput = "";
+    let fallbackOutput = "";
+    const activeStream = new PassThrough();
+    const fallbackStream = new PassThrough();
+    activeStream.on("data", (chunk: Buffer | string) => {
+      activeOutput += chunk.toString();
+    });
+    fallbackStream.on("data", (chunk: Buffer | string) => {
+      fallbackOutput += chunk.toString();
+    });
+
+    const destination = createProductionLogDestination(
+      {
+        LOG_DIR: logDir,
+        LOG_RETENTION_DAYS: 14,
+      },
+      {
+        createStream: () => activeStream,
+        fallbackStream,
+        scheduleTask: (task) => {
+          scheduledTasks.push(task);
+        },
+      },
+    ) as Writable & { stream: Writable | null };
+    const runtimeConfig = createLoggerRuntimeConfig({
+      NODE_ENV: "production",
+      LOG_LEVEL: "info",
+      LOG_DIR: logDir,
+      LOG_RETENTION_DAYS: 14,
+    });
+    const logger = createLogger({}, destination, runtimeConfig);
+
+    expect(destination.stream).toBeNull();
+    logger.info("queued-before-startup-rotation");
+    await waitForAsyncWork();
+
+    expect(parseLogLines(activeOutput)).toHaveLength(0);
+    expect(parseLogLines(fallbackOutput)).toHaveLength(0);
+
+    const scheduledRotation = scheduledTasks.shift();
+    expect(scheduledRotation).toBeDefined();
+    scheduledRotation?.();
+
+    await waitForCondition(
+      () => parseLogLines(activeOutput).some((entry) => entry.msg === "queued-before-startup-rotation"),
+      "expected queued startup write to flush into the created stream",
+    );
+
+    destination.end();
+    await finished(destination);
+    rmSync(logDir, { recursive: true, force: true });
+  });
+
+  test("post-midnight writes wait for scheduled rotation and land in the new day stream", async () => {
+    const logDir = mkdtempSync(join(tmpdir(), "cs-midnight-pending-"));
+    const scheduledTasks: Array<() => void> = [];
+    let currentDate = new Date("2026-03-06T08:00:00");
+    let dayOneOutput = "";
+    let dayTwoOutput = "";
+    const dayOneStream = new PassThrough();
+    const dayTwoStream = new PassThrough();
+    dayOneStream.on("data", (chunk: Buffer | string) => {
+      dayOneOutput += chunk.toString();
+    });
+    dayTwoStream.on("data", (chunk: Buffer | string) => {
+      dayTwoOutput += chunk.toString();
+    });
+
+    let streamCreationCount = 0;
+    const destination = createProductionLogDestination(
+      {
+        LOG_DIR: logDir,
+        LOG_RETENTION_DAYS: 14,
+      },
+      {
+        now: () => currentDate,
+        createStream: () => {
+          streamCreationCount += 1;
+          return streamCreationCount === 1 ? dayOneStream : dayTwoStream;
+        },
+        scheduleTask: (task) => {
+          scheduledTasks.push(task);
+        },
+      },
+    ) as Writable & { currentDate: string; stream: Writable | null };
+    const runtimeConfig = createLoggerRuntimeConfig({
+      NODE_ENV: "production",
+      LOG_LEVEL: "info",
+      LOG_DIR: logDir,
+      LOG_RETENTION_DAYS: 14,
+    });
+    const logger = createLogger({}, destination, runtimeConfig);
+
+    const initialRotation = scheduledTasks.shift();
+    expect(initialRotation).toBeDefined();
+    initialRotation?.();
+    await waitForCondition(() => destination.stream === dayOneStream, "expected day-one stream to be active");
+    while (scheduledTasks.length > 0) {
+      scheduledTasks.shift()?.();
+    }
+
+    logger.info("day-one");
+    await waitForAsyncWork();
+
+    currentDate = new Date("2026-03-07T08:00:00");
+    logger.info("queued-for-day-two");
+    await waitForAsyncWork();
+
+    expect(parseLogLines(dayOneOutput).some((entry) => entry.msg === "queued-for-day-two")).toBe(false);
+
+    while (scheduledTasks.length > 0) {
+      scheduledTasks.shift()?.();
+    }
+
+    await waitForCondition(
+      () => parseLogLines(dayTwoOutput).some((entry) => entry.msg === "queued-for-day-two"),
+      "expected queued rollover write to flush into the new day stream",
+    );
+
+    destination.end();
+    await finished(destination);
+    rmSync(logDir, { recursive: true, force: true });
+  });
+
+  test("falls back after destination stream errors without retrying rotation", async () => {
     class FailingWriteStream extends Writable {
       override _write(
         _chunk: Buffer | string,
         _encoding: BufferEncoding,
-        callback: (error?: Error | null) => void
+        callback: (error?: Error | null) => void,
       ): void {
         callback(new Error("simulated stream failure"));
       }
     }
 
     const logDir = mkdtempSync(join(tmpdir(), "cs-stream-error-"));
-    let recoveredOutput = "";
     let fallbackOutput = "";
-    const recoveredStream = new PassThrough();
     const fallbackStream = new PassThrough();
-    recoveredStream.on("data", (chunk: Buffer | string) => {
-      recoveredOutput += chunk.toString();
-    });
     fallbackStream.on("data", (chunk: Buffer | string) => {
       fallbackOutput += chunk.toString();
     });
@@ -210,29 +695,25 @@ describe("logger", () => {
     const destination = createProductionLogDestination(
       {
         LOG_DIR: logDir,
-        LOG_RETENTION_DAYS: 14
+        LOG_RETENTION_DAYS: 14,
       },
       {
         createStream: () => {
           streamCreationCount += 1;
-          if (streamCreationCount === 1) {
-            return new FailingWriteStream();
-          }
-
-          return recoveredStream;
+          return new FailingWriteStream();
         },
         fallbackStream,
         onStreamError: (error) => {
           reportedErrors.push(error);
-        }
-      }
+        },
+      },
     ) as Writable & { stream: Writable | null };
 
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       LOG_DIR: logDir,
-      LOG_RETENTION_DAYS: 14
+      LOG_RETENTION_DAYS: 14,
     });
     const logger = createLogger({}, destination, runtimeConfig);
 
@@ -241,87 +722,75 @@ describe("logger", () => {
     await waitForAsyncWork();
 
     expect(() => logger.info("second-write-falls-back")).not.toThrow();
-    await waitForCondition(() => destination.stream === recoveredStream, "expected recovered stream to be active");
-
-    expect(() => logger.info("third-write-recovers")).not.toThrow();
     await waitForAsyncWork();
 
     destination.end();
     await finished(destination as Writable);
 
     const fallbackLogs = parseLogLines(fallbackOutput);
-    const logs = parseLogLines(recoveredOutput);
     expect(fallbackLogs.some((entry) => entry.msg === "first-write-fails")).toBe(true);
     expect(fallbackLogs.some((entry) => entry.msg === "second-write-falls-back")).toBe(true);
-    expect(logs.some((entry) => entry.msg === "third-write-recovers")).toBe(true);
     expect(reportedErrors[0]?.message).toContain("simulated stream failure");
+    expect(streamCreationCount).toBe(1);
+    expect(destination.stream).toBeNull();
 
     rmSync(logDir, { recursive: true, force: true });
   });
 
-  test("falls back to stderr and retries rotation after initial setup failure", async () => {
+  test("falls back to stderr and stops retrying after initial setup failure", async () => {
     const reportedErrors: Error[] = [];
     let fallbackOutput = "";
-    let recoveredOutput = "";
     const fallbackStream = new PassThrough();
-    const recoveredStream = new PassThrough();
     fallbackStream.on("data", (chunk: Buffer | string) => {
       fallbackOutput += chunk.toString();
-    });
-    recoveredStream.on("data", (chunk: Buffer | string) => {
-      recoveredOutput += chunk.toString();
     });
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       LOG_DIR: join(tmpdir(), "cs-init-failure"),
-      LOG_RETENTION_DAYS: 14
+      LOG_RETENTION_DAYS: 14,
     });
 
     let streamCreationCount = 0;
     const destination = createProductionLogDestination(
       {
         LOG_DIR: runtimeConfig.LOG_DIR,
-        LOG_RETENTION_DAYS: runtimeConfig.LOG_RETENTION_DAYS
+        LOG_RETENTION_DAYS: runtimeConfig.LOG_RETENTION_DAYS,
       },
       {
         createStream: () => {
           streamCreationCount += 1;
-          if (streamCreationCount === 1) {
-            throw new Error("simulated initial rotation failure");
-          }
-
-          return recoveredStream;
+          throw new Error("simulated initial rotation failure");
         },
         fallbackStream,
         onStreamError: (error) => {
           reportedErrors.push(error);
-        }
-      }
+        },
+      },
     ) as Writable & { stream: Writable | null };
 
     const logger = createLogger({}, destination, runtimeConfig);
     await waitForCondition(
       () => reportedErrors.some((error) => error.message.includes("simulated initial rotation failure")),
-      "expected initial background rotation failure to be reported"
+      "expected initial background rotation failure to be reported",
     );
 
     expect(() => logger.info("startup-falls-back")).not.toThrow();
-    await waitForCondition(() => destination.stream === recoveredStream, "expected retry rotation to recover");
-
-    expect(() => logger.info("startup-recovers")).not.toThrow();
+    await waitForAsyncWork();
+    expect(() => logger.info("startup-still-fallback")).not.toThrow();
     await waitForAsyncWork();
 
     destination.end();
     await finished(destination as Writable);
 
     const fallbackLogs = parseLogLines(fallbackOutput);
-    const recoveredLogs = parseLogLines(recoveredOutput);
     expect(fallbackLogs.some((entry) => entry.msg === "startup-falls-back")).toBe(true);
-    expect(recoveredLogs.some((entry) => entry.msg === "startup-recovers")).toBe(true);
+    expect(fallbackLogs.some((entry) => entry.msg === "startup-still-fallback")).toBe(true);
     expect(reportedErrors.some((error) => error.message.includes("simulated initial rotation failure"))).toBe(
-      true
+      true,
     );
+    expect(streamCreationCount).toBe(1);
+    expect(destination.stream).toBeNull();
   });
 
   test("keeps the previous stream if rotation fails during rollover", async () => {
@@ -338,7 +807,7 @@ describe("logger", () => {
     const destination = createProductionLogDestination(
       {
         LOG_DIR: logDir,
-        LOG_RETENTION_DAYS: 14
+        LOG_RETENTION_DAYS: 14,
       },
       {
         now: () => currentDate,
@@ -352,15 +821,15 @@ describe("logger", () => {
         },
         onStreamError: (error) => {
           reportedErrors.push(error);
-        }
-      }
+        },
+      },
     ) as Writable & { stream: Writable | null };
 
     const runtimeConfig = createLoggerRuntimeConfig({
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       LOG_DIR: logDir,
-      LOG_RETENTION_DAYS: 14
+      LOG_RETENTION_DAYS: 14,
     });
     const logger = createLogger({}, destination, runtimeConfig);
 
@@ -372,8 +841,12 @@ describe("logger", () => {
     expect(() => logger.info("after-rollover-failure")).not.toThrow();
     await waitForCondition(
       () => reportedErrors.some((error) => error.message.includes("simulated rollover failure")),
-      "expected rollover failure to be reported"
+      "expected rollover failure to be reported",
     );
+    expect(destination.stream).toBe(activeStream);
+
+    expect(() => logger.info("after-rollover-stays-on-old-stream")).not.toThrow();
+    await waitForAsyncWork();
 
     destination.end();
     await finished(destination as Writable);
@@ -381,7 +854,9 @@ describe("logger", () => {
     const logs = parseLogLines(output);
     expect(logs.some((entry) => entry.msg === "before-rollover")).toBe(true);
     expect(logs.some((entry) => entry.msg === "after-rollover-failure")).toBe(true);
+    expect(logs.some((entry) => entry.msg === "after-rollover-stays-on-old-stream")).toBe(true);
     expect(reportedErrors.some((error) => error.message.includes("simulated rollover failure"))).toBe(true);
+    expect(streamCreationCount).toBe(2);
 
     rmSync(logDir, { recursive: true, force: true });
   });
@@ -401,7 +876,7 @@ describe("logger", () => {
     const destination = createProductionLogDestination(
       {
         LOG_DIR: logDir,
-        LOG_RETENTION_DAYS: 14
+        LOG_RETENTION_DAYS: 14,
       },
       {
         now: () => currentDate,
@@ -411,8 +886,8 @@ describe("logger", () => {
         },
         onStreamError: (error) => {
           reportedErrors.push(error);
-        }
-      }
+        },
+      },
     ) as Writable & {
       cleanupExpiredLogs: () => Promise<void>;
       currentDate: string;
@@ -427,7 +902,7 @@ describe("logger", () => {
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       LOG_DIR: logDir,
-      LOG_RETENTION_DAYS: 14
+      LOG_RETENTION_DAYS: 14,
     });
     const logger = createLogger({}, destination, runtimeConfig);
 

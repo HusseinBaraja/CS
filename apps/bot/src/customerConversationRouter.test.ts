@@ -26,12 +26,6 @@ const createCatalogChatResult = (text: string, query = "hello") => ({
     reason: "no_hits" as const,
     query,
     language: "en" as const,
-    resolution: {
-      strategy: "standalone" as const,
-      recentTurnsUsed: 0,
-      detectedOptionCount: 0,
-      standaloneQuery: query,
-    },
     candidates: [],
     contextBlocks: [],
   },
@@ -69,6 +63,9 @@ const createLogger = () => {
 
   return {
     logger: {
+      debug: (payload: unknown, message: string) => {
+        infoCalls.push({ payload, message });
+      },
       error: (payload: unknown, message: string) => {
         errorCalls.push({ payload, message });
       },
@@ -109,6 +106,16 @@ const createOutbound = () => {
 };
 
 const createContext = (outbound?: OutboundMessenger): InboundRouteContext => ({
+  logger: (() => {
+    const stub: InboundRouteContext["logger"] = {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined,
+      child: () => stub,
+    };
+    return stub;
+  })(),
   profile: {
     companyId: "company-1",
     name: "Tenant 1",
@@ -857,6 +864,7 @@ describe("createCustomerConversationRouter", () => {
     }]);
     expect(errorCalls[0]?.message).toBe("customer conversation history trimming failed");
     expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantTextSha256");
     expect(errorCalls[0]?.payload).toMatchObject({ assistantTextLength: "Assistant reply".length });
   });
 
@@ -949,6 +957,16 @@ describe("createCustomerConversationRouter", () => {
 
     await router(createMessage({ companyId: "company-1" }), createContext(outbound));
     await router(createMessage({ companyId: "company-2", sessionKey: "session-2" }), {
+      logger: (() => {
+        const stub: InboundRouteContext["logger"] = {
+          debug: () => undefined,
+          info: () => undefined,
+          warn: () => undefined,
+          error: () => undefined,
+          child: () => stub,
+        };
+        return stub;
+      })(),
       profile: {
         companyId: "company-2",
         name: "Tenant 2",
@@ -1078,6 +1096,7 @@ describe("createCustomerConversationRouter", () => {
       assistantTextLength: "Assistant reply".length,
     });
     expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantTextSha256");
   });
 
   test("stops after send when acknowledgement persistence fails", async () => {
@@ -1134,6 +1153,7 @@ describe("createCustomerConversationRouter", () => {
       assistantTextLength: "Assistant reply".length,
     });
     expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantTextSha256");
   });
 
   test("marks the pending assistant reply failed when outbound send fails", async () => {
@@ -1198,6 +1218,7 @@ describe("createCustomerConversationRouter", () => {
       assistantTextLength: "Assistant reply".length,
     });
     expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantTextSha256");
   });
 
   test("sends empty history after a stale idle gap without a quoted reference", async () => {

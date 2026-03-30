@@ -1,5 +1,3 @@
-import { resolveSeedOwnerPhone } from '@cs/config';
-
 export interface SeedCompany {
   name: string;
   ownerPhone: string;
@@ -41,25 +39,19 @@ export interface SeedOffer {
   durationDays: number;
 }
 
-export const resolveSeedCompany = (
-  runtimeEnv: Record<string, string | number | boolean | undefined> = process.env,
-): SeedCompany => {
-  return {
-    name: "YAS Packaging Co",
-    ownerPhone: resolveSeedOwnerPhone(runtimeEnv),
-    seedKey: "sample-catalog-v1",
-    timezone: "Asia/Aden",
-    config: {
-      botEnabled: true,
-      defaultLanguage: "ar",
-      welcomesEnabled: true,
-      catalogMode: "bilingual",
-      sarToYerRate: 425,
-    },
-  };
+export const seedCompany: SeedCompany = {
+  name: "YAS Packaging Co",
+  ownerPhone: "967700000000",
+  seedKey: "sample-catalog-v1",
+  timezone: "Asia/Aden",
+  config: {
+    botEnabled: true,
+    defaultLanguage: "ar",
+    welcomesEnabled: true,
+    catalogMode: "bilingual",
+    sarToYerRate: 425,
+  },
 };
-
-export const seedCompany: SeedCompany = resolveSeedCompany();
 
 export const seedCategories: SeedCategory[] = [
   {

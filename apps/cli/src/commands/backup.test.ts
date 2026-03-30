@@ -4,6 +4,31 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildConvexExportArgs, resolveBackupOptions, runBackup } from './backup';
 
+const createLoggerStub = () => {
+  const infoCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
+  const warnCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
+
+  const createLogger = (bindings: Record<string, unknown> = {}) => ({
+    debug: (payload: Record<string, unknown>, message: string) => {
+      infoCalls.push({ payload: { ...bindings, ...payload }, message });
+    },
+    info: (payload: Record<string, unknown>, message: string) => {
+      infoCalls.push({ payload: { ...bindings, ...payload }, message });
+    },
+    warn: (payload: Record<string, unknown>, message: string) => {
+      warnCalls.push({ payload: { ...bindings, ...payload }, message });
+    },
+    error: () => undefined,
+    child: (childBindings: Record<string, unknown>) => createLogger({ ...bindings, ...childBindings }),
+  });
+
+  return {
+    logger: createLogger(),
+    infoCalls,
+    warnCalls,
+  };
+};
+
 const getExportZipPath = (args: string[]): string | undefined => {
   const inlinePathArg = args.find((arg) => arg.startsWith("--path="));
   if (inlinePathArg) {
@@ -47,6 +72,7 @@ describe("backup command", () => {
 
   test("creates a backup and prunes only managed files beyond retention", async () => {
     const backupDir = await mkdtemp(join(tmpdir(), "cs-backup-"));
+    const { logger, infoCalls } = createLoggerStub();
     const staleManaged = join(backupDir, "convex-backup-prod-20260308T143015Z.zip");
     const unrelatedFile = join(backupDir, "notes.txt");
 
@@ -57,6 +83,7 @@ describe("backup command", () => {
       ["--prod", "--out-dir", backupDir, "--retention", "1"],
       {
         now: () => new Date("2026-03-09T14:30:15Z"),
+        logger,
         runExport: async (args) => {
           const zipPath = getExportZipPath(args);
           if (!zipPath) {
@@ -73,6 +100,23 @@ describe("backup command", () => {
     expect(files).toContain("convex-backup-prod-20260309T143015Z.zip");
     expect(files).not.toContain("convex-backup-prod-20260308T143015Z.zip");
     expect(files).toContain("notes.txt");
+    expect(infoCalls).toEqual([
+      {
+        payload: {
+          runtime: "cli",
+          surface: "backup",
+          commandName: "backup",
+          event: "cli.backup.completed",
+          outcome: "success",
+          deletedCount: 1,
+          durationMs: expect.any(Number),
+          includeFileStorage: false,
+          retentionCount: 1,
+          zipPath: join(backupDir, "convex-backup-prod-20260309T143015Z.zip"),
+        },
+        message: "backup completed",
+      },
+    ]);
 
     await rm(backupDir, { recursive: true, force: true });
   });

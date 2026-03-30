@@ -50,12 +50,6 @@ const input: RetrieveCatalogContextInput = {
   companyId,
   query: "Burger Box",
   language,
-  conversationHistory: [
-    {
-      role: "user",
-      text: "Hello",
-    },
-  ],
 };
 
 const contextBlock: GroundingContextBlock = {

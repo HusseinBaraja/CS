@@ -15,18 +15,44 @@ const createLoggerStub = () => {
   const errorCalls: Array<{ payload: unknown; message: string }> = [];
   const warnCalls: Array<{ payload: unknown; message: string }> = [];
 
-  return {
-    logger: {
-      info: (payload: unknown, message: string) => {
-        infoCalls.push({ payload, message });
-      },
-      warn: (payload: unknown, message: string) => {
-        warnCalls.push({ payload, message });
-      },
-      error: (payload: unknown, message: string) => {
-        errorCalls.push({ payload, message });
-      },
+  const createLogger = (bindings: Record<string, unknown> = {}) => ({
+    debug: (payload: unknown, message: string) => {
+      infoCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message,
+      });
     },
+    info: (payload: unknown, message: string) => {
+      infoCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message,
+      });
+    },
+    warn: (payload: unknown, message: string) => {
+      warnCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message,
+      });
+    },
+    error: (payload: unknown, message: string) => {
+      errorCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message,
+      });
+    },
+    child: (childBindings: Record<string, unknown>) => createLogger({ ...bindings, ...childBindings }),
+  });
+
+  return {
+    logger: createLogger(),
     infoCalls,
     warnCalls,
     errorCalls,
@@ -201,6 +227,7 @@ describe("startBot", () => {
     const { logger } = createLoggerStub();
     const socketStub = createSocketStub();
     const statusChanges: Array<{ sessionKey: string; state: string }> = [];
+    const version = [2, 3001, 999999999] as [number, number, number];
 
     await startBot({
       logger,
@@ -208,6 +235,7 @@ describe("startBot", () => {
         moduleDirectory: "/repo/apps/bot/src",
         sessionKey: "company-Y29tcGFueS0x",
       }),
+      resolveSocketVersion: async () => version,
       onStatusChange: (status) => {
         statusChanges.push({
           sessionKey: status.sessionKey,
@@ -283,6 +311,19 @@ describe("startBot", () => {
       isNewLogin: true,
     });
 
+    expect(infoCalls).toContainEqual({
+      message: "bot session state changed",
+      payload: {
+        runtime: "bot",
+        surface: "session",
+        sessionKey: "default",
+        event: "bot.session.state_changed",
+        outcome: "awaiting_pairing",
+        state: "awaiting_pairing",
+        attempt: 0,
+        hasQr: true,
+      },
+    });
     const serializedLogs = JSON.stringify(infoCalls);
     expect(serializedLogs).not.toContain("raw-qr-value");
   });
@@ -608,8 +649,15 @@ describe("startBot", () => {
     expect(socketStub.endCalls).toEqual([]);
     expect(errorCalls).toContainEqual({
       payload: {
-        error: expect.any(Error),
+        error: expect.objectContaining({
+          message: "inbound failed",
+          name: "Error",
+        }),
+        event: "bot.runtime.inbound_callback_failed",
+        outcome: "callback_failed",
+        runtime: "bot",
         sessionKey: "default",
+        surface: "runtime",
       },
       message: "bot inbound message callback failed",
     });
@@ -810,8 +858,15 @@ describe("startBot", () => {
     expect(scheduled[1]?.delayMs).toBe(2_000);
     expect(errorCalls).toContainEqual({
       payload: {
-        error: expect.any(Error),
+        error: expect.objectContaining({
+          message: "reconnect socket failed",
+          name: "Error",
+        }),
+        event: "bot.runtime.reconnect_attempt_failed",
+        outcome: "retrying",
+        runtime: "bot",
         sessionKey: "default",
+        surface: "runtime",
       },
       message: "bot reconnect attempt failed",
     });
@@ -1004,8 +1059,15 @@ describe("startBot", () => {
     expect(errorCalls).toEqual([
       {
         payload: {
+          event: "bot.runtime.terminal_failure",
+          outcome: "failed",
+          runtime: "bot",
+          surface: "runtime",
           sessionKey: "default",
-          error: expect.any(Error),
+          error: expect.objectContaining({
+            message: "save failed",
+            name: "Error",
+          }),
         },
         message: "bot auth state persistence failed",
       },
@@ -1037,9 +1099,16 @@ describe("startBot", () => {
     expect(receivedConfigs[0]?.version).toEqual([2, 3000, 1027934701]);
     expect(warnCalls).toContainEqual({
       payload: {
-        error: expect.any(Error),
+        error: expect.objectContaining({
+          message: "version fetch failed",
+          name: "Error",
+        }),
+        event: "bot.runtime.version_fallback",
         fallbackVersion: [2, 3000, 1027934701],
+        outcome: "fallback",
+        runtime: "bot",
         sessionKey: "default",
+        surface: "runtime",
       },
       message: "bot socket version resolution failed; falling back to bundled version",
     });

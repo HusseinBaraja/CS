@@ -1,13 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { StandardSchemaV1 } from '@t3-oss/env-core';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
-import {
-  createConfig,
-  DEFAULT_SEED_OWNER_PHONE,
-  inferConfigErrorCode,
-  requireConfigValue,
-  resolveSeedOwnerPhone,
-} from './index';
+import { createConfig, inferConfigErrorCode, requireConfigValue } from './index';
 
 describe("config", () => {
   test("applies defaults for optional setup values", () => {
@@ -47,7 +41,6 @@ describe("config", () => {
     expect(config.R2_ENDPOINT).toBeUndefined();
     expect(config.R2_ACCESS_KEY_ID).toBeUndefined();
     expect(config.R2_SECRET_ACCESS_KEY).toBeUndefined();
-    expect(config.SEED_OWNER_PHONE).toBe(DEFAULT_SEED_OWNER_PHONE);
   });
 
   test("parses API CORS origins from a comma-separated env value", () => {
@@ -318,7 +311,6 @@ describe("config", () => {
       R2_ENDPOINT: "",
       R2_ACCESS_KEY_ID: "",
       R2_SECRET_ACCESS_KEY: "",
-      SEED_OWNER_PHONE: "",
       API_CORS_ORIGINS: "",
       CONVEX_URL: "https://example.convex.cloud"
     });
@@ -337,7 +329,6 @@ describe("config", () => {
     expect(config.R2_ENDPOINT).toBeUndefined();
     expect(config.R2_ACCESS_KEY_ID).toBeUndefined();
     expect(config.R2_SECRET_ACCESS_KEY).toBeUndefined();
-    expect(config.SEED_OWNER_PHONE).toBe(DEFAULT_SEED_OWNER_PHONE);
   });
 
   test("treats whitespace-only optional secrets as unset values", () => {
@@ -354,7 +345,6 @@ describe("config", () => {
       R2_ENDPOINT: "   ",
       R2_ACCESS_KEY_ID: "   ",
       R2_SECRET_ACCESS_KEY: "   ",
-      SEED_OWNER_PHONE: "   ",
       CONVEX_URL: "https://example.convex.cloud"
     });
 
@@ -370,7 +360,6 @@ describe("config", () => {
     expect(config.R2_ENDPOINT).toBeUndefined();
     expect(config.R2_ACCESS_KEY_ID).toBeUndefined();
     expect(config.R2_SECRET_ACCESS_KEY).toBeUndefined();
-    expect(config.SEED_OWNER_PHONE).toBe(DEFAULT_SEED_OWNER_PHONE);
   });
 
   test("trims optional secrets before returning them", () => {
@@ -387,7 +376,6 @@ describe("config", () => {
       R2_ENDPOINT: "  https://example.r2.cloudflarestorage.com  ",
       R2_ACCESS_KEY_ID: "  access-key  ",
       R2_SECRET_ACCESS_KEY: "  secret-key  ",
-      SEED_OWNER_PHONE: "  967700000000  ",
       CONVEX_URL: "https://example.convex.cloud"
     });
 
@@ -403,12 +391,6 @@ describe("config", () => {
     expect(config.R2_ENDPOINT).toBe("https://example.r2.cloudflarestorage.com");
     expect(config.R2_ACCESS_KEY_ID).toBe("access-key");
     expect(config.R2_SECRET_ACCESS_KEY).toBe("secret-key");
-    expect(config.SEED_OWNER_PHONE).toBe("967700000000");
-  });
-
-  test("resolves the seed owner phone without env proxy access", () => {
-    expect(resolveSeedOwnerPhone({})).toBe(DEFAULT_SEED_OWNER_PHONE);
-    expect(resolveSeedOwnerPhone({ SEED_OWNER_PHONE: " 967700000000 " })).toBe("967700000000");
   });
 
   test("treats empty CONVEX_ADMIN_KEY as an unset value", () => {

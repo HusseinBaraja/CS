@@ -7,7 +7,7 @@ import {
   PRODUCT_IMAGE_UPLOAD_EXPIRY_SECONDS,
   StorageError,
 } from '@cs/storage';
-import { logger as defaultLogger } from '@cs/core';
+import { logEvent, logger as defaultLogger, serializeErrorForLog, type StructuredLogger } from '@cs/core';
 import { ConfigError, ERROR_CODES, type ErrorCode } from '@cs/shared';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
 import type { ProductImageDto } from './products';
@@ -22,9 +22,7 @@ import {
   ProductMediaServiceError,
 } from './productMedia';
 
-type ProductMediaLogger = {
-  warn: (payload: Record<string, unknown>, message: string) => void;
-};
+type ProductMediaLogger = StructuredLogger;
 
 export interface ConvexProductMediaServiceOptions {
   createClient?: () => ConvexAdminClient;
@@ -165,17 +163,22 @@ export const createConvexProductMediaService = (
           });
         } catch (error) {
           if (isStorageSetupError(error)) {
-            logger.warn(
+            logEvent(
+              logger,
+              "warn",
               {
+                event: "api.product_media.upload_presign_failed",
+                runtime: "api",
+                surface: "product_media",
+                outcome: "pending_cleanup",
+                error: serializeErrorForLog(error),
                 companyId,
-                productId,
-                uploadId: uploadSession.uploadId,
-                imageId: uploadSession.imageId,
-                objectKey: uploadSession.objectKey,
-                expiresAt: uploadSession.expiresAt,
-                errorName: error.name,
-                errorMessage: error.message,
                 cleanupDelaySeconds: PRODUCT_IMAGE_UPLOAD_EXPIRY_SECONDS,
+                expiresAt: uploadSession.expiresAt,
+                imageId: uploadSession.imageId,
+                productId,
+                objectKey: uploadSession.objectKey,
+                uploadId: uploadSession.uploadId,
               },
               "product image upload session left pending after storage presign failure",
             );

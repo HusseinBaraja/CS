@@ -1,27 +1,37 @@
 import {
   type AssistantActionType,
   type AssistantStructuredOutput,
-  buildGroundedChatPrompt,
   type ChatLanguage,
   type ChatProviderManager,
   type ChatResponse,
+  buildGroundedChatPrompt,
   createChatProviderManager,
   detectChatLanguage,
-  GEMINI_EMBEDDING_DIMENSIONS,
   generateGeminiEmbedding,
   getAllowedActions,
+  GEMINI_EMBEDDING_DIMENSIONS,
   type GroundingContextBlock,
   type LanguageDetectionResult,
   parseAssistantStructuredOutput,
   type PromptHistoryTurn,
 } from '@cs/ai';
-import { type ConvexAdminClient, convexInternal, createConvexAdminClient, type Id } from '@cs/db';
+import {
+  logEvent,
+  serializeErrorForLog,
+  summarizeTextForLog,
+  type StructuredLogger,
+  withLogBindings,
+} from '@cs/core';
+import {
+  type ConvexAdminClient,
+  type Id,
+  convexInternal,
+  createConvexAdminClient,
+} from '@cs/db';
 
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_MAX_CONTEXT_BLOCKS = 3;
 const DEFAULT_MIN_SCORE = 0.55;
-const MAX_RECENT_THREAD_TURNS = 6;
-const OPTION_LINE_PATTERN = /^\s*(?:[-*•]|\d+[.)]|[\u0660-\u0669]+[.)])\s*(.+?)\s*$/u;
 
 type RetrievalReason = "empty_query" | "no_hits" | "below_min_score";
 
@@ -84,7 +94,6 @@ export interface RetrieveCatalogContextInput {
   companyId: Id<"companies">;
   query: string;
   language: ChatLanguage;
-  conversationHistory?: PromptHistoryTurn[];
   maxResults?: number;
   maxContextBlocks?: number;
   minScore?: number;
@@ -118,20 +127,11 @@ export interface RetrievedProductCandidate {
   product: RetrievedProductContext;
 }
 
-export interface RetrievalResolution {
-  strategy: "standalone" | "contextual_recent_thread" | "merged";
-  recentTurnsUsed: number;
-  detectedOptionCount: number;
-  standaloneQuery: string;
-  contextualQuery?: string;
-}
-
 export interface RetrieveCatalogContextResult {
   outcome: RetrievalOutcome;
   reason?: RetrievalReason;
   query: string;
   language: ChatLanguage;
-  resolution: RetrievalResolution;
   topScore?: number;
   candidates: RetrievedProductCandidate[];
   contextBlocks: GroundingContextBlock[];
@@ -175,6 +175,7 @@ export interface CatalogChatInput {
   conversation?: CatalogChatConversationContext;
   userMessage: string;
   requestId?: string;
+  logger?: StructuredLogger;
   signal?: AbortSignal;
   retrieval?: {
     maxResults?: number;
@@ -207,10 +208,7 @@ export interface CatalogChatOrchestrator {
   respond(input: CatalogChatInput): Promise<CatalogChatResult>;
 }
 
-export interface CatalogChatLogger {
-  error(payload: Record<string, unknown>, message: string): void;
-  info?(payload: Record<string, unknown>, message: string): void;
-}
+export type CatalogChatLogger = StructuredLogger;
 
 export interface CreateCatalogChatOrchestratorOptions {
   retrievalService?: ProductRetrievalService;
@@ -220,8 +218,6 @@ export interface CreateCatalogChatOrchestratorOptions {
   parseStructuredOutput?: typeof parseAssistantStructuredOutput;
   logger?: CatalogChatLogger;
 }
-
-const MAX_PROVIDER_TEXT_PREVIEW_LENGTH = 500;
 
 const normalizePositiveInteger = (value: number | undefined, fallback: number): number => {
   if (value === undefined) {
@@ -239,45 +235,6 @@ const normalizeNonNegativeInteger = (value: number | undefined, fallback: number
 
   const normalized = Math.trunc(value);
   return normalized >= 0 ? normalized : fallback;
-};
-
-const serializeUnknown = (value: unknown): unknown => {
-  if (value === null || value === undefined) {
-    return value;
-  }
-
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((entry) => serializeUnknown(entry));
-  }
-
-  if (typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, serializeUnknown(entry)]),
-    );
-  }
-
-  return String(value);
-};
-
-const serializeError = (error: unknown): Record<string, unknown> => {
-  if (error instanceof Error) {
-    const cause = (error as Error & { cause?: unknown }).cause;
-    return {
-      name: error.name,
-      message: error.message,
-      ...(error.stack ? { stack: error.stack } : {}),
-      ...(cause !== undefined ? { cause: serializeUnknown(cause) } : {}),
-    };
-  }
-
-  return {
-    name: "UnknownError",
-    value: serializeUnknown(error),
-  };
 };
 
 const serializeValue = (value: unknown): string => {
@@ -405,133 +362,6 @@ const dedupeHitsByProduct = (hits: VectorSearchHit[]): VectorSearchHit[] => {
   });
 };
 
-const normalizeTurnText = (text: string): string => text.replace(/\r\n?/g, "\n").trim();
-
-const normalizeInlineText = (text: string): string => text.replace(/\s+/g, " ").trim();
-
-const getRecentConversationTurns = (
-  history: PromptHistoryTurn[] | undefined,
-): PromptHistoryTurn[] =>
-  (history ?? [])
-    .filter((turn) => normalizeTurnText(turn.text).length > 0)
-    .slice(-MAX_RECENT_THREAD_TURNS);
-
-const extractOptionLines = (text: string): string[] => {
-  const optionLines = normalizeTurnText(text)
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .flatMap((line) => {
-      const match = OPTION_LINE_PATTERN.exec(line);
-      return match?.[1] ? [normalizeInlineText(match[1])] : [];
-    });
-
-  return optionLines.length >= 2 ? optionLines : [];
-};
-
-const summarizeTurnForThread = (
-  turn: PromptHistoryTurn,
-): { summary: string; optionLines: string[] } => {
-  const normalizedText = normalizeTurnText(turn.text);
-  if (normalizedText.length === 0) {
-    return {
-      summary: "",
-      optionLines: [],
-    };
-  }
-
-  if (turn.role !== "assistant") {
-    return {
-      summary: normalizeInlineText(normalizedText),
-      optionLines: [],
-    };
-  }
-
-  const lines = normalizedText
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const optionLines = extractOptionLines(normalizedText);
-
-  if (optionLines.length === 0) {
-    return {
-      summary: normalizeInlineText(lines.join(" ")),
-      optionLines,
-    };
-  }
-
-  const firstNonOptionLine = lines.find((line) => !OPTION_LINE_PATTERN.test(line));
-  return {
-    summary: firstNonOptionLine ? normalizeInlineText(firstNonOptionLine) : "options_list",
-    optionLines,
-  };
-};
-
-const buildContextualRetrievalQuery = (
-  input: Pick<RetrieveCatalogContextInput, "query" | "language" | "conversationHistory">,
-): {
-  queryText: string;
-  recentTurnsUsed: number;
-  detectedOptionCount: number;
-  hasOptionFrame: boolean;
-} | null => {
-  const recentTurns = getRecentConversationTurns(input.conversationHistory);
-  if (recentTurns.length === 0) {
-    return null;
-  }
-
-  const serializedRecentTurns = recentTurns
-    .map((turn) => {
-      const summary = summarizeTurnForThread(turn).summary;
-      return summary.length > 0 ? `${turn.role}:${summary}` : null;
-    })
-    .filter((line): line is string => line !== null);
-  if (serializedRecentTurns.length === 0) {
-    return null;
-  }
-
-  const latestAssistantTurn = [...recentTurns].reverse().find((turn) => turn.role === "assistant");
-  const latestAssistantSummary = latestAssistantTurn ? summarizeTurnForThread(latestAssistantTurn) : null;
-  const lines = [
-    `language:${input.language}`,
-    `latest_user:${input.query.trim()}`,
-    "recent_thread:",
-    ...serializedRecentTurns,
-  ];
-
-  if (latestAssistantSummary && latestAssistantSummary.optionLines.length >= 2) {
-    lines.push("assistant_options:", ...latestAssistantSummary.optionLines);
-  }
-
-  return {
-    queryText: lines.join("\n"),
-    recentTurnsUsed: recentTurns.length,
-    detectedOptionCount: latestAssistantSummary?.optionLines.length ?? 0,
-    hasOptionFrame: (latestAssistantSummary?.optionLines.length ?? 0) >= 2,
-  };
-};
-
-const buildResolution = (input: {
-  standaloneQuery: string;
-  contextualQuery?: string;
-  recentTurnsUsed: number;
-  detectedOptionCount: number;
-}): RetrievalResolution => {
-  let strategy: RetrievalResolution["strategy"] = "standalone";
-
-  if (input.contextualQuery) {
-    strategy = input.detectedOptionCount >= 2 ? "contextual_recent_thread" : "merged";
-  }
-
-  return {
-    strategy,
-    recentTurnsUsed: input.recentTurnsUsed,
-    detectedOptionCount: input.detectedOptionCount,
-    standaloneQuery: input.standaloneQuery,
-    ...(input.contextualQuery ? { contextualQuery: input.contextualQuery } : {}),
-  };
-};
-
 export const buildRetrievalQueryText = (
   input: Pick<GenerateRetrievalQueryEmbeddingInput, "query" | "language">,
 ): string => {
@@ -562,34 +392,16 @@ export const createProductRetrievalService = (
       input: RetrieveCatalogContextInput,
     ): Promise<RetrieveCatalogContextResult> => {
       const normalizedQuery = input.query.trim();
-
       if (normalizedQuery.length === 0) {
         return {
           outcome: "empty",
           reason: "empty_query",
           query: normalizedQuery,
           language: input.language,
-          resolution: buildResolution({
-            standaloneQuery: normalizedQuery,
-            recentTurnsUsed: 0,
-            detectedOptionCount: 0,
-          }),
           candidates: [],
           contextBlocks: [],
         };
       }
-
-      const contextualQuery = buildContextualRetrievalQuery({
-        query: normalizedQuery,
-        language: input.language,
-        conversationHistory: input.conversationHistory,
-      });
-      let resolution = buildResolution({
-        standaloneQuery: normalizedQuery,
-        contextualQuery: contextualQuery?.queryText,
-        recentTurnsUsed: contextualQuery?.recentTurnsUsed ?? 0,
-        detectedOptionCount: contextualQuery?.detectedOptionCount ?? 0,
-      });
 
       const client = createClient();
       const maxResults = normalizePositiveInteger(input.maxResults, DEFAULT_MAX_RESULTS);
@@ -599,134 +411,56 @@ export const createProductRetrievalService = (
       );
       const minScore = input.minScore ?? DEFAULT_MIN_SCORE;
 
-      const runRetrievalView = async (queryText: string): Promise<VectorSearchHit[]> => {
-        const embedding = await generateEmbedding(queryText, {
-          outputDimensionality: GEMINI_EMBEDDING_DIMENSIONS,
-        });
-        const hits: VectorSearchHit[] = await client.action(convexInternal.vectorSearch.vectorSearchByEmbeddingInternal, {
-          companyId: input.companyId,
+      const embedding = await generateRetrievalQueryEmbedding(
+        {
+          query: normalizedQuery,
           language: input.language,
-          embedding,
-          count: maxResults,
-        });
-
-        return dedupeHitsByProduct(hits);
-      };
-
-      const standaloneHits = await runRetrievalView(buildRetrievalQueryText({
-        query: normalizedQuery,
+        },
+        {
+          generateEmbedding,
+        },
+      );
+      const hits: VectorSearchHit[] = await client.action(convexInternal.vectorSearch.vectorSearchByEmbeddingInternal, {
+        companyId: input.companyId,
         language: input.language,
-      }));
-      let contextualHits: VectorSearchHit[] = [];
-      if (contextualQuery) {
-        try {
-          contextualHits = await runRetrievalView(contextualQuery.queryText);
-        } catch (error) {
-          resolution = buildResolution({
-            standaloneQuery: normalizedQuery,
-            recentTurnsUsed: contextualQuery.recentTurnsUsed,
-            detectedOptionCount: contextualQuery.detectedOptionCount,
-          });
-          try {
-            globalThis.console?.error?.("catalog contextual retrieval failed; falling back to standalone", {
-              companyId: input.companyId,
-              language: input.language,
-              recentTurnsUsed: contextualQuery.recentTurnsUsed,
-              detectedOptionCount: contextualQuery.detectedOptionCount,
-              hasContextualQuery: true,
-              error: serializeError(error),
-            });
-          } catch {
-            // Diagnostics must never interrupt retrieval fallbacks.
-          }
-        }
-      }
-      const allProductIds = [...new Set([
-        ...standaloneHits.map((hit) => hit.productId),
-        ...contextualHits.map((hit) => hit.productId),
-      ])];
+        embedding,
+        count: maxResults,
+      });
 
-      if (allProductIds.length === 0) {
+      if (hits.length === 0) {
         return {
           outcome: "empty",
           reason: "no_hits",
           query: normalizedQuery,
           language: input.language,
-          resolution,
           candidates: [],
           contextBlocks: [],
         };
       }
 
+      const dedupedHits = dedupeHitsByProduct(hits);
       const hydratedProducts: HydratedProductRecord[] = await client.query(convexInternal.products.getManyForRag, {
         companyId: input.companyId,
-        productIds: allProductIds,
+        productIds: dedupedHits.map((hit) => hit.productId),
       });
       const productsById = new Map(hydratedProducts.map((product) => [product.id, product] as const));
-      const toCandidates = (hits: VectorSearchHit[]): RetrievedProductCandidate[] =>
-        hits.flatMap((hit) => {
-          const product = productsById.get(hit.productId);
-          if (!product) {
-            return [];
-          }
+      const candidates = dedupedHits.flatMap((hit) => {
+        const product = productsById.get(hit.productId);
+        if (!product) {
+          return [];
+        }
 
-          const retrievedProduct = toRetrievedProductContext(product);
-          return [{
-            productId: hit.productId,
-            score: hit._score,
-            matchedEmbeddingId: hit._id,
-            matchedText: hit.textContent,
-            language: hit.language,
-            contextBlock: buildContextBlock(retrievedProduct, input.language),
-            product: retrievedProduct,
-          }];
-        });
-      const standaloneCandidates = toCandidates(standaloneHits);
-      const contextualCandidates = toCandidates(contextualHits);
-
-      const candidatesByProductId = new Map<string, {
-        standalone?: RetrievedProductCandidate;
-        contextual?: RetrievedProductCandidate;
-      }>();
-      for (const candidate of standaloneCandidates) {
-        candidatesByProductId.set(candidate.productId, {
-          ...(candidatesByProductId.get(candidate.productId) ?? {}),
-          standalone: candidate,
-        });
-      }
-      for (const candidate of contextualCandidates) {
-        candidatesByProductId.set(candidate.productId, {
-          ...(candidatesByProductId.get(candidate.productId) ?? {}),
-          contextual: candidate,
-        });
-      }
-
-      const preferContextualRanking = (contextualQuery?.detectedOptionCount ?? 0) >= 2;
-      const candidates = [...candidatesByProductId.entries()]
-        .sort(([leftProductId, left], [rightProductId, right]) => {
-          const leftStandaloneScore = left.standalone?.score ?? Number.NEGATIVE_INFINITY;
-          const leftContextualScore = left.contextual?.score ?? Number.NEGATIVE_INFINITY;
-          const rightStandaloneScore = right.standalone?.score ?? Number.NEGATIVE_INFINITY;
-          const rightContextualScore = right.contextual?.score ?? Number.NEGATIVE_INFINITY;
-
-          if (preferContextualRanking) {
-            return rightContextualScore - leftContextualScore
-              || rightStandaloneScore - leftStandaloneScore
-              || rightProductId.localeCompare(leftProductId);
-          }
-
-          return rightStandaloneScore - leftStandaloneScore
-            || rightContextualScore - leftContextualScore
-            || rightProductId.localeCompare(leftProductId);
-        })
-        .map(([_, entry]) => {
-          if (preferContextualRanking) {
-            return entry.contextual ?? entry.standalone;
-          }
-
-          return entry.standalone ?? entry.contextual;
-        })
-        .filter((candidate): candidate is RetrievedProductCandidate => Boolean(candidate));
+        const retrievedProduct = toRetrievedProductContext(product);
+        return [{
+          productId: hit.productId,
+          score: hit._score,
+          matchedEmbeddingId: hit._id,
+          matchedText: hit.textContent,
+          language: hit.language,
+          contextBlock: buildContextBlock(retrievedProduct, input.language),
+          product: retrievedProduct,
+        }];
+      });
 
       if (candidates.length === 0) {
         return {
@@ -734,7 +468,6 @@ export const createProductRetrievalService = (
           reason: "no_hits",
           query: normalizedQuery,
           language: input.language,
-          resolution,
           candidates: [],
           contextBlocks: [],
         };
@@ -747,7 +480,6 @@ export const createProductRetrievalService = (
           reason: "below_min_score",
           query: normalizedQuery,
           language: input.language,
-          resolution,
           topScore,
           candidates,
           contextBlocks: [],
@@ -758,7 +490,6 @@ export const createProductRetrievalService = (
         outcome: "grounded",
         query: normalizedQuery,
         language: input.language,
-        resolution,
         topScore,
         candidates,
         contextBlocks: candidates
@@ -769,20 +500,23 @@ export const createProductRetrievalService = (
   };
 };
 
-const buildProviderTextPreview = (text: string): string =>
-  text.length <= MAX_PROVIDER_TEXT_PREVIEW_LENGTH
-    ? text
-    : text.slice(0, MAX_PROVIDER_TEXT_PREVIEW_LENGTH);
+const summarizeQueryForLog = (text: string) => {
+  const summary = summarizeTextForLog(text);
 
-const buildRetrievalResolutionLogContext = (
-  resolution: RetrievalResolution,
-): Record<string, unknown> => ({
-  strategy: resolution.strategy,
-  recentTurnsUsed: resolution.recentTurnsUsed,
-  detectedOptionCount: resolution.detectedOptionCount,
-  hasStandaloneQuery: resolution.standaloneQuery.length > 0,
-  hasContextualQuery: resolution.contextualQuery !== undefined,
-});
+  return {
+    queryTextLength: summary.textLength,
+    queryTextLineCount: summary.textLineCount,
+  };
+};
+
+const summarizeProviderTextForLog = (text: string) => {
+  const summary = summarizeTextForLog(text);
+
+  return {
+    providerTextLength: summary.textLength,
+    providerTextLineCount: summary.textLineCount,
+  };
+};
 
 const buildRetrievalLogContext = (
   retrieval: RetrieveCatalogContextResult,
@@ -793,8 +527,6 @@ const buildRetrievalLogContext = (
   candidateCount: retrieval.candidates.length,
   contextBlockCount: retrieval.contextBlocks.length,
   language: retrieval.language,
-  resolution: buildRetrievalResolutionLogContext(retrieval.resolution),
-  chosenTopProductIds: retrieval.candidates.slice(0, 3).map((candidate) => candidate.productId),
 });
 
 const pickProviderMetadata = (
@@ -864,37 +596,33 @@ const buildAssistantFallback = (
 };
 
 const defaultCatalogChatLogger: CatalogChatLogger = {
-  error(payload, message) {
-    globalThis.console?.error?.(message, payload);
+  debug() {
+    return undefined;
   },
-  info(payload, message) {
-    globalThis.console?.info?.(message, payload);
+  info() {
+    return undefined;
+  },
+  warn() {
+    return undefined;
+  },
+  error() {
+    return undefined;
   },
 };
 
-const safeLogError = (
+const safeLogEvent = (
   logger: CatalogChatLogger,
-  payload: Record<string, unknown>,
+  level: "info" | "warn" | "error",
+  payload: {
+    event: string;
+    runtime: string;
+    surface: string;
+    outcome: string;
+  } & Record<string, unknown>,
   message: string,
 ): void => {
   try {
-    logger.error(payload, message);
-  } catch {
-    // Logging must never interfere with catalog chat fallbacks.
-  }
-};
-
-const safeLogInfo = (
-  logger: CatalogChatLogger,
-  payload: Record<string, unknown>,
-  message: string,
-): void => {
-  if (!logger.info) {
-    return;
-  }
-
-  try {
-    logger.info(payload, message);
+    logEvent(logger, level, payload, message);
   } catch {
     // Logging must never interfere with catalog chat fallbacks.
   }
@@ -912,6 +640,18 @@ export const createCatalogChatOrchestrator = (
 
   return {
     async respond(input: CatalogChatInput): Promise<CatalogChatResult> {
+      const routeLogger = withLogBindings(input.logger ?? logger, {
+        runtime: "rag",
+        surface: "orchestrator",
+        companyId: input.tenant.companyId,
+        ...(input.conversation?.conversationId
+          ? { conversationId: input.conversation.conversationId }
+          : {}),
+        ...(input.requestId ? { requestId: input.requestId } : {}),
+      });
+      const retrievalLogger = withLogBindings(routeLogger, {
+        surface: "retrieval",
+      });
       const language = detectLanguage(input.userMessage, {
         preferredLanguage: input.tenant.preferredLanguage,
         defaultLanguage: input.tenant.defaultLanguage,
@@ -921,22 +661,23 @@ export const createCatalogChatOrchestrator = (
         companyId: input.tenant.companyId,
         query: input.userMessage,
         language: language.responseLanguage,
-        conversationHistory: input.conversation?.history,
         maxResults: input.retrieval?.maxResults,
         maxContextBlocks: input.retrieval?.maxContextBlocks,
         minScore: input.retrieval?.minScore,
       });
-      safeLogInfo(
-        logger,
+      safeLogEvent(
+        retrievalLogger,
+        "info",
         {
-          companyId: input.tenant.companyId,
-          ...(input.conversation?.conversationId
-            ? { conversationId: input.conversation.conversationId }
-            : {}),
-          ...(input.requestId ? { requestId: input.requestId } : {}),
+          event: "rag.retrieval.completed",
+          runtime: "rag",
+          surface: "retrieval",
+          outcome: retrieval.outcome,
+          responseLanguage: language.responseLanguage,
           retrieval: buildRetrievalLogContext(retrieval),
+          ...summarizeQueryForLog(input.userMessage),
         },
-        "catalog chat retrieval resolved",
+        "catalog retrieval completed",
       );
 
       if (retrieval.outcome === "empty") {
@@ -976,6 +717,7 @@ export const createCatalogChatOrchestrator = (
           signal: input.signal,
           timeoutMs: input.provider?.timeoutMs,
           maxRetriesPerProvider: input.provider?.maxRetriesPerProvider,
+          logger: input.logger ?? logger,
           logContext: {
             companyId: input.tenant.companyId,
             ...(input.conversation?.conversationId
@@ -986,9 +728,14 @@ export const createCatalogChatOrchestrator = (
           },
         });
       } catch (error) {
-        safeLogError(
-          logger,
+        safeLogEvent(
+          routeLogger,
+          "error",
           {
+            event: "rag.catalog_chat.provider_fallback",
+            runtime: "rag",
+            surface: "orchestrator",
+            outcome: "provider_failure_fallback",
             companyId: input.tenant.companyId,
             ...(input.conversation?.conversationId
               ? { conversationId: input.conversation.conversationId }
@@ -996,9 +743,9 @@ export const createCatalogChatOrchestrator = (
             ...(input.requestId ? { requestId: input.requestId } : {}),
             responseLanguage: language.responseLanguage,
             retrieval: buildRetrievalLogContext(retrieval),
-            error: serializeError(error),
+            error: serializeErrorForLog(error),
           },
-          "catalog chat provider call failed",
+          "catalog chat provider fallback selected",
         );
         return {
           outcome: "provider_failure_fallback",
@@ -1021,9 +768,14 @@ export const createCatalogChatOrchestrator = (
           provider: pickProviderMetadata(providerResponse),
         };
       } catch (error) {
-        safeLogError(
-          logger,
+        safeLogEvent(
+          routeLogger,
+          "error",
           {
+            event: "rag.catalog_chat.parse_failed",
+            runtime: "rag",
+            surface: "orchestrator",
+            outcome: "invalid_model_output_fallback",
             companyId: input.tenant.companyId,
             ...(input.conversation?.conversationId
               ? { conversationId: input.conversation.conversationId }
@@ -1032,8 +784,8 @@ export const createCatalogChatOrchestrator = (
             responseLanguage: language.responseLanguage,
             retrieval: buildRetrievalLogContext(retrieval),
             provider: pickProviderMetadata(providerResponse),
-            providerTextPreview: buildProviderTextPreview(providerResponse.text),
-            error: serializeError(error),
+            ...summarizeProviderTextForLog(providerResponse.text),
+            error: serializeErrorForLog(error),
           },
           "catalog chat structured output parsing failed",
         );

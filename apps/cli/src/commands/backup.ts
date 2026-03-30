@@ -3,7 +3,13 @@ import { constants } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { env } from '@cs/config';
-import { logger } from '@cs/core';
+import {
+  logEvent,
+  logger,
+  serializeErrorForLog,
+  type StructuredLogger,
+  withLogBindings,
+} from '@cs/core';
 import type { BackupTarget } from '../lib/backup-paths';
 import { buildBackupFileName } from '../lib/backup-paths';
 import { runInheritedCommand } from '../lib/process';
@@ -23,6 +29,7 @@ const usageLines = [
 interface BackupRunDependencies {
   now: () => Date;
   runExport: (args: string[]) => Promise<void>;
+  logger?: StructuredLogger;
 }
 
 const defaultDependencies: BackupRunDependencies = {
@@ -193,6 +200,12 @@ export const runBackup = async (
   args: string[],
   dependencies: BackupRunDependencies = defaultDependencies
 ): Promise<{ deletedBackups: string[]; zipPath: string }> => {
+  const commandLogger = withLogBindings(dependencies.logger ?? logger, {
+    runtime: "cli",
+    surface: "backup",
+    commandName: "backup",
+  });
+  const startedAt = Date.now();
   const options = resolveBackupOptions(args);
   const zipPath = join(options.outDir, buildBackupFileName(options.target, dependencies.now()));
 
@@ -217,18 +230,28 @@ export const runBackup = async (
   try {
     deletedBackups = await pruneManagedBackups(options.outDir, options.retentionCount);
   } catch (error) {
-    logger.warn(
+    logEvent(
+      commandLogger,
+      "warn",
       {
+        event: "cli.backup.retention_prune_failed",
+        outcome: "warning",
         backupDir: options.outDir,
-        errMessage: error instanceof Error ? error.message : "unknown retention error"
+        retentionCount: options.retentionCount,
+        error: serializeErrorForLog(error),
       },
       "backup retention pruning failed"
     );
   }
 
-  logger.info(
+  logEvent(
+    commandLogger,
+    "info",
     {
+      event: "cli.backup.completed",
+      outcome: "success",
       deletedCount: deletedBackups.length,
+      durationMs: Date.now() - startedAt,
       includeFileStorage: options.includeFileStorage,
       retentionCount: options.retentionCount,
       zipPath

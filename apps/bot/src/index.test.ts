@@ -1,15 +1,18 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { PassThrough } from 'node:stream';
 import { createLogger } from '@cs/core';
 import { startBotApp } from './index';
+
+const originalExitCode = process.exitCode;
+
+afterEach(() => {
+  process.exitCode = originalExitCode ?? 0;
+});
 
 describe("startBotApp", () => {
   test("logs serialized startup failures instead of raw error objects", async () => {
     const stream = new PassThrough();
     let output = "";
-    const botProcess = {
-      exitCode: undefined as number | undefined,
-    };
     stream.on("data", (chunk: Buffer | string) => {
       output += chunk.toString();
     });
@@ -20,7 +23,6 @@ describe("startBotApp", () => {
         throw new Error("Configured Convex deployment is missing bot runtime backend functions.");
       },
       logger,
-      botProcess,
     );
 
     await new Promise((resolve) => setImmediate(resolve));
@@ -33,12 +35,15 @@ describe("startBotApp", () => {
     expect(logs).toHaveLength(1);
     expect(logs[0]?.msg).toBe("bot startup failed");
     expect(logs[0]).toMatchObject({
-      context: {},
-      err: expect.objectContaining({
+      event: "bot.runtime.startup_failed",
+      runtime: "bot",
+      surface: "runtime",
+      outcome: "failed",
+      error: expect.objectContaining({
+        context: {},
         message: "Configured Convex deployment is missing bot runtime backend functions.",
         name: "Error",
       }),
     });
-    expect(botProcess.exitCode).toBe(1);
   });
 });

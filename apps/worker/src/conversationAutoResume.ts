@@ -1,10 +1,16 @@
 import { logger as defaultLogger } from '@cs/core';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
+import {
+  logWorkerItemFailed,
+  logWorkerTickCompleted,
+  logWorkerTickFailed,
+  type WorkerLogger,
+  withWorkerJobLogger,
+} from './logging';
 
 const DEFAULT_AUTO_RESUME_INTERVAL_MS = 60_000;
 const DEFAULT_AUTO_RESUME_BATCH_SIZE = 50;
-
-type WorkerLogger = Pick<typeof defaultLogger, "info" | "error">;
+const JOB_NAME = "conversationAutoResume";
 
 export interface ConversationAutoResumeProcessorOptions {
   batchSize?: number;
@@ -22,9 +28,6 @@ export interface ConversationAutoResumeTickResult {
 
 const getConversationAutoResumeLockKey = (conversationId: string): string =>
   `conversation:auto-resume:${conversationId}`;
-
-const getErrorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
 
 const processConversation = async (
   client: ConvexAdminClient,
@@ -69,11 +72,14 @@ const processConversation = async (
         ownerToken,
       });
     } catch (error) {
-      logger.error(
+      logWorkerItemFailed(
+        logger,
+        error,
         {
+          jobName: JOB_NAME,
           companyId: conversation.companyId,
           conversationId: conversation.id,
-          error: getErrorMessage(error),
+          step: "lock_release",
         },
         "conversation auto-resume lock release failed",
       );
@@ -87,10 +93,11 @@ export const createConversationAutoResumeProcessor = (
   const batchSize = options.batchSize ?? DEFAULT_AUTO_RESUME_BATCH_SIZE;
   const createClient = options.createClient ?? createConvexAdminClient;
   const intervalMs = options.intervalMs ?? DEFAULT_AUTO_RESUME_INTERVAL_MS;
-  const logger = options.logger ?? defaultLogger;
+  const logger = withWorkerJobLogger(options.logger ?? defaultLogger, JOB_NAME);
   const now = options.now ?? Date.now;
 
   const runTick = async (): Promise<ConversationAutoResumeTickResult> => {
+    const startedAt = Date.now();
     const client = createClient();
     const tickNow = now();
     const dueConversations = await client.query(convexInternal.conversations.listDueAutoResumeConversations, {
@@ -115,20 +122,33 @@ export const createConversationAutoResumeProcessor = (
         }
       } catch (error) {
         result.failedCount += 1;
-        logger.error(
+        logWorkerItemFailed(
+          logger,
+          error,
           {
+            jobName: JOB_NAME,
             companyId: conversation.companyId,
             conversationId: conversation.id,
-            error: getErrorMessage(error),
           },
           "conversation auto-resume failed",
         );
       }
     }
 
-    if (result.resumedCount > 0 || result.failedCount > 0) {
-      logger.info(result, "conversation auto-resume tick processed");
-    }
+    logWorkerTickCompleted(
+      logger,
+      {
+        jobName: JOB_NAME,
+        processedCount: result.resumedCount + result.skippedCount + result.failedCount,
+        succeededCount: result.resumedCount + result.skippedCount,
+        failedCount: result.failedCount,
+        retryCount: 0,
+        durationMs: Date.now() - startedAt,
+        resumedCount: result.resumedCount,
+        skippedCount: result.skippedCount,
+      },
+      "conversation auto-resume tick completed",
+    );
 
     return result;
   };
@@ -138,8 +158,14 @@ export const createConversationAutoResumeProcessor = (
     let running = false;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    const logTickFailure = (error: unknown) => {
-      logger.error({ error: getErrorMessage(error) }, "conversation auto-resume tick failed");
+    const logTickFailure = (error: unknown, tickStartedAt: number) => {
+      logWorkerTickFailed(
+        logger,
+        JOB_NAME,
+        error,
+        Date.now() - tickStartedAt,
+        "conversation auto-resume tick failed",
+      );
     };
 
     const scheduleNext = () => {
@@ -148,6 +174,7 @@ export const createConversationAutoResumeProcessor = (
       }
 
       const executeScheduledTick = async () => {
+        const tickStartedAt = Date.now();
         let acquiredRunning = false;
         let shouldReschedule = false;
 
@@ -161,7 +188,7 @@ export const createConversationAutoResumeProcessor = (
           acquiredRunning = true;
           await runTick();
         } catch (error) {
-          logTickFailure(error);
+          logTickFailure(error, tickStartedAt);
         } finally {
           if (acquiredRunning) {
             running = false;
@@ -171,7 +198,7 @@ export const createConversationAutoResumeProcessor = (
             try {
               scheduleNext();
             } catch (error) {
-              logTickFailure(error);
+              logTickFailure(error, tickStartedAt);
             }
           }
         }

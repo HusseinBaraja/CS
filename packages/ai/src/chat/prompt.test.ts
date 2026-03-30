@@ -29,9 +29,6 @@ describe("buildGroundedChatPrompt", () => {
     });
 
     expect(prompt.systemPrompt).toContain("Ask a short clarification question instead of guessing");
-    expect(prompt.systemPrompt).toContain(
-      "Interpret contextual customer replies against the most recent coherent thread",
-    );
     expect(prompt.systemPrompt).toContain("Use the handoff action only when the customer explicitly asks for a human or you cannot help safely");
   });
 

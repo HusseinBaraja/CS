@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
 
 type RuntimeEnv = Record<string, string | number | boolean | undefined>;
-export const DEFAULT_SEED_OWNER_PHONE = "967771408660";
 
 const OPTIONAL_EMPTY_ENV_KEYS = new Set([
   "API_KEY",
@@ -21,7 +20,6 @@ const OPTIONAL_EMPTY_ENV_KEYS = new Set([
   "R2_BUCKET_NAME",
   "R2_ENDPOINT",
   "R2_SECRET_ACCESS_KEY",
-  "SEED_OWNER_PHONE",
 ]);
 const parseCsvEnv = (value: string): string[] =>
   value
@@ -159,7 +157,6 @@ const envSchema = {
   R2_ENDPOINT: z.string().url().optional(),
   R2_ACCESS_KEY_ID: trimmedNonEmptyString.optional(),
   R2_SECRET_ACCESS_KEY: trimmedNonEmptyString.optional(),
-  SEED_OWNER_PHONE: trimmedNonEmptyString.default(DEFAULT_SEED_OWNER_PHONE),
   GEMINI_CHAT_MODEL: trimmedNonEmptyString.optional(),
   GROQ_API_KEY: trimmedNonEmptyString.optional(),
   GROQ_CHAT_MODEL: trimmedNonEmptyString.optional()
@@ -255,25 +252,6 @@ export const createConfig = (
 };
 
 export const env = createConfig();
-
-export const resolveSeedOwnerPhone = (
-  runtimeEnv: RuntimeEnv = process.env
-): string => {
-  const normalizedRuntimeEnv = normalizeRuntimeEnv(runtimeEnv);
-  const value = normalizedRuntimeEnv.SEED_OWNER_PHONE;
-
-  if (value === undefined) {
-    return DEFAULT_SEED_OWNER_PHONE;
-  }
-
-  if (typeof value !== "string") {
-    throw new ConfigError("SEED_OWNER_PHONE: Invalid input: expected string", {
-      code: ERROR_CODES.CONFIG_INVALID
-    });
-  }
-
-  return value;
-};
 
 export const requireConfigValue = <
   TConfig extends Record<string, unknown>,

@@ -21,13 +21,19 @@ const inboundRouter = {
 export const startBotApp = async (
   start = startTenantSessionManager,
   activeLogger = logger,
-  botProcess: { exitCode?: number } = process,
 ): Promise<void> => {
   try {
     await start({ inboundRouter });
   } catch (error) {
-    logError(activeLogger, error, "bot startup failed");
-    botProcess.exitCode = 1;
+    logError(activeLogger, error, "bot startup failed", {
+      envelopeOverrides: {
+        event: "bot.runtime.startup_failed",
+        runtime: "bot",
+        surface: "runtime",
+        outcome: "failed",
+      },
+    });
+    process.exitCode = 1;
   }
 };
 

@@ -68,12 +68,6 @@ const retrievalService: ProductRetrievalService = {
       outcome: "grounded",
       query: "مرحبا",
       language: "ar",
-      resolution: {
-        strategy: "standalone",
-        recentTurnsUsed: 0,
-        detectedOptionCount: 0,
-        standaloneQuery: "مرحبا",
-      },
       topScore: 0.9,
       candidates: [
         {

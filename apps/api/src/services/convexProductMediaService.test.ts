@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import type { StructuredLogger } from '@cs/core';
 import { convexInternal } from '@cs/db';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
 import { getFunctionName } from 'convex/server';
@@ -17,18 +18,19 @@ type StubConvexClient = {
   action: (reference: unknown, args: unknown) => Promise<unknown>;
 };
 
-type ProductMediaLogger = {
-  warn: (payload: Record<string, unknown>, message: string) => void;
-};
+type ProductMediaLogger = StructuredLogger;
 
 const createLoggerStub = () => {
   const warnCalls: Array<{ payload: Record<string, unknown>; message: string }> = [];
 
   return {
     logger: {
+      debug: () => undefined,
+      info: () => undefined,
       warn: (payload, message) => {
         warnCalls.push({ payload, message });
       },
+      error: () => undefined,
     } satisfies ProductMediaLogger,
     warnCalls,
   };
@@ -185,15 +187,21 @@ describe("createConvexProductMediaService", () => {
     expect(warnCalls).toEqual([{
       message: "product image upload session left pending after storage presign failure",
       payload: {
+        event: "api.product_media.upload_presign_failed",
+        runtime: "api",
+        surface: "product_media",
+        outcome: "pending_cleanup",
         companyId: "company-1",
-        productId: "product-1",
-        uploadId: "upload-1",
-        imageId: "image-1",
-        objectKey: "companies/company-1/products/product-1/image-1.jpg",
-        expiresAt: Date.UTC(2026, 2, 12, 0, 15, 0),
-        errorName: "ConfigError",
-        errorMessage: "Missing required environment variable: R2_ACCESS_KEY_ID",
         cleanupDelaySeconds: 900,
+        error: expect.objectContaining({
+          name: "ConfigError",
+          message: "Missing required environment variable: R2_ACCESS_KEY_ID",
+        }),
+        expiresAt: Date.UTC(2026, 2, 12, 0, 15, 0),
+        imageId: "image-1",
+        productId: "product-1",
+        objectKey: "companies/company-1/products/product-1/image-1.jpg",
+        uploadId: "upload-1",
       },
     }]);
   });
@@ -232,15 +240,21 @@ describe("createConvexProductMediaService", () => {
     expect(warnCalls).toEqual([{
       message: "product image upload session left pending after storage presign failure",
       payload: {
+        event: "api.product_media.upload_presign_failed",
+        runtime: "api",
+        surface: "product_media",
+        outcome: "pending_cleanup",
         companyId: "company-1",
-        productId: "product-1",
-        uploadId: "upload-2",
-        imageId: "image-2",
-        objectKey: "companies/company-1/products/product-1/image-2.jpg",
-        expiresAt: Date.UTC(2026, 2, 12, 0, 15, 0),
-        errorName: "StorageError",
-        errorMessage: "temporary outage",
         cleanupDelaySeconds: 900,
+        error: expect.objectContaining({
+          name: "StorageError",
+          message: "temporary outage",
+        }),
+        expiresAt: Date.UTC(2026, 2, 12, 0, 15, 0),
+        imageId: "image-2",
+        productId: "product-1",
+        objectKey: "companies/company-1/products/product-1/image-2.jpg",
+        uploadId: "upload-2",
       },
     }]);
   });

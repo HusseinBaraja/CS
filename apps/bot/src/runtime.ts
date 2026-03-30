@@ -4,7 +4,13 @@ import {
   type UserFacingSocketConfig,
 } from './baileys';
 import makeWASocket from './baileys';
-import { logger as defaultLogger } from '@cs/core';
+import {
+  logEvent,
+  logger as defaultLogger,
+  serializeErrorForLog,
+  type StructuredLogger,
+  withLogBindings,
+} from '@cs/core';
 import {
   getBotRuntimeReconnectDelayMs,
   type BotRuntimePairingState,
@@ -46,13 +52,7 @@ export interface BotRuntimeHandle extends OutboundTransport {
   stop(): Promise<void>;
 }
 
-export interface BotLogger {
-  info(payload: unknown, message: string): void;
-  error(payload: unknown, message: string): void;
-  warn?(payload: unknown, message: string): void;
-  debug?(payload: unknown, message: string): void;
-  child?(bindings: Record<string, unknown>): BotLogger;
-}
+export type BotLogger = StructuredLogger;
 
 export interface BotConnectionUpdate {
   connection?: "open" | "connecting" | "close";
@@ -119,15 +119,19 @@ const createBaileysLogger = (botLogger: BotLogger) => {
   const error = activeLogger.error.bind(activeLogger);
   const warn = activeLogger.warn?.bind(activeLogger) ?? info;
   const debug = activeLogger.debug?.bind(activeLogger) ?? info;
+  const toLogRecord = (payload: unknown): Record<string, unknown> =>
+    typeof payload === "object" && payload !== null
+      ? payload as Record<string, unknown>
+      : { value: payload };
 
   return {
     level: "info",
     child: () => createBaileysLogger(activeLogger),
-    trace: (payload: unknown, message?: string) => debug(payload, message ?? "baileys trace"),
-    debug: (payload: unknown, message?: string) => debug(payload, message ?? "baileys debug"),
-    info: (payload: unknown, message?: string) => info(payload, message ?? "baileys info"),
-    warn: (payload: unknown, message?: string) => warn(payload, message ?? "baileys warning"),
-    error: (payload: unknown, message?: string) => error(payload, message ?? "baileys error"),
+    trace: (payload: unknown, message?: string) => debug(toLogRecord(payload), message ?? "baileys trace"),
+    debug: (payload: unknown, message?: string) => debug(toLogRecord(payload), message ?? "baileys debug"),
+    info: (payload: unknown, message?: string) => info(toLogRecord(payload), message ?? "baileys info"),
+    warn: (payload: unknown, message?: string) => warn(toLogRecord(payload), message ?? "baileys warning"),
+    error: (payload: unknown, message?: string) => error(toLogRecord(payload), message ?? "baileys error"),
   };
 };
 
@@ -169,11 +173,28 @@ const toStatusLogPayload = (status: BotSessionStatus) => ({
   ...(status.isNewLogin !== undefined ? { isNewLogin: status.isNewLogin } : {}),
 });
 
+const toStateChangePayload = (status: BotSessionStatus) => ({
+  event: "bot.session.state_changed",
+  runtime: "bot",
+  surface: "session",
+  outcome: status.state,
+  ...toStatusLogPayload(status),
+});
+
 export const startBot = async (
   options: StartBotOptions = {},
 ): Promise<BotRuntimeHandle> => {
-  const botLogger = options.logger ?? defaultLogger;
   const runtimeConfig = options.runtimeConfig ?? createBotRuntimeConfig();
+  const botLogger = withLogBindings(options.logger ?? defaultLogger, {
+    runtime: "bot",
+    sessionKey: runtimeConfig.sessionKey,
+  });
+  const sessionLogger = withLogBindings(botLogger, {
+    surface: "session",
+  });
+  const runtimeLogger = withLogBindings(botLogger, {
+    surface: "runtime",
+  });
   const createSocket = options.createSocket ?? defaultCreateSocket;
   const resolveSocketVersion = options.resolveSocketVersion ?? defaultResolveSocketVersion;
   const loadAuthState = options.loadAuthState ?? ((authOptions) => createLocalAuthState(authOptions));
@@ -205,14 +226,25 @@ export const startBot = async (
     }
 
     status = nextStatus;
-    botLogger.info(toStatusLogPayload(nextStatus), "bot session state changed");
+    logEvent(
+      sessionLogger,
+      "info",
+      toStateChangePayload(nextStatus),
+      "bot session state changed",
+    );
     if (onStatusChange) {
       void Promise.resolve()
         .then(() => onStatusChange(nextStatus))
         .catch((error) => {
-          botLogger.error(
+          logEvent(
+            runtimeLogger,
+            "error",
             {
-              error,
+              event: "bot.runtime.status_callback_failed",
+              runtime: "bot",
+              surface: "runtime",
+              outcome: "callback_failed",
+              error: serializeErrorForLog(error),
               sessionKey: nextStatus.sessionKey,
             },
             "bot status change callback failed",
@@ -231,9 +263,15 @@ export const startBot = async (
       void Promise.resolve()
         .then(() => onPairingChange(nextPairing))
         .catch((error) => {
-          botLogger.error(
+          logEvent(
+            runtimeLogger,
+            "error",
             {
-              error,
+              event: "bot.runtime.pairing_callback_failed",
+              runtime: "bot",
+              surface: "runtime",
+              outcome: "callback_failed",
+              error: serializeErrorForLog(error),
               sessionKey: nextPairing.sessionKey,
             },
             "bot pairing change callback failed",
@@ -248,7 +286,11 @@ export const startBot = async (
     const warn = botLogger.warn?.bind(botLogger) ?? botLogger.info.bind(botLogger);
     warn(
       {
-        error,
+        event: "bot.runtime.version_fallback",
+        runtime: "bot",
+        surface: "runtime",
+        outcome: "fallback",
+        error: serializeErrorForLog(error),
         fallbackVersion: DEFAULT_BOT_SOCKET_VERSION,
         sessionKey: runtimeConfig.sessionKey,
       },
@@ -354,10 +396,16 @@ export const startBot = async (
       hasQr: false,
     });
     clearPairing();
-    botLogger.error(
+    logEvent(
+      runtimeLogger,
+      "error",
       {
+        event: "bot.runtime.terminal_failure",
+        runtime: "bot",
+        surface: "runtime",
+        outcome: "failed",
+        error: serializeErrorForLog(error),
         sessionKey: runtimeConfig.sessionKey,
-        error,
       },
       message,
     );
@@ -390,9 +438,15 @@ export const startBot = async (
       try {
         connect();
       } catch (error) {
-        botLogger.error(
+        logEvent(
+          runtimeLogger,
+          "error",
           {
-            error,
+            event: "bot.runtime.reconnect_attempt_failed",
+            runtime: "bot",
+            surface: "runtime",
+            outcome: "retrying",
+            error: serializeErrorForLog(error),
             sessionKey: runtimeConfig.sessionKey,
           },
           "bot reconnect attempt failed",
@@ -439,9 +493,15 @@ export const startBot = async (
         try {
           await onMessagesUpsert(event);
         } catch (error) {
-          botLogger.error(
+          logEvent(
+            runtimeLogger,
+            "error",
             {
-              error,
+              event: "bot.runtime.inbound_callback_failed",
+              runtime: "bot",
+              surface: "runtime",
+              outcome: "callback_failed",
+              error: serializeErrorForLog(error),
               sessionKey: runtimeConfig.sessionKey,
             },
             "bot inbound message callback failed",

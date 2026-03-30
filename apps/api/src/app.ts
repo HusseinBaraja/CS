@@ -1,6 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { type Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { logger } from '@cs/core';
+import { logEvent, logger, serializeErrorForLog, type StructuredLogger, withLogBindings } from '@cs/core';
 import { checkDbConnection, createDbConnection, DB_PROVIDER, type DbConnection, getDbConnectionInfo } from '@cs/db';
 import { ConfigError, ERROR_CODES, ValidationError } from '@cs/shared';
 import { createApiKeyAuthMiddleware } from './auth';
@@ -46,15 +47,15 @@ export interface ApiAppOptions {
   productMediaService?: ProductMediaService;
   offersService?: OffersService;
   currencyRatesService?: CurrencyRatesService;
-  logger?: {
-    warn: (payload: Record<string, unknown>, message: string) => void;
-  };
+  logger?: StructuredLogger;
   runtimeConfig?: Partial<ApiRuntimeConfig>;
   now?: () => number;
   getClientId?: (context: Context) => string;
+  createRequestId?: () => string;
 }
 
 const MAX_ERROR_MESSAGE_LENGTH = 120;
+const REQUEST_ID_HEADER = "X-Request-Id";
 
 const redactErrorMessage = (message: string): string => {
   const sanitized = message
@@ -122,12 +123,60 @@ const getReadyErrorResponse = (error: unknown) => {
   };
 };
 
+const createSanitizedLogError = (error: unknown): Error => {
+  const message = redactErrorMessage(error instanceof Error ? error.message : String(error));
+  const sanitizedError = new Error(message);
+  sanitizedError.name = error instanceof Error ? error.name : "UnknownError";
+  return sanitizedError;
+};
+
+const getRequestOutcome = (statusCode: number): string => {
+  if (statusCode >= 500) {
+    return "error";
+  }
+
+  if (statusCode === 429) {
+    return "rate_limited";
+  }
+
+  if (statusCode >= 400) {
+    return "client_error";
+  }
+
+  return "success";
+};
+
+const getAuthOutcome = (context: Context): string => {
+  const authOutcome = context.get("authOutcome");
+  if (typeof authOutcome === "string") {
+    return authOutcome;
+  }
+
+  if (context.res.status === 401) {
+    return "unauthorized";
+  }
+
+  if (context.res.status === 403) {
+    return "forbidden";
+  }
+
+  return context.res.status === 429 ? "rate_limited" : "not_required";
+};
+
+const getRequestLogger = (
+  context: Context,
+  fallbackLogger: StructuredLogger,
+): StructuredLogger => context.get("requestLogger") ?? fallbackLogger;
+
 export const createApp = (options: ApiAppOptions = {}) => {
   const app = new Hono();
   const connectToDb = options.createDbConnection ?? createDbConnection;
   const checkDbReady = options.checkDbReady ?? checkDbConnection;
-  const appLogger = options.logger ?? logger;
+  const appLogger = withLogBindings(options.logger ?? logger, {
+    runtime: "api",
+  });
   const runtimeConfig = createApiRuntimeConfig(options.runtimeConfig);
+  const createRequestId = options.createRequestId ?? randomUUID;
   const apiCors = cors({
     origin: runtimeConfig.corsOrigins.includes("*")
       ? "*"
@@ -135,7 +184,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
           runtimeConfig.corsOrigins.includes(origin) ? origin : null,
     allowHeaders: ["Content-Type", "Authorization", "X-API-Key"],
     allowMethods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-    exposeHeaders: ["Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
+    exposeHeaders: ["Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", REQUEST_ID_HEADER],
     maxAge: 86_400
   });
   const authMiddleware = createApiKeyAuthMiddleware({
@@ -148,7 +197,9 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const conversationsService = options.conversationsService ?? createConvexConversationsService();
   const productsService = options.productsService ?? createConvexProductsService();
   const productMediaService = options.productMediaService ?? createConvexProductMediaService({
-    logger: appLogger,
+    logger: withLogBindings(appLogger, {
+      surface: "product_media",
+    }),
   });
   const offersService = options.offersService ?? createConvexOffersService();
   const currencyRatesService = options.currencyRatesService ?? createConvexCurrencyRatesService();
@@ -162,10 +213,67 @@ export const createApp = (options: ApiAppOptions = {}) => {
     getClientId: options.getClientId
   });
 
+  app.use("*", async (c, next) => {
+    const incomingRequestId = c.req.header("x-request-id")?.trim();
+    const requestId =
+      incomingRequestId && /^[A-Za-z0-9._:-]{1,128}$/u.test(incomingRequestId)
+        ? incomingRequestId
+        : createRequestId();
+    const startedAt = (options.now ?? Date.now)();
+    const requestLogger = withLogBindings(appLogger, {
+      surface: "http",
+      requestId,
+    });
+
+    c.set("requestId", requestId);
+    c.set("requestLogger", requestLogger);
+    c.header(REQUEST_ID_HEADER, requestId);
+    await next();
+
+    // Re-apply the request id in case downstream middleware replaced the response object.
+    c.header(REQUEST_ID_HEADER, requestId);
+    logEvent(
+      requestLogger,
+      "info",
+      {
+        event: "api.request.completed",
+        runtime: "api",
+        surface: "http",
+        outcome: getRequestOutcome(c.res.status),
+        authOutcome: getAuthOutcome(c),
+        durationMs: (options.now ?? Date.now)() - startedAt,
+        method: c.req.method,
+        path: c.req.path,
+        requestId,
+        statusCode: c.res.status,
+      },
+      "api request completed",
+    );
+  });
+
   app.use("*", apiCors, rateLimitMiddleware, authMiddleware);
 
   app.onError((error, c) => {
+    const requestLogger = getRequestLogger(c, withLogBindings(appLogger, { surface: "http" }));
+    const requestId = c.get("requestId");
+
     if (error instanceof SyntaxError) {
+      logEvent(
+        requestLogger,
+        "warn",
+        {
+          event: "api.request.validation_failed",
+          runtime: "api",
+          surface: "http",
+          outcome: "invalid",
+          error: serializeErrorForLog(error),
+          method: c.req.method,
+          path: c.req.path,
+          requestId,
+          statusCode: 400,
+        },
+        "api request validation failed",
+      );
       return c.json(
         createErrorResponse(ERROR_CODES.VALIDATION_FAILED, "Malformed JSON body"),
         400
@@ -173,15 +281,43 @@ export const createApp = (options: ApiAppOptions = {}) => {
     }
 
     if (error instanceof ValidationError) {
+      logEvent(
+        requestLogger,
+        "warn",
+        {
+          event: "api.request.validation_failed",
+          runtime: "api",
+          surface: "http",
+          outcome: "invalid",
+          error: serializeErrorForLog(error),
+          method: c.req.method,
+          path: c.req.path,
+          requestId,
+          statusCode: 400,
+        },
+        "api request validation failed",
+      );
       return c.json(
         createErrorResponse(ERROR_CODES.VALIDATION_FAILED, error.message),
         400
       );
     }
 
-    appLogger.warn(
-      { error: error instanceof Error ? error.message : String(error) },
-      "Unhandled error in request"
+    logEvent(
+      requestLogger,
+      "error",
+      {
+        event: "api.request.failed",
+        runtime: "api",
+        surface: "http",
+        outcome: "error",
+        error: serializeErrorForLog(error),
+        method: c.req.method,
+        path: c.req.path,
+        requestId,
+        statusCode: 500,
+      },
+      "api request failed",
     );
     return c.json(
       createCustomErrorResponse("INTERNAL_SERVER_ERROR", "Internal server error"),
@@ -228,12 +364,22 @@ export const createApp = (options: ApiAppOptions = {}) => {
       const errMessage = redactErrorMessage(err instanceof Error ? err.message : String(err));
       const failure = getReadyErrorResponse(err);
 
-      appLogger.warn(
+      logEvent(
+        withLogBindings(appLogger, {
+          surface: "readiness",
+        }),
+        "warn",
         {
+          event: "api.readiness.failed",
+          runtime: "api",
+          surface: "readiness",
+          outcome: "degraded",
           dependency: "db",
+          error: serializeErrorForLog(createSanitizedLogError(err)),
           provider: DB_PROVIDER,
           errName,
-          errMessage
+          errMessage,
+          requestId: c.get("requestId"),
         },
         "api readiness check failed"
       );

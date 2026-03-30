@@ -2,6 +2,14 @@ import { logger as defaultLogger } from '@cs/core';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
 import { ConfigError } from '@cs/shared';
 import { createR2Storage, type ObjectStorage, StorageError } from '@cs/storage';
+import {
+  logWorkerItemFailed,
+  logWorkerRetryScheduled,
+  logWorkerTickCompleted,
+  logWorkerTickFailed,
+  type WorkerLogger,
+  withWorkerJobLogger,
+} from './logging';
 
 const MEDIA_CLEANUP_RETRY_DELAYS_MS = [
   30_000,
@@ -12,8 +20,7 @@ const MEDIA_CLEANUP_RETRY_DELAYS_MS = [
 
 const DEFAULT_MEDIA_CLEANUP_INTERVAL_MS = 15_000;
 const DEFAULT_MEDIA_CLEANUP_BATCH_SIZE = 32;
-
-type WorkerLogger = Pick<typeof defaultLogger, "info" | "warn" | "error">;
+const JOB_NAME = "mediaCleanup";
 
 export interface MediaCleanupProcessorOptions {
   createClient?: () => ConvexAdminClient;
@@ -27,13 +34,8 @@ export interface MediaCleanupProcessorOptions {
 const getRetryDelayMs = (attempts: number): number | null =>
   MEDIA_CLEANUP_RETRY_DELAYS_MS[attempts] ?? null;
 
-const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "Unknown cleanup failure";
-};
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : "Unknown cleanup failure";
 
 const isRetryableCleanupError = (error: unknown): boolean => {
   if (error instanceof ConfigError) {
@@ -87,7 +89,17 @@ const processCleanupJob = async (
         nextAttemptAt: now + retryDelayMs,
         lastError,
       });
-      logger.warn({ jobId: job._id, objectKey: job.objectKey, lastError }, "media cleanup job scheduled for retry");
+      logWorkerRetryScheduled(
+        logger,
+        {
+          jobName: JOB_NAME,
+          jobId: job._id,
+          attempt: job.attempts + 1,
+          nextAttemptAt: now + retryDelayMs,
+          objectKey: job.objectKey,
+        },
+        "media cleanup job scheduled for retry",
+      );
       return "retried";
     }
 
@@ -96,7 +108,18 @@ const processCleanupJob = async (
       now,
       lastError,
     });
-    logger.error({ jobId: job._id, objectKey: job.objectKey, lastError }, "media cleanup job failed");
+    logWorkerItemFailed(
+      logger,
+      error,
+      {
+        jobName: JOB_NAME,
+        jobId: job._id,
+        attempt: job.attempts + 1,
+        objectKey: job.objectKey,
+        lastError,
+      },
+      "media cleanup job failed",
+    );
     return "failed";
   }
 };
@@ -113,11 +136,12 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
   const createClient = options.createClient ?? createConvexAdminClient;
   const createStorage = options.createStorage ?? createR2Storage;
   const now = options.now ?? Date.now;
-  const logger = options.logger ?? defaultLogger;
+  const logger = withWorkerJobLogger(options.logger ?? defaultLogger, JOB_NAME);
   const batchSize = options.batchSize ?? DEFAULT_MEDIA_CLEANUP_BATCH_SIZE;
   const intervalMs = options.intervalMs ?? DEFAULT_MEDIA_CLEANUP_INTERVAL_MS;
 
   const runTick = async (): Promise<MediaCleanupTickResult> => {
+    const startedAt = Date.now();
     const client = createClient();
     const storage = createStorage();
     const tickNow = now();
@@ -175,14 +199,21 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
       }
     }
 
-    if (
-      results.expiredUploadCount > 0 ||
-      results.completedJobs > 0 ||
-      results.retriedJobs > 0 ||
-      results.failedJobs > 0
-    ) {
-      logger.info(results, "media cleanup tick processed");
-    }
+    logWorkerTickCompleted(
+      logger,
+      {
+        jobName: JOB_NAME,
+        processedCount:
+          results.completedJobs + results.retriedJobs + results.failedJobs + results.skippedJobs,
+        succeededCount: results.completedJobs + results.skippedJobs,
+        failedCount: results.failedJobs,
+        retryCount: results.retriedJobs,
+        durationMs: Date.now() - startedAt,
+        expiredUploadCount: results.expiredUploadCount,
+        skippedCount: results.skippedJobs,
+      },
+      "media cleanup tick completed",
+    );
 
     return results;
   };
@@ -192,8 +223,14 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
     let running = false;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    const logTickFailure = (error: unknown) => {
-      logger.error({ error: getErrorMessage(error) }, "media cleanup tick failed");
+    const logTickFailure = (error: unknown, tickStartedAt: number) => {
+      logWorkerTickFailed(
+        logger,
+        JOB_NAME,
+        error,
+        Date.now() - tickStartedAt,
+        "media cleanup tick failed",
+      );
     };
 
     const scheduleNext = () => {
@@ -202,6 +239,7 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
       }
 
       const executeScheduledTick = async () => {
+        const tickStartedAt = Date.now();
         let acquiredRunning = false;
         let shouldReschedule = false;
 
@@ -215,7 +253,7 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
           acquiredRunning = true;
           await runTick();
         } catch (error) {
-          logTickFailure(error);
+          logTickFailure(error, tickStartedAt);
         } finally {
           if (acquiredRunning) {
             running = false;
@@ -225,7 +263,7 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
             try {
               scheduleNext();
             } catch (error) {
-              logTickFailure(error);
+              logTickFailure(error, tickStartedAt);
             }
           }
         }

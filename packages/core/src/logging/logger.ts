@@ -1,0 +1,183 @@
+import type { DestinationStream, Logger, LoggerOptions } from 'pino';
+import pino from 'pino';
+import { env } from '@cs/config';
+import { serializeErrorForLog } from './helpers';
+import { createProductionLogDestination, type LoggerRuntimeConfig } from './stream';
+import type { StructuredLogPayload, StructuredLogger } from './types';
+
+const redactPaths = [
+  "password",
+  "token",
+  "authorization",
+  "apiKey",
+  "secret",
+  "phone",
+  "phoneNumber",
+  "ownerPhone",
+  "jid",
+  "recipientJid",
+  "*.password",
+  "*.token",
+  "*.authorization",
+  "*.apiKey",
+  "*.secret",
+  "*.phone",
+  "*.phoneNumber",
+  "*.ownerPhone",
+  "*.jid",
+  "*.recipientJid",
+  "*.*.password",
+  "*.*.token",
+  "*.*.authorization",
+  "*.*.apiKey",
+  "*.*.secret",
+  "*.*.phone",
+  "*.*.phoneNumber",
+  "*.*.ownerPhone",
+  "*.*.jid",
+  "*.*.recipientJid",
+  "error.context.password",
+  "error.context.token",
+  "error.context.authorization",
+  "error.context.apiKey",
+  "error.context.secret",
+  "error.context.phone",
+  "error.context.phoneNumber",
+  "error.context.ownerPhone",
+  "error.context.jid",
+  "error.context.recipientJid",
+  "error.cause.context.password",
+  "error.cause.context.token",
+  "error.cause.context.authorization",
+  "error.cause.context.apiKey",
+  "error.cause.context.secret",
+  "error.cause.context.phone",
+  "error.cause.context.phoneNumber",
+  "error.cause.context.ownerPhone",
+  "error.cause.context.jid",
+  "error.cause.context.recipientJid",
+] as const;
+
+const baseRedactOptions = {
+  paths: [...redactPaths],
+  censor: "[REDACTED]",
+};
+
+const baseLoggerOptions: LoggerOptions = {
+  level: env.LOG_LEVEL,
+  redact: baseRedactOptions,
+};
+
+type RedactObject = Exclude<Exclude<LoggerOptions["redact"], string[]>, undefined>;
+
+const isRedactObject = (redact: unknown): redact is RedactObject =>
+  typeof redact === "object" && redact !== null && !Array.isArray(redact);
+
+const mergeRedactOptions = (redact: unknown): RedactObject => {
+  if (redact === undefined || redact === false) {
+    return {
+      ...baseRedactOptions,
+      paths: [...baseRedactOptions.paths],
+    };
+  }
+
+  if (Array.isArray(redact)) {
+    return {
+      ...baseRedactOptions,
+      paths: [...baseRedactOptions.paths, ...redact],
+    };
+  }
+
+  if (!isRedactObject(redact)) {
+    return {
+      ...baseRedactOptions,
+      paths: [...baseRedactOptions.paths],
+    };
+  }
+
+  return {
+    ...redact,
+    paths: [...baseRedactOptions.paths, ...(Array.isArray(redact.paths) ? redact.paths : [])],
+    censor: redact.censor ?? baseRedactOptions.censor,
+  };
+};
+
+export const createLoggerRuntimeConfig = (
+  config: Partial<LoggerRuntimeConfig> = {},
+): LoggerRuntimeConfig => ({
+  NODE_ENV: config.NODE_ENV ?? env.NODE_ENV,
+  LOG_LEVEL: config.LOG_LEVEL ?? env.LOG_LEVEL,
+  LOG_DIR: config.LOG_DIR ?? env.LOG_DIR,
+  LOG_RETENTION_DAYS: config.LOG_RETENTION_DAYS ?? env.LOG_RETENTION_DAYS,
+});
+
+const createPrettyStream = () =>
+  pino.transport({
+    target: "pino-pretty",
+    options: {
+      colorize: true,
+      translateTime: "SYS:standard",
+    },
+  });
+
+export const createLogger = (
+  options: LoggerOptions = {},
+  destination?: DestinationStream,
+  runtimeConfig: LoggerRuntimeConfig = createLoggerRuntimeConfig(),
+): Logger => {
+  const finalOptions: LoggerOptions = {
+    ...baseLoggerOptions,
+    level: runtimeConfig.LOG_LEVEL,
+    ...options,
+    redact: mergeRedactOptions(options.redact),
+  };
+
+  if (destination) {
+    return pino(finalOptions, destination);
+  }
+
+  if (runtimeConfig.NODE_ENV !== "production") {
+    return pino(finalOptions, createPrettyStream());
+  }
+
+  return pino(
+    finalOptions,
+    createProductionLogDestination({
+      LOG_DIR: runtimeConfig.LOG_DIR,
+      LOG_RETENTION_DAYS: runtimeConfig.LOG_RETENTION_DAYS,
+    }),
+  );
+};
+
+export const logger = createLogger();
+
+export interface LogErrorOptions {
+  context?: Record<string, unknown>;
+  envelopeOverrides?: Partial<StructuredLogPayload> & Record<string, unknown>;
+}
+
+export const logError = (
+  log: StructuredLogger,
+  error: unknown,
+  message: string,
+  options: LogErrorOptions = {},
+): void => {
+  const defaultEnvelope: StructuredLogPayload = {
+    event: "core.log.error",
+    runtime: "core",
+    surface: "logger",
+    outcome: "error",
+  };
+
+  const context = options.context ?? {};
+
+  log.error(
+    {
+      ...defaultEnvelope,
+      ...(options.envelopeOverrides ?? {}),
+      error: serializeErrorForLog(error),
+      ...(Object.keys(context).length > 0 ? { context } : {}),
+    },
+    message,
+  );
+};

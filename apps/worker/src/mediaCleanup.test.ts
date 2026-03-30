@@ -41,27 +41,48 @@ const createLoggerStub = () => {
   const infoCalls: LoggerCall[] = [];
   const warnCalls: LoggerCall[] = [];
   const errorCalls: LoggerCall[] = [];
-
-  const captureCall = (calls: LoggerCall[], args: unknown[]) => {
-    const [payload = {}, message = ""] = args;
-    calls.push({
-      payload: (payload ?? {}) as Record<string, unknown>,
-      message: typeof message === "string" ? message : String(message),
-    });
-  };
+  const createLogger = (bindings: Record<string, unknown> = {}) => ({
+    debug: (...args: unknown[]) => {
+      const [payload = {}, message = ""] = args;
+      infoCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : {} as Record<string, unknown>,
+        message: typeof message === "string" ? message : String(message),
+      });
+    },
+    info: (...args: unknown[]) => {
+      const [payload = {}, message = ""] = args;
+      infoCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : {} as Record<string, unknown>,
+        message: typeof message === "string" ? message : String(message),
+      });
+    },
+    warn: (...args: unknown[]) => {
+      const [payload = {}, message = ""] = args;
+      warnCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : {} as Record<string, unknown>,
+        message: typeof message === "string" ? message : String(message),
+      });
+    },
+    error: (...args: unknown[]) => {
+      const [payload = {}, message = ""] = args;
+      errorCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : {} as Record<string, unknown>,
+        message: typeof message === "string" ? message : String(message),
+      });
+    },
+    child: (childBindings: Record<string, unknown>) => createLogger({ ...bindings, ...childBindings }),
+  });
 
   return {
-    logger: {
-      info: (...args: unknown[]) => {
-        captureCall(infoCalls, args);
-      },
-      warn: (...args: unknown[]) => {
-        captureCall(warnCalls, args);
-      },
-      error: (...args: unknown[]) => {
-        captureCall(errorCalls, args);
-      },
-    },
+    logger: createLogger(),
     infoCalls,
     warnCalls,
     errorCalls,
@@ -101,6 +122,7 @@ describe("createMediaCleanupProcessor", () => {
     });
 
     let deletedKey: string | null = null;
+    const { logger, infoCalls } = createLoggerStub();
     const processor = createMediaCleanupProcessor({
       createClient: () => client as never,
       createStorage: () =>
@@ -118,7 +140,7 @@ describe("createMediaCleanupProcessor", () => {
             deletedKey = key;
           },
         }) as never,
-      logger: createLoggerStub().logger,
+      logger,
       now: () => Date.UTC(2026, 2, 12, 0, 0, 0),
     });
 
@@ -132,6 +154,25 @@ describe("createMediaCleanupProcessor", () => {
     expect(deletedKey as string | null).toBe("companies/company-1/products/product-1/image-1.jpg");
     expect(calls.mutations).toHaveLength(3);
     expect(calls.queries).toHaveLength(3);
+    expect(infoCalls).toEqual([
+      {
+        payload: {
+          event: "worker.job.tick_completed",
+          runtime: "worker",
+          surface: "job",
+          jobName: "mediaCleanup",
+          outcome: "success",
+          processedCount: 1,
+          succeededCount: 1,
+          failedCount: 0,
+          retryCount: 0,
+          durationMs: expect.any(Number),
+          expiredUploadCount: 1,
+          skippedCount: 0,
+        },
+        message: "media cleanup tick completed",
+      },
+    ]);
   });
 
   test("retries transient storage failures", async () => {
@@ -161,6 +202,7 @@ describe("createMediaCleanupProcessor", () => {
       },
     });
 
+    const { logger, warnCalls } = createLoggerStub();
     const processor = createMediaCleanupProcessor({
       createClient: () => client as never,
       createStorage: () =>
@@ -178,7 +220,7 @@ describe("createMediaCleanupProcessor", () => {
             throw new StorageError("temporary outage");
           },
         }) as never,
-      logger: createLoggerStub().logger,
+      logger,
       now: () => Date.UTC(2026, 2, 12, 0, 0, 0),
     });
 
@@ -195,6 +237,22 @@ describe("createMediaCleanupProcessor", () => {
       nextAttemptAt: Date.UTC(2026, 2, 12, 0, 0, 30),
       lastError: "temporary outage",
     });
+    expect(warnCalls).toEqual([
+      {
+        payload: {
+          event: "worker.job.retry_scheduled",
+          runtime: "worker",
+          surface: "job",
+          jobName: "mediaCleanup",
+          outcome: "retrying",
+          jobId: "job-1",
+          attempt: 1,
+          nextAttemptAt: Date.UTC(2026, 2, 12, 0, 0, 30),
+          objectKey: "companies/company-1/products/product-1/image-1.jpg",
+        },
+        message: "media cleanup job scheduled for retry",
+      },
+    ]);
   });
 
   test("marks terminal configuration failures as failed", async () => {
@@ -224,6 +282,7 @@ describe("createMediaCleanupProcessor", () => {
       },
     });
 
+    const { logger, errorCalls } = createLoggerStub();
     const processor = createMediaCleanupProcessor({
       createClient: () => client as never,
       createStorage: () =>
@@ -241,7 +300,7 @@ describe("createMediaCleanupProcessor", () => {
             throw new ConfigError("Missing required environment variable: R2_ACCESS_KEY_ID");
           },
         }) as never,
-      logger: createLoggerStub().logger,
+      logger,
       now: () => Date.UTC(2026, 2, 12, 0, 0, 0),
     });
 
@@ -256,6 +315,24 @@ describe("createMediaCleanupProcessor", () => {
       jobId: "job-1",
       now: Date.UTC(2026, 2, 12, 0, 0, 0),
       lastError: "Missing required environment variable: R2_ACCESS_KEY_ID",
+    });
+    expect(errorCalls[0]).toMatchObject({
+      payload: {
+        event: "worker.job.item_failed",
+        runtime: "worker",
+        surface: "job",
+        jobName: "mediaCleanup",
+        outcome: "failed",
+        jobId: "job-1",
+        attempt: 1,
+        objectKey: "companies/company-1/products/product-1/image-1.jpg",
+        lastError: "Missing required environment variable: R2_ACCESS_KEY_ID",
+        error: {
+          message: "Missing required environment variable: R2_ACCESS_KEY_ID",
+          name: "ConfigError",
+        },
+      },
+      message: "media cleanup job failed",
     });
   });
 
@@ -399,7 +476,18 @@ describe("createMediaCleanupProcessor", () => {
 
       expect(errorCalls).toEqual([
         {
-          payload: { error: "tick exploded" },
+          payload: {
+            event: "worker.job.tick_failed",
+            runtime: "worker",
+            surface: "job",
+            outcome: "failed",
+            jobName: "mediaCleanup",
+            durationMs: expect.any(Number),
+            error: expect.objectContaining({
+              message: "tick exploded",
+              name: "Error",
+            }),
+          },
           message: "media cleanup tick failed",
         },
       ]);
@@ -475,7 +563,18 @@ describe("createMediaCleanupProcessor", () => {
 
       expect(errorCalls).toEqual([
         {
-          payload: { error: "scheduler unavailable" },
+          payload: {
+            event: "worker.job.tick_failed",
+            runtime: "worker",
+            surface: "job",
+            outcome: "failed",
+            jobName: "mediaCleanup",
+            durationMs: expect.any(Number),
+            error: expect.objectContaining({
+              message: "scheduler unavailable",
+              name: "Error",
+            }),
+          },
           message: "media cleanup tick failed",
         },
       ]);

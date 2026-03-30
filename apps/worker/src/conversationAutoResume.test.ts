@@ -34,32 +34,136 @@ const createLoggerStub = () => {
   const infoCalls: Array<{ payload: unknown; message: string }> = [];
   const errorCalls: Array<{ payload: unknown; message: string }> = [];
 
-  const captureCall = (
-    calls: Array<{ payload: unknown; message: string }>,
-    args: unknown[],
-  ) => {
-    const [payload = {}, message = ""] = args;
-    calls.push({
-      payload,
-      message: typeof message === "string" ? message : String(message),
+  const createLoggerStub = () => {
+    const debugCalls: Array<{ payload: unknown; message: string }> = [];
+    const infoCalls: Array<{ payload: unknown; message: string }> = [];
+    const errorCalls: Array<{ payload: unknown; message: string }> = [];
+
+    const createLogger = (bindings: Record<string, unknown> = {}) => ({
+      debug: (...args: unknown[]) => {
+        const [payload = {}, message = ""] = args;
+        debugCalls.push({
+          payload: typeof payload === "object" && payload !== null
+            ? { ...bindings, ...payload }
+            : payload,
+          message: typeof message === "string" ? message : String(message),
+        });
+      },
+      // ... other logger methods
     });
+
+    return {
+      logger: createLogger(),
+      debugCalls,
+      infoCalls,
+      errorCalls,
+    };
   };
+    },
+    info: (...args: unknown[]) => {
+      const [payload = {}, message = ""] = args;
+      infoCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message: typeof message === "string" ? message : String(message),
+      });
+    },
+    warn: () => undefined,
+    error: (...args: unknown[]) => {
+      const [payload = {}, message = ""] = args;
+      errorCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : payload,
+        message: typeof message === "string" ? message : String(message),
+      });
+    },
+    child: (childBindings: Record<string, unknown>) => createLogger({ ...bindings, ...childBindings }),
+  });
 
   return {
-    logger: {
-      info: (...args: unknown[]) => {
-        captureCall(infoCalls, args);
-      },
-      error: (...args: unknown[]) => {
-        captureCall(errorCalls, args);
-      },
-    },
+    logger: createLogger(),
     infoCalls,
     errorCalls,
   };
 };
 
+const flushMicrotasks = async (turns = 20) => {
+  for (let index = 0; index < turns; index += 1) {
+    await Promise.resolve();
+  }
+};
+
 describe("createConversationAutoResumeProcessor", () => {
+  test("logs scheduled tick failures with elapsed duration", async () => {
+    const { client } = createClientStub({
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+      query: async () => {
+        throw new Error("tick exploded");
+      },
+    });
+    const { logger, errorCalls } = createLoggerStub();
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    const scheduledCallbacks: Array<() => void> = [];
+    const clearedTimeouts: number[] = [];
+    let nextTimeoutId = 0;
+
+    globalThis.setTimeout = ((callback: TimerHandler) => {
+      if (typeof callback !== "function") {
+        throw new Error("Expected timer callback");
+      }
+
+      scheduledCallbacks.push(callback as () => void);
+      nextTimeoutId += 1;
+      return nextTimeoutId as unknown as ReturnType<typeof setTimeout>;
+    }) as unknown as typeof setTimeout;
+    globalThis.clearTimeout = ((timeoutId: ReturnType<typeof setTimeout>) => {
+      clearedTimeouts.push(timeoutId as unknown as number);
+    }) as typeof clearTimeout;
+
+    try {
+      const processor = createConversationAutoResumeProcessor({
+        createClient: () => client as never,
+        logger,
+      });
+
+      const stop = processor.start();
+      expect(scheduledCallbacks).toHaveLength(1);
+
+      scheduledCallbacks.shift()?.();
+      await flushMicrotasks();
+
+      expect(errorCalls).toEqual([
+        {
+          payload: {
+            event: "worker.job.tick_failed",
+            runtime: "worker",
+            surface: "job",
+            outcome: "failed",
+            jobName: "conversationAutoResume",
+            durationMs: expect.any(Number),
+            error: expect.objectContaining({
+              message: "tick exploded",
+              name: "Error",
+            }),
+          },
+          message: "conversation auto-resume tick failed",
+        },
+      ]);
+      expect(scheduledCallbacks).toHaveLength(1);
+
+      stop();
+      expect(clearedTimeouts).toEqual([2]);
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+      globalThis.clearTimeout = originalClearTimeout;
+    }
+  });
+
   test("resumes due muted conversations", async () => {
     let currentNow = 2_000;
     const { client, calls } = createClientStub({
@@ -120,11 +224,20 @@ describe("createConversationAutoResumeProcessor", () => {
     });
     expect(infoCalls).toEqual([{
       payload: {
+        event: "worker.job.tick_completed",
+        runtime: "worker",
+        surface: "job",
+        jobName: "conversationAutoResume",
+        outcome: "success",
+        processedCount: 1,
+        succeededCount: 1,
+        failedCount: 0,
+        retryCount: 0,
         resumedCount: 1,
         skippedCount: 0,
-        failedCount: 0,
+        durationMs: expect.any(Number),
       },
-      message: "conversation auto-resume tick processed",
+      message: "conversation auto-resume tick completed",
     }]);
     expect(errorCalls).toEqual([]);
   });
@@ -241,9 +354,17 @@ describe("createConversationAutoResumeProcessor", () => {
     });
     expect(errorCalls[0]).toEqual({
       payload: {
+        event: "worker.job.item_failed",
+        runtime: "worker",
+        surface: "job",
+        jobName: "conversationAutoResume",
+        outcome: "failed",
         companyId: "company-1",
         conversationId: "conversation-1",
-        error: "resume failed",
+        error: expect.objectContaining({
+          message: "resume failed",
+          name: "Error",
+        }),
       },
       message: "conversation auto-resume failed",
     });
@@ -313,9 +434,18 @@ describe("createConversationAutoResumeProcessor", () => {
     });
     expect(errorCalls).toEqual([{
       payload: {
+        event: "worker.job.item_failed",
+        runtime: "worker",
+        surface: "job",
+        jobName: "conversationAutoResume",
+        outcome: "failed",
         companyId: "company-1",
         conversationId: "conversation-1",
-        error: "release failed",
+        error: expect.objectContaining({
+          message: "release failed",
+          name: "Error",
+        }),
+        step: "lock_release",
       },
       message: "conversation auto-resume lock release failed",
     }]);
