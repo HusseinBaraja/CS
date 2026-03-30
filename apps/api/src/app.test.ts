@@ -119,6 +119,70 @@ describe("api app", () => {
     ).toBe(true);
   });
 
+  test("falls back to unauthorized when a downstream route returns 401 without authOutcome", async () => {
+    const logCollector = createLogCollector();
+    const app = createApp({
+      logger: logCollector.logger,
+      runtimeConfig: {
+        apiKey: "test-api-key",
+      },
+    });
+    app.get("/api/fallback-auth-401", (c) => {
+      c.set("authOutcome", undefined);
+      return c.json({ ok: false }, 401);
+    });
+
+    const response = await app.request("/api/fallback-auth-401", {
+      headers: {
+        "x-api-key": "test-api-key",
+      },
+    });
+
+    expect(response.status).toBe(401);
+    expect(logCollector.records).toContainEqual({
+      level: "info",
+      message: "api request completed",
+      payload: expect.objectContaining({
+        event: "api.request.completed",
+        authOutcome: "unauthorized",
+        statusCode: 401,
+        path: "/api/fallback-auth-401",
+      }),
+    });
+  });
+
+  test("falls back to forbidden when a downstream route returns 403 without authOutcome", async () => {
+    const logCollector = createLogCollector();
+    const app = createApp({
+      logger: logCollector.logger,
+      runtimeConfig: {
+        apiKey: "test-api-key",
+      },
+    });
+    app.get("/api/fallback-auth-403", (c) => {
+      c.set("authOutcome", undefined);
+      return c.json({ ok: false }, 403);
+    });
+
+    const response = await app.request("/api/fallback-auth-403", {
+      headers: {
+        "x-api-key": "test-api-key",
+      },
+    });
+
+    expect(response.status).toBe(403);
+    expect(logCollector.records).toContainEqual({
+      level: "info",
+      message: "api request completed",
+      payload: expect.objectContaining({
+        event: "api.request.completed",
+        authOutcome: "forbidden",
+        statusCode: 403,
+        path: "/api/fallback-auth-403",
+      }),
+    });
+  });
+
   test("protected routes fail closed when the API key is not configured", async () => {
     const app = createApp({
       runtimeConfig: {

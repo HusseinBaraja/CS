@@ -152,6 +152,14 @@ const getAuthOutcome = (context: Context): string => {
     return authOutcome;
   }
 
+  if (context.res.status === 401) {
+    return "unauthorized";
+  }
+
+  if (context.res.status === 403) {
+    return "forbidden";
+  }
+
   return context.res.status === 429 ? "rate_limited" : "not_required";
 };
 
