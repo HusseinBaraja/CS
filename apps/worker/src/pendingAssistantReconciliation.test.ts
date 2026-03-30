@@ -38,6 +38,7 @@ const createClientStub = (overrides: Partial<{
 const createLoggerStub = () => {
   const infoCalls: LoggerCall[] = [];
   const errorCalls: LoggerCall[] = [];
+  const warnCalls: LoggerCall[] = [];
   const createLogger = (bindings: Record<string, unknown> = {}) => ({
     debug: (...args: unknown[]) => {
       const [payload = {}, message = ""] = args;
@@ -57,7 +58,15 @@ const createLoggerStub = () => {
         message: typeof message === "string" ? message : String(message),
       });
     },
-    warn: () => undefined,
+    warn: (...args: unknown[]) => {
+      const [payload = {}, message = ""] = args;
+      warnCalls.push({
+        payload: typeof payload === "object" && payload !== null
+          ? { ...bindings, ...payload }
+          : {} as Record<string, unknown>,
+        message: typeof message === "string" ? message : String(message),
+      });
+    },
     error: (...args: unknown[]) => {
       const [payload = {}, message = ""] = args;
       errorCalls.push({
@@ -73,6 +82,7 @@ const createLoggerStub = () => {
   return {
     logger: createLogger(),
     infoCalls,
+    warnCalls,
     errorCalls,
   };
 };
