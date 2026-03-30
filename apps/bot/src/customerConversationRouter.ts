@@ -35,7 +35,6 @@ const summarizeAssistantText = (value: string) => {
   return {
     assistantTextLength: summary.textLength,
     assistantTextLineCount: summary.textLineCount,
-    assistantTextSha256: summary.textSha256,
   };
 };
 
@@ -45,7 +44,6 @@ const summarizeUserText = (value: string) => {
   return {
     userTextLength: summary.textLength,
     userTextLineCount: summary.textLineCount,
-    userTextSha256: summary.textSha256,
   };
 };
 

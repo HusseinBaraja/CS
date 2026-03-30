@@ -43,7 +43,7 @@ Safe to log:
 - provider names and model names
 - structured error metadata
 - redacted phone and JID values
-- text summaries returned by `summarizeTextForLog`
+- text summaries returned by `summarizeTextForLog` such as length and line count only
 
 Do not log:
 

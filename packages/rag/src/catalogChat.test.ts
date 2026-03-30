@@ -581,7 +581,6 @@ describe("createCatalogChatOrchestrator", () => {
       },
       providerTextLength: 600,
       providerTextLineCount: 1,
-      providerTextSha256: expect.any(String),
       error: {
         name: "Error",
         message: "Assistant structured output must be valid JSON",

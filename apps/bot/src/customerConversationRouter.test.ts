@@ -861,6 +861,7 @@ describe("createCustomerConversationRouter", () => {
     }]);
     expect(errorCalls[0]?.message).toBe("customer conversation history trimming failed");
     expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantTextSha256");
     expect(errorCalls[0]?.payload).toMatchObject({ assistantTextLength: "Assistant reply".length });
   });
 
@@ -1092,6 +1093,7 @@ describe("createCustomerConversationRouter", () => {
       assistantTextLength: "Assistant reply".length,
     });
     expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantTextSha256");
   });
 
   test("stops after send when acknowledgement persistence fails", async () => {
@@ -1148,6 +1150,7 @@ describe("createCustomerConversationRouter", () => {
       assistantTextLength: "Assistant reply".length,
     });
     expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantTextSha256");
   });
 
   test("marks the pending assistant reply failed when outbound send fails", async () => {
@@ -1212,6 +1215,7 @@ describe("createCustomerConversationRouter", () => {
       assistantTextLength: "Assistant reply".length,
     });
     expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
+    expect(errorCalls[0]?.payload).not.toHaveProperty("assistantTextSha256");
   });
 
   test("sends empty history after a stale idle gap without a quoted reference", async () => {

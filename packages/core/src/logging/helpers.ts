@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { formatError } from '@cs/shared';
 import type {
   StructuredLogLevel,
@@ -40,7 +39,6 @@ export const summarizeTextForLog = (text: string): Record<string, unknown> => {
   return {
     textLength: text.length,
     textLineCount: lineCount,
-    textSha256: createHash("sha256").update(text).digest("hex"),
   };
 };
 

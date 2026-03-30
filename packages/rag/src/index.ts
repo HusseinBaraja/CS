@@ -506,7 +506,6 @@ const summarizeQueryForLog = (text: string) => {
   return {
     queryTextLength: summary.textLength,
     queryTextLineCount: summary.textLineCount,
-    queryTextSha256: summary.textSha256,
   };
 };
 
@@ -516,7 +515,6 @@ const summarizeProviderTextForLog = (text: string) => {
   return {
     providerTextLength: summary.textLength,
     providerTextLineCount: summary.textLineCount,
-    providerTextSha256: summary.textSha256,
   };
 };
 

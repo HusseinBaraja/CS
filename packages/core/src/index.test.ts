@@ -315,7 +315,7 @@ describe("logger", () => {
       textLength: 11,
       textLineCount: 2,
     });
-    expect(summary.textSha256).toBeDefined();
+    expect(summary).not.toHaveProperty("textSha256");
     expect(Object.values(summary)).not.toContain("hello\nworld");
   });
 
