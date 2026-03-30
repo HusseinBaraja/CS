@@ -7,6 +7,10 @@ export interface StructuredLogPayload extends Record<string, unknown> {
   outcome: string;
 }
 
+export type StructuredLogPayloadInput =
+  & Omit<StructuredLogPayload, "runtime" | "surface">
+  & Partial<Pick<StructuredLogPayload, "runtime" | "surface">>;
+
 export interface StructuredLogger {
   debug?(payload: Record<string, unknown>, message: string): void;
   info(payload: Record<string, unknown>, message: string): void;

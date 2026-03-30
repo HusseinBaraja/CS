@@ -74,18 +74,19 @@ describe("runCli", () => {
 
   test("logs usage when no command is provided", async () => {
     const { logger, infoCalls } = createLoggerStub();
-    let usageCallCount = 0;
+    const callOrder: string[] = [];
 
     await runCli({
       argv: [],
       commands: [],
       logger,
       printUsage: () => {
-        usageCallCount += 1;
+        callOrder.push("usage");
+        expect(infoCalls).toHaveLength(0);
       },
     });
 
-    expect(usageCallCount).toBe(1);
+    expect(callOrder).toEqual(["usage"]);
     expect(infoCalls).toEqual([
       {
         payload: {
@@ -99,6 +100,7 @@ describe("runCli", () => {
         message: "cli usage shown",
       },
     ]);
+    expect(callOrder).toEqual(["usage"]);
   });
 
   test("logs command failures for unknown commands", async () => {

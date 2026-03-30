@@ -64,7 +64,81 @@ const createLoggerStub = () => {
   };
 };
 
+const flushMicrotasks = async (turns = 20) => {
+  for (let index = 0; index < turns; index += 1) {
+    await Promise.resolve();
+  }
+};
+
 describe("createConversationAutoResumeProcessor", () => {
+  test("logs scheduled tick failures with elapsed duration", async () => {
+    const { client } = createClientStub({
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+      query: async () => {
+        throw new Error("tick exploded");
+      },
+    });
+    const { logger, errorCalls } = createLoggerStub();
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    const scheduledCallbacks: Array<() => void> = [];
+    const clearedTimeouts: number[] = [];
+    let nextTimeoutId = 0;
+
+    globalThis.setTimeout = ((callback: TimerHandler) => {
+      if (typeof callback !== "function") {
+        throw new Error("Expected timer callback");
+      }
+
+      scheduledCallbacks.push(callback as () => void);
+      nextTimeoutId += 1;
+      return nextTimeoutId as unknown as ReturnType<typeof setTimeout>;
+    }) as unknown as typeof setTimeout;
+    globalThis.clearTimeout = ((timeoutId: ReturnType<typeof setTimeout>) => {
+      clearedTimeouts.push(timeoutId as unknown as number);
+    }) as typeof clearTimeout;
+
+    try {
+      const processor = createConversationAutoResumeProcessor({
+        createClient: () => client as never,
+        logger,
+      });
+
+      const stop = processor.start();
+      expect(scheduledCallbacks).toHaveLength(1);
+
+      scheduledCallbacks.shift()?.();
+      await flushMicrotasks();
+
+      expect(errorCalls).toEqual([
+        {
+          payload: {
+            event: "worker.job.tick_failed",
+            runtime: "worker",
+            surface: "job",
+            outcome: "failed",
+            jobName: "conversationAutoResume",
+            durationMs: expect.any(Number),
+            error: expect.objectContaining({
+              message: "tick exploded",
+              name: "Error",
+            }),
+          },
+          message: "conversation auto-resume tick failed",
+        },
+      ]);
+      expect(scheduledCallbacks).toHaveLength(1);
+
+      stop();
+      expect(clearedTimeouts).toEqual([2]);
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+      globalThis.clearTimeout = originalClearTimeout;
+    }
+  });
+
   test("resumes due muted conversations", async () => {
     let currentNow = 2_000;
     const { client, calls } = createClientStub({

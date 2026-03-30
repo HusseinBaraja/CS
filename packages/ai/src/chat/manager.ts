@@ -2,7 +2,7 @@ import { AIError, ERROR_CODES } from '@cs/shared';
 import {
   logEvent,
   serializeErrorForLog,
-  type StructuredLogPayload,
+  type StructuredLogPayloadInput,
   type StructuredLogger,
   withLogBindings,
 } from '@cs/core';
@@ -288,7 +288,7 @@ export const createChatProviderManager = (
     eventLogger: ChatManagerLogger | undefined,
     level: "info" | "warn" | "error",
     message: string,
-    buildPayload: () => StructuredLogPayload,
+    buildPayload: () => StructuredLogPayloadInput,
   ): void => {
     if (!eventLogger) {
       return;
@@ -351,8 +351,6 @@ export const createChatProviderManager = (
             "ai provider request completed",
             () => ({
               event: "ai.provider.request_completed",
-              runtime: "ai",
-              surface: "chat",
               outcome: "success",
               provider,
               model: response.model ?? providerConfig.model,
@@ -385,8 +383,6 @@ export const createChatProviderManager = (
             "ai provider attempt failed",
             () => ({
               event: "ai.provider.attempt_failed",
-              runtime: "ai",
-              surface: "chat",
               outcome: willFailOver ? "retrying" : "failed",
               provider,
               model: failure.model,
@@ -407,8 +403,6 @@ export const createChatProviderManager = (
               "ai provider failover selected",
               () => ({
                 event: "ai.provider.failover",
-                runtime: "ai",
-                surface: "chat",
                 outcome: "failover",
                 provider,
                 model: failure.model,
@@ -434,8 +428,6 @@ export const createChatProviderManager = (
             "ai provider chain failed",
             () => ({
               event: "ai.provider.chain_failed",
-              runtime: "ai",
-              surface: "chat",
               outcome: chainError.terminalDisposition,
               attemptedProviders: chainError.attemptedProviders,
               failures: chainError.failures,
@@ -502,8 +494,6 @@ export const createChatProviderManager = (
           "ai provider probes completed",
           () => ({
             event: "ai.provider.probe_completed",
-            runtime: "ai",
-            surface: "probe",
             outcome: "degraded",
             providers,
             healthyProviderCount: results.length - unhealthyProviders.length,
@@ -517,8 +507,6 @@ export const createChatProviderManager = (
           "ai provider probes completed",
           () => ({
             event: "ai.provider.probe_completed",
-            runtime: "ai",
-            surface: "probe",
             outcome: "healthy",
             providers,
             healthyProviderCount: results.length - unhealthyProviders.length,

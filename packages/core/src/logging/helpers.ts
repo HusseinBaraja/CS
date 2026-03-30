@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 import { formatError } from '@cs/shared';
-import type { StructuredLogLevel, StructuredLogPayload, StructuredLogger } from './types';
+import type {
+  StructuredLogLevel,
+  StructuredLogPayloadInput,
+  StructuredLogger,
+} from './types';
 
 const PHONE_SUFFIX_LENGTH = 4;
 
@@ -76,7 +80,7 @@ export const withLogBindings = (
 export const logEvent = (
   logger: StructuredLogger,
   level: StructuredLogLevel,
-  payload: StructuredLogPayload,
+  payload: StructuredLogPayloadInput,
   message: string,
 ): void => {
   logger[level]?.(payload, message);

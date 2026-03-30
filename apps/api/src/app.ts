@@ -219,6 +219,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
 
     await next();
 
+    // Re-apply the request id in case downstream middleware replaced the response object.
     c.header(REQUEST_ID_HEADER, requestId);
     logEvent(
       requestLogger,

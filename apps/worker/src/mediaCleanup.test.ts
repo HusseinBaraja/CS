@@ -473,7 +473,7 @@ describe("createMediaCleanupProcessor", () => {
             surface: "job",
             outcome: "failed",
             jobName: "mediaCleanup",
-            durationMs: 0,
+            durationMs: expect.any(Number),
             error: expect.objectContaining({
               message: "tick exploded",
               name: "Error",
@@ -560,7 +560,7 @@ describe("createMediaCleanupProcessor", () => {
             surface: "job",
             outcome: "failed",
             jobName: "mediaCleanup",
-            durationMs: 0,
+            durationMs: expect.any(Number),
             error: expect.objectContaining({
               message: "scheduler unavailable",
               name: "Error",

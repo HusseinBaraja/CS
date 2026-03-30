@@ -235,8 +235,6 @@ export const runBackup = async (
       "warn",
       {
         event: "cli.backup.retention_prune_failed",
-        runtime: "cli",
-        surface: "backup",
         outcome: "warning",
         backupDir: options.outDir,
         retentionCount: options.retentionCount,
@@ -251,8 +249,6 @@ export const runBackup = async (
     "info",
     {
       event: "cli.backup.completed",
-      runtime: "cli",
-      surface: "backup",
       outcome: "success",
       deletedCount: deletedBackups.length,
       durationMs: Date.now() - startedAt,

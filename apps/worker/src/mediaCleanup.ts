@@ -223,12 +223,12 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
     let running = false;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    const logTickFailure = (error: unknown) => {
+    const logTickFailure = (error: unknown, tickStartedAt: number) => {
       logWorkerTickFailed(
         logger,
         JOB_NAME,
         error,
-        0,
+        Date.now() - tickStartedAt,
         "media cleanup tick failed",
       );
     };
@@ -239,6 +239,7 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
       }
 
       const executeScheduledTick = async () => {
+        const tickStartedAt = Date.now();
         let acquiredRunning = false;
         let shouldReschedule = false;
 
@@ -252,7 +253,7 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
           acquiredRunning = true;
           await runTick();
         } catch (error) {
-          logTickFailure(error);
+          logTickFailure(error, tickStartedAt);
         } finally {
           if (acquiredRunning) {
             running = false;
@@ -262,7 +263,7 @@ export const createMediaCleanupProcessor = (options: MediaCleanupProcessorOption
             try {
               scheduleNext();
             } catch (error) {
-              logTickFailure(error);
+              logTickFailure(error, tickStartedAt);
             }
           }
         }

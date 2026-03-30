@@ -40,20 +40,18 @@ export const runCli = async (options: RunCliOptions = {}): Promise<void> => {
   const usagePrinter = options.printUsage ?? printUsage;
 
   if (!commandName) {
+    usagePrinter();
     logEvent(
       activeLogger,
       "info",
       {
         event: "cli.command.completed",
-        runtime: "cli",
-        surface: "command",
         outcome: "usage_shown",
         commandName: "help",
         env: env.NODE_ENV,
       },
       "cli usage shown",
     );
-    usagePrinter();
     return;
   }
 
@@ -70,10 +68,7 @@ export const runCli = async (options: RunCliOptions = {}): Promise<void> => {
       "error",
       {
         event: "cli.command.failed",
-        runtime: "cli",
-        surface: "command",
         outcome: "failed",
-        commandName,
         error: serializeErrorForLog(error),
       },
       "cli command failed",
@@ -87,10 +82,7 @@ export const runCli = async (options: RunCliOptions = {}): Promise<void> => {
     "info",
     {
       event: "cli.command.started",
-      runtime: "cli",
-      surface: "command",
       outcome: "started",
-      commandName,
     },
     "cli command started",
   );
@@ -102,10 +94,7 @@ export const runCli = async (options: RunCliOptions = {}): Promise<void> => {
       "info",
       {
         event: "cli.command.completed",
-        runtime: "cli",
-        surface: "command",
         outcome: "success",
-        commandName,
         durationMs: Date.now() - startedAt,
       },
       "cli command completed",
@@ -116,10 +105,7 @@ export const runCli = async (options: RunCliOptions = {}): Promise<void> => {
       "error",
       {
         event: "cli.command.failed",
-        runtime: "cli",
-        surface: "command",
         outcome: "failed",
-        commandName,
         durationMs: Date.now() - startedAt,
         error: serializeErrorForLog(error),
       },
