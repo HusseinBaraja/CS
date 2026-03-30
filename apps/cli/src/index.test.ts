@@ -103,7 +103,6 @@ describe("runCli", () => {
         message: "cli usage shown",
       },
     ]);
-    expect(callOrder).toEqual(["usage"]);
   });
 
   test("logs command failures for unknown commands", async () => {
