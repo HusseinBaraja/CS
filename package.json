@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev --filter=api --filter=bot --filter=web --filter=worker --parallel",
-    "web": "bunx vite apps/web --host 0.0.0.0 --config apps/web/vite.config.ts --port 5173",
+    "web": "bun run dev:web",
     "dev:api": "turbo run dev --filter=api",
     "dev:bot": "turbo run dev --filter=api --filter=bot --parallel",
     "dev:web": "turbo run dev --filter=web",
@@ -26,8 +26,8 @@
     "check": "turbo run check",
     "preview:web": "bun --cwd apps/web run preview",
     "generate": "bunx convex codegen",
-    "seed": "bun apps/cli/src/index.ts seed",
-    "backup": "bun apps/cli/src/index.ts backup",
+    "seed": "bun --cwd apps/cli run seed",
+    "backup": "bun --cwd apps/cli run backup",
     "ci": "turbo run ci"
   },
   "dependencies": {

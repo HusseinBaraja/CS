@@ -9,7 +9,6 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "check": "bun run typecheck",
-    "lint": "bun run typecheck",
     "preview": "vite preview --config vite.config.ts"
   },
   "dependencies": {

@@ -3,12 +3,17 @@
 ## Task Completion Requirements
 
 - Run all repo scripts from the repository root with `bun`.
-- `bun lint` and `bun typecheck` must pass before considering code tasks complete.
+- `bun check` must pass before considering general code tasks complete.
 - Follow test-driven development when making code changes: add or update tests as you go.
-- Use `bun test` for the Vitest workspace test run when tests are needed.
+- Use `bun test` when tests are needed.
+- Use `bun test:convex` for Convex-specific test work.
 - Run `bun generate` after any Convex schema change.
 - Do not run `bun dev` (assume it is already running).
 - Do not run `bun build` (CI only).
+- `bun lint` is only meaningful for workspaces that define a real lint script.
+- `bun dev:web` is the canonical root web development command.
+- `bun web` is a compatibility alias to `bun dev:web`.
+- `bun seed` and `bun backup` delegate to `apps/cli`.
 - Suggest a commit message at the end of large changes by inspecting the diff first. Then invoking the `conventional-commit` skill and commit it to the current branch. 
 
 ## Commit Message Skill
@@ -49,6 +54,7 @@ The roadmap in `docs/project_roadmap` was written before the current codebase ex
 
 - `apps/api`: Hono REST API for CRUD, auth, validation, health checks, and service orchestration.
 - `apps/bot`: Baileys-based WhatsApp bot runtime.
+- `apps/web`: Vite + React frontend.
 - `apps/worker`: Background job and asynchronous processing entrypoint.
 - `apps/cli`: Developer utilities such as seed and backup workflows.
 - `packages/ai`: Shared AI provider abstractions and related logic.
@@ -58,6 +64,7 @@ The roadmap in `docs/project_roadmap` was written before the current codebase ex
 - `packages/db`: Shared database client utilities.
 - `packages/rag`: Shared retrieval and RAG-related logic.
 - `packages/shared`: Cross-cutting shared utilities.
+- `packages/storage`: Shared storage helpers for R2 and related file operations.
 - `convex`: Convex schema, functions, seeds, and tests.
 
 ## Working Rules
@@ -66,6 +73,14 @@ The roadmap in `docs/project_roadmap` was written before the current codebase ex
 - Preserve strict type safety and existing test coverage expectations.
 - After schema-affecting Convex changes, regenerate code before finishing.
 
+## Command Conventions
+
+- Every workspace must define `typecheck`, `test`, and `check`.
+- `lint` is optional at the workspace level and must not duplicate `typecheck`.
+- `check` is the only aggregation script allowed at the workspace level.
+- Root `bun check` is the official workspace validation command.
+- Root `bun lint` should target only workspaces that define a real lint script.
+- Root command changes must be reflected in this file in the same PR.
 
 ## Known Pitfalls
 

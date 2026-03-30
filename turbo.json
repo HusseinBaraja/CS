@@ -58,8 +58,7 @@
     },
     "check": {
       "dependsOn": [
-        "typecheck",
-        "lint"
+        "^check"
       ],
       "outputs": []
     },

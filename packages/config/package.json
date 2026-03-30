@@ -9,8 +9,7 @@
     "dev": "bun --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
-    "check": "bun run typecheck && bun run lint",
+    "check": "bun run typecheck",
     "test": "bun test --pass-with-no-tests"
   },
   "dependencies": {
