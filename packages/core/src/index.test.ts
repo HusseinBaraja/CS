@@ -71,7 +71,27 @@ describe("logger", () => {
 
     const testLogger = createLogger({ level: "info" }, stream);
     testLogger.info(
-      { password: "secret-pass", token: "abc123", phoneNumber: "+15551234567" },
+      {
+        password: "secret-pass",
+        token: "abc123",
+        phoneNumber: "+15551234567",
+        error: {
+          context: {
+            apiKey: "sensitive-api-key",
+            phoneNumber: "+967700000001",
+          },
+          cause: {
+            context: {
+              token: "nested-token",
+            },
+            message: "nested cause",
+            name: "NestedError",
+          },
+          code: "VALIDATION_FAILED",
+          message: "top-level message",
+          name: "ValidationError",
+        },
+      },
       "safe-log",
     );
 
@@ -82,6 +102,22 @@ describe("logger", () => {
     expect(logs[0]?.password).toBe("[REDACTED]");
     expect(logs[0]?.token).toBe("[REDACTED]");
     expect(logs[0]?.phoneNumber).toBe("[REDACTED]");
+    expect(logs[0]?.error).toMatchObject({
+      code: "VALIDATION_FAILED",
+      message: "top-level message",
+      name: "ValidationError",
+      context: {
+        apiKey: "[REDACTED]",
+        phoneNumber: "[REDACTED]",
+      },
+      cause: {
+        message: "nested cause",
+        name: "NestedError",
+        context: {
+          token: "[REDACTED]",
+        },
+      },
+    });
   });
 
   test("serializes errors for structured logs", () => {
