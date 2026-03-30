@@ -402,6 +402,86 @@ describe("createOutboundMessenger", () => {
     ]);
   });
 
+  test("logs a terminal structured failure when the sequence is empty", async () => {
+    const { logger, errorCalls } = createLoggerStub();
+    const transport = createTransportStub();
+    const outbound = createOutboundMessenger({
+      logger,
+      transport,
+    });
+
+    await expect(outbound.sendSequence({
+      recipientJid: "967700000005@s.whatsapp.net",
+      steps: [],
+    })).rejects.toThrow(new OutboundValidationError("steps must contain at least one outbound message"));
+
+    expect(errorCalls).toEqual([
+      {
+        payload: {
+          attempts: 0,
+          classification: "validation",
+          durationMs: expect.any(Number),
+          error: expect.objectContaining({
+            message: "steps must contain at least one outbound message",
+            name: "OutboundValidationError",
+          }),
+          event: "bot.outbound.sequence_failed",
+          outcome: "failed",
+          recipientJid: "***0005@s.whatsapp.net",
+          runtime: "bot",
+          sentCount: 0,
+          stepCount: 0,
+          stepIndex: 0,
+          surface: "outbound",
+        },
+        message: "outbound sequence send failed",
+      },
+    ]);
+  });
+
+  test("logs a terminal structured failure when between-step validation fails", async () => {
+    const { logger, errorCalls } = createLoggerStub();
+    const transport = createTransportStub();
+    const outbound = createOutboundMessenger({
+      logger,
+      transport,
+    });
+
+    await expect(outbound.sendSequence({
+      recipientJid: "967700000006@s.whatsapp.net",
+      betweenStepsDelayMs: -1,
+      steps: [
+        {
+          kind: "text",
+          text: "Hello",
+        },
+      ],
+    })).rejects.toThrow(new OutboundValidationError("betweenStepsDelayMs must be a non-negative integer"));
+
+    expect(errorCalls).toEqual([
+      {
+        payload: {
+          attempts: 0,
+          classification: "validation",
+          durationMs: expect.any(Number),
+          error: expect.objectContaining({
+            message: "betweenStepsDelayMs must be a non-negative integer",
+            name: "OutboundValidationError",
+          }),
+          event: "bot.outbound.sequence_failed",
+          outcome: "failed",
+          recipientJid: "***0006@s.whatsapp.net",
+          runtime: "bot",
+          sentCount: 0,
+          stepCount: 1,
+          stepIndex: 0,
+          surface: "outbound",
+        },
+        message: "outbound sequence send failed",
+      },
+    ]);
+  });
+
   test("does not retry media resolution failures", async () => {
     const transport = createTransportStub();
     const outbound = createOutboundMessenger({
