@@ -14,6 +14,7 @@ export { detectChatLanguage, resolveChatResponseLanguage } from "./chat/language
 export { buildGroundedChatPrompt } from "./chat/prompt";
 export { DEFAULT_ALLOWED_ACTIONS, getAllowedActions } from "./chat/actions";
 export { parseAssistantStructuredOutput } from "./chat/output";
+export { StructuredOutputParseError } from "./chat/promptContracts";
 
 export type {
   ChatCallOptions,
@@ -43,8 +44,10 @@ export type {
   BuildGroundedChatPromptInput,
   BuiltGroundedChatPrompt,
   GroundingContextBlock,
+  ParseAssistantStructuredOutputResult,
   ParseAssistantStructuredOutputOptions,
   PromptHistoryTurn,
+  StructuredOutputParseFailureKind,
 } from "./chat/promptContracts";
 export type {
   ChatProviderErrorDisposition,

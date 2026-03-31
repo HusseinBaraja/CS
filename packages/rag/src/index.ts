@@ -14,6 +14,7 @@ import {
   type LanguageDetectionResult,
   parseAssistantStructuredOutput,
   type PromptHistoryTurn,
+  type StructuredOutputParseError,
 } from '@cs/ai';
 import {
   logEvent,
@@ -518,6 +519,8 @@ const summarizeProviderTextForLog = (text: string) => {
   };
 };
 
+const toParseFailureError = (error: StructuredOutputParseError): StructuredOutputParseError => error;
+
 const buildRetrievalLogContext = (
   retrieval: RetrieveCatalogContextResult,
 ): Record<string, unknown> => ({
@@ -755,10 +758,11 @@ export const createCatalogChatOrchestrator = (
         };
       }
 
-      try {
-        const assistant = parseStructuredOutput(providerResponse.text, {
-          allowedActions,
-        });
+      const parsedAssistant = parseStructuredOutput(providerResponse.text, {
+        allowedActions,
+      });
+      if (parsedAssistant.ok) {
+        const assistant = parsedAssistant.value;
 
         return {
           outcome: "provider_response",
@@ -767,36 +771,36 @@ export const createCatalogChatOrchestrator = (
           retrieval,
           provider: pickProviderMetadata(providerResponse),
         };
-      } catch (error) {
-        safeLogEvent(
-          routeLogger,
-          "error",
-          {
-            event: "rag.catalog_chat.parse_failed",
-            runtime: "rag",
-            surface: "orchestrator",
-            outcome: "invalid_model_output_fallback",
-            companyId: input.tenant.companyId,
-            ...(input.conversation?.conversationId
-              ? { conversationId: input.conversation.conversationId }
-              : {}),
-            ...(input.requestId ? { requestId: input.requestId } : {}),
-            responseLanguage: language.responseLanguage,
-            retrieval: buildRetrievalLogContext(retrieval),
-            provider: pickProviderMetadata(providerResponse),
-            ...summarizeProviderTextForLog(providerResponse.text),
-            error: serializeErrorForLog(error),
-          },
-          "catalog chat structured output parsing failed",
-        );
-        return {
-          outcome: "invalid_model_output_fallback",
-          assistant: buildAssistantFallback(language.responseLanguage, "handoff"),
-          language,
-          retrieval,
-          provider: pickProviderMetadata(providerResponse),
-        };
       }
+
+      safeLogEvent(
+        routeLogger,
+        "error",
+        {
+          event: "rag.catalog_chat.parse_failed",
+          runtime: "rag",
+          surface: "orchestrator",
+          outcome: "invalid_model_output_fallback",
+          companyId: input.tenant.companyId,
+          ...(input.conversation?.conversationId
+            ? { conversationId: input.conversation.conversationId }
+            : {}),
+          ...(input.requestId ? { requestId: input.requestId } : {}),
+          responseLanguage: language.responseLanguage,
+          retrieval: buildRetrievalLogContext(retrieval),
+          provider: pickProviderMetadata(providerResponse),
+          ...summarizeProviderTextForLog(providerResponse.text),
+          error: serializeErrorForLog(toParseFailureError(parsedAssistant.error)),
+        },
+        "catalog chat structured output parsing failed",
+      );
+      return {
+        outcome: "invalid_model_output_fallback",
+        assistant: buildAssistantFallback(language.responseLanguage, "handoff"),
+        language,
+        retrieval,
+        provider: pickProviderMetadata(providerResponse),
+      };
     },
   };
 };

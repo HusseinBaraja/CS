@@ -587,7 +587,7 @@ describe("createCatalogChatOrchestrator", () => {
       providerTextLength: 600,
       providerTextLineCount: 1,
       error: {
-        name: "Error",
+        name: "StructuredOutputParseError",
         message: "Assistant structured output must be valid JSON",
       },
     });

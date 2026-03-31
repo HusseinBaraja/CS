@@ -16,12 +16,14 @@ import {
   type LanguageDetectionResult,
   type LanguageResolutionOptions,
   type ParseAssistantStructuredOutputOptions,
+  type ParseAssistantStructuredOutputResult,
   type PromptHistoryTurn,
   buildGroundedChatPrompt,
   createChatProviderManager,
   detectChatLanguage,
   parseAssistantStructuredOutput,
   resolveChatResponseLanguage,
+  StructuredOutputParseError,
 } from './index';
 
 const request: ChatRequest = {
@@ -127,10 +129,13 @@ const structuredOutput: AssistantStructuredOutput = {
 const parseOptions: ParseAssistantStructuredOutputOptions = {
   allowedActions: ["clarify"],
 };
-const parsedStructuredOutput: AssistantStructuredOutput = parseAssistantStructuredOutput(
+const parsedStructuredOutput: ParseAssistantStructuredOutputResult = parseAssistantStructuredOutput(
   '{"schemaVersion":"v1","text":"Please clarify which size you need.","action":{"type":"clarify"}}',
   parseOptions,
 );
+const parseError: StructuredOutputParseError = parsedStructuredOutput.ok
+  ? new StructuredOutputParseError("invalid_text", "invalid")
+  : parsedStructuredOutput.error;
 
 const manager = createChatProviderManager();
 
@@ -154,4 +159,5 @@ void builtPrompt;
 void structuredOutput;
 void parseOptions;
 void parsedStructuredOutput;
+void parseError;
 void manager;
