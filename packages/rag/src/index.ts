@@ -94,6 +94,7 @@ export type {
   LanguageDetectionResult,
   PromptHistoryTurn,
 } from '@cs/ai';
+export { getStep0BaselineCaseById, step0BaselineCases } from "./evaluation/step0BaselineCases";
 
 export type RetrievalOutcome = "grounded" | "empty" | "low_signal";
 
