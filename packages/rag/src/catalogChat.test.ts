@@ -339,7 +339,8 @@ describe("createCatalogChatOrchestrator", () => {
         },
       },
     });
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.outcome_recorded")).toMatchObject({
+    const retrievalOutcomeLog = findLoggedEvent(infoCalls, "rag.retrieval.outcome_recorded");
+    expect(retrievalOutcomeLog).toMatchObject({
       message: "catalog retrieval outcome recorded",
       payload: {
         event: "rag.retrieval.outcome_recorded",
@@ -351,7 +352,10 @@ describe("createCatalogChatOrchestrator", () => {
         fallbackChosen: "clarify",
       },
     });
-    expect(findLoggedEvent(infoCalls, "rag.context_usage.recorded")).toMatchObject({
+    expect(retrievalOutcomeLog?.payload).not.toHaveProperty("conversationId");
+    expect(retrievalOutcomeLog?.payload).not.toHaveProperty("requestId");
+    const contextUsageLog = findLoggedEvent(infoCalls, "rag.context_usage.recorded");
+    expect(contextUsageLog).toMatchObject({
       message: "catalog context usage recorded",
       payload: {
         event: "rag.context_usage.recorded",
@@ -364,7 +368,10 @@ describe("createCatalogChatOrchestrator", () => {
         usedGroundingFacts: false,
       },
     });
-    expect(findLoggedEvent(infoCalls, "rag.decision.recorded")).toMatchObject({
+    expect(contextUsageLog?.payload).not.toHaveProperty("conversationId");
+    expect(contextUsageLog?.payload).not.toHaveProperty("requestId");
+    const fallbackDecisionLog = findLoggedEvent(infoCalls, "rag.decision.recorded");
+    expect(fallbackDecisionLog).toMatchObject({
       message: "catalog fallback decision recorded",
       payload: {
         event: "rag.decision.recorded",
@@ -376,6 +383,8 @@ describe("createCatalogChatOrchestrator", () => {
         providerOutcome: "not_requested",
       },
     });
+    expect(fallbackDecisionLog?.payload).not.toHaveProperty("conversationId");
+    expect(fallbackDecisionLog?.payload).not.toHaveProperty("requestId");
   });
 
   test("skips provider invocation on no_hits and returns a scope-safe fallback", async () => {
@@ -664,7 +673,8 @@ describe("createCatalogChatOrchestrator", () => {
         }),
       }),
     ]));
-    expect(findLoggedEvent(errorCalls, "rag.structured_output.failure_recorded")).toMatchObject({
+    const structuredOutputFailureLog = findLoggedEvent(errorCalls, "rag.structured_output.failure_recorded");
+    expect(structuredOutputFailureLog).toMatchObject({
       message: "catalog structured output failure recorded",
       payload: {
         event: "rag.structured_output.failure_recorded",
@@ -675,6 +685,8 @@ describe("createCatalogChatOrchestrator", () => {
         fallbackChosen: "handoff",
       },
     });
+    expect(structuredOutputFailureLog?.payload).not.toHaveProperty("conversationId");
+    expect(structuredOutputFailureLog?.payload).not.toHaveProperty("requestId");
     expect(findLoggedEvent(infoCalls, "rag.decision.recorded")).toMatchObject({
       message: "catalog fallback decision recorded",
       payload: {
@@ -720,6 +732,8 @@ describe("createCatalogChatOrchestrator", () => {
       errorCalls,
     });
     expect(serializedLogs).not.toContain(invalidText);
+    expect(serializedLogs).not.toContain("unknown_conversation");
+    expect(serializedLogs).not.toContain("unknown_request");
   });
 
   test("forwards conversation and request metadata into the chat-manager log context", async () => {

@@ -9,8 +9,6 @@ import {
 describe("conversational intelligence log payload helpers", () => {
   test("summarizes retrieval query text instead of logging the raw query", () => {
     const payload = toRetrievalOutcomeLogPayload({
-      conversationId: "conversation-1",
-      requestId: "request-1",
       queryText: "what sizes does it come in",
       retrievalMode: "raw_latest_message",
       outcome: "low_signal",
@@ -35,13 +33,13 @@ describe("conversational intelligence log payload helpers", () => {
       textLineCount: 1,
     });
     expect(payload).not.toHaveProperty("queryText");
+    expect(payload).not.toHaveProperty("conversationId");
+    expect(payload).not.toHaveProperty("requestId");
     expect(Object.values(payload)).not.toContain("what sizes does it come in");
   });
 
   test("builds context usage payloads with provenance fields", () => {
     const payload = toContextUsageLogPayload({
-      conversationId: "conversation-1",
-      requestId: "request-1",
       usedRecentTurns: true,
       usedConversationState: false,
       usedSummary: false,
@@ -57,12 +55,12 @@ describe("conversational intelligence log payload helpers", () => {
       usedQuotedReference: true,
       usedGroundingFacts: true,
     });
+    expect(payload).not.toHaveProperty("conversationId");
+    expect(payload).not.toHaveProperty("requestId");
   });
 
   test("builds decision and structured output failure payloads", () => {
     const decisionPayload = toFallbackDecisionLogPayload({
-      conversationId: "conversation-1",
-      requestId: "request-1",
       decisionType: "handoff",
       reason: "provider_failure",
       precedingStage: "assistant",
@@ -71,8 +69,6 @@ describe("conversational intelligence log payload helpers", () => {
       providerOutcome: "provider_failure",
     });
     const failurePayload = toStructuredOutputFailureLogPayload({
-      conversationId: "conversation-1",
-      requestId: "request-1",
       provider: "gemini",
       model: "gemini-2.0-flash",
       failureKind: "invalid_json",
@@ -91,5 +87,9 @@ describe("conversational intelligence log payload helpers", () => {
       failureKind: "invalid_json",
       fallbackChosen: "handoff",
     });
+    expect(decisionPayload).not.toHaveProperty("conversationId");
+    expect(decisionPayload).not.toHaveProperty("requestId");
+    expect(failurePayload).not.toHaveProperty("conversationId");
+    expect(failurePayload).not.toHaveProperty("requestId");
   });
 });

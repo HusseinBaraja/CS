@@ -534,9 +534,6 @@ const summarizeProviderTextForLog = (text: string) => {
 
 const toParseFailureError = (error: StructuredOutputParseError): StructuredOutputParseError => error;
 
-const DEFAULT_DIAGNOSTIC_CONVERSATION_ID = "unknown_conversation";
-const DEFAULT_DIAGNOSTIC_REQUEST_ID = "unknown_request";
-
 const buildRetrievalLogContext = (
   retrieval: RetrieveCatalogContextResult,
 ): Record<string, unknown> => ({
@@ -558,11 +555,11 @@ const pickProviderMetadata = (
   responseId: response.responseId,
 });
 
-const getDiagnosticConversationId = (input: CatalogChatInput): string =>
-  input.conversation?.conversationId ?? DEFAULT_DIAGNOSTIC_CONVERSATION_ID;
+const getDiagnosticConversationId = (input: CatalogChatInput): string | undefined =>
+  input.conversation?.conversationId;
 
-const getDiagnosticRequestId = (input: CatalogChatInput): string =>
-  input.requestId ?? DEFAULT_DIAGNOSTIC_REQUEST_ID;
+const getDiagnosticRequestId = (input: CatalogChatInput): string | undefined =>
+  input.requestId;
 
 const getPromptHistorySelectionMode = (input: CatalogChatInput) =>
   input.conversation?.historyDiagnostics?.selectionMode

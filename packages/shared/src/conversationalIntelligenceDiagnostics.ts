@@ -102,8 +102,8 @@ export interface ConversationEvaluationCase {
 }
 
 export interface ContextUsageEvent {
-  conversationId: string;
-  requestId: string;
+  conversationId?: string;
+  requestId?: string;
   usedRecentTurns: boolean;
   usedConversationState: boolean;
   usedSummary: boolean;
@@ -114,8 +114,8 @@ export interface ContextUsageEvent {
 }
 
 export interface RetrievalOutcomeEvent {
-  conversationId: string;
-  requestId: string;
+  conversationId?: string;
+  requestId?: string;
   queryText: string;
   retrievalMode: RetrievalMode;
   outcome: RetrievalOutcome;
@@ -126,8 +126,8 @@ export interface RetrievalOutcomeEvent {
 }
 
 export interface FallbackDecisionEvent {
-  conversationId: string;
-  requestId: string;
+  conversationId?: string;
+  requestId?: string;
   decisionType: FallbackDecisionType;
   reason: FallbackReason;
   precedingStage: "retrieval" | "assistant";
@@ -137,8 +137,8 @@ export interface FallbackDecisionEvent {
 }
 
 export interface StructuredOutputFailureEvent {
-  conversationId: string;
-  requestId: string;
+  conversationId?: string;
+  requestId?: string;
   provider: string;
   model: string | null;
   failureKind: Exclude<
