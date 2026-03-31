@@ -2086,7 +2086,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     });
   });
 
-  it("returns an 11-message slice around a referenced stale message", async () => {
+  it("caps the referenced stale-message slice to the requested limit", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
       ctx.db.insert("companies", {
@@ -2148,7 +2148,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       inboundTimestamp: STALE_CONTEXT_RESET_MS + 20_000,
       currentTransportMessageId: "inbound-1",
       referencedTransportMessageId: "transport-8",
-      limit: 20,
+      limit: 5,
     });
 
     expect(history).toEqual({
@@ -2158,15 +2158,67 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
         { role: "user", text: "message-5" },
         { role: "assistant", text: "message-6" },
         { role: "user", text: "message-7" },
-        { role: "assistant", text: "message-8" },
-        { role: "user", text: "message-9" },
-        { role: "assistant", text: "message-10" },
-        { role: "user", text: "message-11" },
-        { role: "assistant", text: "message-12" },
-        { role: "user", text: "message-13" },
       ],
       selectionMode: "quoted_reference_window",
       usedQuotedReference: true,
+    });
+  });
+
+  it("falls back to stale_reset_empty when the referenced stale window is empty", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await t.run(async (ctx) =>
+      ctx.db.insert("messages", {
+        conversationId,
+        role: "assistant",
+        content: "hidden referenced message",
+        timestamp: 1_000,
+        transportMessageId: "hidden-reference",
+      })
+    );
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "older visible message",
+      timestamp: 2_000,
+      transportMessageId: "visible-message-1",
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "current inbound",
+      timestamp: STALE_CONTEXT_RESET_MS + 20_000,
+      transportMessageId: "inbound-1",
+    });
+
+    const history = await t.query(internal.conversations.getPromptHistoryForInbound, {
+      companyId,
+      conversationId,
+      inboundTimestamp: STALE_CONTEXT_RESET_MS + 20_000,
+      currentTransportMessageId: "inbound-1",
+      referencedTransportMessageId: "hidden-reference",
+      limit: 20,
+    });
+
+    expect(history).toEqual({
+      turns: [],
+      selectionMode: "stale_reset_empty",
+      usedQuotedReference: false,
     });
   });
 

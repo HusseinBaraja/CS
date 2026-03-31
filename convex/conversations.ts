@@ -1415,10 +1415,13 @@ export const getPromptHistoryForInbound = internalQuery({
       ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
       referencedMessageId: referencedMessage._id,
     });
-    return toPromptHistorySelection(
-      referencedWindow.map(toPromptHistoryTurn),
-      "quoted_reference_window",
-    );
+    const referencedTurns = referencedWindow
+      .slice(0, limit)
+      .map(toPromptHistoryTurn);
+
+    return referencedTurns.length === 0
+      ? toPromptHistorySelection([], "stale_reset_empty")
+      : toPromptHistorySelection(referencedTurns, "quoted_reference_window");
   },
 });
 
