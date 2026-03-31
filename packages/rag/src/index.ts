@@ -23,6 +23,7 @@ import {
   type StructuredLogger,
   withLogBindings,
 } from '@cs/core';
+import type { PromptHistoryDiagnostics } from '@cs/shared';
 import {
   type ConvexAdminClient,
   type Id,
@@ -168,6 +169,7 @@ export interface CatalogChatTenantContext {
 export interface CatalogChatConversationContext {
   conversationId?: string;
   history?: PromptHistoryTurn[];
+  historyDiagnostics?: PromptHistoryDiagnostics;
   allowedActions?: readonly AssistantActionType[];
 }
 

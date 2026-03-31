@@ -2,6 +2,8 @@ import { v } from 'convex/values';
 import type { PromptHistoryTurn } from '@cs/ai';
 import type {
   ConversationMessageDto,
+  PromptHistorySelection,
+  PromptHistorySelectionMode,
   ConversationStateDto,
   ConversationStateEventSource,
   ConversationStateEventType,
@@ -162,6 +164,15 @@ const toMessageDto = (message: Doc<"messages">): ConversationMessageDto => ({
 const toPromptHistoryTurn = (message: ConversationMessageDto): PromptHistoryTurn => ({
   role: message.role,
   text: message.content,
+});
+
+const toPromptHistorySelection = (
+  turns: PromptHistoryTurn[],
+  selectionMode: PromptHistorySelectionMode,
+): PromptHistorySelection<PromptHistoryTurn> => ({
+  turns,
+  selectionMode,
+  usedQuotedReference: selectionMode === "quoted_reference_window",
 });
 
 const normalizeOptionalString = (value: string | undefined, fieldName: string): string | undefined => {
@@ -1337,7 +1348,7 @@ export const getPromptHistoryForInbound = internalQuery({
     referencedTransportMessageId: v.optional(v.string()),
     limit: v.number(),
   },
-  handler: async (ctx, args): Promise<PromptHistoryTurn[]> => {
+  handler: async (ctx, args): Promise<PromptHistorySelection<PromptHistoryTurn>> => {
     await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const inboundTimestamp = normalizeTimestamp(args.inboundTimestamp, Date.now());
     const limit = normalizePositiveInteger(args.limit, "limit");
@@ -1357,7 +1368,7 @@ export const getPromptHistoryForInbound = internalQuery({
     });
 
     if (priorMessagesDescending.length === 0) {
-      return [];
+      return toPromptHistorySelection([], "no_history");
     }
 
     const latestMessage = priorMessagesDescending[0];
@@ -1368,11 +1379,14 @@ export const getPromptHistoryForInbound = internalQuery({
         ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
         minimumCount: limit,
       });
-      return recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn);
+      return toPromptHistorySelection(
+        recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn),
+        "recent_window",
+      );
     }
 
     if (!referencedTransportMessageId) {
-      return [];
+      return toPromptHistorySelection([], "stale_reset_empty");
     }
 
     const referencedMessage = await resolveMessageByTransportMessageId(
@@ -1381,7 +1395,7 @@ export const getPromptHistoryForInbound = internalQuery({
       referencedTransportMessageId,
     );
     if (!referencedMessage) {
-      return [];
+      return toPromptHistorySelection([], "stale_reset_empty");
     }
 
     if (referencedMessage.timestamp >= activeWindowStart) {
@@ -1390,7 +1404,10 @@ export const getPromptHistoryForInbound = internalQuery({
         ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
         minimumCount: limit,
       });
-      return recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn);
+      return toPromptHistorySelection(
+        recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn),
+        "recent_window",
+      );
     }
 
     const referencedWindow = await collectReferencedHistorySliceAscending(ctx, args.conversationId, {
@@ -1398,7 +1415,10 @@ export const getPromptHistoryForInbound = internalQuery({
       ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
       referencedMessageId: referencedMessage._id,
     });
-    return referencedWindow.map(toPromptHistoryTurn);
+    return toPromptHistorySelection(
+      referencedWindow.map(toPromptHistoryTurn),
+      "quoted_reference_window",
+    );
   },
 });
 

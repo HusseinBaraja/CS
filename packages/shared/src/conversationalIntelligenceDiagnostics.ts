@@ -27,6 +27,15 @@ export type PromptHistorySelectionMode =
   | "stale_reset_empty"
   | "quoted_reference_window";
 
+export interface PromptHistoryDiagnostics {
+  selectionMode: PromptHistorySelectionMode;
+  usedQuotedReference: boolean;
+}
+
+export interface PromptHistorySelection<TTurn> extends PromptHistoryDiagnostics {
+  turns: TTurn[];
+}
+
 export type ContextUsageStage = "prompt_assembly";
 
 export type RetrievalMode = "raw_latest_message";

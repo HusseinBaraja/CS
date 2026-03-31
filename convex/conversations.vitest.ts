@@ -1948,11 +1948,15 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       limit: 20,
     });
 
-    expect(history).toEqual([
-      { role: "user", text: "message-1" },
-      { role: "assistant", text: "message-2" },
-      { role: "user", text: "message-3" },
-    ]);
+    expect(history).toEqual({
+      turns: [
+        { role: "user", text: "message-1" },
+        { role: "assistant", text: "message-2" },
+        { role: "user", text: "message-3" },
+      ],
+      selectionMode: "recent_window",
+      usedQuotedReference: false,
+    });
   });
 
   it("excludes pending and failed assistant rows from inbound prompt history", async () => {
@@ -2023,10 +2027,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       limit: 10,
     });
 
-    expect(history).toEqual([
-      { role: "user", text: "hello" },
-      { role: "assistant", text: "sent reply" },
-    ]);
+    expect(history).toEqual({
+      turns: [
+        { role: "user", text: "hello" },
+        { role: "assistant", text: "sent reply" },
+      ],
+      selectionMode: "recent_window",
+      usedQuotedReference: false,
+    });
   });
 
   it("returns empty prompt history when the latest message is stale and no reference exists", async () => {
@@ -2071,7 +2079,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       limit: 20,
     });
 
-    expect(history).toEqual([]);
+    expect(history).toEqual({
+      turns: [],
+      selectionMode: "stale_reset_empty",
+      usedQuotedReference: false,
+    });
   });
 
   it("returns an 11-message slice around a referenced stale message", async () => {
@@ -2139,19 +2151,23 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       limit: 20,
     });
 
-    expect(history).toEqual([
-      { role: "user", text: "message-3" },
-      { role: "assistant", text: "message-4" },
-      { role: "user", text: "message-5" },
-      { role: "assistant", text: "message-6" },
-      { role: "user", text: "message-7" },
-      { role: "assistant", text: "message-8" },
-      { role: "user", text: "message-9" },
-      { role: "assistant", text: "message-10" },
-      { role: "user", text: "message-11" },
-      { role: "assistant", text: "message-12" },
-      { role: "user", text: "message-13" },
-    ]);
+    expect(history).toEqual({
+      turns: [
+        { role: "user", text: "message-3" },
+        { role: "assistant", text: "message-4" },
+        { role: "user", text: "message-5" },
+        { role: "assistant", text: "message-6" },
+        { role: "user", text: "message-7" },
+        { role: "assistant", text: "message-8" },
+        { role: "user", text: "message-9" },
+        { role: "assistant", text: "message-10" },
+        { role: "user", text: "message-11" },
+        { role: "assistant", text: "message-12" },
+        { role: "user", text: "message-13" },
+      ],
+      selectionMode: "quoted_reference_window",
+      usedQuotedReference: true,
+    });
   });
 
   it("keeps same-timestamp prior messages while excluding the current inbound transport id", async () => {
@@ -2195,9 +2211,13 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       limit: 20,
     });
 
-    expect(history).toEqual([
-      { role: "assistant", text: "same timestamp prior" },
-    ]);
+    expect(history).toEqual({
+      turns: [
+        { role: "assistant", text: "same timestamp prior" },
+      ],
+      selectionMode: "recent_window",
+      usedQuotedReference: false,
+    });
   });
 
   it("does not resolve referenced messages across tenants", async () => {
@@ -2247,7 +2267,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       limit: 20,
     });
 
-    expect(history).toEqual([]);
+    expect(history).toEqual({
+      turns: [],
+      selectionMode: "no_history",
+      usedQuotedReference: false,
+    });
   });
 
   it("times out when the conversation lock remains held", async () => {
