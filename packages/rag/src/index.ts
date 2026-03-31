@@ -1,15 +1,15 @@
 import {
   type AssistantActionType,
   type AssistantStructuredOutput,
+  buildGroundedChatPrompt,
   type ChatLanguage,
   type ChatProviderManager,
   type ChatResponse,
-  buildGroundedChatPrompt,
   createChatProviderManager,
   detectChatLanguage,
+  GEMINI_EMBEDDING_DIMENSIONS,
   generateGeminiEmbedding,
   getAllowedActions,
-  GEMINI_EMBEDDING_DIMENSIONS,
   type GroundingContextBlock,
   type LanguageDetectionResult,
   parseAssistantStructuredOutput,
@@ -19,22 +19,17 @@ import {
 import {
   logEvent,
   serializeErrorForLog,
-  summarizeTextForLog,
+  type StructuredLogger,
   type StructuredLogPayloadInput,
+  summarizeTextForLog,
   toContextUsageLogPayload,
   toFallbackDecisionLogPayload,
   toRetrievalOutcomeLogPayload,
   toStructuredOutputFailureLogPayload,
-  type StructuredLogger,
   withLogBindings,
 } from '@cs/core';
 import type { FallbackDecisionType, PromptHistoryDiagnostics } from '@cs/shared';
-import {
-  type ConvexAdminClient,
-  type Id,
-  convexInternal,
-  createConvexAdminClient,
-} from '@cs/db';
+import { type ConvexAdminClient, convexInternal, createConvexAdminClient, type Id } from '@cs/db';
 
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_MAX_CONTEXT_BLOCKS = 3;
@@ -532,6 +527,7 @@ const summarizeProviderTextForLog = (text: string) => {
   };
 };
 
+// future extention
 const toParseFailureError = (error: StructuredOutputParseError): StructuredOutputParseError => error;
 
 const buildRetrievalLogContext = (
