@@ -37,11 +37,17 @@ const createPromptHistorySelection = (
     selectionMode: "no_history" | "recent_window" | "stale_reset_empty" | "quoted_reference_window";
     usedQuotedReference: boolean;
   }> = {},
-) => ({
-  turns,
-  selectionMode: overrides.selectionMode ?? (turns.length > 0 ? "recent_window" : "no_history"),
-  usedQuotedReference: overrides.usedQuotedReference ?? false,
-});
+) => {
+  const selectionMode =
+    overrides.selectionMode ?? (turns.length > 0 ? "recent_window" : "no_history");
+
+  return {
+    turns,
+    selectionMode,
+    usedQuotedReference:
+      overrides.usedQuotedReference ?? selectionMode === "quoted_reference_window",
+  };
+};
 
 const createMessage = (
   overrides: Partial<NormalizedInboundMessage> = {},
