@@ -9,6 +9,7 @@ import {
   createLogger,
   createLoggerRuntimeConfig,
   createProductionLogDestination,
+  logger,
   logError,
   logEvent,
   redactJidForLog,
@@ -44,6 +45,19 @@ const waitForCondition = async (predicate: () => boolean, message: string): Prom
 };
 
 describe("logger", () => {
+  test("forwards logger proxy accessors to the active logger instance", () => {
+    const originalLevel = logger.level;
+
+    try {
+      expect(typeof originalLevel).toBe("string");
+
+      logger.level = "warn";
+      expect(logger.level).toBe("warn");
+    } finally {
+      logger.level = originalLevel;
+    }
+  });
+
   test("outputs only messages at configured level", async () => {
     const stream = new PassThrough();
     let output = "";

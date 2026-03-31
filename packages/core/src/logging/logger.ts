@@ -156,11 +156,15 @@ const getDefaultLogger = (): Logger => {
 };
 
 export const logger = new Proxy({} as Logger, {
-  get(_target, property, receiver) {
+  get(_target, property) {
     const activeLogger = getDefaultLogger();
-    const value = Reflect.get(activeLogger, property, receiver);
+    const value = Reflect.get(activeLogger, property, activeLogger);
 
     return typeof value === "function" ? value.bind(activeLogger) : value;
+  },
+  set(_target, property, value) {
+    const activeLogger = getDefaultLogger();
+    return Reflect.set(activeLogger, property, value, activeLogger);
   },
 }) as Logger;
 
