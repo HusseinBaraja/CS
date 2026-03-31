@@ -95,6 +95,11 @@ export type {
   PromptHistoryTurn,
 } from '@cs/ai';
 export { getStep0BaselineCaseById, step0BaselineCases } from "./evaluation/step0BaselineCases";
+export {
+  assertStep0BaselineCurrentExpectations,
+  compareStep0BaselineCase,
+  runStep0BaselineCases,
+} from "./evaluation/step0BaselineRunner";
 
 export type RetrievalOutcome = "grounded" | "empty" | "low_signal";
 
