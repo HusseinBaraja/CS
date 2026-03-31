@@ -1314,8 +1314,12 @@ describe("createCustomerConversationRouter", () => {
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
-      respond: async (input) => createCatalogChatResult("Assistant reply", input.userMessage),
+      respond: async (input) => {
+        orchestratorInput = input;
+        return createCatalogChatResult("Assistant reply", input.userMessage);
+      },
     };
+    let orchestratorInput: Parameters<CatalogChatOrchestrator["respond"]>[0] | undefined;
     const { logger } = createLogger();
     const { outbound } = createOutbound();
     const router = createCustomerConversationRouter({
@@ -1342,6 +1346,10 @@ describe("createCustomerConversationRouter", () => {
         referencedTransportMessageId: "quoted-message-1",
       },
     ]);
+    expect(orchestratorInput?.conversation?.historyDiagnostics).toEqual({
+      selectionMode: "quoted_reference_window",
+      usedQuotedReference: true,
+    });
   });
 
   test("logs and stops when outbound is unavailable", async () => {
