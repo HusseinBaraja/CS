@@ -2,20 +2,20 @@ import { v } from 'convex/values';
 import type { PromptHistoryTurn } from '@cs/ai';
 import type {
   ConversationMessageDto,
-  PromptHistorySelection,
-  PromptHistorySelectionMode,
   ConversationStateDto,
   ConversationStateEventSource,
   ConversationStateEventType,
+  PromptHistorySelection,
+  PromptHistorySelectionMode,
 } from '@cs/shared';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import {
+  type ActionCtx,
+  type DatabaseReader,
   internalAction,
   internalMutation,
   internalQuery,
-  type ActionCtx,
-  type DatabaseReader,
   type MutationCtx,
 } from './_generated/server';
 
@@ -1415,8 +1415,15 @@ export const getPromptHistoryForInbound = internalQuery({
       ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
       referencedMessageId: referencedMessage._id,
     });
+    const referencedIndex = referencedWindow.findIndex(
+      (message) => message.id === referencedMessage._id,
+    );
+    const centeredStart = referencedIndex === -1
+      ? 0
+      : Math.max(0, referencedIndex - Math.floor((limit - 1) / 2));
+    const sliceStart = Math.min(centeredStart, Math.max(0, referencedWindow.length - limit));
     const referencedTurns = referencedWindow
-      .slice(0, limit)
+      .slice(sliceStart, sliceStart + limit)
       .map(toPromptHistoryTurn);
 
     return referencedTurns.length === 0
