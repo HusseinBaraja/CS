@@ -23,6 +23,9 @@ const isListQuery = (args: StubArgs): boolean => "conversationId" in args && "li
 
 const isConversationQuery = (args: StubArgs): boolean => "conversationId" in args;
 
+const isInboundPromptHistoryQuery = (args: StubArgs): boolean =>
+  "conversationId" in args && "limit" in args && "inboundTimestamp" in args;
+
 const isInboundAppendAction = (args: StubArgs): boolean =>
   "phoneNumber" in args && "content" in args && "timestamp" in args;
 
@@ -97,12 +100,20 @@ const createClientStub = () => {
         return [];
       }
 
-      if (isListQuery(stubArgs)) {
-        return [];
+      if (isInboundPromptHistoryQuery(stubArgs)) {
+        return {
+          turns: [],
+          selectionMode: "no_history",
+          usedQuotedReference: false,
+        };
       }
 
       if (isConversationQuery(stubArgs)) {
         return createActionConversationStub();
+      }
+
+      if (isListQuery(stubArgs)) {
+        return [];
       }
 
       return [];

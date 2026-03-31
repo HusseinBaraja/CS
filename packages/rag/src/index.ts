@@ -1,33 +1,35 @@
 import {
   type AssistantActionType,
   type AssistantStructuredOutput,
+  buildGroundedChatPrompt,
   type ChatLanguage,
   type ChatProviderManager,
   type ChatResponse,
-  buildGroundedChatPrompt,
   createChatProviderManager,
   detectChatLanguage,
+  GEMINI_EMBEDDING_DIMENSIONS,
   generateGeminiEmbedding,
   getAllowedActions,
-  GEMINI_EMBEDDING_DIMENSIONS,
   type GroundingContextBlock,
   type LanguageDetectionResult,
   parseAssistantStructuredOutput,
   type PromptHistoryTurn,
+  type StructuredOutputParseError,
 } from '@cs/ai';
 import {
   logEvent,
   serializeErrorForLog,
-  summarizeTextForLog,
   type StructuredLogger,
+  type StructuredLogPayloadInput,
+  summarizeTextForLog,
+  toContextUsageLogPayload,
+  toFallbackDecisionLogPayload,
+  toRetrievalOutcomeLogPayload,
+  toStructuredOutputFailureLogPayload,
   withLogBindings,
 } from '@cs/core';
-import {
-  type ConvexAdminClient,
-  type Id,
-  convexInternal,
-  createConvexAdminClient,
-} from '@cs/db';
+import type { FallbackDecisionType, PromptHistoryDiagnostics } from '@cs/shared';
+import { type ConvexAdminClient, convexInternal, createConvexAdminClient, type Id } from '@cs/db';
 
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_MAX_CONTEXT_BLOCKS = 3;
@@ -87,6 +89,12 @@ export type {
   LanguageDetectionResult,
   PromptHistoryTurn,
 } from '@cs/ai';
+export { getStep0BaselineCaseById, step0BaselineCases } from "./evaluation/step0BaselineCases";
+export {
+  assertStep0BaselineCurrentExpectations,
+  compareStep0BaselineCase,
+  runStep0BaselineCases,
+} from "./evaluation/step0BaselineRunner";
 
 export type RetrievalOutcome = "grounded" | "empty" | "low_signal";
 
@@ -167,6 +175,7 @@ export interface CatalogChatTenantContext {
 export interface CatalogChatConversationContext {
   conversationId?: string;
   history?: PromptHistoryTurn[];
+  historyDiagnostics?: PromptHistoryDiagnostics;
   allowedActions?: readonly AssistantActionType[];
 }
 
@@ -518,6 +527,9 @@ const summarizeProviderTextForLog = (text: string) => {
   };
 };
 
+// future extention
+const toParseFailureError = (error: StructuredOutputParseError): StructuredOutputParseError => error;
+
 const buildRetrievalLogContext = (
   retrieval: RetrieveCatalogContextResult,
 ): Record<string, unknown> => ({
@@ -538,6 +550,34 @@ const pickProviderMetadata = (
   usage: response.usage,
   responseId: response.responseId,
 });
+
+const getDiagnosticConversationId = (input: CatalogChatInput): string | undefined =>
+  input.conversation?.conversationId;
+
+const getDiagnosticRequestId = (input: CatalogChatInput): string | undefined =>
+  input.requestId;
+
+const getPromptHistorySelectionMode = (input: CatalogChatInput) =>
+  input.conversation?.historyDiagnostics?.selectionMode
+  ?? (input.conversation?.history?.length ? "recent_window" : "no_history");
+
+const getRetrievalFallbackDecisionType = (
+  retrieval: RetrieveCatalogContextResult,
+): FallbackDecisionType | null => {
+  if (retrieval.outcome === "grounded") {
+    return null;
+  }
+
+  if (retrieval.reason === "empty_query") {
+    return "clarify";
+  }
+
+  if (retrieval.reason === "below_min_score") {
+    return "low_signal_reply";
+  }
+
+  return "no_match_reply";
+};
 
 const buildAssistantFallback = (
   responseLanguage: ChatLanguage,
@@ -613,12 +653,7 @@ const defaultCatalogChatLogger: CatalogChatLogger = {
 const safeLogEvent = (
   logger: CatalogChatLogger,
   level: "info" | "warn" | "error",
-  payload: {
-    event: string;
-    runtime: string;
-    surface: string;
-    outcome: string;
-  } & Record<string, unknown>,
+  payload: StructuredLogPayloadInput,
   message: string,
 ): void => {
   try {
@@ -657,6 +692,8 @@ export const createCatalogChatOrchestrator = (
         defaultLanguage: input.tenant.defaultLanguage,
       });
       const allowedActions = getAllowedActions(input.conversation?.allowedActions);
+      const conversationId = getDiagnosticConversationId(input);
+      const requestId = getDiagnosticRequestId(input);
       const retrieval = await retrievalService.retrieveCatalogContext({
         companyId: input.tenant.companyId,
         query: input.userMessage,
@@ -679,11 +716,59 @@ export const createCatalogChatOrchestrator = (
         },
         "catalog retrieval completed",
       );
+      safeLogEvent(
+        retrievalLogger,
+        "info",
+        toRetrievalOutcomeLogPayload({
+          conversationId,
+          requestId,
+          queryText: input.userMessage,
+          retrievalMode: "raw_latest_message",
+          outcome: retrieval.outcome,
+          candidateCount: retrieval.candidates.length,
+          topScore: retrieval.topScore ?? null,
+          contextBlockCount: retrieval.contextBlocks.length,
+          fallbackChosen: getRetrievalFallbackDecisionType(retrieval),
+        }),
+        "catalog retrieval outcome recorded",
+      );
+      safeLogEvent(
+        routeLogger,
+        "info",
+        toContextUsageLogPayload({
+          conversationId,
+          requestId,
+          usedRecentTurns: retrieval.outcome === "grounded" && Boolean(input.conversation?.history?.length),
+          usedConversationState: false,
+          usedSummary: false,
+          usedQuotedReference:
+            retrieval.outcome === "grounded" && Boolean(input.conversation?.historyDiagnostics?.usedQuotedReference),
+          usedGroundingFacts: retrieval.contextBlocks.length > 0,
+          stage: "prompt_assembly",
+          promptHistorySelectionMode: getPromptHistorySelectionMode(input),
+        }),
+        "catalog context usage recorded",
+      );
 
       if (retrieval.outcome === "empty") {
         const assistant = buildAssistantFallback(
           language.responseLanguage,
           retrieval.reason === "empty_query" ? "empty_query" : "no_hits",
+        );
+        safeLogEvent(
+          routeLogger,
+          "info",
+          toFallbackDecisionLogPayload({
+            conversationId,
+            requestId,
+            decisionType: retrieval.reason === "empty_query" ? "clarify" : "no_match_reply",
+            reason: retrieval.reason === "empty_query" ? "empty_query" : "no_hits",
+            precedingStage: "retrieval",
+            resolutionConfidence: null,
+            retrievalOutcome: retrieval.outcome,
+            providerOutcome: "not_requested",
+          }),
+          "catalog fallback decision recorded",
         );
 
         return {
@@ -695,6 +780,21 @@ export const createCatalogChatOrchestrator = (
       }
 
       if (retrieval.outcome === "low_signal") {
+        safeLogEvent(
+          routeLogger,
+          "info",
+          toFallbackDecisionLogPayload({
+            conversationId,
+            requestId,
+            decisionType: "low_signal_reply",
+            reason: "below_min_score",
+            precedingStage: "retrieval",
+            resolutionConfidence: null,
+            retrievalOutcome: retrieval.outcome,
+            providerOutcome: "not_requested",
+          }),
+          "catalog fallback decision recorded",
+        );
         return {
           outcome: "low_signal_fallback",
           assistant: buildAssistantFallback(language.responseLanguage, "low_signal"),
@@ -747,6 +847,21 @@ export const createCatalogChatOrchestrator = (
           },
           "catalog chat provider fallback selected",
         );
+        safeLogEvent(
+          routeLogger,
+          "info",
+          toFallbackDecisionLogPayload({
+            conversationId,
+            requestId,
+            decisionType: "handoff",
+            reason: "provider_failure",
+            precedingStage: "assistant",
+            resolutionConfidence: null,
+            retrievalOutcome: retrieval.outcome,
+            providerOutcome: "provider_failure",
+          }),
+          "catalog fallback decision recorded",
+        );
         return {
           outcome: "provider_failure_fallback",
           assistant: buildAssistantFallback(language.responseLanguage, "handoff"),
@@ -755,10 +870,28 @@ export const createCatalogChatOrchestrator = (
         };
       }
 
-      try {
-        const assistant = parseStructuredOutput(providerResponse.text, {
-          allowedActions,
-        });
+      const parsedAssistant = parseStructuredOutput(providerResponse.text, {
+        allowedActions,
+      });
+      if (parsedAssistant.ok) {
+        const assistant = parsedAssistant.value;
+        if (assistant.action.type === "clarify" || assistant.action.type === "handoff") {
+          safeLogEvent(
+            routeLogger,
+            "info",
+            toFallbackDecisionLogPayload({
+              conversationId,
+              requestId,
+              decisionType: assistant.action.type,
+              reason: "assistant_action",
+              precedingStage: "assistant",
+              resolutionConfidence: null,
+              retrievalOutcome: retrieval.outcome,
+              providerOutcome: "response_received",
+            }),
+            "catalog fallback decision recorded",
+          );
+        }
 
         return {
           outcome: "provider_response",
@@ -767,36 +900,65 @@ export const createCatalogChatOrchestrator = (
           retrieval,
           provider: pickProviderMetadata(providerResponse),
         };
-      } catch (error) {
-        safeLogEvent(
-          routeLogger,
-          "error",
-          {
-            event: "rag.catalog_chat.parse_failed",
-            runtime: "rag",
-            surface: "orchestrator",
-            outcome: "invalid_model_output_fallback",
-            companyId: input.tenant.companyId,
-            ...(input.conversation?.conversationId
-              ? { conversationId: input.conversation.conversationId }
-              : {}),
-            ...(input.requestId ? { requestId: input.requestId } : {}),
-            responseLanguage: language.responseLanguage,
-            retrieval: buildRetrievalLogContext(retrieval),
-            provider: pickProviderMetadata(providerResponse),
-            ...summarizeProviderTextForLog(providerResponse.text),
-            error: serializeErrorForLog(error),
-          },
-          "catalog chat structured output parsing failed",
-        );
-        return {
-          outcome: "invalid_model_output_fallback",
-          assistant: buildAssistantFallback(language.responseLanguage, "handoff"),
-          language,
-          retrieval,
-          provider: pickProviderMetadata(providerResponse),
-        };
       }
+
+      safeLogEvent(
+        routeLogger,
+        "error",
+        toStructuredOutputFailureLogPayload({
+          conversationId,
+          requestId,
+          provider: providerResponse.provider,
+          model: providerResponse.model ?? null,
+          failureKind: parsedAssistant.error.kind,
+          repairAttempted: false,
+          fallbackChosen: "handoff",
+        }),
+        "catalog structured output failure recorded",
+      );
+      safeLogEvent(
+        routeLogger,
+        "info",
+        toFallbackDecisionLogPayload({
+          conversationId,
+          requestId,
+          decisionType: "handoff",
+          reason: parsedAssistant.error.kind,
+          precedingStage: "assistant",
+          resolutionConfidence: null,
+          retrievalOutcome: retrieval.outcome,
+          providerOutcome: "invalid_model_output",
+        }),
+        "catalog fallback decision recorded",
+      );
+      safeLogEvent(
+        routeLogger,
+        "error",
+        {
+          event: "rag.catalog_chat.parse_failed",
+          runtime: "rag",
+          surface: "orchestrator",
+          outcome: "invalid_model_output_fallback",
+          companyId: input.tenant.companyId,
+          ...(input.conversation?.conversationId
+            ? { conversationId: input.conversation.conversationId }
+            : {}),
+          ...(input.requestId ? { requestId: input.requestId } : {}),
+          responseLanguage: language.responseLanguage,
+          retrieval: buildRetrievalLogContext(retrieval),
+          provider: pickProviderMetadata(providerResponse),
+          ...summarizeProviderTextForLog(providerResponse.text),
+          error: serializeErrorForLog(toParseFailureError(parsedAssistant.error)),
+        },
+        "catalog chat structured output parsing failed",
+      );
+      return {
+        outcome: "invalid_model_output_fallback",
+        assistant: buildAssistantFallback(language.responseLanguage, "handoff"),
+        language,
+        retrieval,
+        provider: pickProviderMetadata(providerResponse),
+      };
     },
   };
 };

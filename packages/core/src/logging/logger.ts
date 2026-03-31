@@ -64,7 +64,6 @@ const baseRedactOptions = {
 };
 
 const baseLoggerOptions: LoggerOptions = {
-  level: env.LOG_LEVEL,
   redact: baseRedactOptions,
 };
 
@@ -149,7 +148,25 @@ export const createLogger = (
   );
 };
 
-export const logger = createLogger();
+let defaultLoggerInstance: Logger | null = null;
+
+const getDefaultLogger = (): Logger => {
+  defaultLoggerInstance ??= createLogger();
+  return defaultLoggerInstance;
+};
+
+export const logger = new Proxy({} as Logger, {
+  get(_target, property) {
+    const activeLogger = getDefaultLogger();
+    const value = Reflect.get(activeLogger, property, activeLogger);
+
+    return typeof value === "function" ? value.bind(activeLogger) : value;
+  },
+  set(_target, property, value) {
+    const activeLogger = getDefaultLogger();
+    return Reflect.set(activeLogger, property, value, activeLogger);
+  },
+}) as Logger;
 
 export interface LogErrorOptions {
   context?: Record<string, unknown>;
