@@ -68,6 +68,13 @@ export const compareStep0BaselineCase = (
   actual: Step0BaselineCaseObservation,
 ): Step0BaselineCaseResult => {
   const mismatches = [
+    ...(actual.caseId === evaluationCase.id
+      ? []
+      : [{
+        path: "caseId",
+        expected: evaluationCase.id,
+        actual: actual.caseId,
+      }]),
     ...collectSectionMismatches(
       "resolvedIntent",
       evaluationCase.expectedResolvedIntent.current,

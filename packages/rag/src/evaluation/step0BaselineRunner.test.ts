@@ -55,6 +55,24 @@ describe("step0BaselineRunner", () => {
     ]);
   });
 
+  test("fails when the executor returns an observation for the wrong case id", () => {
+    const evaluationCase = step0BaselineCases[0]!;
+    const result = compareStep0BaselineCase(evaluationCase, {
+      caseId: `${evaluationCase.id}-wrong`,
+      resolvedIntent: evaluationCase.expectedResolvedIntent.current,
+      retrievalBehavior: evaluationCase.expectedRetrievalBehavior.current,
+      assistantBehavior: evaluationCase.expectedAssistantBehavior.current,
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.caseId).toBe(evaluationCase.id);
+    expect(result.mismatches).toContainEqual({
+      path: "caseId",
+      expected: evaluationCase.id,
+      actual: `${evaluationCase.id}-wrong`,
+    });
+  });
+
   test("throws from the assertion helper when any current expectation regresses", async () => {
     await expect(assertStep0BaselineCurrentExpectations({
       cases: [step0BaselineCases[1]!],
