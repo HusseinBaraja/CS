@@ -2,8 +2,8 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import {
   BOT_RUNTIME_SESSION_STATES,
-  CONVERSATION_STATE_EVENT_SOURCES,
-  CONVERSATION_STATE_EVENT_TYPES,
+  CONVERSATION_LIFECYCLE_EVENT_SOURCES,
+  CONVERSATION_LIFECYCLE_EVENT_TYPES,
 } from '@cs/shared';
 
 // ── Reusable field patterns ──────────────────────────────────────────────────
@@ -33,10 +33,10 @@ const mediaCleanupStatusValidator = v.union(
   v.literal("failed"),
 );
 const conversationStateEventTypeValidator = v.union(
-  ...CONVERSATION_STATE_EVENT_TYPES.map((eventType) => v.literal(eventType)),
+  ...CONVERSATION_LIFECYCLE_EVENT_TYPES.map((eventType) => v.literal(eventType)),
 );
 const conversationStateEventSourceValidator = v.union(
-  ...CONVERSATION_STATE_EVENT_SOURCES.map((source) => v.literal(source)),
+  ...CONVERSATION_LIFECYCLE_EVENT_SOURCES.map((source) => v.literal(source)),
 );
 const [
   initializingState,

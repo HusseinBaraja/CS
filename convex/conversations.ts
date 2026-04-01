@@ -2,9 +2,9 @@ import { v } from 'convex/values';
 import type { PromptHistoryTurn } from '@cs/ai';
 import type {
   ConversationMessageDto,
-  ConversationStateDto,
-  ConversationStateEventSource,
-  ConversationStateEventType,
+  ConversationRecordDto,
+  ConversationLifecycleEventSource,
+  ConversationLifecycleEventType,
   PromptHistorySelection,
   PromptHistorySelectionMode,
 } from '@cs/shared';
@@ -39,13 +39,13 @@ type TrimConversationMessagesResult = {
 };
 
 type AppendInboundCustomerMessageResult = {
-  conversation: ConversationStateDto;
+  conversation: ConversationRecordDto;
   wasMuted: boolean;
   wasDuplicate: boolean;
 };
 
 type AssistantHandoffSource = Extract<
-  ConversationStateEventSource,
+  ConversationLifecycleEventSource,
   "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback"
 >;
 
@@ -127,7 +127,7 @@ const resolveSideEffectsState = (
   return analyticsComplete && ownerNotificationComplete ? "completed" : "pending";
 };
 
-const toConversationDto = (conversation: Doc<"conversations">): ConversationStateDto => ({
+const toConversationDto = (conversation: Doc<"conversations">): ConversationRecordDto => ({
   id: conversation._id,
   companyId: conversation.companyId,
   phoneNumber: conversation.phoneNumber,
@@ -498,9 +498,9 @@ const insertConversationStateEvent = async (
     companyId: Id<"companies">;
     conversationId: Id<"conversations">;
     phoneNumber: string;
-    eventType: ConversationStateEventType;
+    eventType: ConversationLifecycleEventType;
     timestamp: number;
-    source: ConversationStateEventSource;
+    source: ConversationLifecycleEventSource;
     reason?: string;
     actorPhoneNumber?: string;
     metadata?: Record<string, string | number | boolean>;
@@ -659,7 +659,7 @@ export const ensureActiveConversation = internalMutation({
     companyId: v.id("companies"),
     phoneNumber: v.string(),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
     const existing = await listActiveConversations(ctx, args.companyId, phoneNumber);
     if (existing[0]) {
@@ -686,7 +686,7 @@ export const getOrCreateActiveConversation = internalAction({
     phoneNumber: v.string(),
     now: v.optional(v.number()),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
     return withConversationLock(ctx, args, async () => {
       return await ctx.runMutation(internal.conversations.ensureActiveConversation, {
@@ -703,7 +703,7 @@ export const getOrCreateConversationForInbound = internalAction({
     phoneNumber: v.string(),
     now: v.optional(v.number()),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
     return withConversationLock(ctx, args, async () => {
       const existing = await ctx.runQuery(internal.conversations.getConversationByPhone, {
@@ -727,7 +727,7 @@ export const getConversationByPhone = internalQuery({
     companyId: v.id("companies"),
     phoneNumber: v.string(),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto | null> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto | null> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
     const conversation = await loadConversationByPhone(ctx, args.companyId, phoneNumber);
     return conversation ? toConversationDto(conversation) : null;
@@ -739,7 +739,7 @@ export const getConversation = internalQuery({
     companyId: v.id("companies"),
     conversationId: v.id("conversations"),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     return toConversationDto(conversation);
   },
@@ -792,7 +792,7 @@ export const appendMutedCustomerMessage = internalMutation({
     transportMessageId: v.optional(v.string()),
     referencedTransportMessageId: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (!conversation.muted) {
       throw new Error("Conversation is not muted");
@@ -1080,7 +1080,7 @@ export const commitPendingAssistantMessage = internalMutation({
     pendingMessageId: v.id("messages"),
     transportMessageId: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
     if (message.conversationId !== args.conversationId || message.role !== "assistant") {
@@ -1245,7 +1245,7 @@ export const appendAssistantMessageAndStartHandoff = internalMutation({
     metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
     transportMessageId: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (conversation.muted) {
       return toConversationDto(conversation);
@@ -1310,7 +1310,7 @@ export const listDueAutoResumeConversations = internalQuery({
     now: v.number(),
     limit: v.number(),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto[]> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto[]> => {
     const now = normalizeTimestamp(args.now, Date.now());
     const limit = normalizePositiveInteger(args.limit, "limit");
     const conversations = await ctx.db
@@ -1512,7 +1512,7 @@ export const startHandoff = internalMutation({
     actorPhoneNumber: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (conversation.muted) {
       return toConversationDto(conversation);
@@ -1556,7 +1556,7 @@ export const resumeConversation = internalMutation({
     actorPhoneNumber: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (!conversation.muted) {
       return toConversationDto(conversation);
@@ -1603,7 +1603,7 @@ export const recordMutedCustomerActivity = internalMutation({
     conversationId: v.id("conversations"),
     timestamp: v.optional(v.number()),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (!conversation.muted) {
       throw new Error("Conversation is not muted");
