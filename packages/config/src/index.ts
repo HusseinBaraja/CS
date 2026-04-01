@@ -20,6 +20,7 @@ const OPTIONAL_EMPTY_ENV_KEYS = new Set([
   "R2_BUCKET_NAME",
   "R2_ENDPOINT",
   "R2_SECRET_ACCESS_KEY",
+  "SEED_OWNER_PHONE",
 ]);
 const parseCsvEnv = (value: string): string[] =>
   value
@@ -148,23 +149,6 @@ const envSchema = {
   AI_HEALTHCHECK_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   AI_MAX_RETRIES_PER_PROVIDER: z.coerce.number().int().nonnegative().default(1),
   CONVERSATION_HISTORY_WINDOW_MESSAGES: z.coerce.number().int().positive().default(20),
-const OPTIONAL_EMPTY_ENV_KEYS = new Set([
-  "API_KEY",
-  "API_CORS_ORIGINS",
-  "CONVEX_ADMIN_KEY",
-  "DEEPSEEK_API_KEY",
-  "DEEPSEEK_BASE_URL",
-  "DEEPSEEK_CHAT_MODEL",
-  "GEMINI_API_KEY",
-  "GEMINI_CHAT_MODEL",
-  "GROQ_API_KEY",
-  "GROQ_CHAT_MODEL",
-  "R2_ACCESS_KEY_ID",
-  "R2_BUCKET_NAME",
-  "R2_ENDPOINT",
-  "R2_SECRET_ACCESS_KEY",
-  "SEED_OWNER_PHONE",
-]);
   CONVEX_ADMIN_KEY: z.string().min(1).optional(),
   CONVEX_URL: z.string().min(1).url().optional(),
   DEEPSEEK_API_KEY: trimmedNonEmptyString.optional(),
@@ -174,6 +158,7 @@ const OPTIONAL_EMPTY_ENV_KEYS = new Set([
   R2_ENDPOINT: z.string().url().optional(),
   R2_ACCESS_KEY_ID: trimmedNonEmptyString.optional(),
   R2_SECRET_ACCESS_KEY: trimmedNonEmptyString.optional(),
+  SEED_OWNER_PHONE: trimmedNonEmptyString.optional(),
   GEMINI_CHAT_MODEL: trimmedNonEmptyString.optional(),
   GROQ_API_KEY: trimmedNonEmptyString.optional(),
   GROQ_CHAT_MODEL: trimmedNonEmptyString.optional()
