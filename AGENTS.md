@@ -33,10 +33,10 @@ CSCB is an early-stage multi-tenant WhatsApp customer service platform for small
 - Extract shared logic instead of duplicating behavior across apps or packages.
 - Do not hesitate to refactor existing code when that produces a cleaner system.
 - Use the `@cs/*` path aliases from `tsconfig.base.json` for cross-package imports.
+- Convex runtime files must not import the broad `@cs/ai` barrel. Convex codegen traverses that barrel into `@cs/core`'s Node-only log stream and `bun generate` fails. In Convex runtime code, import the specific `packages/ai/src/*` module you need instead.
 - If you encounter something surprising, tell the developer and add it to this file so future agents do not repeat the same mistake.
 
 ## Required Reading
 
 - Read `docs/PROJECT_CHARTER_AND_VISION.md`.
 - Read `docs/SRS.md`.
-

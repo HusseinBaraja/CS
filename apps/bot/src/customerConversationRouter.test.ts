@@ -545,8 +545,16 @@ describe("createCustomerConversationRouter", () => {
               source: "retrieval_single_candidate",
               updatedAt: 900,
             },
+            heuristicHints: {
+              usedQuotedReference: false,
+              topCandidates: [{
+                entityKind: "product",
+                entityId: "product-1",
+                score: 0.92,
+              }],
+            },
           },
-          invalidatedPaths: [],
+          invalidatedPaths: ["heuristicHints.heuristicFocus"],
         };
       },
       appendPendingAssistantMessage: async (input) => ({
@@ -595,7 +603,47 @@ describe("createCustomerConversationRouter", () => {
             score: 0.92,
           }],
         });
-        return createCanonicalStateReadResult().state;
+        return {
+          ...createCanonicalStateReadResult().state,
+          responseLanguage: "en",
+          currentFocus: {
+            kind: "product",
+            entityIds: ["product-1"],
+            source: "retrieval_single_candidate",
+            updatedAt: 2_000,
+          },
+          freshness: {
+            status: "fresh",
+            updatedAt: 2_000,
+            activeWindowExpiresAt: 32_000,
+          },
+          sourceOfTruthMarkers: {
+            currentFocus: "retrieval_single_candidate",
+            latestStandaloneQuery: "system_passthrough",
+            pendingClarification: "system_passthrough",
+            responseLanguage: "system_passthrough",
+          },
+          latestStandaloneQuery: {
+            text: "hello",
+            status: "unresolved_passthrough",
+            source: "system_passthrough",
+            updatedAt: 2_000,
+          },
+          heuristicHints: {
+            usedQuotedReference: false,
+            topCandidates: [{
+              entityKind: "product",
+              entityId: "product-1",
+              score: 0.92,
+            }],
+            heuristicFocus: {
+              kind: "product",
+              entityIds: ["product-1"],
+              source: "heuristic",
+              updatedAt: 2_000,
+            },
+          },
+        };
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
@@ -636,7 +684,7 @@ describe("createCustomerConversationRouter", () => {
         };
       },
     };
-    const { logger, errorCalls } = createLogger();
+    const { logger, errorCalls, infoCalls } = createLogger();
     const { outbound, sent } = createOutbound();
     const router = createCustomerConversationRouter({
       catalogChatOrchestrator: orchestrator,
@@ -663,6 +711,49 @@ describe("createCustomerConversationRouter", () => {
       text: "Assistant reply",
     }]);
     expect(errorCalls).toEqual([]);
+    expect(infoCalls).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        message: "customer conversation canonical state loaded",
+        payload: expect.objectContaining({
+          event: "conversation.canonical_state.load_recorded",
+          outcome: "loaded",
+          conversationId: "conversation-1",
+          requestId: "message-1",
+          invalidatedPathCount: 1,
+          freshnessStatus: "stale",
+          authoritativeFocusKind: "product",
+          authoritativeFocusEntityCount: 1,
+          heuristicCandidateCount: 1,
+        }),
+      }),
+      expect.objectContaining({
+        message: "customer conversation canonical state invalidated",
+        payload: expect.objectContaining({
+          event: "conversation.canonical_state.invalidation_recorded",
+          outcome: "recorded",
+          conversationId: "conversation-1",
+          requestId: "message-1",
+          invalidatedPathCount: 1,
+          invalidatedPaths: ["heuristicHints.heuristicFocus"],
+        }),
+      }),
+      expect.objectContaining({
+        message: "customer conversation canonical state written",
+        payload: expect.objectContaining({
+          event: "conversation.canonical_state.write_recorded",
+          outcome: "written",
+          conversationId: "conversation-1",
+          requestId: "message-1",
+          authoritativeFocusKind: "product",
+          authoritativeFocusEntityCount: 1,
+          authoritativeFocusSource: "retrieval_single_candidate",
+          pendingClarificationActive: false,
+          heuristicCandidateCount: 1,
+          latestStandaloneQueryStatus: "unresolved_passthrough",
+          responseLanguage: "en",
+        }),
+      }),
+    ]));
   });
 
   test("continues orchestration when canonical state loading fails", async () => {
@@ -705,6 +796,13 @@ describe("createCustomerConversationRouter", () => {
     expect(errorCalls).toEqual(expect.arrayContaining([
       expect.objectContaining({
         message: "customer conversation canonical state load failed",
+        payload: expect.objectContaining({
+          event: "conversation.canonical_state.load_recorded",
+          outcome: "load_failed",
+          conversationId: "conversation-1",
+          requestId: "message-1",
+          invalidatedPathCount: 0,
+        }),
       }),
     ]));
   });
@@ -743,6 +841,15 @@ describe("createCustomerConversationRouter", () => {
     expect(errorCalls).toEqual(expect.arrayContaining([
       expect.objectContaining({
         message: "customer conversation canonical state write failed",
+        payload: expect.objectContaining({
+          event: "conversation.canonical_state.write_recorded",
+          outcome: "write_failed",
+          conversationId: "conversation-1",
+          requestId: "message-1",
+          authoritativeFocusKind: "none",
+          authoritativeFocusEntityCount: 0,
+          heuristicCandidateCount: 0,
+        }),
       }),
     ]));
   });

@@ -6,6 +6,9 @@ import {
   redactPhoneLikeValue,
   serializeErrorForLog,
   summarizeTextForLog,
+  toCanonicalConversationStateInvalidationLogPayload,
+  toCanonicalConversationStateLoadLogPayload,
+  toCanonicalConversationStateWriteLogPayload,
   type StructuredLogger,
   withLogBindings,
 } from '@cs/core';
@@ -19,6 +22,7 @@ import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId, type ConversationStore } from './conversationStore';
 
 export type CustomerConversationLogger = StructuredLogger;
+type CanonicalConversationState = Awaited<ReturnType<ConversationStore["getCanonicalConversationState"]>>["state"];
 
 export interface CustomerConversationRouterOptions {
   catalogChatOrchestrator: CatalogChatOrchestrator;
@@ -48,6 +52,35 @@ const summarizeUserText = (value: string) => {
     userTextLineCount: summary.textLineCount,
   };
 };
+
+const buildCanonicalStateLoadEvent = (
+  state: CanonicalConversationState,
+  requestId: string,
+  invalidatedPaths: string[],
+) => ({
+  conversationId: state.conversationId,
+  requestId,
+  invalidatedPaths,
+  freshnessStatus: state.freshness.status,
+  authoritativeFocusKind: state.currentFocus.kind,
+  authoritativeFocusEntityCount: state.currentFocus.entityIds.length,
+  heuristicCandidateCount: state.heuristicHints.topCandidates.length,
+});
+
+const buildCanonicalStateWriteEvent = (
+  state: CanonicalConversationState | undefined,
+  requestId: string,
+) => ({
+  ...(state?.conversationId ? { conversationId: state.conversationId } : {}),
+  requestId,
+  authoritativeFocusKind: state?.currentFocus.kind ?? "none",
+  authoritativeFocusEntityCount: state?.currentFocus.entityIds.length ?? 0,
+  ...(state?.currentFocus.source ? { authoritativeFocusSource: state.currentFocus.source } : {}),
+  ...(state ? { pendingClarificationActive: state.pendingClarification.active } : {}),
+  heuristicCandidateCount: state?.heuristicHints.topCandidates.length ?? 0,
+  ...(state?.latestStandaloneQuery ? { latestStandaloneQueryStatus: state.latestStandaloneQuery.status } : {}),
+  ...(state?.responseLanguage ? { responseLanguage: state.responseLanguage } : {}),
+});
 
 const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
   `pendingMessage:${pendingMessageId}:handoff_started`;
@@ -208,20 +241,60 @@ export const createCustomerConversationRouter = (
         now: message.occurredAtMs,
       });
       canonicalState = canonicalStateResult.state;
+      logEvent(
+        routeLogger,
+        "info",
+        toCanonicalConversationStateLoadLogPayload(
+          buildCanonicalStateLoadEvent(canonicalStateResult.state, message.messageId, canonicalStateResult.invalidatedPaths),
+          {
+            runtime: "bot",
+            surface: "router",
+            outcome: "loaded",
+          },
+        ),
+        "customer conversation canonical state loaded",
+      );
+      if (canonicalStateResult.invalidatedPaths.length > 0) {
+        logEvent(
+          routeLogger,
+          "info",
+          toCanonicalConversationStateInvalidationLogPayload(
+            {
+              conversationId: canonicalStateResult.state.conversationId,
+              requestId: message.messageId,
+              invalidatedPaths: canonicalStateResult.invalidatedPaths,
+            },
+            {
+              runtime: "bot",
+              surface: "router",
+              outcome: "recorded",
+            },
+          ),
+          "customer conversation canonical state invalidated",
+        );
+      }
     } catch (error) {
       logEvent(
         routeLogger,
         "error",
         {
+          ...toCanonicalConversationStateLoadLogPayload(
+            {
+              conversationId,
+              requestId: message.messageId,
+              invalidatedPaths: [],
+              heuristicCandidateCount: 0,
+            },
+            {
+              runtime: "bot",
+              surface: "router",
+              outcome: "load_failed",
+            },
+          ),
           companyId: message.companyId,
-          conversationId,
           error: serializeErrorForLog(error),
-          event: "bot.router.canonical_state_load_failed",
           messageId: message.messageId,
-          outcome: "error",
-          runtime: "bot",
           sessionKey: message.sessionKey,
-          surface: "router",
         },
         "customer conversation canonical state load failed",
       );
@@ -464,7 +537,7 @@ export const createCustomerConversationRouter = (
     );
 
     try {
-      await options.conversationStore.applyCanonicalConversationTurnOutcome({
+      const nextCanonicalState = await options.conversationStore.applyCanonicalConversationTurnOutcome({
         companyId: message.companyId,
         conversationId,
         responseLanguage: chatResponse.language.responseLanguage,
@@ -483,20 +556,37 @@ export const createCustomerConversationRouter = (
           score: candidate.score,
         })),
       });
+      logEvent(
+        routeLogger,
+        "info",
+        toCanonicalConversationStateWriteLogPayload(
+          buildCanonicalStateWriteEvent(nextCanonicalState, message.messageId),
+          {
+            runtime: "bot",
+            surface: "router",
+            outcome: "written",
+          },
+        ),
+        "customer conversation canonical state written",
+      );
     } catch (error) {
       logEvent(
         routeLogger,
         "error",
         {
+          ...toCanonicalConversationStateWriteLogPayload(
+            buildCanonicalStateWriteEvent(canonicalState, message.messageId),
+            {
+              runtime: "bot",
+              surface: "router",
+              outcome: "write_failed",
+            },
+          ),
           companyId: message.companyId,
-          conversationId,
+          ...(conversationId ? { conversationId } : {}),
           error: serializeErrorForLog(error),
-          event: "bot.router.canonical_state_write_failed",
           messageId: message.messageId,
-          outcome: "error",
-          runtime: "bot",
           sessionKey: message.sessionKey,
-          surface: "router",
         },
         "customer conversation canonical state write failed",
       );
