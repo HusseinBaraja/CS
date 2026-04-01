@@ -1,5 +1,15 @@
 import type { CliCommand } from './types';
-import { runInheritedCommand } from '../lib/process';
+import { getCliWorkspaceRoot, runInheritedCommand } from '../lib/process';
+
+interface SeedRunDependencies {
+  getWorkspaceRoot: () => string;
+  runConvex: (args: string[], options: { cwd: string }) => Promise<void>;
+}
+
+const defaultDependencies: SeedRunDependencies = {
+  getWorkspaceRoot: getCliWorkspaceRoot,
+  runConvex: runInheritedCommand,
+};
 
 export const buildSeedArgs = (): string[] => [
   "convex",
@@ -13,13 +23,16 @@ export const buildSeedArgs = (): string[] => [
   "{}",
 ];
 
-export const runSeed = async (args: string[]): Promise<void> => {
+export const runSeed = async (
+  args: string[],
+  dependencies: SeedRunDependencies = defaultDependencies
+): Promise<void> => {
   if (args.length > 0) {
     throw new Error(`Unexpected arguments for seed: ${args.join(" ")}`);
   }
 
-  await runInheritedCommand(buildSeedArgs(), {
-    cwd: process.cwd()
+  await dependencies.runConvex(buildSeedArgs(), {
+    cwd: dependencies.getWorkspaceRoot()
   });
 };
 

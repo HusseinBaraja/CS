@@ -12,7 +12,7 @@ import {
 } from '@cs/core';
 import type { BackupTarget } from '../lib/backup-paths';
 import { buildBackupFileName } from '../lib/backup-paths';
-import { runInheritedCommand } from '../lib/process';
+import { getCliWorkspaceRoot, runInheritedCommand } from '../lib/process';
 import { pruneManagedBackups } from '../lib/retention';
 import type { CliCommand } from './types';
 
@@ -36,7 +36,7 @@ const defaultDependencies: BackupRunDependencies = {
   now: () => new Date(),
   runExport: (args) =>
     runInheritedCommand(args, {
-      cwd: process.cwd()
+      cwd: getCliWorkspaceRoot()
     })
 };
 
