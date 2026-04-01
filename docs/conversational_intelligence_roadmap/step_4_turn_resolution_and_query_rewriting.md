@@ -9,6 +9,8 @@ Resolve ambiguous inbound turns into standalone intent before retrieval so the s
 ## Why This Step Comes Now
 This step depends on having canonical state, semantic assistant records, and a typed context-assembly contract. Without those foundations, rewriting would still be forced to infer too much from raw message text.
 
+This is also the step where semantic assistant records can become an authoritative input for turn resolution, while earlier steps may keep them in shadow mode for comparison and observability.
+
 ## In Scope
 - Resolution of ambiguous follow-up language
 - Standalone query generation
@@ -78,19 +80,21 @@ Consumed by: Step 5 and later prompt assembly
 Planned lifecycle:
 
 1. Load recent turns, state, and summary.
-2. Resolve the inbound turn against those sources.
-3. Produce `ResolvedUserTurn`.
-4. If confidence is sufficient, pass the standalone query to retrieval.
-5. If confidence is insufficient, emit a targeted clarification requirement instead of broad ambiguity handling.
+2. Load semantic assistant records for relevant prior assistant turns.
+3. Resolve the inbound turn against those sources.
+4. Produce `ResolvedUserTurn`.
+5. If confidence is sufficient, pass the standalone query to retrieval.
+6. If confidence is insufficient, emit a targeted clarification requirement instead of broad ambiguity handling.
 
 Resolution priority:
 
 1. explicit quoted reference
 2. explicit selected entity in state
-3. most recent presented list and index mapping
-4. recent-turn discourse
-5. summary as long-range support
-6. raw text only as the weakest source
+3. semantic assistant record for prior presented list and entity mapping
+4. most recent presented list and index mapping in canonical state
+5. recent-turn discourse
+6. summary as long-range support
+7. raw text only as the weakest source
 
 ## Edge Cases And Failure Modes
 - User references “the second one” after multiple lists were shown
