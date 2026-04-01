@@ -399,7 +399,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversation canonical 
     const t = convexTest(schema, modules);
     const { companyId, conversationId } = await createConversationFixture(t);
 
-    await t.mutation(internal.conversations.applyCanonicalConversationTurnOutcome, {
+    const mutationResult = await t.mutation(internal.conversations.applyCanonicalConversationTurnOutcome, {
       companyId,
       conversationId,
       responseLanguage: "en",
@@ -416,6 +416,13 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversation canonical 
       }],
     });
 
+    expect(mutationResult.currentFocus).toEqual({
+      kind: "none",
+      entityIds: [],
+    });
+    expect(mutationResult.heuristicHints.topCandidates).toEqual([]);
+    expect(mutationResult.heuristicHints.heuristicFocus).toBeUndefined();
+
     const result = await t.query(internal.conversations.getCanonicalConversationState, {
       companyId,
       conversationId,
@@ -427,10 +434,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversation canonical 
       entityIds: [],
     });
     expect(result.state.heuristicHints.topCandidates).toEqual([]);
-    expect(result.invalidatedPaths).toEqual(expect.arrayContaining([
-      "currentFocus",
-      "heuristicHints.topCandidates",
-      "heuristicHints.heuristicFocus",
-    ]));
+    expect(result.invalidatedPaths).toEqual([]);
   });
 });

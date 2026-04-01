@@ -1220,7 +1220,14 @@ export const applyCanonicalConversationTurnOutcome = internalMutation({
       state: baseState,
       now: args.committedAssistantTimestamp,
     });
-    const candidates = normalizeCanonicalCandidates(args.candidates);
+    const candidates = (
+      await sanitizeCanonicalHeuristicCandidates(
+        ctx,
+        args.companyId,
+        normalizeCanonicalCandidates(args.candidates),
+        "heuristicHints.topCandidates",
+      )
+    ).candidates;
     const retrievalOrderListProxy = buildCanonicalRetrievalOrderListProxy(
       candidates,
       args.committedAssistantTimestamp,

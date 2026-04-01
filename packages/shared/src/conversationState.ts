@@ -28,6 +28,9 @@ export const CANONICAL_CONVERSATION_PRESENTABLE_KINDS = [
   "catalog_slice",
 ] as const;
 
+export type CanonicalConversationPresentableKind =
+  (typeof CANONICAL_CONVERSATION_PRESENTABLE_KINDS)[number];
+
 export const CANONICAL_CONVERSATION_FRESHNESS_STATUSES = [
   "fresh",
   "stale",
@@ -50,13 +53,13 @@ export interface CanonicalConversationFocusDto {
 
 export interface CanonicalConversationPresentedListItemDto {
   displayIndex: number;
-  entityKind: Exclude<CanonicalConversationFocusKind, "none">;
+  entityKind: CanonicalConversationPresentableKind;
   entityId: string;
   score?: number;
 }
 
 export interface CanonicalConversationPresentedListDto {
-  kind: Exclude<CanonicalConversationFocusKind, "none">;
+  kind: CanonicalConversationPresentableKind;
   items: CanonicalConversationPresentedListItemDto[];
   source?: CanonicalConversationSource;
   updatedAt?: number;

@@ -37,7 +37,7 @@ CSCB is an early-stage multi-tenant WhatsApp customer service platform for small
 - Do not hesitate to refactor existing code when that produces a cleaner system.
 - Use the `@cs/*` path aliases from `tsconfig.base.json` for cross-package imports.
 - Convex runtime files must not import the broad `@cs/ai` barrel. Convex codegen traverses that barrel into `@cs/core`'s Node-only log stream and `bun generate` fails. In Convex runtime code, import the specific `packages/ai/src/*` module you need instead.
-- Convex typecheck also depends on `convex/tsconfig.json` path aliases. When adding a new safe `@cs/ai/*` subpath alias in repo config, mirror it there or `bun check` will fail in `@cs/convex`.
+- Convex package typecheck uses `convex/tsconfig.json`, not just `tsconfig.base.json`. When adding a safe Convex `@cs/ai/*` subpath alias, mirror it in `convex/tsconfig.json` or `bun check` will fail in `@cs/convex`.
 - If you encounter something surprising, tell the developer and add it to this file so future agents do not repeat the same mistake.
 
 ## Required Reading
