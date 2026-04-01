@@ -1,12 +1,19 @@
 import { v } from 'convex/values';
-import type { PromptHistoryTurn } from '@cs/ai';
+import type { PromptHistoryTurn } from '@cs/ai/chat/promptContracts';
 import type {
+  CanonicalConversationFocusDto,
+  CanonicalConversationFocusKind,
+  CanonicalConversationHeuristicCandidateDto,
+  CanonicalConversationPresentedListDto,
+  CanonicalConversationStateDto,
+  CanonicalConversationStateReadResultDto,
   ConversationMessageDto,
-  ConversationStateDto,
-  ConversationStateEventSource,
-  ConversationStateEventType,
+  ConversationRecordDto,
+  ConversationLifecycleEventSource,
+  ConversationLifecycleEventType,
   PromptHistorySelection,
   PromptHistorySelectionMode,
+  RetrievalOutcome,
 } from '@cs/shared';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
@@ -27,6 +34,8 @@ const LIST_CONVERSATION_MESSAGES_BATCH_SIZE = 100;
 export const AUTO_RESUME_IDLE_MS = 12 * 60 * 60 * 1_000;
 export const STALE_CONTEXT_RESET_MS = 30 * 60 * 1_000;
 const REFERENCED_HISTORY_SIDE_MESSAGES = 5;
+const MAX_CANONICAL_STATE_CANDIDATES = 5;
+const CANONICAL_STATE_SCHEMA_VERSION = "v1";
 
 type LockAcquireResult = {
   acquired: boolean;
@@ -39,13 +48,13 @@ type TrimConversationMessagesResult = {
 };
 
 type AppendInboundCustomerMessageResult = {
-  conversation: ConversationStateDto;
+  conversation: ConversationRecordDto;
   wasMuted: boolean;
   wasDuplicate: boolean;
 };
 
 type AssistantHandoffSource = Extract<
-  ConversationStateEventSource,
+  ConversationLifecycleEventSource,
   "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback"
 >;
 
@@ -58,6 +67,26 @@ type PendingAssistantMessageCandidate = {
   transportMessageId?: string;
   analyticsState?: "pending" | "recorded" | "completed" | "not_applicable";
   ownerNotificationState?: "pending" | "sent" | "completed" | "not_applicable";
+};
+
+type CanonicalConversationStateMutationCandidate = {
+  entityKind: Exclude<CanonicalConversationFocusKind, "none" | "catalog_slice">;
+  entityId: string;
+  score: number;
+};
+
+type CanonicalConversationTurnOutcomeInput = {
+  companyId: Id<"companies">;
+  conversationId: Id<"conversations">;
+  responseLanguage?: "ar" | "en";
+  latestUserMessageText: string;
+  assistantActionType: "none" | "clarify" | "handoff";
+  committedAssistantTimestamp: number;
+  promptHistorySelectionMode: PromptHistorySelectionMode;
+  usedQuotedReference: boolean;
+  referencedTransportMessageId?: string;
+  retrievalOutcome: RetrievalOutcome;
+  candidates: CanonicalConversationStateMutationCandidate[];
 };
 
 const sleep = (delayMs: number): Promise<void> =>
@@ -127,7 +156,7 @@ const resolveSideEffectsState = (
   return analyticsComplete && ownerNotificationComplete ? "completed" : "pending";
 };
 
-const toConversationDto = (conversation: Doc<"conversations">): ConversationStateDto => ({
+const toConversationDto = (conversation: Doc<"conversations">): ConversationRecordDto => ({
   id: conversation._id,
   companyId: conversation.companyId,
   phoneNumber: conversation.phoneNumber,
@@ -186,6 +215,395 @@ const normalizeOptionalString = (value: string | undefined, fieldName: string): 
   }
 
   return normalized;
+};
+
+const normalizeOptionalCanonicalEntityId = (value: string | undefined): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return undefined;
+  }
+
+  return normalized;
+};
+
+const normalizeCanonicalCandidateScore = (score: number): number => {
+  if (!Number.isFinite(score)) {
+    throw new Error("candidate scores must be finite numbers");
+  }
+
+  return score;
+};
+
+const createEmptyCanonicalConversationFocus = (): CanonicalConversationFocusDto => ({
+  kind: "none",
+  entityIds: [],
+});
+
+const createSeedCanonicalConversationState = (
+  companyId: Id<"companies">,
+  conversationId: Id<"conversations">,
+): CanonicalConversationStateDto => ({
+  schemaVersion: CANONICAL_STATE_SCHEMA_VERSION,
+  conversationId,
+  companyId,
+  currentFocus: createEmptyCanonicalConversationFocus(),
+  pendingClarification: {
+    active: false,
+  },
+  freshness: {
+    status: "stale",
+  },
+  sourceOfTruthMarkers: {},
+  heuristicHints: {
+    usedQuotedReference: false,
+    topCandidates: [],
+  },
+});
+
+const toCanonicalConversationStateDto = (
+  state: Doc<"conversationCanonicalStates">,
+): CanonicalConversationStateDto => ({
+  schemaVersion: state.schemaVersion,
+  conversationId: state.conversationId,
+  companyId: state.companyId,
+  ...(state.responseLanguage ? { responseLanguage: state.responseLanguage } : {}),
+  currentFocus: state.currentFocus,
+  ...(state.lastPresentedList ? { lastPresentedList: state.lastPresentedList } : {}),
+  pendingClarification: state.pendingClarification,
+  ...(state.latestStandaloneQuery ? { latestStandaloneQuery: state.latestStandaloneQuery } : {}),
+  freshness: state.freshness,
+  sourceOfTruthMarkers: state.sourceOfTruthMarkers,
+  heuristicHints: state.heuristicHints,
+});
+
+const toCanonicalStateReadResult = (
+  state: CanonicalConversationStateDto,
+  invalidatedPaths: string[],
+): CanonicalConversationStateReadResultDto => ({
+  state,
+  invalidatedPaths,
+});
+
+const loadCanonicalConversationStateDoc = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+): Promise<Doc<"conversationCanonicalStates"> | null> => {
+  const states = await ctx.db
+    .query("conversationCanonicalStates")
+    .withIndex("by_conversation", (q) => q.eq("conversationId", conversationId))
+    .collect();
+
+  return states[0] ?? null;
+};
+
+const isScopedCategoryId = async (
+  ctx: { db: DatabaseReader },
+  companyId: Id<"companies">,
+  categoryId: string,
+): Promise<boolean> => {
+  const normalizedId = normalizeOptionalCanonicalEntityId(categoryId);
+  if (!normalizedId) {
+    return false;
+  }
+
+  try {
+    const category = await ctx.db.get(normalizedId as Id<"categories">);
+    return Boolean(category && category.companyId === companyId);
+  } catch {
+    return false;
+  }
+};
+
+const isScopedProductId = async (
+  ctx: { db: DatabaseReader },
+  companyId: Id<"companies">,
+  productId: string,
+): Promise<boolean> => {
+  const normalizedId = normalizeOptionalCanonicalEntityId(productId);
+  if (!normalizedId) {
+    return false;
+  }
+
+  try {
+    const product = await ctx.db.get(normalizedId as Id<"products">);
+    return Boolean(product && product.companyId === companyId);
+  } catch {
+    return false;
+  }
+};
+
+const isScopedVariantId = async (
+  ctx: { db: DatabaseReader },
+  companyId: Id<"companies">,
+  variantId: string,
+): Promise<boolean> => {
+  const normalizedId = normalizeOptionalCanonicalEntityId(variantId);
+  if (!normalizedId) {
+    return false;
+  }
+
+  try {
+    const variant = await ctx.db.get(normalizedId as Id<"productVariants">);
+    if (!variant) {
+      return false;
+    }
+
+    const product = await ctx.db.get(variant.productId);
+    return Boolean(product && product.companyId === companyId);
+  } catch {
+    return false;
+  }
+};
+
+const isValidCanonicalEntityId = async (
+  ctx: { db: DatabaseReader },
+  companyId: Id<"companies">,
+  entityKind: Exclude<CanonicalConversationFocusKind, "none" | "catalog_slice">,
+  entityId: string,
+): Promise<boolean> => {
+  switch (entityKind) {
+    case "category":
+      return isScopedCategoryId(ctx, companyId, entityId);
+    case "product":
+      return isScopedProductId(ctx, companyId, entityId);
+    case "variant":
+      return isScopedVariantId(ctx, companyId, entityId);
+  }
+};
+
+const sanitizeCanonicalFocus = async (
+  ctx: { db: DatabaseReader },
+  companyId: Id<"companies">,
+  focus: CanonicalConversationFocusDto,
+  path: string,
+): Promise<{ focus: CanonicalConversationFocusDto; invalidatedPaths: string[] }> => {
+  if (focus.kind === "none") {
+    return { focus, invalidatedPaths: [] };
+  }
+
+  if (focus.kind === "catalog_slice") {
+    return {
+      focus,
+      invalidatedPaths: focus.entityIds.every((entityId) => normalizeOptionalCanonicalEntityId(entityId))
+        ? []
+        : [path],
+    };
+  }
+
+  const validEntityIds: string[] = [];
+  for (const entityId of focus.entityIds) {
+    if (await isValidCanonicalEntityId(ctx, companyId, focus.kind, entityId)) {
+      validEntityIds.push(entityId);
+    }
+  }
+
+  if (validEntityIds.length === focus.entityIds.length) {
+    return { focus, invalidatedPaths: [] };
+  }
+
+  if (validEntityIds.length === 0) {
+    return {
+      focus: createEmptyCanonicalConversationFocus(),
+      invalidatedPaths: [path],
+    };
+  }
+
+  return {
+    focus: {
+      ...focus,
+      entityIds: validEntityIds,
+    },
+    invalidatedPaths: [`${path}.entityIds`],
+  };
+};
+
+const sanitizeCanonicalPresentedList = async (
+  ctx: { db: DatabaseReader },
+  companyId: Id<"companies">,
+  list: CanonicalConversationPresentedListDto | undefined,
+  path: string,
+): Promise<{ list: CanonicalConversationPresentedListDto | undefined; invalidatedPaths: string[] }> => {
+  if (!list) {
+    return { list: undefined, invalidatedPaths: [] };
+  }
+
+  if (list.kind === "catalog_slice") {
+    return {
+      list,
+      invalidatedPaths: list.items.every((item) => normalizeOptionalCanonicalEntityId(item.entityId))
+        ? []
+        : [path],
+    };
+  }
+
+  const items = [];
+  for (const item of list.items) {
+    if (item.entityKind === "catalog_slice") {
+      if (normalizeOptionalCanonicalEntityId(item.entityId)) {
+        items.push(item);
+      }
+      continue;
+    }
+
+    const isValid = await isValidCanonicalEntityId(ctx, companyId, item.entityKind, item.entityId);
+    if (isValid) {
+      items.push(item);
+    }
+  }
+
+  if (items.length === list.items.length) {
+    return { list, invalidatedPaths: [] };
+  }
+
+  if (items.length === 0) {
+    return { list: undefined, invalidatedPaths: [path] };
+  }
+
+  return {
+    list: {
+      ...list,
+      items,
+    },
+    invalidatedPaths: [`${path}.items`],
+  };
+};
+
+const sanitizeCanonicalHeuristicCandidates = async (
+  ctx: { db: DatabaseReader },
+  companyId: Id<"companies">,
+  candidates: CanonicalConversationHeuristicCandidateDto[],
+  path: string,
+): Promise<{ candidates: CanonicalConversationHeuristicCandidateDto[]; invalidatedPaths: string[] }> => {
+  const validCandidates: CanonicalConversationHeuristicCandidateDto[] = [];
+
+  for (const candidate of candidates) {
+    if (await isValidCanonicalEntityId(ctx, companyId, candidate.entityKind, candidate.entityId)) {
+      validCandidates.push(candidate);
+    }
+  }
+
+  return {
+    candidates: validCandidates,
+    invalidatedPaths: validCandidates.length === candidates.length ? [] : [path],
+  };
+};
+
+const applyFreshnessStatus = (
+  freshness: CanonicalConversationStateDto["freshness"],
+  now: number,
+): CanonicalConversationStateDto["freshness"] => ({
+  ...freshness,
+  status:
+    freshness.activeWindowExpiresAt !== undefined && freshness.activeWindowExpiresAt >= now
+      ? "fresh"
+      : "stale",
+});
+
+const sanitizeCanonicalConversationState = async (
+  ctx: { db: DatabaseReader },
+  input: {
+    companyId: Id<"companies">;
+    state: CanonicalConversationStateDto;
+    now: number;
+  },
+): Promise<CanonicalConversationStateReadResultDto> => {
+  const invalidatedPaths: string[] = [];
+  const currentFocus = await sanitizeCanonicalFocus(ctx, input.companyId, input.state.currentFocus, "currentFocus");
+  invalidatedPaths.push(...currentFocus.invalidatedPaths);
+  const lastPresentedList = await sanitizeCanonicalPresentedList(
+    ctx,
+    input.companyId,
+    input.state.lastPresentedList,
+    "lastPresentedList",
+  );
+  invalidatedPaths.push(...lastPresentedList.invalidatedPaths);
+  const retrievalOrderListProxy = await sanitizeCanonicalPresentedList(
+    ctx,
+    input.companyId,
+    input.state.heuristicHints.retrievalOrderListProxy,
+    "heuristicHints.retrievalOrderListProxy",
+  );
+  invalidatedPaths.push(...retrievalOrderListProxy.invalidatedPaths);
+  const heuristicFocus = input.state.heuristicHints.heuristicFocus
+    ? await sanitizeCanonicalFocus(ctx, input.companyId, input.state.heuristicHints.heuristicFocus, "heuristicHints.heuristicFocus")
+    : { focus: undefined, invalidatedPaths: [] as string[] };
+  invalidatedPaths.push(...heuristicFocus.invalidatedPaths);
+  const topCandidates = await sanitizeCanonicalHeuristicCandidates(
+    ctx,
+    input.companyId,
+    input.state.heuristicHints.topCandidates,
+    "heuristicHints.topCandidates",
+  );
+  invalidatedPaths.push(...topCandidates.invalidatedPaths);
+
+  return toCanonicalStateReadResult({
+    ...input.state,
+    currentFocus: currentFocus.focus,
+    ...(lastPresentedList.list ? { lastPresentedList: lastPresentedList.list } : {}),
+    freshness: applyFreshnessStatus(input.state.freshness, input.now),
+    heuristicHints: {
+      ...input.state.heuristicHints,
+      topCandidates: topCandidates.candidates,
+      ...(retrievalOrderListProxy.list ? { retrievalOrderListProxy: retrievalOrderListProxy.list } : {}),
+      ...(heuristicFocus.focus ? { heuristicFocus: heuristicFocus.focus } : {}),
+    },
+  }, invalidatedPaths);
+};
+
+const normalizeCanonicalCandidates = (
+  candidates: CanonicalConversationTurnOutcomeInput["candidates"],
+): CanonicalConversationHeuristicCandidateDto[] =>
+  candidates
+    .slice(0, MAX_CANONICAL_STATE_CANDIDATES)
+    .map((candidate) => ({
+      entityKind: candidate.entityKind,
+      entityId: normalizeOptionalCanonicalEntityId(candidate.entityId) ?? candidate.entityId.trim(),
+      score: normalizeCanonicalCandidateScore(candidate.score),
+    }))
+    .filter((candidate) => candidate.entityId.length > 0);
+
+const buildCanonicalHeuristicFocus = (
+  candidates: CanonicalConversationHeuristicCandidateDto[],
+  updatedAt: number,
+): CanonicalConversationFocusDto | undefined => {
+  const firstCandidate = candidates[0];
+  if (!firstCandidate) {
+    return undefined;
+  }
+
+  return {
+    kind: firstCandidate.entityKind,
+    entityIds: [firstCandidate.entityId],
+    source: "heuristic",
+    updatedAt,
+  };
+};
+
+const buildCanonicalRetrievalOrderListProxy = (
+  candidates: CanonicalConversationHeuristicCandidateDto[],
+  updatedAt: number,
+): CanonicalConversationPresentedListDto | undefined => {
+  if (candidates.length <= 1) {
+    return undefined;
+  }
+
+  const firstCandidate = candidates[0]!;
+
+  return {
+    kind: firstCandidate.entityKind,
+    items: candidates.map((candidate, index) => ({
+      displayIndex: index + 1,
+      entityKind: candidate.entityKind,
+      entityId: candidate.entityId,
+      score: candidate.score,
+    })),
+    source: "heuristic",
+    updatedAt,
+  };
 };
 
 const isVisibleConversationMessage = (
@@ -498,9 +916,9 @@ const insertConversationStateEvent = async (
     companyId: Id<"companies">;
     conversationId: Id<"conversations">;
     phoneNumber: string;
-    eventType: ConversationStateEventType;
+    eventType: ConversationLifecycleEventType;
     timestamp: number;
-    source: ConversationStateEventSource;
+    source: ConversationLifecycleEventSource;
     reason?: string;
     actorPhoneNumber?: string;
     metadata?: Record<string, string | number | boolean>;
@@ -659,7 +1077,7 @@ export const ensureActiveConversation = internalMutation({
     companyId: v.id("companies"),
     phoneNumber: v.string(),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
     const existing = await listActiveConversations(ctx, args.companyId, phoneNumber);
     if (existing[0]) {
@@ -686,7 +1104,7 @@ export const getOrCreateActiveConversation = internalAction({
     phoneNumber: v.string(),
     now: v.optional(v.number()),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
     return withConversationLock(ctx, args, async () => {
       return await ctx.runMutation(internal.conversations.ensureActiveConversation, {
@@ -703,7 +1121,7 @@ export const getOrCreateConversationForInbound = internalAction({
     phoneNumber: v.string(),
     now: v.optional(v.number()),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
     return withConversationLock(ctx, args, async () => {
       const existing = await ctx.runQuery(internal.conversations.getConversationByPhone, {
@@ -727,7 +1145,7 @@ export const getConversationByPhone = internalQuery({
     companyId: v.id("companies"),
     phoneNumber: v.string(),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto | null> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto | null> => {
     const phoneNumber = normalizePhoneNumber(args.phoneNumber);
     const conversation = await loadConversationByPhone(ctx, args.companyId, phoneNumber);
     return conversation ? toConversationDto(conversation) : null;
@@ -739,9 +1157,151 @@ export const getConversation = internalQuery({
     companyId: v.id("companies"),
     conversationId: v.id("conversations"),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     return toConversationDto(conversation);
+  },
+});
+
+export const getCanonicalConversationState = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    now: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<CanonicalConversationStateReadResultDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const now = normalizeTimestamp(args.now, Date.now());
+    const storedState = await loadCanonicalConversationStateDoc(ctx, args.conversationId);
+    const seededState = storedState
+      ? toCanonicalConversationStateDto(storedState)
+      : createSeedCanonicalConversationState(args.companyId, args.conversationId);
+
+    return sanitizeCanonicalConversationState(ctx, {
+      companyId: args.companyId,
+      state: seededState,
+      now,
+    });
+  },
+});
+
+export const applyCanonicalConversationTurnOutcome = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    responseLanguage: v.optional(v.union(v.literal("ar"), v.literal("en"))),
+    latestUserMessageText: v.string(),
+    assistantActionType: v.union(v.literal("none"), v.literal("clarify"), v.literal("handoff")),
+    committedAssistantTimestamp: v.number(),
+    promptHistorySelectionMode: v.union(
+      v.literal("no_history"),
+      v.literal("recent_window"),
+      v.literal("stale_reset_empty"),
+      v.literal("quoted_reference_window"),
+    ),
+    usedQuotedReference: v.boolean(),
+    referencedTransportMessageId: v.optional(v.string()),
+    retrievalOutcome: v.union(v.literal("grounded"), v.literal("empty"), v.literal("low_signal")),
+    candidates: v.array(v.object({
+      entityKind: v.union(v.literal("category"), v.literal("product"), v.literal("variant")),
+      entityId: v.string(),
+      score: v.number(),
+    })),
+  },
+  handler: async (ctx, args): Promise<CanonicalConversationStateDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+
+    const existingState = await loadCanonicalConversationStateDoc(ctx, args.conversationId);
+    const baseState = existingState
+      ? toCanonicalConversationStateDto(existingState)
+      : createSeedCanonicalConversationState(args.companyId, args.conversationId);
+    const sanitizedBase = await sanitizeCanonicalConversationState(ctx, {
+      companyId: args.companyId,
+      state: baseState,
+      now: args.committedAssistantTimestamp,
+    });
+    const candidates = (
+      await sanitizeCanonicalHeuristicCandidates(
+        ctx,
+        args.companyId,
+        normalizeCanonicalCandidates(args.candidates),
+        "heuristicHints.topCandidates",
+      )
+    ).candidates;
+    const retrievalOrderListProxy = buildCanonicalRetrievalOrderListProxy(
+      candidates,
+      args.committedAssistantTimestamp,
+    );
+    const heuristicFocus = buildCanonicalHeuristicFocus(candidates, args.committedAssistantTimestamp);
+    const singleFocusCandidate =
+      args.retrievalOutcome === "grounded" && candidates.length === 1
+        ? candidates[0]
+        : undefined;
+    const nextCurrentFocus = singleFocusCandidate
+      ? {
+        kind: singleFocusCandidate.entityKind,
+        entityIds: [singleFocusCandidate.entityId],
+        source: "retrieval_single_candidate" as const,
+        updatedAt: args.committedAssistantTimestamp,
+      }
+      : sanitizedBase.state.currentFocus;
+    const nextState: CanonicalConversationStateDto = {
+      ...sanitizedBase.state,
+      ...(args.responseLanguage ? { responseLanguage: args.responseLanguage } : {}),
+      currentFocus: nextCurrentFocus,
+      pendingClarification: args.assistantActionType === "clarify"
+        ? {
+          active: true,
+          source: "assistant_action",
+          updatedAt: args.committedAssistantTimestamp,
+        }
+        : {
+          active: false,
+          updatedAt: args.committedAssistantTimestamp,
+        },
+      latestStandaloneQuery: {
+        text: args.latestUserMessageText.trim(),
+        status: "unresolved_passthrough",
+        source: "system_passthrough",
+        updatedAt: args.committedAssistantTimestamp,
+      },
+      freshness: {
+        status: "fresh",
+        updatedAt: args.committedAssistantTimestamp,
+        activeWindowExpiresAt: args.committedAssistantTimestamp + STALE_CONTEXT_RESET_MS,
+      },
+      sourceOfTruthMarkers: {
+        ...sanitizedBase.state.sourceOfTruthMarkers,
+        ...(args.responseLanguage ? { responseLanguage: "system_passthrough" as const } : {}),
+        ...(singleFocusCandidate ? { currentFocus: "retrieval_single_candidate" as const } : {}),
+        ...(args.assistantActionType === "clarify" ? { pendingClarification: "assistant_action" as const } : {}),
+        latestStandaloneQuery: "system_passthrough",
+      },
+      heuristicHints: {
+        promptHistorySelectionMode: args.promptHistorySelectionMode,
+        usedQuotedReference: args.usedQuotedReference,
+        ...(args.referencedTransportMessageId
+          ? { referencedTransportMessageId: args.referencedTransportMessageId }
+          : {}),
+        retrievalOutcome: args.retrievalOutcome,
+        topCandidates: candidates,
+        ...(retrievalOrderListProxy ? { retrievalOrderListProxy } : {}),
+        ...(heuristicFocus ? { heuristicFocus } : {}),
+      },
+    };
+    const persistedState = {
+      ...nextState,
+      companyId: args.companyId,
+      conversationId: args.conversationId,
+    };
+
+    if (existingState) {
+      await ctx.db.patch(existingState._id, persistedState);
+    } else {
+      await ctx.db.insert("conversationCanonicalStates", persistedState);
+    }
+
+    return nextState;
   },
 });
 
@@ -792,7 +1352,7 @@ export const appendMutedCustomerMessage = internalMutation({
     transportMessageId: v.optional(v.string()),
     referencedTransportMessageId: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (!conversation.muted) {
       throw new Error("Conversation is not muted");
@@ -1080,7 +1640,7 @@ export const commitPendingAssistantMessage = internalMutation({
     pendingMessageId: v.id("messages"),
     transportMessageId: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
     if (message.conversationId !== args.conversationId || message.role !== "assistant") {
@@ -1245,7 +1805,7 @@ export const appendAssistantMessageAndStartHandoff = internalMutation({
     metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
     transportMessageId: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (conversation.muted) {
       return toConversationDto(conversation);
@@ -1310,7 +1870,7 @@ export const listDueAutoResumeConversations = internalQuery({
     now: v.number(),
     limit: v.number(),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto[]> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto[]> => {
     const now = normalizeTimestamp(args.now, Date.now());
     const limit = normalizePositiveInteger(args.limit, "limit");
     const conversations = await ctx.db
@@ -1512,7 +2072,7 @@ export const startHandoff = internalMutation({
     actorPhoneNumber: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (conversation.muted) {
       return toConversationDto(conversation);
@@ -1556,7 +2116,7 @@ export const resumeConversation = internalMutation({
     actorPhoneNumber: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (!conversation.muted) {
       return toConversationDto(conversation);
@@ -1603,7 +2163,7 @@ export const recordMutedCustomerActivity = internalMutation({
     conversationId: v.id("conversations"),
     timestamp: v.optional(v.number()),
   },
-  handler: async (ctx, args): Promise<ConversationStateDto> => {
+  handler: async (ctx, args): Promise<ConversationRecordDto> => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (!conversation.muted) {
       throw new Error("Conversation is not muted");

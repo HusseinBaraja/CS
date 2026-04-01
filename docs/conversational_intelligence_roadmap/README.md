@@ -83,6 +83,7 @@ The implementation order is fixed unless a step file explicitly states otherwise
 | [Step 3](./step_3_context_assembly_contract.md) | Typed prompt assembly contract | Steps 0, 1 | Steps 4, 5, 6, 8 |
 | [Step 4](./step_4_turn_resolution_and_query_rewriting.md) | Turn resolution and standalone query rewriting | Steps 1, 2, 3 | Step 5 |
 | [Step 5](./step_5_retrieval_refactor.md) | Retrieval refactor around resolved intent | Step 4 | Steps 8, 9, 10 |
+| [Step 5.5](./step_5_5_catalog_access_mediation_and_multi_entity_grounding.md) | Catalog access mediation and multi-entity grounding | Step 5 | Steps 8, 9, 10 |
 | [Step 6](./step_6_rolling_summary_and_memory_hierarchy.md) | Rolling summary and memory hierarchy | Steps 1, 2, 3 | Step 7 |
 | [Step 7](./step_7_retention_archival_and_token_budget_policy.md) | Retention, archival, and token-budget policy | Step 6 | Step 10 |
 | [Step 8](./step_8_structured_output_hardening.md) | Structured-output hardening | Steps 2, 3, 5 | Step 9 |
@@ -120,6 +121,9 @@ Resolve ambiguous user turns into standalone intent before retrieval.
 ### Step 5: Retrieval Refactor
 Refactor RAG to consume resolved intent and entity state instead of raw latest-turn text.
 
+### Step 5.5: Catalog Access Mediation and Multi-Entity Grounding
+Define the customer-safe catalog grounding surface so the assistant can reason over categories, products, variants, offers, and pricing facts without prompting from raw storage shape.
+
 ### Step 6: Rolling Summary and Memory Hierarchy
 Introduce durable summary memory without confusing it with canonical state or grounding facts.
 
@@ -146,6 +150,7 @@ Remove obsolete behavior only after the replacement stack has been proven in pro
 | Long idle gap with stable state retained | Step 1 | Steps 6, 7 |
 | Quoted reply to stale content | Step 1 | Steps 4, 7 |
 | Raw query low-signal but recoverable after resolution | Step 5 | Steps 4, 8 |
+| Category question answered from mediated grounding rather than product-only search | Step 5.5 | Steps 3, 5, 8 |
 | Summary present while recent turns are short | Step 6 | Steps 3, 7 |
 | Malformed structured output with repair path | Step 8 | Steps 3, 9 |
 | Clarification vs handoff boundary | Step 8 | Steps 5, 9 |
@@ -169,10 +174,11 @@ Implement this roadmap in order:
 4. Typed context assembly
 5. Turn resolution and query rewriting
 6. Retrieval refactor
-7. Rolling summary
-8. Retention and token-budget policy
-9. Structured-output hardening
-10. Rollout and regression prevention
-11. Legacy simplification
+7. Catalog access mediation and multi-entity grounding
+8. Rolling summary
+9. Retention and token-budget policy
+10. Structured-output hardening
+11. Rollout and regression prevention
+12. Legacy simplification
 
 If a later step appears attractive before an earlier step is complete, treat that as a signal that the prerequisites need to be tightened, not skipped.

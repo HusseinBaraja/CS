@@ -9,6 +9,9 @@
 - Use `bun test:convex` for Convex-specific test work.
 - Run `bun generate` after any Convex schema change.
 - Do not run `bun dev` (assume it is already running).
+- On large plan implementations, make a commit after finishing each logical step to avoid large commits that are hard to review.
+- When fixing PR issues that were submitted by coderabbit, apply minimal fixes and don't go overboard. The goal is to just fix the issues.
+- For pr review Fixes, fix each comment in its own commit and resolve the comment on github after commiting. at the end, push the changes to the branch.
 
 
 ## Commit Message Skill
@@ -33,10 +36,11 @@ CSCB is an early-stage multi-tenant WhatsApp customer service platform for small
 - Extract shared logic instead of duplicating behavior across apps or packages.
 - Do not hesitate to refactor existing code when that produces a cleaner system.
 - Use the `@cs/*` path aliases from `tsconfig.base.json` for cross-package imports.
+- Convex runtime files must not import the broad `@cs/ai` barrel. Convex codegen traverses that barrel into `@cs/core`'s Node-only log stream and `bun generate` fails. In Convex runtime code, import the specific `packages/ai/src/*` module you need instead.
+- Convex package typecheck uses `convex/tsconfig.json`, not just `tsconfig.base.json`. When adding a safe Convex `@cs/ai/*` subpath alias, mirror it in `convex/tsconfig.json` or `bun check` will fail in `@cs/convex`.
 - If you encounter something surprising, tell the developer and add it to this file so future agents do not repeat the same mistake.
 
 ## Required Reading
 
 - Read `docs/PROJECT_CHARTER_AND_VISION.md`.
 - Read `docs/SRS.md`.
-

@@ -1,7 +1,7 @@
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
 import { ERROR_CODES } from '@cs/shared';
 import {
-  type ConversationStateDto,
+  type ConversationRecordDto,
   type ConversationsService,
   ConversationsServiceError,
   type HandoffConversationInput,
@@ -88,16 +88,16 @@ export const createConvexConversationsService = (
     client: ConvexAdminClient,
     companyId: string,
     phoneNumber: string,
-  ): Promise<ConversationStateDto | null> =>
+  ): Promise<ConversationRecordDto | null> =>
     client.query(convexInternal.conversations.getConversationByPhone, {
       companyId: companyId as never,
       phoneNumber,
-    }) as Promise<ConversationStateDto | null>;
+    }) as Promise<ConversationRecordDto | null>;
 
   const handoffConversation = async (
     client: ConvexAdminClient,
     input: HandoffConversationInput,
-  ): Promise<ConversationStateDto | null> => {
+  ): Promise<ConversationRecordDto | null> => {
     const conversation = await findConversation(client, input.companyId, input.phoneNumber);
     if (!conversation) {
       return null;
@@ -114,13 +114,13 @@ export const createConvexConversationsService = (
       source: "api_manual",
       ...(normalizeReason(input.reason) ? { reason: normalizeReason(input.reason) } : {}),
       metadata: { initiatedBy: "api" },
-    }) as Promise<ConversationStateDto>;
+    }) as Promise<ConversationRecordDto>;
   };
 
   const resumeConversation = async (
     client: ConvexAdminClient,
     input: ResumeConversationInput,
-  ): Promise<ConversationStateDto | null> => {
+  ): Promise<ConversationRecordDto | null> => {
     const conversation = await findConversation(client, input.companyId, input.phoneNumber);
     if (!conversation) {
       return null;
@@ -137,7 +137,7 @@ export const createConvexConversationsService = (
       source: "api_manual",
       ...(normalizeReason(input.reason) ? { reason: normalizeReason(input.reason) } : {}),
       metadata: { initiatedBy: "api" },
-    }) as Promise<ConversationStateDto>;
+    }) as Promise<ConversationRecordDto>;
   };
 
   return {

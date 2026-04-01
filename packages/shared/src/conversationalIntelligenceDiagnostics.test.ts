@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import type { ConversationEvaluationCase, ContextUsageEvent } from "./conversationalIntelligenceDiagnostics";
+import type {
+  CanonicalConversationStateFallbackMismatchEvent,
+  CanonicalConversationStateLoadEvent,
+  CanonicalConversationStateWriteEvent,
+  ConversationEvaluationCase,
+  ContextUsageEvent,
+} from "./conversationalIntelligenceDiagnostics";
 
 describe("conversational intelligence diagnostics contracts", () => {
   test("supports regression cases with current and future expectations", () => {
@@ -73,5 +79,42 @@ describe("conversational intelligence diagnostics contracts", () => {
 
     expect(event.promptHistorySelectionMode).toBe("quoted_reference_window");
     expect(event.usedQuotedReference).toBe(true);
+  });
+
+  test("tracks canonical-state load, write, and fallback-mismatch diagnostics", () => {
+    const loadEvent: CanonicalConversationStateLoadEvent = {
+      conversationId: "conversation-1",
+      requestId: "request-1",
+      invalidatedPaths: ["currentFocus", "heuristicHints.heuristicFocus"],
+      freshnessStatus: "stale",
+      authoritativeFocusKind: "none",
+      authoritativeFocusEntityCount: 0,
+      heuristicCandidateCount: 2,
+    };
+    const writeEvent: CanonicalConversationStateWriteEvent = {
+      conversationId: "conversation-1",
+      requestId: "request-1",
+      authoritativeFocusKind: "product",
+      authoritativeFocusEntityCount: 1,
+      authoritativeFocusSource: "retrieval_single_candidate",
+      pendingClarificationActive: false,
+      heuristicCandidateCount: 1,
+      latestStandaloneQueryStatus: "unresolved_passthrough",
+      responseLanguage: "en",
+    };
+    const fallbackMismatchEvent: CanonicalConversationStateFallbackMismatchEvent = {
+      conversationId: "conversation-1",
+      requestId: "request-1",
+      retrievalOutcome: "low_signal",
+      freshnessStatus: "fresh",
+      promptHistorySelectionMode: "quoted_reference_window",
+      authoritativeFocusKind: "product",
+      authoritativeFocusSource: "retrieval_single_candidate",
+      heuristicCandidateCount: 2,
+    };
+
+    expect(loadEvent.invalidatedPaths).toHaveLength(2);
+    expect(writeEvent.authoritativeFocusSource).toBe("retrieval_single_candidate");
+    expect(fallbackMismatchEvent.promptHistorySelectionMode).toBe("quoted_reference_window");
   });
 });

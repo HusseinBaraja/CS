@@ -1,3 +1,10 @@
+import type {
+  CanonicalConversationFocusKind,
+  CanonicalConversationFreshnessStatus,
+  CanonicalConversationQueryStatus,
+  CanonicalConversationSource,
+} from "./conversationState";
+
 export type ConversationalLanguage = "ar" | "en";
 
 export type EvaluationMessageKind =
@@ -147,4 +154,43 @@ export interface StructuredOutputFailureEvent {
   >;
   repairAttempted: boolean;
   fallbackChosen: FallbackDecisionType;
+}
+
+export interface CanonicalConversationStateLoadEvent {
+  conversationId?: string;
+  requestId?: string;
+  invalidatedPaths: string[];
+  freshnessStatus?: CanonicalConversationFreshnessStatus;
+  authoritativeFocusKind?: CanonicalConversationFocusKind;
+  authoritativeFocusEntityCount?: number;
+  heuristicCandidateCount: number;
+}
+
+export interface CanonicalConversationStateWriteEvent {
+  conversationId?: string;
+  requestId?: string;
+  authoritativeFocusKind?: CanonicalConversationFocusKind;
+  authoritativeFocusEntityCount?: number;
+  authoritativeFocusSource?: CanonicalConversationSource;
+  pendingClarificationActive?: boolean;
+  heuristicCandidateCount: number;
+  latestStandaloneQueryStatus?: CanonicalConversationQueryStatus;
+  responseLanguage?: ConversationalLanguage;
+}
+
+export interface CanonicalConversationStateInvalidationEvent {
+  conversationId?: string;
+  requestId?: string;
+  invalidatedPaths: string[];
+}
+
+export interface CanonicalConversationStateFallbackMismatchEvent {
+  conversationId?: string;
+  requestId?: string;
+  retrievalOutcome: Exclude<RetrievalOutcome, "grounded">;
+  freshnessStatus?: CanonicalConversationFreshnessStatus;
+  promptHistorySelectionMode: PromptHistorySelectionMode;
+  authoritativeFocusKind?: CanonicalConversationFocusKind;
+  authoritativeFocusSource?: CanonicalConversationSource;
+  heuristicCandidateCount: number;
 }

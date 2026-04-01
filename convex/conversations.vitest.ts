@@ -2153,11 +2153,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
 
     expect(history).toEqual({
       turns: [
-        { role: "user", text: "message-3" },
-        { role: "assistant", text: "message-4" },
-        { role: "user", text: "message-5" },
         { role: "assistant", text: "message-6" },
         { role: "user", text: "message-7" },
+        { role: "assistant", text: "message-8" },
+        { role: "user", text: "message-9" },
+        { role: "assistant", text: "message-10" },
       ],
       selectionMode: "quoted_reference_window",
       usedQuotedReference: true,

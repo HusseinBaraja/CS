@@ -1,13 +1,17 @@
 import type { PromptHistoryTurn } from '@cs/ai';
 import type {
   AnalyticsEventType,
+  CanonicalConversationStateDto,
+  CanonicalConversationStateReadResultDto,
   ConversationMessageDto,
   PromptHistorySelection,
-  ConversationStateDto,
-  ConversationStateEventSource,
+  ConversationRecordDto,
+  ConversationLifecycleEventSource,
+  PromptHistorySelectionMode,
+  RetrievalOutcome,
 } from '@cs/shared';
 import { convexInternal, createConvexAdminClient, type ConvexAdminClient, type Id } from '@cs/db';
-export type ConversationRecord = ConversationStateDto;
+export type ConversationRecord = ConversationRecordDto;
 export type ConversationMessageRecord = ConversationMessageDto;
 
 export interface AppendConversationMessageInput {
@@ -34,6 +38,24 @@ export interface AppendInboundCustomerMessageResult {
   wasDuplicate: boolean;
 }
 
+export interface ApplyCanonicalConversationTurnOutcomeInput {
+  companyId: string;
+  conversationId: string;
+  responseLanguage?: "ar" | "en";
+  latestUserMessageText: string;
+  assistantActionType: "none" | "clarify" | "handoff";
+  committedAssistantTimestamp: number;
+  promptHistorySelectionMode: PromptHistorySelectionMode;
+  usedQuotedReference: boolean;
+  referencedTransportMessageId?: string;
+  retrievalOutcome: RetrievalOutcome;
+  candidates: Array<{
+    entityKind: "category" | "product" | "variant";
+    entityId: string;
+    score: number;
+  }>;
+}
+
 export interface ConversationStore {
   getOrCreateActiveConversation(companyId: string, phoneNumber: string): Promise<ConversationRecord>;
   getOrCreateConversationForInbound(companyId: string, phoneNumber: string): Promise<ConversationRecord>;
@@ -45,7 +67,7 @@ export interface ConversationStore {
     conversationId: string;
     content: string;
     timestamp: number;
-    source?: Extract<ConversationStateEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback">;
+    source?: Extract<ConversationLifecycleEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback">;
     reason?: string;
     actorPhoneNumber?: string;
     metadata?: Record<string, string | number | boolean>;
@@ -88,7 +110,7 @@ export interface ConversationStore {
     conversationId: string;
     content: string;
     timestamp: number;
-    source: Extract<ConversationStateEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback">;
+    source: Extract<ConversationLifecycleEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback">;
     reason?: string;
     actorPhoneNumber?: string;
     metadata?: Record<string, string | number | boolean>;
@@ -98,7 +120,7 @@ export interface ConversationStore {
     companyId: string;
     conversationId: string;
     triggerTimestamp: number;
-    source: Extract<ConversationStateEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback">;
+    source: Extract<ConversationLifecycleEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback">;
     reason?: string;
     actorPhoneNumber?: string;
     metadata?: Record<string, string | number | boolean>;
@@ -107,7 +129,7 @@ export interface ConversationStore {
     companyId: string;
     conversationId: string;
     resumedAt: number;
-    source: Extract<ConversationStateEventSource, "api_manual" | "worker_auto">;
+    source: Extract<ConversationLifecycleEventSource, "api_manual" | "worker_auto">;
     reason?: string;
     actorPhoneNumber?: string;
     metadata?: Record<string, string | number | boolean>;
@@ -127,6 +149,14 @@ export interface ConversationStore {
     referencedTransportMessageId?: string;
     limit: number;
   }): Promise<PromptHistorySelection<PromptHistoryTurn>>;
+  getCanonicalConversationState(input: {
+    companyId: string;
+    conversationId: string;
+    now?: number;
+  }): Promise<CanonicalConversationStateReadResultDto>;
+  applyCanonicalConversationTurnOutcome(
+    input: ApplyCanonicalConversationTurnOutcomeInput,
+  ): Promise<CanonicalConversationStateDto>;
   listRecentMessages(input: { companyId: string; conversationId: string; limit: number }): Promise<ConversationMessageRecord[]>;
   recordAnalyticsEvent(input: {
     companyId: string;
@@ -391,6 +421,32 @@ export const createConvexConversationStore = (
           inboundTimestamp: input.inboundTimestamp,
           limit: input.limit,
           ...(input.currentTransportMessageId ? { currentTransportMessageId: input.currentTransportMessageId } : {}),
+          ...(input.referencedTransportMessageId
+            ? { referencedTransportMessageId: input.referencedTransportMessageId }
+            : {}),
+        })
+      ),
+    getCanonicalConversationState: (input) =>
+      withClient((client) =>
+        client.query(convexInternal.conversations.getCanonicalConversationState, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          ...(input.now !== undefined ? { now: input.now } : {}),
+        })
+      ),
+    applyCanonicalConversationTurnOutcome: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.applyCanonicalConversationTurnOutcome, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          latestUserMessageText: input.latestUserMessageText,
+          assistantActionType: input.assistantActionType,
+          committedAssistantTimestamp: input.committedAssistantTimestamp,
+          promptHistorySelectionMode: input.promptHistorySelectionMode,
+          usedQuotedReference: input.usedQuotedReference,
+          retrievalOutcome: input.retrievalOutcome,
+          candidates: input.candidates,
+          ...(input.responseLanguage ? { responseLanguage: input.responseLanguage } : {}),
           ...(input.referencedTransportMessageId
             ? { referencedTransportMessageId: input.referencedTransportMessageId }
             : {}),

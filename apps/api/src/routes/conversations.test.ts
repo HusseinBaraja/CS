@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { ERROR_CODES, type ConversationStateDto } from '@cs/shared';
+import { ERROR_CODES, type ConversationRecordDto } from '@cs/shared';
 import { createApp } from '../app';
 import {
   type ConversationsService,
@@ -8,7 +8,7 @@ import {
 
 const API_KEY = "test-api-key";
 
-const baseConversation: ConversationStateDto = {
+const baseConversation: ConversationRecordDto = {
   id: "conversation-1",
   companyId: "company-1",
   phoneNumber: "967700000001",

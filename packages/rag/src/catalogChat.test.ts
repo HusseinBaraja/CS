@@ -834,6 +834,184 @@ describe("createCatalogChatOrchestrator", () => {
     expect(result.assistant.action.type).toBe("none");
   });
 
+  test("accepts canonical conversation state without making it authoritative in step 1", async () => {
+    const { logger, infoCalls } = createLoggerStub();
+    let promptInput: Record<string, unknown> | undefined;
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(groundedRetrievalResult()),
+      logger,
+      buildPrompt: (input) => {
+        promptInput = input as unknown as Record<string, unknown>;
+        return {
+          systemPrompt: "system",
+          userPrompt: "user",
+          request: {
+            messages: [
+              {
+                role: "system",
+                content: "system",
+              },
+              {
+                role: "user",
+                content: "user",
+              },
+            ],
+          },
+        };
+      },
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        text: '{"schemaVersion":"v1","text":"We have burger boxes.","action":{"type":"none"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      conversation: {
+        conversationId: "conversation-1",
+        history: [
+          {
+            role: "user",
+            text: "Show me burger boxes",
+          },
+        ],
+        canonicalState: {
+          schemaVersion: "v1",
+          conversationId: "conversation-1",
+          companyId: "company-1",
+          responseLanguage: "en",
+          currentFocus: {
+            kind: "product",
+            entityIds: ["product-1"],
+            source: "retrieval_single_candidate",
+            updatedAt: 1_000,
+          },
+          pendingClarification: {
+            active: false,
+          },
+          freshness: {
+            status: "fresh",
+            updatedAt: 1_000,
+            activeWindowExpiresAt: 31_000,
+          },
+          sourceOfTruthMarkers: {
+            currentFocus: "retrieval_single_candidate",
+          },
+          heuristicHints: {
+            usedQuotedReference: false,
+            topCandidates: [],
+          },
+        },
+      },
+      requestId: "request-1",
+      userMessage: "Burger Box",
+    });
+
+    expect(promptInput?.conversationHistory).toEqual([
+      {
+        role: "user",
+        text: "Show me burger boxes",
+      },
+    ]);
+    expect(findLoggedEvent(infoCalls, "rag.context_usage.recorded")).toMatchObject({
+      payload: {
+        event: "rag.context_usage.recorded",
+        conversationId: "conversation-1",
+        requestId: "request-1",
+        usedConversationState: false,
+      },
+    });
+  });
+
+  test("records fallback mismatches when retrieval falls back despite canonical recoverable context", async () => {
+    const { logger, infoCalls } = createLoggerStub();
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService({
+        outcome: "low_signal",
+        reason: "below_min_score",
+        query: "what sizes does it come in",
+        language: "en",
+        topScore: 0.2,
+        candidates: groundedRetrievalResult().candidates,
+        contextBlocks: [],
+      }),
+      logger,
+      chatManager: createChatManagerStub(async () => {
+        throw new Error("should not be called");
+      }),
+    });
+
+    await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      conversation: {
+        conversationId: "conversation-1",
+        canonicalState: {
+          schemaVersion: "v1",
+          conversationId: "conversation-1",
+          companyId: "company-1",
+          responseLanguage: "en",
+          currentFocus: {
+            kind: "product",
+            entityIds: ["product-1"],
+            source: "retrieval_single_candidate",
+            updatedAt: 1_000,
+          },
+          pendingClarification: {
+            active: false,
+          },
+          freshness: {
+            status: "fresh",
+            updatedAt: 1_000,
+            activeWindowExpiresAt: 31_000,
+          },
+          sourceOfTruthMarkers: {
+            currentFocus: "retrieval_single_candidate",
+          },
+          heuristicHints: {
+            promptHistorySelectionMode: "quoted_reference_window",
+            usedQuotedReference: true,
+            topCandidates: [
+              {
+                entityKind: "product",
+                entityId: "product-1",
+                score: 0.92,
+              },
+            ],
+          },
+        },
+        historyDiagnostics: {
+          selectionMode: "quoted_reference_window",
+          usedQuotedReference: true,
+        },
+      },
+      requestId: "request-1",
+      userMessage: "what sizes does it come in",
+    });
+
+    expect(findLoggedEvent(infoCalls, "conversation.canonical_state.fallback_mismatch_recorded")).toMatchObject({
+      message: "catalog canonical state fallback mismatch recorded",
+      payload: {
+        event: "conversation.canonical_state.fallback_mismatch_recorded",
+        runtime: "rag",
+        surface: "orchestrator",
+        outcome: "recorded",
+        conversationId: "conversation-1",
+        requestId: "request-1",
+        retrievalOutcome: "low_signal",
+        freshnessStatus: "fresh",
+        promptHistorySelectionMode: "quoted_reference_window",
+        authoritativeFocusKind: "product",
+        authoritativeFocusSource: "retrieval_single_candidate",
+        heuristicCandidateCount: 1,
+      },
+    });
+  });
+
   test("records assistant clarify actions and quoted-reference context diagnostics", async () => {
     const { logger, infoCalls } = createLoggerStub();
     const orchestrator = createCatalogChatOrchestrator({

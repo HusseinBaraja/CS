@@ -1,7 +1,7 @@
-import type { ConversationStateDto, ErrorCode } from '@cs/shared';
+import type { ConversationRecordDto, ErrorCode } from '@cs/shared';
 import { ERROR_CODES } from '@cs/shared';
 
-export type { ConversationStateDto } from '@cs/shared';
+export type { ConversationRecordDto } from '@cs/shared';
 
 export interface HandoffConversationInput {
   companyId: string;
@@ -16,8 +16,8 @@ export interface ResumeConversationInput {
 }
 
 export interface ConversationsService {
-  handoffConversation(input: HandoffConversationInput): Promise<ConversationStateDto | null>;
-  resumeConversation(input: ResumeConversationInput): Promise<ConversationStateDto | null>;
+  handoffConversation(input: HandoffConversationInput): Promise<ConversationRecordDto | null>;
+  resumeConversation(input: ResumeConversationInput): Promise<ConversationRecordDto | null>;
 }
 
 export class ConversationsServiceError extends Error {
