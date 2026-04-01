@@ -67,6 +67,11 @@ type LockRenewResult = {
   renewed: boolean;
 };
 
+type SeedCompanySkeletonResult = {
+  companyId: Id<"companies">;
+  companyName: string;
+};
+
 const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, delayMs);
@@ -239,18 +244,13 @@ export const releaseSeedSampleDataLock = internalMutation({
 
 export const insertSeedSampleData = internalMutation({
   args: {
-    ownerPhone: v.string(),
+    companyId: v.id("companies"),
   },
-  handler: async (ctx, args): Promise<SeedInsertResult> => {
-    const seedCompany = buildSeedCompany(args.ownerPhone);
-
-    const companyId = await ctx.db.insert("companies", {
-      name: seedCompany.name,
-      ownerPhone: seedCompany.ownerPhone,
-      seedKey: seedCompany.seedKey,
-      timezone: seedCompany.timezone,
-      config: seedCompany.config,
-    });
+  handler: async (ctx, args): Promise<Omit<SeedInsertResult, "companyName" | "companyId">["counts"]> => {
+    const company = await ctx.db.get(args.companyId);
+    if (!company) {
+      throw new Error(`Seed company ${args.companyId} was not found`);
+    }
 
     const categoryIds = new Map<string, Id<"categories">>();
     for (const category of seedCategories) {
@@ -259,7 +259,7 @@ export const insertSeedSampleData = internalMutation({
       }
 
       const categoryId = await ctx.db.insert("categories", {
-        companyId,
+        companyId: args.companyId,
         nameEn: category.nameEn,
         nameAr: category.nameAr,
         descriptionEn: category.descriptionEn,
@@ -280,7 +280,7 @@ export const insertSeedSampleData = internalMutation({
       }
 
       const productId = await ctx.db.insert("products", {
-        companyId,
+        companyId: args.companyId,
         categoryId,
         nameEn: product.nameEn,
         nameAr: product.nameAr,
@@ -311,7 +311,7 @@ export const insertSeedSampleData = internalMutation({
     const now = Date.now();
     for (const offer of seedOffers) {
       await ctx.db.insert("offers", {
-        companyId,
+        companyId: args.companyId,
         contentEn: offer.contentEn,
         contentAr: offer.contentAr,
         active: true,
@@ -321,23 +321,65 @@ export const insertSeedSampleData = internalMutation({
     }
 
     await ctx.db.insert("currencyRates", {
-      companyId,
+      companyId: args.companyId,
       fromCurrency: seedCurrencyRate.fromCurrency,
       toCurrency: seedCurrencyRate.toCurrency,
       rate: seedCurrencyRate.rate,
     });
 
     return {
+      categories: seedCategories.length,
+      embeddings: 0,
+      products: seedProducts.length,
+      productVariants: seedVariants.length,
+      offers: seedOffers.length,
+      currencyRates: 1,
+    };
+  },
+});
+
+export const upsertSeedCompanySkeleton = internalMutation({
+  args: {
+    ownerPhone: v.string(),
+    companyId: v.optional(v.id("companies")),
+  },
+  handler: async (ctx, args): Promise<SeedCompanySkeletonResult> => {
+    const seedCompany = buildSeedCompany(args.ownerPhone);
+    if (args.companyId) {
+      const existingCompany = await ctx.db.get(args.companyId);
+      if (!existingCompany) {
+        throw new Error(`Seed company ${args.companyId} was not found`);
+      }
+
+      await ctx.db.patch(args.companyId, {
+        name: seedCompany.name,
+        ownerPhone: seedCompany.ownerPhone,
+        seedKey: seedCompany.seedKey,
+        timezone: seedCompany.timezone,
+        config: seedCompany.config,
+        botRuntimePairingLeaseExpiresAt: undefined,
+        botRuntimePairingLeaseOwner: undefined,
+        botRuntimeSessionLeaseExpiresAt: undefined,
+        botRuntimeSessionLeaseOwner: undefined,
+      });
+
+      return {
+        companyId: args.companyId,
+        companyName: seedCompany.name,
+      };
+    }
+
+    const companyId = await ctx.db.insert("companies", {
+      name: seedCompany.name,
+      ownerPhone: seedCompany.ownerPhone,
+      seedKey: seedCompany.seedKey,
+      timezone: seedCompany.timezone,
+      config: seedCompany.config,
+    });
+
+    return {
       companyId,
       companyName: seedCompany.name,
-      counts: {
-        categories: seedCategories.length,
-        embeddings: 0,
-        products: seedProducts.length,
-        productVariants: seedVariants.length,
-        offers: seedOffers.length,
-        currencyRates: 1,
-      },
     };
   },
 });
@@ -418,7 +460,10 @@ export const seedSampleData = internalAction({
     }
 
     try {
-      const companyIds: Array<Id<"companies">> = await ctx.runQuery(internal.seed.listSeedCompanyIds, {});
+      const companyIds: Array<Id<"companies">> = (
+        await ctx.runQuery(internal.seed.listSeedCompanyIds, {})
+      ).sort((left, right) => left.localeCompare(right));
+      const preservedCompanyId = companyIds[0] ?? null;
 
       for (const companyId of companyIds) {
         let cleanupResult: CleanupBatchResult = {
@@ -433,6 +478,7 @@ export const seedSampleData = internalAction({
           await refreshLock();
           cleanupResult = await ctx.runMutation(internal.companyCleanup.clearCompanyDataBatch, {
             companyId,
+            deleteCompany: companyId !== preservedCompanyId,
             ...(cursor ? { cursor } : {}),
           });
           cursor = cleanupResult.nextCursor;
@@ -440,17 +486,22 @@ export const seedSampleData = internalAction({
       }
 
       await refreshLock();
-      const seededResult: SeedInsertResult = await ctx.runMutation(internal.seed.insertSeedSampleData, {
+      const seededCompany: SeedCompanySkeletonResult = await ctx.runMutation(internal.seed.upsertSeedCompanySkeleton, {
         ownerPhone: args.ownerPhone,
+        ...(preservedCompanyId ? { companyId: preservedCompanyId } : {}),
+      });
+      const insertedCounts = await ctx.runMutation(internal.seed.insertSeedSampleData, {
+        companyId: seededCompany.companyId,
       });
       const syncedEmbeddings: { embeddings: number } = await ctx.runAction(internal.seed.syncSeedEmbeddings, {
-        companyId: seededResult.companyId,
+        companyId: seededCompany.companyId,
       });
 
       return {
-        ...seededResult,
+        companyId: seededCompany.companyId,
+        companyName: seededCompany.companyName,
         counts: {
-          ...seededResult.counts,
+          ...insertedCounts,
           embeddings: syncedEmbeddings.embeddings,
         },
         clearedCompanies: companyIds.length,

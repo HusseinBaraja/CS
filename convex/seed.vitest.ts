@@ -97,6 +97,24 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
     };
   });
 
+const getSeededCompanies = async (t: ReturnType<typeof convexTest>) =>
+  t.run(async (ctx) =>
+    (await ctx.db.query("companies").collect()).filter(
+      (company) => company.seedKey === seedCompanyTemplate.seedKey,
+    )
+  );
+
+const getSeededCompany = async (t: ReturnType<typeof convexTest>) => {
+  const companies = await getSeededCompanies(t);
+  const [company] = [...companies].sort((left, right) => left._id.localeCompare(right._id));
+
+  if (!company) {
+    throw new Error("Expected seeded company to exist");
+  }
+
+  return company;
+};
+
 describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => {
   it("creates the expected bilingual demo catalog", async () => {
     const t = convexTest(schema, modules);
@@ -150,13 +168,16 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     const firstRun = await t.action(internal.seed.seedSampleData, {
       ownerPhone: SEED_OWNER_PHONE,
     });
+    const firstSeededCompany = await getSeededCompany(t);
     const secondRun = await t.action(internal.seed.seedSampleData, {
       ownerPhone: SEED_OWNER_PHONE,
     });
     const counts = await collectCounts(t);
+    const secondSeededCompany = await getSeededCompany(t);
 
     expect(firstRun.counts).toEqual(secondRun.counts);
     expect(secondRun.clearedCompanies).toBe(1);
+    expect(secondSeededCompany._id).toBe(firstSeededCompany._id);
     expect(counts.companies).toHaveLength(1);
     expect(counts.categories).toHaveLength(seedCategories.length);
     expect(counts.products).toHaveLength(seedProducts.length);
@@ -164,6 +185,52 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(counts.offers).toHaveLength(seedOffers.length);
     expect(counts.currencyRates).toHaveLength(1);
     expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
+  });
+
+  it("resets seeded company metadata back to the template while preserving the company id", async () => {
+    const t = convexTest(schema, modules);
+    installGeminiStub();
+
+    await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
+
+    const seededCompany = await getSeededCompany(t);
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(seededCompany._id, {
+        name: "Edited Demo Tenant",
+        ownerPhone: "967700000000",
+        timezone: "Asia/Riyadh",
+        config: {
+          botEnabled: false,
+          welcomesEnabled: false,
+        },
+        botRuntimePairingLeaseExpiresAt: 123_456,
+        botRuntimePairingLeaseOwner: "pairing-owner",
+        botRuntimeSessionLeaseExpiresAt: 654_321,
+        botRuntimeSessionLeaseOwner: "session-owner",
+      });
+    });
+
+    await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
+
+    const reseededCompany = await getSeededCompany(t);
+
+    expect(reseededCompany._id).toBe(seededCompany._id);
+    expect(reseededCompany).toMatchObject({
+      name: seedCompany.name,
+      ownerPhone: SEED_OWNER_PHONE,
+      seedKey: seedCompany.seedKey,
+      timezone: seedCompany.timezone,
+      config: seedCompany.config,
+    });
+    expect(reseededCompany.botRuntimePairingLeaseExpiresAt).toBeUndefined();
+    expect(reseededCompany.botRuntimePairingLeaseOwner).toBeUndefined();
+    expect(reseededCompany.botRuntimeSessionLeaseExpiresAt).toBeUndefined();
+    expect(reseededCompany.botRuntimeSessionLeaseOwner).toBeUndefined();
   });
 
   it("uses a single seed lock owner and releases it after completion", async () => {
@@ -347,6 +414,53 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
   });
 
+  it("collapses duplicate seeded companies to the canonical preserved company", async () => {
+    const t = convexTest(schema, modules);
+    installGeminiStub();
+
+    const duplicateCompanies = await t.run(async (ctx) => {
+      const firstCompanyId = await ctx.db.insert("companies", {
+        name: "Duplicate Seed A",
+        ownerPhone: "967700000101",
+        seedKey: seedCompanyTemplate.seedKey,
+        timezone: "Asia/Aden",
+        config: {
+          botEnabled: true,
+        },
+      });
+      const secondCompanyId = await ctx.db.insert("companies", {
+        name: "Duplicate Seed B",
+        ownerPhone: "967700000102",
+        seedKey: seedCompanyTemplate.seedKey,
+        timezone: "Asia/Riyadh",
+        config: {
+          botEnabled: false,
+        },
+      });
+
+      return [firstCompanyId, secondCompanyId].sort((left, right) => left.localeCompare(right));
+    });
+
+    const result = await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
+    const seededCompanies = await getSeededCompanies(t);
+    const counts = await collectCounts(t);
+
+    expect(result.clearedCompanies).toBe(2);
+    expect(seededCompanies).toHaveLength(1);
+    expect(seededCompanies[0]?._id).toBe(duplicateCompanies[0]);
+    expect(seededCompanies[0]).toMatchObject({
+      name: seedCompany.name,
+      ownerPhone: SEED_OWNER_PHONE,
+      seedKey: seedCompany.seedKey,
+      timezone: seedCompany.timezone,
+      config: seedCompany.config,
+    });
+    expect(counts.companies).toHaveLength(1);
+    expect(counts.products).toHaveLength(seedProducts.length);
+  });
+
   it("fails seeding when embedding sync fails and succeeds on a later retry", async () => {
     const t = convexTest(schema, modules);
     installGeminiStub("failure");
@@ -357,14 +471,18 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
       "AI_PROVIDER_FAILED: seed embedding generation failed",
     );
 
+    const failedSeededCompany = await getSeededCompany(t);
+
     installGeminiStub("success");
 
     const result = await t.action(internal.seed.seedSampleData, {
       ownerPhone: SEED_OWNER_PHONE,
     });
     const counts = await collectCounts(t);
+    const recoveredSeededCompany = await getSeededCompany(t);
 
     expect(result.counts.embeddings).toBe(seedProducts.length * 2);
+    expect(recoveredSeededCompany._id).toBe(failedSeededCompany._id);
     expect(counts.companies).toHaveLength(1);
     expect(counts.products).toHaveLength(seedProducts.length);
     expect(counts.embeddings).toHaveLength(seedProducts.length * 2);

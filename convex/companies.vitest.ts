@@ -546,6 +546,54 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     expect(counts.analyticsEvents).toHaveLength(0);
   });
 
+  it("can clear tenant-scoped data while preserving the company row", async () => {
+    const t = convexTest(schema, modules);
+    const { companyId } = await createTenantFixture(t, {
+      messageCount: 2,
+      analyticsEventCount: 3,
+      embeddingCount: 4,
+      variantCount: 2,
+    });
+
+    const stageSequence: string[] = [];
+    let cursor: CleanupCursor | null = null;
+
+    for (;;) {
+      const result: CleanupBatchResult = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+        companyId,
+        deleteCompany: false,
+        ...(cursor ? { cursor } : {}),
+      });
+
+      stageSequence.push(result.stage);
+      cursor = result.nextCursor;
+
+      if (result.done) {
+        break;
+      }
+    }
+
+    const counts = await collectCounts(t);
+
+    expect(stageSequence).not.toContain("companies");
+    expect(stageSequence.at(-1)).toBe("done");
+    expect(counts.companies).toHaveLength(1);
+    expect(counts.companies[0]?._id).toBe(companyId);
+    expect(counts.categories).toHaveLength(0);
+    expect(counts.botRuntimePairingArtifacts).toHaveLength(0);
+    expect(counts.botRuntimeSessions).toHaveLength(0);
+    expect(counts.products).toHaveLength(0);
+    expect(counts.productImageUploads).toHaveLength(0);
+    expect(counts.productVariants).toHaveLength(0);
+    expect(counts.embeddings).toHaveLength(0);
+    expect(counts.conversations).toHaveLength(0);
+    expect(counts.messages).toHaveLength(0);
+    expect(counts.mediaCleanupJobs).toHaveLength(0);
+    expect(counts.offers).toHaveLength(0);
+    expect(counts.currencyRates).toHaveLength(0);
+    expect(counts.analyticsEvents).toHaveLength(0);
+  });
+
   it("completes child cleanup batches when a single parent spans multiple pages", async () => {
     const t = convexTest(schema, modules);
     const oversizedBatchCount = 70;

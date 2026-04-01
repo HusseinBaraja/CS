@@ -302,6 +302,7 @@ export const clearCompanyDataBatch = internalMutation({
   args: {
     companyId: v.id("companies"),
     cursor: v.optional(cleanupCursorValidator),
+    deleteCompany: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<CleanupBatchResult> => {
     const company = await ctx.db.get(args.companyId);
@@ -459,6 +460,15 @@ export const clearCompanyDataBatch = internalMutation({
     const conversationsResult = await deleteBatchIfAny(ctx, "conversations", conversationsBatch);
     if (conversationsResult) {
       return conversationsResult;
+    }
+
+    if (args.deleteCompany === false) {
+      return {
+        deletedCount: 0,
+        done: true,
+        stage: "done",
+        nextCursor: null,
+      };
     }
 
     await ctx.db.delete(args.companyId);
