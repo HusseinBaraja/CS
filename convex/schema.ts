@@ -4,6 +4,7 @@ import {
   BOT_RUNTIME_SESSION_STATES,
   CANONICAL_CONVERSATION_FOCUS_KINDS,
   CANONICAL_CONVERSATION_FRESHNESS_STATUSES,
+  CANONICAL_CONVERSATION_PRESENTABLE_KINDS,
   CANONICAL_CONVERSATION_QUERY_STATUSES,
   CANONICAL_CONVERSATION_SOURCE_VALUES,
   CONVERSATION_LIFECYCLE_EVENT_SOURCES,
@@ -49,10 +50,7 @@ const canonicalConversationFocusKindValidator = v.union(
   ...CANONICAL_CONVERSATION_FOCUS_KINDS.map((kind) => v.literal(kind)),
 );
 const canonicalConversationPresentableKindValidator = v.union(
-  v.literal("category"),
-  v.literal("product"),
-  v.literal("variant"),
-  v.literal("catalog_slice"),
+  ...CANONICAL_CONVERSATION_PRESENTABLE_KINDS.map((kind) => v.literal(kind)),
 );
 const canonicalConversationFreshnessStatusValidator = v.union(
   ...CANONICAL_CONVERSATION_FRESHNESS_STATUSES.map((status) => v.literal(status)),

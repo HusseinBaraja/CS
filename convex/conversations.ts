@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import type { PromptHistoryTurn } from '../packages/ai/src/chat/promptContracts';
+import type { PromptHistoryTurn } from '@cs/ai/chat/promptContracts';
 import type {
   CanonicalConversationFocusDto,
   CanonicalConversationFocusKind,
@@ -310,8 +310,12 @@ const isScopedCategoryId = async (
     return false;
   }
 
-  const category = await ctx.db.get(normalizedId as Id<"categories">);
-  return Boolean(category && category.companyId === companyId);
+  try {
+    const category = await ctx.db.get(normalizedId as Id<"categories">);
+    return Boolean(category && category.companyId === companyId);
+  } catch {
+    return false;
+  }
 };
 
 const isScopedProductId = async (
@@ -324,8 +328,12 @@ const isScopedProductId = async (
     return false;
   }
 
-  const product = await ctx.db.get(normalizedId as Id<"products">);
-  return Boolean(product && product.companyId === companyId);
+  try {
+    const product = await ctx.db.get(normalizedId as Id<"products">);
+    return Boolean(product && product.companyId === companyId);
+  } catch {
+    return false;
+  }
 };
 
 const isScopedVariantId = async (
@@ -338,13 +346,17 @@ const isScopedVariantId = async (
     return false;
   }
 
-  const variant = await ctx.db.get(normalizedId as Id<"productVariants">);
-  if (!variant) {
+  try {
+    const variant = await ctx.db.get(normalizedId as Id<"productVariants">);
+    if (!variant) {
+      return false;
+    }
+
+    const product = await ctx.db.get(variant.productId);
+    return Boolean(product && product.companyId === companyId);
+  } catch {
     return false;
   }
-
-  const product = await ctx.db.get(variant.productId);
-  return Boolean(product && product.companyId === companyId);
 };
 
 const isValidCanonicalEntityId = async (
@@ -579,10 +591,7 @@ const buildCanonicalRetrievalOrderListProxy = (
     return undefined;
   }
 
-  const firstCandidate = candidates[0];
-  if (!firstCandidate) {
-    return undefined;
-  }
+  const firstCandidate = candidates[0]!;
 
   return {
     kind: firstCandidate.entityKind,

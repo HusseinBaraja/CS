@@ -21,6 +21,13 @@ export const CANONICAL_CONVERSATION_FOCUS_KINDS = [
 
 export type CanonicalConversationFocusKind = (typeof CANONICAL_CONVERSATION_FOCUS_KINDS)[number];
 
+export const CANONICAL_CONVERSATION_PRESENTABLE_KINDS = [
+  "category",
+  "product",
+  "variant",
+  "catalog_slice",
+] as const;
+
 export const CANONICAL_CONVERSATION_FRESHNESS_STATUSES = [
   "fresh",
   "stale",

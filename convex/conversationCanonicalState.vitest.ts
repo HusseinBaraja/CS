@@ -394,4 +394,43 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversation canonical 
       "heuristicHints.heuristicFocus",
     ]));
   });
+
+  it("sanitizes malformed entity ids without crashing", async () => {
+    const t = convexTest(schema, modules);
+    const { companyId, conversationId } = await createConversationFixture(t);
+
+    await t.mutation(internal.conversations.applyCanonicalConversationTurnOutcome, {
+      companyId,
+      conversationId,
+      responseLanguage: "en",
+      latestUserMessageText: "burger box",
+      assistantActionType: "none",
+      committedAssistantTimestamp: 6_000,
+      promptHistorySelectionMode: "recent_window",
+      usedQuotedReference: false,
+      retrievalOutcome: "grounded",
+      candidates: [{
+        entityKind: "product",
+        entityId: "not-a-convex-id",
+        score: 0.9,
+      }],
+    });
+
+    const result = await t.query(internal.conversations.getCanonicalConversationState, {
+      companyId,
+      conversationId,
+      now: 7_000,
+    });
+
+    expect(result.state.currentFocus).toEqual({
+      kind: "none",
+      entityIds: [],
+    });
+    expect(result.state.heuristicHints.topCandidates).toEqual([]);
+    expect(result.invalidatedPaths).toEqual(expect.arrayContaining([
+      "currentFocus",
+      "heuristicHints.topCandidates",
+      "heuristicHints.heuristicFocus",
+    ]));
+  });
 });
