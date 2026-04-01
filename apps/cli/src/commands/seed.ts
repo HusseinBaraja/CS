@@ -1,4 +1,4 @@
-import { env } from '@cs/config';
+import { requireEnv } from '@cs/config';
 import type { CliCommand } from './types';
 import { getCliWorkspaceRoot, runInheritedCommand } from '../lib/process';
 
@@ -9,7 +9,7 @@ interface SeedRunDependencies {
 }
 
 const defaultDependencies: SeedRunDependencies = {
-  getOwnerPhone: () => env.SEED_OWNER_PHONE,
+  getOwnerPhone: () => requireEnv("SEED_OWNER_PHONE"),
   getWorkspaceRoot: getCliWorkspaceRoot,
   runConvex: runInheritedCommand,
 };

@@ -7,7 +7,15 @@ import {
   buildProductEmbeddingPayload,
   type ProductEmbeddingVariantAttributes,
 } from './productEmbeddingRuntime';
-import { seedCategories, seedCompany, seedCurrencyRate, seedOffers, seedProducts, seedVariants } from './seedData';
+import {
+  buildSeedCompany,
+  seedCategories,
+  seedCompanyTemplate,
+  seedCurrencyRate,
+  seedOffers,
+  seedProducts,
+  seedVariants,
+} from './seedData';
 
 const SEED_SAMPLE_DATA_LOCK_KEY = "seedSampleData";
 const SEED_SAMPLE_DATA_LOCK_LEASE_MS = 2 * 60 * 1000;
@@ -98,7 +106,7 @@ export const listSeedCompanyIds = internalQuery({
 
     for await (const company of ctx.db
       .query("companies")
-      .withIndex("by_seed_key", (q) => q.eq("seedKey", seedCompany.seedKey))) {
+      .withIndex("by_seed_key", (q) => q.eq("seedKey", seedCompanyTemplate.seedKey))) {
       companyIds.push(company._id);
     }
 
@@ -230,8 +238,11 @@ export const releaseSeedSampleDataLock = internalMutation({
 });
 
 export const insertSeedSampleData = internalMutation({
-  args: {},
-  handler: async (ctx): Promise<SeedInsertResult> => {
+  args: {
+    ownerPhone: v.string(),
+  },
+  handler: async (ctx, args): Promise<SeedInsertResult> => {
+    const seedCompany = buildSeedCompany(args.ownerPhone);
 
     const companyId = await ctx.db.insert("companies", {
       name: seedCompany.name,
@@ -376,8 +387,10 @@ export const syncSeedEmbeddings = internalAction({
 });
 
 export const seedSampleData = internalAction({
-  args: {},
-  handler: async (ctx): Promise<SeedActionResult> => {
+  args: {
+    ownerPhone: v.string(),
+  },
+  handler: async (ctx, args): Promise<SeedActionResult> => {
     const ownerToken = crypto.randomUUID();
 
     const refreshLock = async (): Promise<void> => {
@@ -427,7 +440,9 @@ export const seedSampleData = internalAction({
       }
 
       await refreshLock();
-      const seededResult: SeedInsertResult = await ctx.runMutation(internal.seed.insertSeedSampleData, {});
+      const seededResult: SeedInsertResult = await ctx.runMutation(internal.seed.insertSeedSampleData, {
+        ownerPhone: args.ownerPhone,
+      });
       const syncedEmbeddings: { embeddings: number } = await ctx.runAction(internal.seed.syncSeedEmbeddings, {
         companyId: seededResult.companyId,
       });

@@ -1,4 +1,4 @@
-import { GEMINI_EMBEDDING_DIMENSIONS } from '@cs/ai/embeddings';
+import { GEMINI_EMBEDDING_DIMENSIONS } from '../packages/ai/src/embeddings';
 import { internal } from './_generated/api';
 import { action, internalAction, internalQuery } from './_generated/server';
 import { v } from 'convex/values';
