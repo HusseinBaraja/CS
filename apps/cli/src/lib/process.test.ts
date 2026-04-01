@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { runInheritedCommand } from './process';
+import { getCliWorkspaceRoot, runInheritedCommand } from './process';
+
+describe("getCliWorkspaceRoot", () => {
+  test("resolves the monorepo root from the CLI package", () => {
+    expect(getCliWorkspaceRoot()).toBe("C:\\Users\\Hussein\\Desktop\\Things\\Zerone\\Projects\\CS");
+  });
+});
 
 describe("runInheritedCommand", () => {
   test("inherits stdin, stdout, and stderr for interactive commands", async () => {

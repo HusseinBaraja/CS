@@ -106,7 +106,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
 
     expect(counts.companies[0]).toMatchObject({
       name: seedCompany.name,
-      ownerPhone: "967700000000",
+      ownerPhone: "967771408660",
       seedKey: seedCompany.seedKey,
       timezone: seedCompany.timezone,
       config: expect.objectContaining({

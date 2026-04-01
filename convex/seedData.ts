@@ -41,7 +41,7 @@ export interface SeedOffer {
 
 export const seedCompany: SeedCompany = {
   name: "YAS Packaging Co",
-  ownerPhone: "967700000000",
+  ownerPhone: "967771408660",
   seedKey: "sample-catalog-v1",
   timezone: "Asia/Aden",
   config: {
