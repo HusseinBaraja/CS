@@ -1,5 +1,11 @@
 # AGENTS.md
 
+## Instruction Priority
+
+- Every instruction in this file is mandatory.
+- Treat this file as a required execution checklist, not as optional background context.
+
+
 ## Task Completion Requirements
 
 - Run all repo scripts from the repository root with `bun`.
@@ -10,8 +16,23 @@
 - Run `bun generate` after any Convex schema change.
 - Do not run `bun dev` (assume it is already running).
 - On large plan implementations, make a commit after finishing each logical step to avoid large commits that are hard to review.
+- On large plan implementations, do not begin the next logical step until the current step has:
+  1. its code changes finished,
+  2. the required repo-root `bun` commands run,
+  3. failures fixed or explicitly reported,
+  4. a commit created for that step.
+- Do not batch multiple logical steps into one uncommitted work block.
 - When fixing PR issues that were submitted by coderabbit, apply minimal fixes and don't go overboard. The goal is to just fix the issues.
 - For pr review Fixes, fix each comment in its own commit and resolve the comment on github after commiting. at the end, push the changes to the branch.
+
+## Large Task Workflow
+
+- For any roadmap step or other multi-file implementation, split the work into explicit mini-steps before editing.
+- Each mini-step must be small enough to review independently.
+- After each mini-step, run the applicable repo-root `bun` commands before committing.
+- Create a commit after each completed mini-step, not only at the end of the whole feature.
+- If a mini-step cannot be validated yet, stop and tell the developer instead of continuing into the next mini-step.
+- If you realize mid-task that you skipped this workflow, stop, report it, and do not continue piling on more changes.
 
 
 ## Commit Message Skill
