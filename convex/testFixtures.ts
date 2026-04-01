@@ -9,12 +9,19 @@ type TestDbCtx = {
   db: any;
 };
 
-let ownerPhoneCounter = 966500000000n;
+const OWNER_PHONE_COUNTER_START = 966500000000n;
+let ownerPhoneCounter = OWNER_PHONE_COUNTER_START;
 
 export const nextOwnerPhone = (): string => {
   const ownerPhone = ownerPhoneCounter.toString();
   ownerPhoneCounter += 1n;
   return ownerPhone;
+};
+
+export const resetOwnerPhoneCounter = (
+  start: bigint = OWNER_PHONE_COUNTER_START,
+): void => {
+  ownerPhoneCounter = start;
 };
 
 export const createCompany = async (
