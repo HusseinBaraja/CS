@@ -1,3 +1,5 @@
+"use node";
+
 import { createWriteStream } from 'node:fs';
 import { mkdir, readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
