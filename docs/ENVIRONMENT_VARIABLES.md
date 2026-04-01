@@ -43,6 +43,14 @@ The source of truth for validation and defaults is [`packages/config/src/index.t
 - Number of days to keep rotated log files.
 - Default: `14`.
 
+## Seed / Local Testing
+
+### `SEED_OWNER_PHONE`
+
+- Owner phone number used by `bun run seed` when creating the single seeded sample tenant.
+- Required for CLI seeding.
+- Keep this set in local `.env` if you use the seeded WhatsApp testing flow.
+
 ## API
 
 ### `API_PORT`
@@ -192,6 +200,7 @@ Usually needed:
 - `CONVEX_URL`
 - `CONVEX_ADMIN_KEY`
 - `GEMINI_API_KEY`
+- `SEED_OWNER_PHONE`
 
 Often useful:
 - `GEMINI_CHAT_MODEL`

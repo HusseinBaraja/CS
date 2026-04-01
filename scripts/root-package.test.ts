@@ -36,8 +36,8 @@ describe("root package scripts", () => {
     expect(scripts["build:web"]).toBe("turbo run build --filter=web");
     expect(scripts.check).toBe("turbo run check");
     expect(scripts["preview:web"]).toBe("bun --cwd apps/web run preview");
-    expect(scripts.seed).toBe("bun --cwd apps/cli run seed");
-    expect(scripts.backup).toBe("bun --cwd apps/cli run backup");
+    expect(scripts.seed).toBe("bun run --cwd apps/cli seed");
+    expect(scripts.backup).toBe("bun run --cwd apps/cli backup");
   });
 
   test("keeps cli out of the root long-running dev fanout", () => {

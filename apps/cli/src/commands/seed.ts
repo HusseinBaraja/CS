@@ -1,17 +1,20 @@
+import { requireEnv } from '@cs/config';
 import type { CliCommand } from './types';
 import { getCliWorkspaceRoot, runInheritedCommand } from '../lib/process';
 
 interface SeedRunDependencies {
+  getOwnerPhone: () => string;
   getWorkspaceRoot: () => string;
   runConvex: (args: string[], options: { cwd: string }) => Promise<void>;
 }
 
 const defaultDependencies: SeedRunDependencies = {
+  getOwnerPhone: () => requireEnv("SEED_OWNER_PHONE"),
   getWorkspaceRoot: getCliWorkspaceRoot,
   runConvex: runInheritedCommand,
 };
 
-export const buildSeedArgs = (): string[] => [
+export const buildSeedArgs = (ownerPhone: string): string[] => [
   "convex",
   "run",
   "--push",
@@ -20,7 +23,7 @@ export const buildSeedArgs = (): string[] => [
   "--codegen",
   "disable",
   "internal.seed.seedSampleData",
-  "{}",
+  JSON.stringify({ ownerPhone }),
 ];
 
 export const runSeed = async (
@@ -31,7 +34,7 @@ export const runSeed = async (
     throw new Error(`Unexpected arguments for seed: ${args.join(" ")}`);
   }
 
-  await dependencies.runConvex(buildSeedArgs(), {
+  await dependencies.runConvex(buildSeedArgs(dependencies.getOwnerPhone()), {
     cwd: dependencies.getWorkspaceRoot()
   });
 };

@@ -1,8 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { getCliWorkspaceRoot, runInheritedCommand } from './process';
-
 import { resolve } from 'node:path';
-import { describe, expect, test } from 'bun:test';
 import { getCliWorkspaceRoot, runInheritedCommand } from './process';
 
 describe("getCliWorkspaceRoot", () => {

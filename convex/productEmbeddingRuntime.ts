@@ -1,4 +1,4 @@
-import { GEMINI_EMBEDDING_DIMENSIONS, generateGeminiEmbeddings } from '@cs/ai/embeddings';
+import { GEMINI_EMBEDDING_DIMENSIONS, generateGeminiEmbeddings } from '../packages/ai/src/embeddings';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, type MutationCtx } from './_generated/server';
 import { v } from 'convex/values';

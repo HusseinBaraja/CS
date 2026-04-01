@@ -39,12 +39,8 @@ export interface SeedOffer {
   durationDays: number;
 }
 
-export const seedCompany: SeedCompany = {
+export const seedCompanyTemplate = {
   name: "YAS Packaging Co",
-export const seedCompany: SeedCompany = {
-  name: "YAS Packaging Co",
-  ownerPhone: "000000000000",
-  seedKey: "sample-catalog-v1",
   seedKey: "sample-catalog-v1",
   timezone: "Asia/Aden",
   config: {
@@ -54,7 +50,12 @@ export const seedCompany: SeedCompany = {
     catalogMode: "bilingual",
     sarToYerRate: 425,
   },
-};
+} satisfies Omit<SeedCompany, "ownerPhone">;
+
+export const buildSeedCompany = (ownerPhone: string): SeedCompany => ({
+  ...seedCompanyTemplate,
+  ownerPhone,
+});
 
 export const seedCategories: SeedCategory[] = [
   {

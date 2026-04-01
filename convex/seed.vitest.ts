@@ -4,7 +4,15 @@ import { convexTest } from 'convex-test';
 import { setGeminiClientFactoryForTests } from '@cs/ai';
 import { internal } from './_generated/api';
 import schema from './schema';
-import { seedCategories, seedCompany, seedCurrencyRate, seedOffers, seedProducts, seedVariants } from './seedData';
+import {
+  buildSeedCompany,
+  seedCategories,
+  seedCompanyTemplate,
+  seedCurrencyRate,
+  seedOffers,
+  seedProducts,
+  seedVariants,
+} from './seedData';
 
 const modules =
   typeof import.meta.glob === "function"
@@ -13,6 +21,9 @@ const modules =
 
 const createEmbedding = (seed: number): number[] =>
   Array.from({ length: 768 }, (_, index) => seed + index / 1000);
+
+const SEED_OWNER_PHONE = "967771408660";
+const seedCompany = buildSeedCompany(SEED_OWNER_PHONE);
 
 let resetGeminiClientFactory: (() => void) | null = null;
 let originalGeminiApiKey: string | undefined;
@@ -91,7 +102,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     const t = convexTest(schema, modules);
     installGeminiStub();
 
-    const result = await t.action(internal.seed.seedSampleData, {});
+    const result = await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
     const counts = await collectCounts(t);
 
     expect(result.companyName).toBe(seedCompany.name);
@@ -106,7 +119,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
 
     expect(counts.companies[0]).toMatchObject({
       name: seedCompany.name,
-      ownerPhone: "967771408660",
+      ownerPhone: SEED_OWNER_PHONE,
       seedKey: seedCompany.seedKey,
       timezone: seedCompany.timezone,
       config: expect.objectContaining({
@@ -134,8 +147,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     const t = convexTest(schema, modules);
     installGeminiStub();
 
-    const firstRun = await t.action(internal.seed.seedSampleData, {});
-    const secondRun = await t.action(internal.seed.seedSampleData, {});
+    const firstRun = await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
+    const secondRun = await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
     const counts = await collectCounts(t);
 
     expect(firstRun.counts).toEqual(secondRun.counts);
@@ -217,7 +234,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     const preservedTenant = await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", {
         name: "Real Tenant",
-        ownerPhone: seedCompany.ownerPhone,
+        ownerPhone: SEED_OWNER_PHONE,
         timezone: "Asia/Riyadh",
         config: { defaultLanguage: "en" },
       });
@@ -230,8 +247,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
       return { categoryId, companyId };
     });
 
-    await t.action(internal.seed.seedSampleData, {});
-    await t.action(internal.seed.seedSampleData, {});
+    await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
+    await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
 
     const counts = await collectCounts(t);
 
@@ -245,12 +266,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     const oversizedBatchCount = 70;
     installGeminiStub();
 
-    await t.action(internal.seed.seedSampleData, {});
+    await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
 
     await t.run(async (ctx) => {
       const seededCompany = await ctx.db
         .query("companies")
-        .withIndex("by_seed_key", (q) => q.eq("seedKey", seedCompany.seedKey))
+        .withIndex("by_seed_key", (q) => q.eq("seedKey", seedCompanyTemplate.seedKey))
         .unique();
 
       if (!seededCompany) {
@@ -306,7 +329,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
       }
     });
 
-    const result = await t.action(internal.seed.seedSampleData, {});
+    const result = await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
     const counts = await collectCounts(t);
 
     expect(result.clearedCompanies).toBe(1);
@@ -326,13 +351,17 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     const t = convexTest(schema, modules);
     installGeminiStub("failure");
 
-    await expect(t.action(internal.seed.seedSampleData, {})).rejects.toThrow(
+    await expect(t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    })).rejects.toThrow(
       "AI_PROVIDER_FAILED: seed embedding generation failed",
     );
 
     installGeminiStub("success");
 
-    const result = await t.action(internal.seed.seedSampleData, {});
+    const result = await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
     const counts = await collectCounts(t);
 
     expect(result.counts.embeddings).toBe(seedProducts.length * 2);
@@ -347,7 +376,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     installGeminiStub("failure");
     installGeminiStub("success");
 
-    const result = await t.action(internal.seed.seedSampleData, {});
+    const result = await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
     const counts = await collectCounts(t);
 
     expect(result.counts.embeddings).toBe(seedProducts.length * 2);

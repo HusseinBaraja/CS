@@ -3,6 +3,7 @@ import { convexTest } from 'convex-test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { internal } from './_generated/api';
 import schema from './schema';
+import { createCompany } from './testFixtures';
 
 const modules =
   typeof import.meta.glob === "function"
@@ -37,11 +38,10 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) =>
-      ctx.db.insert("companies", {
+      createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000800",
         timezone: "Asia/Aden",
-      }),
+      }).then(({ companyId }) => companyId),
     );
 
     const todaySummary = await t.query(internal.analytics.summary, {
@@ -88,10 +88,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) =>
-      ctx.db.insert("companies", {
+      createCompany(ctx, {
         name: "UTC Tenant",
-        ownerPhone: "966500000801",
-      }),
+      }).then(({ companyId }) => companyId),
     );
 
     const summary = await t.query(internal.analytics.summary, {
@@ -111,9 +110,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000802",
         timezone: "Asia/Aden",
       });
 
@@ -145,14 +143,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant One",
-        ownerPhone: "966500000803",
         timezone: "Asia/Aden",
       });
-      const otherCompanyId = await ctx.db.insert("companies", {
+      const { companyId: otherCompanyId } = await createCompany(ctx, {
         name: "Tenant Two",
-        ownerPhone: "966500000804",
         timezone: "Asia/Aden",
       });
 
@@ -191,9 +187,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000805",
         timezone: "Asia/Aden",
       });
 
@@ -277,11 +272,10 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) =>
-      ctx.db.insert("companies", {
+      createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000811",
         timezone: "Asia/Aden",
-      }),
+      }).then(({ companyId }) => companyId),
     );
 
     await t.mutation(internal.analytics.recordEvent, {
@@ -306,11 +300,10 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) =>
-      ctx.db.insert("companies", {
+      createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000813",
         timezone: "Asia/Aden",
-      }),
+      }).then(({ companyId }) => companyId),
     );
 
     await t.mutation(internal.analytics.recordEvent, {
@@ -346,9 +339,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     freezeNow();
     const t = convexTest(schema, modules);
     const deletedCompanyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000812",
         timezone: "Asia/Aden",
       });
       await ctx.db.delete(companyId);
@@ -369,9 +361,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000806",
         timezone: "Asia/Aden",
       });
 
@@ -411,14 +402,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant One",
-        ownerPhone: "966500000807",
         timezone: "Asia/Aden",
       });
-      const otherCompanyId = await ctx.db.insert("companies", {
+      const { companyId: otherCompanyId } = await createCompany(ctx, {
         name: "Tenant Two",
-        ownerPhone: "966500000808",
         timezone: "Asia/Aden",
       });
       const categoryId = await ctx.db.insert("categories", {
@@ -517,14 +506,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant One",
-        ownerPhone: "966500000809",
         timezone: "Asia/Aden",
       });
-      const otherCompanyId = await ctx.db.insert("companies", {
+      const { companyId: otherCompanyId } = await createCompany(ctx, {
         name: "Tenant Two",
-        ownerPhone: "966500000810",
         timezone: "Asia/Aden",
       });
       const categoryId = await ctx.db.insert("categories", {

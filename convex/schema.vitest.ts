@@ -3,6 +3,7 @@ import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 import schema from './schema';
 import { api } from './_generated/api';
+import { createCategory, createCompany, createProduct, createVariant } from './testFixtures';
 
 const modules =
   typeof import.meta.glob === "function"
@@ -14,31 +15,29 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
   describe("companies", () => {
     it("inserts a valid company", async () => {
       const t = convexTest(schema, modules);
-      const id = await t.run(async (ctx) => {
-        return ctx.db.insert("companies", {
+      const { companyId: id, company } = await t.run(async (ctx) =>
+        createCompany(ctx, {
           name: "Demo Packaging Co",
-          ownerPhone: "966500000000",
-        });
-      });
+        }),
+      );
       expect(id).toBeDefined();
 
       const doc = await t.run(async (ctx) => ctx.db.get(id));
       expect(doc).toMatchObject({
-        name: "Demo Packaging Co",
-        ownerPhone: "966500000000",
+        name: company.name,
+        ownerPhone: company.ownerPhone,
       });
     });
 
     it("inserts a company with optional config and timezone", async () => {
       const t = convexTest(schema, modules);
-      const id = await t.run(async (ctx) => {
-        return ctx.db.insert("companies", {
+      const { companyId: id } = await t.run(async (ctx) =>
+        createCompany(ctx, {
           name: "Test Co",
-          ownerPhone: "966500000001",
           config: { welcomeEnabled: true, maxRetries: 3 },
           timezone: "Asia/Aden",
-        });
-      });
+        }),
+      );
 
       const doc = await t.run(async (ctx) => ctx.db.get(id));
       expect(doc?.config).toEqual({ welcomeEnabled: true, maxRetries: 3 });
@@ -81,18 +80,17 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
     it("inserts a category linked to a company", async () => {
       const t = convexTest(schema, modules);
       const companyId = await t.run(async (ctx) =>
-        ctx.db.insert("companies", {
+        createCompany(ctx, {
           name: "Test Co",
-          ownerPhone: "966500000000",
-        }),
+        }).then(({ companyId }) => companyId),
       );
 
       const catId = await t.run(async (ctx) =>
-        ctx.db.insert("categories", {
+        createCategory(ctx, {
           companyId,
           nameEn: "Containers",
           nameAr: "حاويات",
-        }),
+        }).then(({ categoryId }) => categoryId),
       );
 
       const doc = await t.run(async (ctx) => ctx.db.get(catId));
@@ -109,17 +107,16 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
     it("inserts a product with all optional fields", async () => {
       const t = convexTest(schema, modules);
       const companyId = await t.run(async (ctx) =>
-        ctx.db.insert("companies", {
+        createCompany(ctx, {
           name: "Test Co",
-          ownerPhone: "966500000000",
-        }),
+        }).then(({ companyId }) => companyId),
       );
       const catId = await t.run(async (ctx) =>
-        ctx.db.insert("categories", { companyId, nameEn: "Cups" }),
+        createCategory(ctx, { companyId, nameEn: "Cups" }).then(({ categoryId }) => categoryId),
       );
 
       const productId = await t.run(async (ctx) =>
-        ctx.db.insert("products", {
+        createProduct(ctx, {
           companyId,
           categoryId: catId,
           nameEn: "Paper Cup 8oz",
@@ -137,7 +134,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
               uploadedAt: Date.UTC(2026, 2, 12, 0, 0, 0),
             },
           ],
-        }),
+        }).then(({ productId }) => productId),
       );
 
       const doc = await t.run(async (ctx) => ctx.db.get(productId));
@@ -155,29 +152,28 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
     it("inserts a variant linked to a product", async () => {
       const t = convexTest(schema, modules);
       const companyId = await t.run(async (ctx) =>
-        ctx.db.insert("companies", {
+        createCompany(ctx, {
           name: "Test Co",
-          ownerPhone: "966500000000",
-        }),
+        }).then(({ companyId }) => companyId),
       );
       const catId = await t.run(async (ctx) =>
-        ctx.db.insert("categories", { companyId, nameEn: "Cups" }),
+        createCategory(ctx, { companyId, nameEn: "Cups" }).then(({ categoryId }) => categoryId),
       );
       const productId = await t.run(async (ctx) =>
-        ctx.db.insert("products", {
+        createProduct(ctx, {
           companyId,
           categoryId: catId,
           nameEn: "Paper Cup",
-        }),
+        }).then(({ productId }) => productId),
       );
 
       const variantId = await t.run(async (ctx) =>
-        ctx.db.insert("productVariants", {
+        createVariant(ctx, {
           productId,
           variantLabel: "Large White",
           attributes: { size: "L", color: "White" },
           priceOverride: 0.2,
-        }),
+        }).then(({ variantId }) => variantId),
       );
 
       const doc = await t.run(async (ctx) => ctx.db.get(variantId));
@@ -190,24 +186,23 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
     it("accepts nested object and array attribute values", async () => {
       const t = convexTest(schema, modules);
       const companyId = await t.run(async (ctx) =>
-        ctx.db.insert("companies", {
+        createCompany(ctx, {
           name: "Nested Test Co",
-          ownerPhone: "966500000099",
-        }),
+        }).then(({ companyId }) => companyId),
       );
       const catId = await t.run(async (ctx) =>
-        ctx.db.insert("categories", { companyId, nameEn: "Containers" }),
+        createCategory(ctx, { companyId, nameEn: "Containers" }).then(({ categoryId }) => categoryId),
       );
       const productId = await t.run(async (ctx) =>
-        ctx.db.insert("products", {
+        createProduct(ctx, {
           companyId,
           categoryId: catId,
           nameEn: "Meal Box",
-        }),
+        }).then(({ productId }) => productId),
       );
 
       const variantId = await t.run(async (ctx) =>
-        ctx.db.insert("productVariants", {
+        createVariant(ctx, {
           productId,
           variantLabel: "Family Pack",
           attributes: {
@@ -220,7 +215,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
               },
             },
           },
-        }),
+        }).then(({ variantId }) => variantId),
       );
 
       const doc = await t.run(async (ctx) => ctx.db.get(variantId));
