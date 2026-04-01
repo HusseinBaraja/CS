@@ -3,6 +3,7 @@ import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 import { internal } from './_generated/api';
 import schema from './schema';
+import { createCompany, createDeletedCompany } from './testFixtures';
 
 const modules =
   typeof import.meta.glob === "function"
@@ -15,9 +16,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
     const now = Date.UTC(2026, 2, 12, 12, 0, 0);
 
     const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000700",
       });
 
       await ctx.db.insert("offers", {
@@ -67,9 +67,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
     const now = Date.UTC(2026, 2, 12, 12, 0, 0);
 
     const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000701",
       });
 
       await ctx.db.insert("offers", {
@@ -115,10 +114,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
     const now = 150;
 
     const companyId = await t.run(async (ctx) =>
-      ctx.db.insert("companies", {
+      createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000702",
-      }),
+      }).then(({ companyId }) => companyId),
     );
 
     const offer = await t.mutation(internal.offers.create, {
@@ -147,9 +145,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
     const t = convexTest(schema, modules);
 
     const { companyId, offerId } = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000703",
       });
       const offerId = await ctx.db.insert("offers", {
         companyId,
@@ -196,9 +193,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
     const t = convexTest(schema, modules);
 
     const { companyId, offerId } = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000709",
       });
       const offerId = await ctx.db.insert("offers", {
         companyId,
@@ -236,10 +232,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) =>
-      ctx.db.insert("companies", {
+      createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000704",
-      }),
+      }).then(({ companyId }) => companyId),
     );
 
     await expect(
@@ -256,14 +251,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
   it("returns null when listing a missing company", async () => {
     const t = convexTest(schema, modules);
 
-    const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+    const companyId = await t.run(async (ctx) =>
+      createDeletedCompany(ctx, {
         name: "Deleted Tenant",
-        ownerPhone: "966500000705",
-      });
-      await ctx.db.delete(companyId);
-      return companyId;
-    });
+      }).then(({ companyId }) => companyId),
+    );
 
     const offers = await t.query(internal.offers.list, {
       companyId,
@@ -276,13 +268,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
     const t = convexTest(schema, modules);
 
     const { otherCompanyId, offerId } = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant One",
-        ownerPhone: "966500000706",
       });
-      const otherCompanyId = await ctx.db.insert("companies", {
+      const { companyId: otherCompanyId } = await createCompany(ctx, {
         name: "Tenant Two",
-        ownerPhone: "966500000707",
       });
       const offerId = await ctx.db.insert("offers", {
         companyId,
@@ -314,9 +304,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex offers", () => {
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000708",
       });
 
       await ctx.db.insert("offers", {

@@ -3,6 +3,7 @@ import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 import { internal } from './_generated/api';
 import schema from './schema';
+import { createCompany, createDeletedCompany } from './testFixtures';
 
 const modules =
   typeof import.meta.glob === "function"
@@ -14,13 +15,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex currency rates",
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant One",
-        ownerPhone: "966500000720",
       });
-      const otherCompanyId = await ctx.db.insert("companies", {
+      const { companyId: otherCompanyId } = await createCompany(ctx, {
         name: "Tenant Two",
-        ownerPhone: "966500000721",
       });
 
       await ctx.db.insert("currencyRates", {
@@ -69,10 +68,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex currency rates",
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) =>
-      ctx.db.insert("companies", {
+      createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000722",
-      }),
+      }).then(({ companyId }) => companyId),
     );
 
     const result = await t.mutation(internal.currencyRates.upsert, {
@@ -97,9 +95,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex currency rates",
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000723",
       });
       await ctx.db.insert("currencyRates", {
         companyId,
@@ -133,10 +130,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex currency rates",
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) =>
-      ctx.db.insert("companies", {
+      createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000724",
-      }),
+      }).then(({ companyId }) => companyId),
     );
 
     const result = await t.mutation(internal.currencyRates.upsert, {
@@ -158,10 +154,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex currency rates",
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) =>
-      ctx.db.insert("companies", {
+      createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000725",
-      }),
+      }).then(({ companyId }) => companyId),
     );
 
     await expect(
@@ -178,10 +173,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex currency rates",
     const t = convexTest(schema, modules);
 
     const companyId = await t.run(async (ctx) =>
-      ctx.db.insert("companies", {
+      createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000726",
-      }),
+      }).then(({ companyId }) => companyId),
     );
 
     await expect(
@@ -197,14 +191,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex currency rates",
   it("returns null for a missing company", async () => {
     const t = convexTest(schema, modules);
 
-    const companyId = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+    const companyId = await t.run(async (ctx) =>
+      createDeletedCompany(ctx, {
         name: "Deleted Tenant",
-        ownerPhone: "966500000727",
-      });
-      await ctx.db.delete(companyId);
-      return companyId;
-    });
+      }).then(({ companyId }) => companyId),
+    );
 
     const result = await t.mutation(internal.currencyRates.upsert, {
       companyId,
@@ -220,9 +211,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex currency rates",
     const t = convexTest(schema, modules);
 
     const { companyId, duplicateIds } = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
+      const { companyId } = await createCompany(ctx, {
         name: "Tenant",
-        ownerPhone: "966500000728",
       });
       const firstId = await ctx.db.insert("currencyRates", {
         companyId,
