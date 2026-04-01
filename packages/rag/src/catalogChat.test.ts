@@ -834,6 +834,98 @@ describe("createCatalogChatOrchestrator", () => {
     expect(result.assistant.action.type).toBe("none");
   });
 
+  test("accepts canonical conversation state without making it authoritative in step 1", async () => {
+    const { logger, infoCalls } = createLoggerStub();
+    let promptInput: Record<string, unknown> | undefined;
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(groundedRetrievalResult()),
+      logger,
+      buildPrompt: (input) => {
+        promptInput = input as unknown as Record<string, unknown>;
+        return {
+          systemPrompt: "system",
+          userPrompt: "user",
+          request: {
+            messages: [
+              {
+                role: "system",
+                content: "system",
+              },
+              {
+                role: "user",
+                content: "user",
+              },
+            ],
+          },
+        };
+      },
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        text: '{"schemaVersion":"v1","text":"We have burger boxes.","action":{"type":"none"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      conversation: {
+        conversationId: "conversation-1",
+        history: [
+          {
+            role: "user",
+            text: "Show me burger boxes",
+          },
+        ],
+        canonicalState: {
+          schemaVersion: "v1",
+          conversationId: "conversation-1",
+          companyId: "company-1",
+          responseLanguage: "en",
+          currentFocus: {
+            kind: "product",
+            entityIds: ["product-1"],
+            source: "retrieval_single_candidate",
+            updatedAt: 1_000,
+          },
+          pendingClarification: {
+            active: false,
+          },
+          freshness: {
+            status: "fresh",
+            updatedAt: 1_000,
+            activeWindowExpiresAt: 31_000,
+          },
+          sourceOfTruthMarkers: {
+            currentFocus: "retrieval_single_candidate",
+          },
+          heuristicHints: {
+            usedQuotedReference: false,
+            topCandidates: [],
+          },
+        },
+      },
+      requestId: "request-1",
+      userMessage: "Burger Box",
+    });
+
+    expect(promptInput?.conversationHistory).toEqual([
+      {
+        role: "user",
+        text: "Show me burger boxes",
+      },
+    ]);
+    expect(findLoggedEvent(infoCalls, "rag.context_usage.recorded")).toMatchObject({
+      payload: {
+        event: "rag.context_usage.recorded",
+        conversationId: "conversation-1",
+        requestId: "request-1",
+        usedConversationState: false,
+      },
+    });
+  });
+
   test("records assistant clarify actions and quoted-reference context diagnostics", async () => {
     const { logger, infoCalls } = createLoggerStub();
     const orchestrator = createCatalogChatOrchestrator({

@@ -1,5 +1,5 @@
 import type { PromptHistoryTurn } from '@cs/ai';
-import type { CatalogChatOrchestrator } from '@cs/rag';
+import type { CatalogChatOrchestrator, CatalogChatResult } from '@cs/rag';
 import {
   logEvent,
   redactJidForLog,
@@ -111,6 +111,7 @@ export const createCustomerConversationRouter = (
     let conversationId: string;
     let history: PromptHistoryTurn[] | undefined;
     let historyDiagnostics: PromptHistoryDiagnostics | undefined;
+    let canonicalState: Awaited<ReturnType<ConversationStore["getCanonicalConversationState"]>>["state"] | undefined;
     try {
       const inboundAppend = await options.conversationStore.appendInboundCustomerMessage({
         companyId: message.companyId,
@@ -200,10 +201,37 @@ export const createCustomerConversationRouter = (
       return;
     }
 
+    try {
+      const canonicalStateResult = await options.conversationStore.getCanonicalConversationState({
+        companyId: message.companyId,
+        conversationId,
+        now: message.occurredAtMs,
+      });
+      canonicalState = canonicalStateResult.state;
+    } catch (error) {
+      logEvent(
+        routeLogger,
+        "error",
+        {
+          companyId: message.companyId,
+          conversationId,
+          error: serializeErrorForLog(error),
+          event: "bot.router.canonical_state_load_failed",
+          messageId: message.messageId,
+          outcome: "error",
+          runtime: "bot",
+          sessionKey: message.sessionKey,
+          surface: "router",
+        },
+        "customer conversation canonical state load failed",
+      );
+    }
+
     let assistantText: string;
     let handoffSource: "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback" | null = null;
+    let chatResponse: CatalogChatResult;
     try {
-      const response = await options.catalogChatOrchestrator.respond({
+      chatResponse = await options.catalogChatOrchestrator.respond({
         tenant: {
           companyId: toCompanyId(message.companyId),
         },
@@ -211,19 +239,20 @@ export const createCustomerConversationRouter = (
           conversationId,
           history,
           ...(historyDiagnostics ? { historyDiagnostics } : {}),
+          ...(canonicalState ? { canonicalState } : {}),
         },
         logger: routeLogger,
         requestId: message.messageId,
         userMessage,
       });
-      assistantText = response.assistant.text;
-      if (response.assistant.action.type === "handoff") {
+      assistantText = chatResponse.assistant.text;
+      if (chatResponse.assistant.action.type === "handoff") {
         handoffSource = "assistant_action";
       } else if (
-        response.outcome === "provider_failure_fallback" ||
-        response.outcome === "invalid_model_output_fallback"
+        chatResponse.outcome === "provider_failure_fallback" ||
+        chatResponse.outcome === "invalid_model_output_fallback"
       ) {
-        handoffSource = response.outcome === "provider_failure_fallback"
+        handoffSource = chatResponse.outcome === "provider_failure_fallback"
           ? "provider_failure_fallback"
           : "invalid_model_output_fallback";
       }
@@ -433,6 +462,45 @@ export const createCustomerConversationRouter = (
       },
       "customer conversation assistant reply committed",
     );
+
+    try {
+      await options.conversationStore.applyCanonicalConversationTurnOutcome({
+        companyId: message.companyId,
+        conversationId,
+        responseLanguage: chatResponse.language.responseLanguage,
+        latestUserMessageText: userMessage,
+        assistantActionType: chatResponse.assistant.action.type,
+        committedAssistantTimestamp: assistantTimestamp,
+        promptHistorySelectionMode: historyDiagnostics?.selectionMode ?? "no_history",
+        usedQuotedReference: historyDiagnostics?.usedQuotedReference ?? false,
+        ...(message.replyContext?.referencedMessageId
+          ? { referencedTransportMessageId: message.replyContext.referencedMessageId }
+          : {}),
+        retrievalOutcome: chatResponse.retrieval.outcome,
+        candidates: chatResponse.retrieval.candidates.map((candidate) => ({
+          entityKind: "product",
+          entityId: candidate.productId,
+          score: candidate.score,
+        })),
+      });
+    } catch (error) {
+      logEvent(
+        routeLogger,
+        "error",
+        {
+          companyId: message.companyId,
+          conversationId,
+          error: serializeErrorForLog(error),
+          event: "bot.router.canonical_state_write_failed",
+          messageId: message.messageId,
+          outcome: "error",
+          runtime: "bot",
+          sessionKey: message.sessionKey,
+          surface: "router",
+        },
+        "customer conversation canonical state write failed",
+      );
+    }
 
     if (handoffSource) {
       try {

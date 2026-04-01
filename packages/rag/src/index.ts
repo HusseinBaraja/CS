@@ -28,7 +28,11 @@ import {
   toStructuredOutputFailureLogPayload,
   withLogBindings,
 } from '@cs/core';
-import type { FallbackDecisionType, PromptHistoryDiagnostics } from '@cs/shared';
+import type {
+  CanonicalConversationStateDto,
+  FallbackDecisionType,
+  PromptHistoryDiagnostics,
+} from '@cs/shared';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient, type Id } from '@cs/db';
 
 const DEFAULT_MAX_RESULTS = 5;
@@ -176,6 +180,7 @@ export interface CatalogChatConversationContext {
   conversationId?: string;
   history?: PromptHistoryTurn[];
   historyDiagnostics?: PromptHistoryDiagnostics;
+  canonicalState?: CanonicalConversationStateDto;
   allowedActions?: readonly AssistantActionType[];
 }
 
