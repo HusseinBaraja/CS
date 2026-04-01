@@ -26,8 +26,8 @@
     "check": "turbo run check",
     "preview:web": "bun --cwd apps/web run preview",
     "generate": "bunx convex codegen",
-    "seed": "bun --cwd apps/cli run seed",
-    "backup": "bun --cwd apps/cli run backup",
+    "seed": "bun run --cwd apps/cli seed",
+    "backup": "bun run --cwd apps/cli backup",
     "ci": "turbo run ci"
   },
   "dependencies": {

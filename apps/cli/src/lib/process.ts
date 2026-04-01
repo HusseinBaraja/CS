@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+
 interface InheritedSpawnOptions {
   cwd: string;
   stdin: "inherit";
@@ -17,6 +19,10 @@ interface InheritedCommandOptions {
   spawn?: SpawnLike;
   timeoutMs?: number;
 }
+
+const CLI_WORKSPACE_ROOT = resolve(import.meta.dir, "../../../..");
+
+export const getCliWorkspaceRoot = (): string => CLI_WORKSPACE_ROOT;
 
 export const runInheritedCommand = async (
   args: string[],

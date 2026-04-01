@@ -148,6 +148,7 @@ const envSchema = {
   AI_HEALTHCHECK_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   AI_MAX_RETRIES_PER_PROVIDER: z.coerce.number().int().nonnegative().default(1),
   CONVERSATION_HISTORY_WINDOW_MESSAGES: z.coerce.number().int().positive().default(20),
+  SEED_OWNER_PHONE: trimmedNonEmptyString,
   CONVEX_ADMIN_KEY: z.string().min(1).optional(),
   CONVEX_URL: z.string().min(1).url().optional(),
   DEEPSEEK_API_KEY: trimmedNonEmptyString.optional(),
