@@ -131,6 +131,7 @@ This step should run in shadow mode first so raw-query retrieval can be compared
 - Contextual recovery is documented as mandatory before final fallback.
 
 ## What Later Steps Will Rely On From This Step
+- Step 5.5 uses the retrieval contract as the input boundary for mediated multi-entity grounding.
 - Step 8 relies on clearer fallback boundaries.
 - Step 9 uses retrieval recovery metrics for rollout evaluation.
 - Step 10 uses this step as the replacement for the legacy raw-query retrieval path.

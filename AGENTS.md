@@ -10,8 +10,8 @@
 - Run `bun generate` after any Convex schema change.
 - Do not run `bun dev` (assume it is already running).
 - On large plan implementations, make a commit after finishing each logical step to avoid large commits that are hard to review.
-- When fixing PR issues that were submitted by coderabbit, apply minimal fixes and don't go overboard. The goal is to just fix the issues
-- For pr review Fixes, fix each comment in its own commit and resolve the comment on github after commiting. 
+- When fixing PR issues that were submitted by coderabbit, apply minimal fixes and don't go overboard. The goal is to just fix the issues.
+- For pr review Fixes, fix each comment in its own commit and resolve the comment on github after commiting. at the end, push the changes to the branch.
 
 
 ## Commit Message Skill
