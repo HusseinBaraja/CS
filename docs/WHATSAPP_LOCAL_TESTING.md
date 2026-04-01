@@ -32,6 +32,7 @@ You need a valid `.env` with at least:
 - `CONVEX_URL`
 - `CONVEX_ADMIN_KEY`
 - `GEMINI_API_KEY`
+- `SEED_OWNER_PHONE`
 
 See [`ENVIRONMENT_VARIABLES.md`](./ENVIRONMENT_VARIABLES.md) for the full environment reference.
 
@@ -50,7 +51,7 @@ This seeds the sample tenant and builds embeddings so the catalog is RAG-ready.
 The seeded company is created with:
 
 - `config.botEnabled: true`
-- `ownerPhone: 967771408660`
+- `ownerPhone: SEED_OWNER_PHONE` from `.env`
 
 If the operator page still shows `0 tenant session(s) loaded`, check that the API and bot are pointed at the same Convex deployment you seeded.
 If the operator page shows the tenant as `stale` right after seeding, wait one heartbeat interval for the running bot runtime to reconcile the newly seeded tenant.

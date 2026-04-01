@@ -23,6 +23,7 @@ import type * as productMedia from "../productMedia.js";
 import type * as products from "../products.js";
 import type * as seed from "../seed.js";
 import type * as seedData from "../seedData.js";
+import type * as testFixtures from "../testFixtures.js";
 import type * as vectorSearch from "../vectorSearch.js";
 
 import type {
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   products: typeof products;
   seed: typeof seed;
   seedData: typeof seedData;
+  testFixtures: typeof testFixtures;
   vectorSearch: typeof vectorSearch;
 }>;
 
