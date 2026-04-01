@@ -41,6 +41,6 @@ export const runSeed = async (
 
 export const seedCommand: CliCommand = {
   name: "seed",
-  description: "Seed Convex with a RAG-ready sample catalog tenant (destructively resets any existing seeded tenant)",
+  description: "Seed Convex with a RAG-ready sample catalog tenant while preserving the seeded tenant identity",
   run: runSeed
 };
