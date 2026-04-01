@@ -311,6 +311,7 @@ describe("config", () => {
       R2_ENDPOINT: "",
       R2_ACCESS_KEY_ID: "",
       R2_SECRET_ACCESS_KEY: "",
+      SEED_OWNER_PHONE: "",
       API_CORS_ORIGINS: "",
       CONVEX_URL: "https://example.convex.cloud"
     });
@@ -329,6 +330,7 @@ describe("config", () => {
     expect(config.R2_ENDPOINT).toBeUndefined();
     expect(config.R2_ACCESS_KEY_ID).toBeUndefined();
     expect(config.R2_SECRET_ACCESS_KEY).toBeUndefined();
+    expect(config.SEED_OWNER_PHONE).toBeUndefined();
   });
 
   test("treats whitespace-only optional secrets as unset values", () => {
@@ -376,6 +378,7 @@ describe("config", () => {
       R2_ENDPOINT: "  https://example.r2.cloudflarestorage.com  ",
       R2_ACCESS_KEY_ID: "  access-key  ",
       R2_SECRET_ACCESS_KEY: "  secret-key  ",
+      SEED_OWNER_PHONE: " 967771408660 ",
       CONVEX_URL: "https://example.convex.cloud"
     });
 
@@ -391,6 +394,7 @@ describe("config", () => {
     expect(config.R2_ENDPOINT).toBe("https://example.r2.cloudflarestorage.com");
     expect(config.R2_ACCESS_KEY_ID).toBe("access-key");
     expect(config.R2_SECRET_ACCESS_KEY).toBe("secret-key");
+    expect(config.SEED_OWNER_PHONE).toBe("967771408660");
   });
 
   test("treats empty CONVEX_ADMIN_KEY as an unset value", () => {

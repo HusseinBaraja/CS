@@ -14,7 +14,7 @@
 - Use `bun test` when tests are needed.
 - Use `bun test:convex` for Convex-specific test work.
 - Run `bun generate` after any Convex schema change.
-- Do not run `bun dev` (assume it is already running).
+- Run `bun dev`.
 - On large plan implementations, make a commit after finishing each logical step to avoid large commits that are hard to review.
 - On large plan implementations, do not begin the next logical step until the current step has:
   1. its code changes finished,
