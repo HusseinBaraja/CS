@@ -1,8 +1,13 @@
 import { createEvent, fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Link, RouterProvider } from './HonoRouter';
 
 describe('HonoRouter Link', () => {
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+    vi.restoreAllMocks();
+  });
+
   it('forwards anchor props to the rendered element', () => {
     render(
       <RouterProvider>
@@ -69,5 +74,87 @@ describe('HonoRouter Link', () => {
     expect(pushStateSpy).not.toHaveBeenCalled();
 
     pushStateSpy.mockRestore();
+  });
+
+  it('updates history for hash-only links while preserving scroll behavior', () => {
+    const section = document.createElement('div');
+    section.id = 'pricing';
+    section.scrollIntoView = vi.fn();
+    document.body.appendChild(section);
+
+    const pushStateSpy = vi.spyOn(window.history, 'pushState');
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+
+    render(
+      <RouterProvider>
+        <Link href="#pricing">Pricing</Link>
+      </RouterProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: 'Pricing' }));
+
+    expect(pushStateSpy).toHaveBeenCalledWith({}, '', '/#pricing');
+    expect(section.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth' });
+
+    rafSpy.mockRestore();
+    section.remove();
+  });
+
+  it('updates history for same-path hash navigations', () => {
+    const section = document.createElement('div');
+    section.id = 'pricing';
+    section.scrollIntoView = vi.fn();
+    document.body.appendChild(section);
+    window.history.replaceState({}, '', '/contact');
+
+    const pushStateSpy = vi.spyOn(window.history, 'pushState');
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+
+    render(
+      <RouterProvider>
+        <Link href="#pricing">Pricing</Link>
+      </RouterProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: 'Pricing' }));
+
+    expect(pushStateSpy).toHaveBeenCalledWith({}, '', '/contact#pricing');
+    expect(section.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth' });
+
+    rafSpy.mockRestore();
+    section.remove();
+  });
+
+  it('updates history for same-origin links that include a hash', () => {
+    const section = document.createElement('div');
+    section.id = 'pricing';
+    section.scrollIntoView = vi.fn();
+    document.body.appendChild(section);
+
+    const pushStateSpy = vi.spyOn(window.history, 'pushState');
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+
+    render(
+      <RouterProvider>
+        <Link href="/#pricing">Pricing</Link>
+      </RouterProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: 'Pricing' }));
+
+    expect(pushStateSpy).toHaveBeenCalledWith({}, '', '/#pricing');
+    expect(section.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth' });
+
+    rafSpy.mockRestore();
+    section.remove();
   });
 });

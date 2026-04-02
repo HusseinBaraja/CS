@@ -44,8 +44,7 @@ export function Link({
 
     if (href.startsWith('#')) {
       e.preventDefault();
-      const el = document.getElementById(href.substring(1));
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      navigate(`${window.location.pathname}${window.location.search}${href}`);
       return;
     }
 
@@ -80,12 +79,19 @@ export function RouterProvider({ children }: { children: React.ReactNode }) {
 
   const navigate = (to: string) => {
     const url = new URL(to, window.location.origin);
-    
+
+    if (
+      url.pathname !== window.location.pathname ||
+      url.search !== window.location.search ||
+      url.hash !== window.location.hash
+    ) {
+      window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+
     if (url.pathname !== path) {
-      window.history.pushState({}, '', to);
       setPath(url.pathname);
     }
-    
+
     if (url.hash) {
       const id = url.hash.substring(1);
       let attempts = 0;
