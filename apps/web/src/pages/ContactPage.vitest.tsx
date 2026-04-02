@@ -12,11 +12,15 @@ vi.mock('../components/router/HonoRouter', () => ({
 
 describe('ContactPage', () => {
   afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
     vi.clearAllMocks();
   });
 
-  it('renders Yemeni-focused contact copy and resets the form after submit', async () => {
+  it('renders env-backed contact details and resets the form after submit', async () => {
     setupGsapMocks();
+    vi.stubEnv('SITE_CONTACT_PHONE_NUMBER', '+967 784 338 919');
+    vi.stubEnv('SITE_CONTACT_EMAIL_ADDRESS', 'hello@reda.chat');
     const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
     const { ContactPage } = await import('./ContactPage');
@@ -24,8 +28,9 @@ describe('ContactPage', () => {
 
     expect(screen.getByRole('heading', { name: 'جاهزين نسمع منك ونرتب معك البداية' })).toBeDefined();
     expect(screen.getByText('مخصص للأعمال في اليمن التي تريد خدمة عملاء أسرع على واتساب بدون تعقيد.')).toBeDefined();
-    expect(screen.getByText('+967 77 000 0000')).toBeDefined();
-    expect(screen.getByText('صنعاء، اليمن')).toBeDefined();
+    expect(screen.getByText('+967 784 338 919')).toBeDefined();
+    expect(screen.getByText('hello@reda.chat')).toBeDefined();
+    expect(screen.getByText('المقر الرئيسي')).toBeDefined();
 
     const nameInput = screen.getByPlaceholderText('مثال: محمد الآنسي');
     const phoneInput = screen.getByPlaceholderText('+967 7xx xxx xxx');

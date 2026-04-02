@@ -7,6 +7,8 @@ import { Link } from '../components/router/HonoRouter';
 export function ContactPage() {
   const container = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({ name: '', phone: '', company: '', message: '' });
+  const contactPhoneNumber = import.meta.env.SITE_CONTACT_PHONE_NUMBER || '[PHONE_NUMBER]';
+  const contactEmailAddress = import.meta.env.SITE_CONTACT_EMAIL_ADDRESS || '[EMAIL_ADDRESS]';
 
   useGSAP(() => {
     const tl = gsap.timeline();
@@ -61,7 +63,7 @@ export function ContactPage() {
             <span className="text-secondary italic font-light">ونرتب معك البداية</span>
           </h1>
           <p className="contact-left-anim text-lg text-white/60 mb-12 max-w-md font-light leading-relaxed">
-            مخصص للأعمال في اليمن التي تريد خدمة عملاء أسرع على واتساب بدون تعقيد.
+            مخصص للشركات في اليمن التي تحتاج خدمة عملاء أسرع على واتساب بدون تعقيد.
           </p>
 
           <div className="contact-left-anim space-y-8">
@@ -71,7 +73,7 @@ export function ContactPage() {
               </div>
               <div>
                 <h3 className="text-white/50 text-sm mb-1">واتساب للتواصل</h3>
-                <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors">+967 77 000 0000</p>
+                <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors" dir="ltr">{contactPhoneNumber}</p>
               </div>
             </div>
 
@@ -81,7 +83,7 @@ export function ContactPage() {
               </div>
               <div>
                 <h3 className="text-white/50 text-sm mb-1">البريد الإلكتروني</h3>
-                <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors" style={{ direction: 'ltr' }}>hello@cscb.com</p>
+                <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors" style={{ direction: 'ltr' }}>{contactEmailAddress}</p>
               </div>
             </div>
             
@@ -91,7 +93,7 @@ export function ContactPage() {
               </div>
               <div>
                 <h3 className="text-white/50 text-sm mb-1">المقر الرئيسي</h3>
-                <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors">صنعاء، اليمن</p>
+                <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors">سيئون، حضرموت، اليمن</p>
               </div>
             </div>
           </div>
