@@ -2,6 +2,14 @@ import { cleanup, createEvent, fireEvent, render, screen } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Layout } from './Layout';
 
+// Mock gsap for JSDOM environment
+vi.mock('gsap', () => ({
+  default: {
+    set: vi.fn(),
+    to: vi.fn(),
+  },
+}));
+
 // Mock useLocation to control the path in tests
 const mockNavigate = vi.fn();
 let mockPath = '/';
@@ -86,7 +94,7 @@ describe('Layout', () => {
     expect(scrollToMock).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
   });
 
-  it('shows section links on the landing page', () => {
+  it('always renders section links in the DOM', () => {
     mockPath = '/';
 
     render(
@@ -100,7 +108,7 @@ describe('Layout', () => {
     expect(screen.getByText('أسعارنا')).toBeDefined();
   });
 
-  it('hides section links on the contact page', () => {
+  it('renders section links even on non-landing pages (animated via GSAP)', () => {
     mockPath = '/contact';
 
     render(
@@ -109,15 +117,16 @@ describe('Layout', () => {
       </Layout>,
     );
 
-    expect(screen.queryByText('المميزات')).toBeNull();
-    expect(screen.queryByText('كيف يعمل')).toBeNull();
-    expect(screen.queryByText('أسعارنا')).toBeNull();
+    // Links are always in the DOM (animated out visually, not removed)
+    expect(screen.getByText('المميزات')).toBeDefined();
+    expect(screen.getByText('كيف يعمل')).toBeDefined();
+    expect(screen.getByText('أسعارنا')).toBeDefined();
     // "تواصل معنا" should still be visible
     expect(screen.getByText('تواصل معنا')).toBeDefined();
   });
 
-  it('hides section links on the trial page', () => {
-    mockPath = '/trial';
+  it('sets pointer-events none on section links container for non-landing pages', () => {
+    mockPath = '/contact';
 
     render(
       <Layout>
@@ -125,8 +134,7 @@ describe('Layout', () => {
       </Layout>,
     );
 
-    expect(screen.queryByText('المميزات')).toBeNull();
-    expect(screen.queryByText('كيف يعمل')).toBeNull();
-    expect(screen.queryByText('أسعارنا')).toBeNull();
+    const container = screen.getByText('المميزات').closest('div');
+    expect(container?.style.pointerEvents).toBe('none');
   });
 });

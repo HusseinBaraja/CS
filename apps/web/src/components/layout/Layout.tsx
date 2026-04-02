@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import gsap from 'gsap';
 import logoUrl from '../../assets/Reda_logo.svg';
 import { Link, useLocation } from '../router/HonoRouter';
 
@@ -9,9 +10,70 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { path } = useLocation();
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+  const sectionLinksRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
 
-  // Only show section links if on the landing page
   const isLandingPage = path === '/';
+
+  useEffect(() => {
+    const container = sectionLinksRef.current;
+    if (!container) return;
+    const links = container.children;
+
+    if (isFirstRender.current) {
+      // On first render, just set the correct state without animation
+      isFirstRender.current = false;
+      if (!isLandingPage) {
+        gsap.set(links, { opacity: 0, y: -12, scale: 0.9 });
+        gsap.set(container, { width: 0, marginRight: 0, overflow: 'hidden' });
+        container.style.pointerEvents = 'none';
+      }
+      return;
+    }
+
+    if (isLandingPage) {
+      // Animate links popping back in
+      container.style.pointerEvents = 'auto';
+      gsap.to(container, {
+        width: 'auto',
+        marginRight: '',
+        duration: 0.35,
+        ease: 'power2.out',
+        onStart: () => {
+          gsap.set(container, { overflow: 'visible' });
+        },
+      });
+      gsap.to(links, {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.45,
+        stagger: 0.08,
+        ease: 'back.out(2)',
+        delay: 0.1,
+      });
+    } else {
+      // Animate links sliding out
+      gsap.to(links, {
+        opacity: 0,
+        y: -12,
+        scale: 0.9,
+        duration: 0.3,
+        stagger: 0.05,
+        ease: 'power2.in',
+        onComplete: () => {
+          gsap.to(container, {
+            width: 0,
+            marginRight: 0,
+            overflow: 'hidden',
+            duration: 0.25,
+            ease: 'power2.inOut',
+          });
+          container.style.pointerEvents = 'none';
+        },
+      });
+    }
+  }, [isLandingPage]);
 
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden">
@@ -32,13 +94,11 @@ export function Layout({ children }: LayoutProps) {
             <span className="text-2xl font-black text-primary tracking-tight">رضا</span>
           </Link>
           <div className="hidden md:flex gap-8 items-center text-primary/80 font-medium">
-            {isLandingPage && (
-              <>
-                <Link href="/#features" className="hover:text-primary transition-colors">المميزات</Link>
-                <Link href="/#how-it-works" className="hover:text-primary transition-colors">كيف يعمل</Link>
-                <Link href="/#pricing" className="hover:text-primary transition-colors">أسعارنا</Link>
-              </>
-            )}
+            <div ref={sectionLinksRef} className="flex gap-8 items-center">
+              <Link href="/#features" className="hover:text-primary transition-colors whitespace-nowrap">المميزات</Link>
+              <Link href="/#how-it-works" className="hover:text-primary transition-colors whitespace-nowrap">كيف يعمل</Link>
+              <Link href="/#pricing" className="hover:text-primary transition-colors whitespace-nowrap">أسعارنا</Link>
+            </div>
             <Link href="/contact" className="bg-primary text-white px-6 py-2.5 rounded-full hover:bg-primary/90 transition-all font-semibold shadow-sm hover:shadow-md">
               تواصل معنا
             </Link>
