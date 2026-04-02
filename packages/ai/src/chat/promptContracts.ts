@@ -55,7 +55,7 @@ export type PromptLayerType =
 export interface PromptLayerMetadata {
   layer: PromptLayerType;
   present: boolean;
-  messageRole: ChatMessageRole;
+  messageRole: ChatMessageRole | "mixed";
   itemCount: number;
   charCount: number;
   truncated: boolean;
@@ -63,7 +63,7 @@ export interface PromptLayerMetadata {
 
 export interface PromptLayerOmission {
   layer: PromptLayerType;
-  reason: "missing" | "empty";
+  reason: "missing" | "empty" | "budget";
 }
 
 export interface PromptLayerBudget {
