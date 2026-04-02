@@ -9,10 +9,10 @@
     "convex"
   ],
   "scripts": {
-    "dev": "turbo run dev --filter=api --filter=bot --filter=web --filter=worker --parallel",
+    "dev": "turbo run dev --filter=api --filter=bot --filter=web --filter=worker",
     "web": "bun run dev:web",
     "dev:api": "turbo run dev --filter=api",
-    "dev:bot": "turbo run dev --filter=api --filter=bot --parallel",
+    "dev:bot": "turbo run dev --filter=api --filter=bot",
     "dev:web": "turbo run dev --filter=web",
     "dev:worker": "turbo run dev --filter=worker",
     "build": "turbo run build",

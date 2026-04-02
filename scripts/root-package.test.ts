@@ -27,10 +27,10 @@ const storageScripts = storagePackageJson.scripts as PackageScripts;
 
 describe("root package scripts", () => {
   test("exposes app-runtime commands from the repository root", () => {
-    expect(scripts.dev).toBe("turbo run dev --filter=api --filter=bot --filter=web --filter=worker --parallel");
+    expect(scripts.dev).toBe("turbo run dev --filter=api --filter=bot --filter=web --filter=worker");
     expect(scripts.web).toBe("bun run dev:web");
     expect(scripts["dev:api"]).toBe("turbo run dev --filter=api");
-    expect(scripts["dev:bot"]).toBe("turbo run dev --filter=api --filter=bot --parallel");
+    expect(scripts["dev:bot"]).toBe("turbo run dev --filter=api --filter=bot");
     expect(scripts["dev:web"]).toBe("turbo run dev --filter=web");
     expect(scripts["dev:worker"]).toBe("turbo run dev --filter=worker");
     expect(scripts["build:web"]).toBe("turbo run build --filter=web");
