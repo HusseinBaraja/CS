@@ -2,11 +2,16 @@ import { cleanup, createEvent, fireEvent, render, screen } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Layout } from './Layout';
 
+const contextRevertMock = vi.fn();
+
 // Mock gsap for JSDOM environment
 vi.mock('gsap', () => ({
   default: {
     set: vi.fn(),
     to: vi.fn(),
+    context: vi.fn(() => ({
+      revert: contextRevertMock,
+    })),
   },
 }));
 
@@ -27,6 +32,7 @@ describe('Layout', () => {
   const scrollToMock = vi.fn();
 
   afterEach(() => {
+    contextRevertMock.mockReset();
     scrollToMock.mockReset();
     mockPath = '/';
     cleanup();
@@ -136,5 +142,17 @@ describe('Layout', () => {
 
     const container = screen.getByText('المميزات').closest('div');
     expect(container?.style.pointerEvents).toBe('none');
+  });
+
+  it('reverts GSAP context on unmount', () => {
+    const { unmount } = render(
+      <Layout>
+        <div>content</div>
+      </Layout>,
+    );
+
+    unmount();
+
+    expect(contextRevertMock).toHaveBeenCalled();
   });
 });

@@ -18,61 +18,65 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => {
     const container = sectionLinksRef.current;
     if (!container) return;
-    const links = container.children;
+    const context = gsap.context(() => {
+      const links = container.children;
 
-    if (isFirstRender.current) {
-      // On first render, just set the correct state without animation
-      isFirstRender.current = false;
-      if (!isLandingPage) {
-        gsap.set(links, { opacity: 0, y: -12, scale: 0.9 });
-        gsap.set(container, { width: 0, marginRight: 0, overflow: 'hidden' });
-        container.style.pointerEvents = 'none';
-      }
-      return;
-    }
-
-    if (isLandingPage) {
-      // Animate links popping back in
-      container.style.pointerEvents = 'auto';
-      gsap.to(container, {
-        width: 'auto',
-        marginRight: '',
-        duration: 0.35,
-        ease: 'power2.out',
-        onStart: () => {
-          gsap.set(container, { overflow: 'visible' });
-        },
-      });
-      gsap.to(links, {
-        opacity: 1,
-        y: 0,
-        scale: 1,
-        duration: 0.45,
-        stagger: 0.08,
-        ease: 'back.out(2)',
-        delay: 0.1,
-      });
-    } else {
-      // Animate links sliding out
-      gsap.to(links, {
-        opacity: 0,
-        y: -12,
-        scale: 0.9,
-        duration: 0.3,
-        stagger: 0.05,
-        ease: 'power2.in',
-        onComplete: () => {
-          gsap.to(container, {
-            width: 0,
-            marginRight: 0,
-            overflow: 'hidden',
-            duration: 0.25,
-            ease: 'power2.inOut',
-          });
+      if (isFirstRender.current) {
+        // On first render, just set the correct state without animation
+        isFirstRender.current = false;
+        if (!isLandingPage) {
+          gsap.set(links, { opacity: 0, y: -12, scale: 0.9 });
+          gsap.set(container, { width: 0, marginRight: 0, overflow: 'hidden' });
           container.style.pointerEvents = 'none';
-        },
-      });
-    }
+        }
+        return;
+      }
+
+      if (isLandingPage) {
+        // Animate links popping back in
+        container.style.pointerEvents = 'auto';
+        gsap.to(container, {
+          width: 'auto',
+          marginRight: '',
+          duration: 0.35,
+          ease: 'power2.out',
+          onStart: () => {
+            gsap.set(container, { overflow: 'visible' });
+          },
+        });
+        gsap.to(links, {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          duration: 0.45,
+          stagger: 0.08,
+          ease: 'back.out(2)',
+          delay: 0.1,
+        });
+      } else {
+        // Animate links sliding out
+        gsap.to(links, {
+          opacity: 0,
+          y: -12,
+          scale: 0.9,
+          duration: 0.3,
+          stagger: 0.05,
+          ease: 'power2.in',
+          onComplete: () => {
+            gsap.to(container, {
+              width: 0,
+              marginRight: 0,
+              overflow: 'hidden',
+              duration: 0.25,
+              ease: 'power2.inOut',
+            });
+            container.style.pointerEvents = 'none';
+          },
+        });
+      }
+    }, container);
+
+    return () => context.revert();
   }, [isLandingPage]);
 
   return (
