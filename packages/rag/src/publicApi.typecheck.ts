@@ -121,12 +121,13 @@ const catalogChatInput: CatalogChatInput = {
   tenant,
   conversation: {
     conversationId: "conversation-1",
-    history: [
+    recentTurns: [
       {
         role: "user",
         text: "Hello",
       },
     ],
+    summary: null,
     allowedActions: ["none", "clarify"],
   },
   userMessage: "Burger Box",

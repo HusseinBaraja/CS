@@ -174,20 +174,6 @@ export interface PromptAssemblyOutput {
   omittedContext: PromptLayerOmission[];
 }
 
-export interface BuildGroundedChatPromptInput {
-  responseLanguage: ChatLanguage;
-  customerMessage: string;
-  conversationHistory?: PromptHistoryTurn[];
-  groundingContext?: GroundingContextBlock[];
-  allowedActions?: readonly AssistantActionType[];
-}
-
-export interface BuiltGroundedChatPrompt {
-  systemPrompt: string;
-  userPrompt: string;
-  request: ChatRequest;
-}
-
 export class StructuredOutputParseError extends Error {
   readonly kind: StructuredOutputParseFailureKind;
 

@@ -503,7 +503,7 @@ describe("createCustomerConversationRouter", () => {
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async (input) => {
-        promptHistory = input.conversation?.history;
+        promptHistory = input.conversation?.recentTurns;
         expect(input.conversation?.historyDiagnostics).toEqual({
           selectionMode: "recent_window",
           usedQuotedReference: false,
@@ -1612,7 +1612,7 @@ describe("createCustomerConversationRouter", () => {
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async (input) => {
-        promptHistory = input.conversation?.history;
+        promptHistory = input.conversation?.recentTurns;
         expect(input.conversation?.historyDiagnostics).toEqual({
           selectionMode: "stale_reset_empty",
           usedQuotedReference: false,
