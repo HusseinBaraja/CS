@@ -150,6 +150,7 @@ export function ContactPage() {
                   rows={4}
                   value={formData.message}
                   onChange={e => setFormData({...formData, message: e.target.value})}
+                  required
                   placeholder="اكتب لنا طبيعة شغلك أو عدد الرسائل التي تستقبلها يومياً"
                   className="bg-primary/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-secondary/60 focus:bg-white/5 transition-all w-full resize-none"
                 />

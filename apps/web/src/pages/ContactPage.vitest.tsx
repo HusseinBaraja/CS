@@ -42,6 +42,8 @@ describe('ContactPage', () => {
     fireEvent.change(companyInput, { target: { value: 'مؤسسة الخير للتجارة' } });
     fireEvent.change(messageInput, { target: { value: 'نحتاج بوت يرد على العملاء في الواتساب' } });
 
+    expect(messageInput).toHaveProperty('required', true);
+
     fireEvent.click(screen.getByRole('button', { name: 'أرسل طلبك' }));
 
     expect(alertMock).toHaveBeenCalledWith('شكراً لتواصلك معنا. هذه نسخة تجريبية، وتم استلام طلبك بنجاح.');
