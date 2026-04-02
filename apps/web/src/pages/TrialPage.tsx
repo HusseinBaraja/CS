@@ -77,7 +77,11 @@ export function TrialPage() {
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                <div className="trial-content">
+                 <label htmlFor="trial-name" className="mb-2 block text-right font-bold text-primary">
+                   الاسم الكامل
+                 </label>
                  <input 
+                   id="trial-name"
                    type="text" 
                    required
                    value={formData.name}
@@ -88,7 +92,11 @@ export function TrialPage() {
                </div>
                
                <div className="trial-content">
+                 <label htmlFor="trial-phone" className="mb-2 block text-right font-bold text-primary">
+                   رقم الواتساب
+                 </label>
                  <input 
+                   id="trial-phone"
                    type="tel" 
                    required
                    value={formData.phone}
@@ -100,7 +108,11 @@ export function TrialPage() {
                </div>
                
                <div className="trial-content">
+                 <label htmlFor="trial-company" className="mb-2 block text-right font-bold text-primary">
+                   اسم المحل أو الشركة
+                 </label>
                  <input 
+                   id="trial-company"
                    type="text" 
                    required
                    value={formData.company}

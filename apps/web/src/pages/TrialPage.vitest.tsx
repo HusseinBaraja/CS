@@ -29,9 +29,9 @@ describe('TrialPage', () => {
     expect(screen.getByText('تهيئة تناسب نشاطك')).toBeDefined();
     expect(container.querySelector('.trial-button-shine')).toBeTruthy();
 
-    fireEvent.change(screen.getByPlaceholderText('الاسم الكامل'), { target: { value: 'أحمد القباطي' } });
-    fireEvent.change(screen.getByPlaceholderText('+967 7xx xxx xxx'), { target: { value: '+967771234567' } });
-    fireEvent.change(screen.getByPlaceholderText('اسم المحل أو الشركة'), { target: { value: 'مخازن القباطي' } });
+    fireEvent.change(screen.getByLabelText('الاسم الكامل'), { target: { value: 'أحمد القباطي' } });
+    fireEvent.change(screen.getByLabelText('رقم الواتساب'), { target: { value: '+967771234567' } });
+    fireEvent.change(screen.getByLabelText('اسم المحل أو الشركة'), { target: { value: 'مخازن القباطي' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'احجز التجربة المجانية' }));
 
