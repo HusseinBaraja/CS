@@ -42,7 +42,6 @@ export function TrialPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Dummy Trial Form Submit: ', formData);
     alert('تم تسجيل طلبك. بيتواصل معك فريقنا قريباً لترتيب التجربة المجانية.');
   };
 
