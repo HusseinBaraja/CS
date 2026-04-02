@@ -195,7 +195,7 @@ export function PricingSection() {
             </ul>
 
             <button className="relative z-10 w-full bg-secondary text-[#11231a] py-3.5 md:py-4 rounded-xl font-bold text-lg hover:bg-white transition-all duration-300 shadow-[0_4px_14px_rgba(227,178,60,0.15)] hover:shadow-[0_6px_20px_rgba(227,178,60,0.25)] flex items-center justify-center gap-2 group translate-y-0 hover:-translate-y-0.5">
-              اطلب نسختك الآن
+              تواصل معنا
               <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1.5 transition-transform duration-300" />
             </button>
           </div>
