@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ArrowLeft, BarChart3, Bot, MessageCircle } from '../icons';
+import { Link } from '../router/HonoRouter';
 import logoUrl from '../../assets/Reda_logo.svg';
 
 export function HeroSection() {
@@ -91,10 +92,10 @@ export function HeroSection() {
           </div>
 
           <div className="hero-text-anim order-4 lg:order-none flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
-            <button className="bg-primary text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3 group w-full sm:w-auto">
+            <Link href="/trial" className="bg-primary text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3 group w-full sm:w-auto">
               ابدأ الآن مجاناً
               <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-            </button>
+            </Link>
           </div>
 
           <div className="hero-text-anim order-3 lg:order-none mt-0 lg:mt-12 grid grid-cols-3 gap-6 pt-8 border-t border-primary/10 w-full">
