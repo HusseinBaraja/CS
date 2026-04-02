@@ -28,7 +28,8 @@ const escapeForDelimiter = (value: string): string =>
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
 
 const serializeContextBlock = (block: GroundingContextBlock): string =>
   [
@@ -99,7 +100,7 @@ const buildStatePrompt = (input: PromptAssemblyInput["conversationState"]): stri
   input
     ? [
       "<CANONICAL_CONVERSATION_STATE>",
-      JSON.stringify(input),
+      escapeForDelimiter(JSON.stringify(input)),
       "</CANONICAL_CONVERSATION_STATE>",
     ].join("\n")
     : "";
