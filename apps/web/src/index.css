@@ -102,3 +102,11 @@
 .float-subtle {
   animation: float-subtle 4s ease-in-out infinite;
 }
+
+/* Contact Page Animation Initial States */
+.contact-brand,
+.contact-left-anim,
+.contact-right-anim,
+.contact-shape {
+  opacity: 0;
+}

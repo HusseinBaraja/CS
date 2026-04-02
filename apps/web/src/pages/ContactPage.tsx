@@ -11,33 +11,25 @@ export function ContactPage() {
   useGSAP(() => {
     const tl = gsap.timeline();
     
-    tl.from('.contact-brand', {
-      x: -40,
-      opacity: 0,
-      duration: 0.8,
-      ease: 'power3.out',
-    })
-    .from('.contact-left-anim', {
-      y: 40,
-      opacity: 0,
-      duration: 0.8,
-      stagger: 0.15,
-      ease: 'power3.out',
-    }, '-=0.4')
-    .from('.contact-right-anim', {
-      x: 60,
-      opacity: 0,
-      duration: 0.8,
-      stagger: 0.1,
-      ease: 'power3.out',
-    }, '-=0.6')
-    .from('.contact-shape', {
-      scale: 0.5,
-      opacity: 0,
-      rotation: 45,
-      duration: 1.5,
-      ease: 'elastic.out(1, 0.5)',
-    }, 0);
+    tl.fromTo('.contact-brand', 
+      { x: -40, opacity: 0 },
+      { x: 0, opacity: 1, duration: 0.8, ease: 'power3.out', force3D: true }
+    )
+    .fromTo('.contact-left-anim', 
+      { y: 40, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.8, stagger: 0.15, ease: 'power3.out', force3D: true },
+      '-=0.4'
+    )
+    .fromTo('.contact-right-anim', 
+      { x: 60, opacity: 0 },
+      { x: 0, opacity: 1, duration: 0.8, stagger: 0.1, ease: 'power3.out', force3D: true },
+      '-=0.6'
+    )
+    .fromTo('.contact-shape', 
+      { scale: 0.5, opacity: 0, rotation: 45 },
+      { scale: 1, opacity: 1, rotation: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)', force3D: true },
+      0
+    );
   }, { scope: container });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -118,7 +110,7 @@ export function ContactPage() {
                   onChange={e => setFormData({...formData, name: e.target.value})}
                   required
                   placeholder="محمد العبدالله"
-                  className="bg-primary/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-secondary/60 focus:bg-white/5 transition-all w-full"
+                  className="bg-primary/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-secondary/60 focus:bg-white/5 transition-colors duration-300 w-full"
                 />
               </div>
 
@@ -143,7 +135,7 @@ export function ContactPage() {
                   onChange={e => setFormData({...formData, company: e.target.value})}
                   required
                   placeholder="مؤسسة التقنية العالية"
-                  className="bg-primary/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-secondary/60 focus:bg-white/5 transition-all w-full"
+                  className="bg-primary/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-secondary/60 focus:bg-white/5 transition-colors duration-300 w-full"
                 />
               </div>
 
@@ -160,7 +152,7 @@ export function ContactPage() {
 
               <button 
                 type="submit" 
-                className="contact-right-anim w-full bg-secondary text-primary font-bold text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(227,178,60,0.3)] hover:shadow-[0_0_30px_rgba(227,178,60,0.5)] hover:-translate-y-1 transition-all duration-300"
+                className="contact-right-anim w-full bg-secondary text-primary font-bold text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(227,178,60,0.3)] hover:shadow-[0_0_30px_rgba(227,178,60,0.5)] hover:-translate-y-1 transition-[background-color,box-shadow,color] duration-300"
               >
                 إرسال الطلب
               </button>
