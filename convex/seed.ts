@@ -20,6 +20,7 @@ import {
 const SEED_SAMPLE_DATA_LOCK_KEY = "seedSampleData";
 const SEED_SAMPLE_DATA_LOCK_LEASE_MS = 2 * 60 * 1000;
 const SEED_SAMPLE_DATA_LOCK_POLL_MS = 250;
+const SEED_SAMPLE_DATA_LOCK_HEARTBEAT_MS = 25 * 1000;
 
 type SeedInsertResult = {
   companyId: Id<"companies">;
@@ -76,6 +77,66 @@ const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, delayMs);
   });
+
+const asError = (error: unknown): Error =>
+  error instanceof Error ? error : new Error(String(error));
+
+export const runWithSeedLockHeartbeat = async <T>({
+  refreshLock,
+  operation,
+  heartbeatMs = SEED_SAMPLE_DATA_LOCK_HEARTBEAT_MS,
+}: {
+  refreshLock: () => Promise<void>;
+  operation: () => Promise<T>;
+  heartbeatMs?: number;
+}): Promise<T> => {
+  let stopped = false;
+  let heartbeatError: Error | null = null;
+  let stopHeartbeat!: () => void;
+  const heartbeatStopSignal = new Promise<void>((resolve) => {
+    stopHeartbeat = resolve;
+  });
+
+  const heartbeat = (async (): Promise<void> => {
+    while (!stopped) {
+      await Promise.race([sleep(heartbeatMs), heartbeatStopSignal]);
+      if (stopped) {
+        return;
+      }
+
+      try {
+        await refreshLock();
+      } catch (error) {
+        heartbeatError = asError(error);
+        stopped = true;
+        return;
+      }
+    }
+  })();
+
+  let result: T | undefined;
+  let operationError: unknown;
+
+  try {
+    result = await operation();
+  } catch (error) {
+    operationError = error;
+  } finally {
+    stopped = true;
+    stopHeartbeat();
+    await heartbeat;
+  }
+
+  if (operationError) {
+    throw operationError;
+  }
+
+  if (heartbeatError) {
+    throw heartbeatError;
+  }
+
+  return result as T;
+};
 
 const loadSeedLock = async (
   ctx: MutationCtx,
@@ -501,8 +562,12 @@ export const seedSampleData = internalAction({
       const insertedCounts = await ctx.runMutation(internal.seed.insertSeedSampleData, {
         companyId: seededCompany.companyId,
       });
-      const syncedEmbeddings: { embeddings: number } = await ctx.runAction(internal.seed.syncSeedEmbeddings, {
-        companyId: seededCompany.companyId,
+      await refreshLock();
+      const syncedEmbeddings: { embeddings: number } = await runWithSeedLockHeartbeat({
+        refreshLock,
+        operation: () => ctx.runAction(internal.seed.syncSeedEmbeddings, {
+          companyId: seededCompany.companyId,
+        }),
       });
 
       return {

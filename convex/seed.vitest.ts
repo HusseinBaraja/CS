@@ -1,9 +1,10 @@
 /// <reference types="vite/client" />
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { convexTest } from 'convex-test';
 import { setGeminiClientFactoryForTests } from '@cs/ai';
 import { internal } from './_generated/api';
 import schema from './schema';
+import { runWithSeedLockHeartbeat } from './seed';
 import {
   buildSeedCompany,
   seedCategories,
@@ -32,6 +33,7 @@ let hasStoredGeminiApiKey = false;
 afterEach(() => {
   resetGeminiClientFactory?.();
   resetGeminiClientFactory = null;
+  vi.useRealTimers();
   if (hasStoredGeminiApiKey) {
     if (originalGeminiApiKey === undefined) {
       delete process.env.GEMINI_API_KEY;
@@ -117,6 +119,58 @@ const getSeededCompany = async (t: ReturnType<typeof convexTest>) => {
 };
 
 describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => {
+  it("keeps refreshing the seed lock while a long embedding sync is running", async () => {
+    vi.useFakeTimers();
+
+    const refreshLock = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    let finishOperation: ((value: number) => void) | null = null;
+
+    const resultPromise = runWithSeedLockHeartbeat({
+      heartbeatMs: 1_000,
+      refreshLock,
+      operation: () =>
+        new Promise<number>((resolve) => {
+          finishOperation = resolve;
+        }),
+    });
+
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    expect(refreshLock).toHaveBeenCalledTimes(3);
+
+    expect(finishOperation).not.toBeNull();
+    finishOperation!(42);
+    await expect(resultPromise).resolves.toBe(42);
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(refreshLock).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not swallow the embedding sync failure when the lock heartbeat also fails", async () => {
+    vi.useFakeTimers();
+
+    const refreshLock = vi.fn<() => Promise<void>>().mockRejectedValue(new Error("Lost the seedSampleData lock while seeding"));
+    const syncError = new Error("seed embedding generation failed");
+    let rejectOperation: ((error: Error) => void) | null = null;
+
+    const resultPromise = runWithSeedLockHeartbeat({
+      heartbeatMs: 1_000,
+      refreshLock,
+      operation: () =>
+        new Promise<never>((_resolve, reject) => {
+          rejectOperation = reject;
+        }),
+    });
+
+    const rejection = expect(resultPromise).rejects.toThrow("seed embedding generation failed");
+
+    expect(rejectOperation).not.toBeNull();
+    rejectOperation!(syncError);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await rejection;
+  });
+
   it("creates the expected bilingual demo catalog", async () => {
     const t = convexTest(schema, modules);
     installGeminiStub();
