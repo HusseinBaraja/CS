@@ -60,6 +60,7 @@ CSCB is an early-stage multi-tenant WhatsApp customer service platform for small
 - Convex runtime files must not import the broad `@cs/ai` barrel. Convex codegen traverses that barrel into `@cs/core`'s Node-only log stream and `bun generate` fails. In Convex runtime code, import the specific `packages/ai/src/*` module you need instead.
 - Convex package typecheck uses `convex/tsconfig.json`, not just `tsconfig.base.json`. When adding a safe Convex `@cs/ai/*` subpath alias, mirror it in `convex/tsconfig.json` or `bun check` will fail in `@cs/convex`.
 - Do not make seed-only env vars globally required in `packages/config/src/index.ts`. Convex push/codegen evaluates modules in an environment that may not provide them, and `bun generate` can fail. Keep variables like `SEED_OWNER_PHONE` optional in shared config and enforce them at the CLI command boundary with `requireEnv`.
+- Bun `--watch` started inside `apps/api` or `apps/worker` will not watch sibling workspace imports under `packages/*` or `convex/_generated`. Keep those dev scripts running Bun with the repo root as `--cwd` so shared-package edits restart the process.
 - If you encounter something surprising, tell the developer and add it to this file so future agents do not repeat the same mistake.
 
 ## Required Reading
