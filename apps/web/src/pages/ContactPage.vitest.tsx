@@ -50,4 +50,17 @@ describe('ContactPage', () => {
     expect((companyInput as HTMLInputElement).value).toBe('');
     expect((messageInput as HTMLTextAreaElement).value).toBe('');
   });
+
+  it('hides phone and email rows when contact env vars are missing', async () => {
+    setupGsapMocks();
+
+    const { ContactPage } = await import('./ContactPage');
+    render(<ContactPage />);
+
+    expect(screen.queryByText('واتساب للتواصل')).toBeNull();
+    expect(screen.queryByText('البريد الإلكتروني')).toBeNull();
+    expect(screen.getByText('المقر الرئيسي')).toBeDefined();
+    expect(screen.queryByText('[PHONE_NUMBER]')).toBeNull();
+    expect(screen.queryByText('[EMAIL_ADDRESS]')).toBeNull();
+  });
 });

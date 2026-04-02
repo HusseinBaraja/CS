@@ -7,8 +7,8 @@ import { Link } from '../components/router/HonoRouter';
 export function ContactPage() {
   const container = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({ name: '', phone: '', company: '', message: '' });
-  const contactPhoneNumber = import.meta.env.SITE_CONTACT_PHONE_NUMBER || '[PHONE_NUMBER]';
-  const contactEmailAddress = import.meta.env.SITE_CONTACT_EMAIL_ADDRESS || '[EMAIL_ADDRESS]';
+  const contactPhoneNumber = import.meta.env.SITE_CONTACT_PHONE_NUMBER;
+  const contactEmailAddress = import.meta.env.SITE_CONTACT_EMAIL_ADDRESS;
 
   useGSAP(() => {
     const tl = gsap.timeline();
@@ -66,25 +66,29 @@ export function ContactPage() {
           </p>
 
           <div className="contact-left-anim space-y-8">
-            <div className="flex items-center gap-6 group cursor-pointer">
-              <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-secondary/20 group-hover:border-secondary/40 transition-all duration-500">
-                <MessageCircle className="w-6 h-6 text-secondary" />
+            {contactPhoneNumber ? (
+              <div className="flex items-center gap-6 group cursor-pointer">
+                <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-secondary/20 group-hover:border-secondary/40 transition-all duration-500">
+                  <MessageCircle className="w-6 h-6 text-secondary" />
+                </div>
+                <div>
+                  <h3 className="text-white/50 text-sm mb-1">واتساب للتواصل</h3>
+                  <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors" dir="ltr">{contactPhoneNumber}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-white/50 text-sm mb-1">واتساب للتواصل</h3>
-                <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors" dir="ltr">{contactPhoneNumber}</p>
-              </div>
-            </div>
+            ) : null}
 
-            <div className="flex items-center gap-6 group cursor-pointer">
-              <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-secondary/20 group-hover:border-secondary/40 transition-all duration-500">
-                <Mail className="w-6 h-6 text-secondary" />
+            {contactEmailAddress ? (
+              <div className="flex items-center gap-6 group cursor-pointer">
+                <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-secondary/20 group-hover:border-secondary/40 transition-all duration-500">
+                  <Mail className="w-6 h-6 text-secondary" />
+                </div>
+                <div>
+                  <h3 className="text-white/50 text-sm mb-1">البريد الإلكتروني</h3>
+                  <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors" style={{ direction: 'ltr' }}>{contactEmailAddress}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-white/50 text-sm mb-1">البريد الإلكتروني</h3>
-                <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors" style={{ direction: 'ltr' }}>{contactEmailAddress}</p>
-              </div>
-            </div>
+            ) : null}
             
             <div className="flex items-center gap-6 group cursor-pointer">
               <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-secondary/20 group-hover:border-secondary/40 transition-all duration-500">
