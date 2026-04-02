@@ -106,13 +106,14 @@ const getSeededCompanies = async (t: ReturnType<typeof convexTest>) =>
 
 const getSeededCompany = async (t: ReturnType<typeof convexTest>) => {
   const companies = await getSeededCompanies(t);
-  const [company] = [...companies].sort((left, right) => left._id.localeCompare(right._id));
 
-  if (!company) {
-    throw new Error("Expected seeded company to exist");
+  if (companies.length !== 1) {
+    throw new Error(
+      `getSeededCompany expected exactly one seeded company from getSeededCompanies, found ${companies.length}; duplicates or missing seed data would hide reseed regressions`,
+    );
   }
 
-  return company;
+  return companies[0]!;
 };
 
 describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => {
@@ -257,6 +258,43 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
         companyId,
       }),
     ).rejects.toThrow(`Company ${companyId} is not the seeded demo tenant`);
+  });
+
+  it("makes getSeededCompany fail when the seed is missing", async () => {
+    const t = convexTest(schema, modules);
+
+    await expect(getSeededCompany(t)).rejects.toThrow(
+      "getSeededCompany expected exactly one seeded company from getSeededCompanies, found 0",
+    );
+  });
+
+  it("makes getSeededCompany fail when duplicate seeded companies exist", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("companies", {
+        name: "Duplicate Seed A",
+        ownerPhone: "967700000101",
+        seedKey: seedCompanyTemplate.seedKey,
+        timezone: "Asia/Aden",
+        config: {
+          botEnabled: true,
+        },
+      });
+      await ctx.db.insert("companies", {
+        name: "Duplicate Seed B",
+        ownerPhone: "967700000102",
+        seedKey: seedCompanyTemplate.seedKey,
+        timezone: "Asia/Riyadh",
+        config: {
+          botEnabled: false,
+        },
+      });
+    });
+
+    await expect(getSeededCompany(t)).rejects.toThrow(
+      "getSeededCompany expected exactly one seeded company from getSeededCompanies, found 2",
+    );
   });
 
   it("uses a single seed lock owner and releases it after completion", async () => {
