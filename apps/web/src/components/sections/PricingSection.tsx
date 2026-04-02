@@ -140,7 +140,7 @@ export function PricingSection() {
               ))}
             </ul>
 
-            <Link href="/trial" className="w-full text-center bg-surface border border-primary/15 text-primary py-3.5 md:py-4 rounded-xl font-bold text-lg hover:bg-primary/5 hover:border-primary/20 hover:-translate-y-0.5 shadow-sm hover:shadow-md transition-all duration-300">
+            <Link href="/trial" className="block w-full text-center bg-surface border border-primary/15 text-primary py-3.5 md:py-4 rounded-xl font-bold text-lg hover:bg-primary/5 hover:border-primary/20 hover:-translate-y-0.5 shadow-sm hover:shadow-md transition-all duration-300">
               ابدأ التجربة
             </Link>
           </div>
