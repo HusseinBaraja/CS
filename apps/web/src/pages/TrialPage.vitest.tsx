@@ -20,13 +20,14 @@ describe('TrialPage', () => {
     const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
     const { TrialPage } = await import('./TrialPage');
-    render(<TrialPage />);
+    const { container } = render(<TrialPage />);
 
     expect(screen.getByRole('heading', { name: 'جرّب رضا على واتساب مع نشاطك' })).toBeDefined();
     expect(screen.getByText('عبّ بياناتك وبنتواصل معك لترتيب تجربة تناسب شغلك وطريقة ردك مع العملاء في اليمن.')).toBeDefined();
     expect(screen.getByRole('heading', { name: 'ما الذي ستحصل عليه في التجربة؟' })).toBeDefined();
     expect(screen.getByText('ردود مرتبة باللهجة المناسبة')).toBeDefined();
     expect(screen.getByText('تهيئة تناسب نشاطك')).toBeDefined();
+    expect(container.querySelector('.trial-button-shine')).toBeTruthy();
 
     fireEvent.change(screen.getByPlaceholderText('الاسم الكامل'), { target: { value: 'أحمد القباطي' } });
     fireEvent.change(screen.getByPlaceholderText('+967 7xx xxx xxx'), { target: { value: '+967771234567' } });

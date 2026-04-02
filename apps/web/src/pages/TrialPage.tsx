@@ -118,7 +118,7 @@ export function TrialPage() {
                  <span className="relative z-10">احجز التجربة المجانية</span>
                  <ArrowLeft className="w-5 h-5 relative z-10 group-hover:-translate-x-1 transition-transform" />
                  {/* Shine effect */}
-                 <div className="absolute top-0 -inset-full h-full w-1/2 z-0 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
+                 <div className="trial-button-shine absolute top-0 -inset-full h-full w-1/2 z-0 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20" />
                </button>
             </form>
           </div>
@@ -156,15 +156,6 @@ export function TrialPage() {
           </Link>
         </div>
       </div>
-      
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes shine {
-          100% { left: 125%; }
-        }
-        .animate-shine {
-          animation: shine 1s ease-in-out;
-        }
-      `}}/>
     </div>
   );
 }
