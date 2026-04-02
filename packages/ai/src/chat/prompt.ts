@@ -230,7 +230,7 @@ export const assemblePrompt = (
         "user",
         groundingFactsPrompt,
         input.groundingBundle?.contextBlocks.length ?? 0,
-        Boolean(input.groundingBundle),
+        groundingFactsPrompt.length > 0,
       ),
       createLayerMetadata("current_user_turn", "user", input.currentUserTurn.text, 1, true),
     ],

@@ -282,6 +282,11 @@ describe("assemblePrompt", () => {
       role: "user",
       content: expect.stringContaining("NO_GROUNDED_CONTEXT_AVAILABLE"),
     });
+    expect(prompt.layerMetadata[4]).toEqual(expect.objectContaining({
+      layer: "grounding_facts",
+      present: true,
+      itemCount: 0,
+    }));
     expect(prompt.omittedContext).toContainEqual({
       layer: "grounding_facts",
       reason: "empty",
