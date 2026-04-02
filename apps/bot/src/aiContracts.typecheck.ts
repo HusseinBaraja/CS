@@ -1,7 +1,7 @@
 import type {
   AssistantStructuredOutput,
-  BuildGroundedChatPromptInput,
-  BuiltGroundedChatPrompt,
+  PromptAssemblyInput,
+  PromptAssemblyOutput,
   ChatLanguage,
   ChatProviderHealth,
   ChatProviderAdapter,
@@ -10,7 +10,7 @@ import type {
   ChatResponse,
   LanguageDetectionResult,
 } from '@cs/ai';
-import { buildGroundedChatPrompt, detectChatLanguage } from '@cs/ai';
+import { assemblePrompt, detectChatLanguage } from '@cs/ai';
 import type { Id } from '@cs/db';
 import type {
   CatalogChatInput,
@@ -57,11 +57,25 @@ const language: ChatLanguage = "ar";
 const detection: LanguageDetectionResult = detectChatLanguage("مرحبا", {
   preferredLanguage: language,
 });
-const promptInput: BuildGroundedChatPromptInput = {
-  responseLanguage: language,
-  customerMessage: "مرحبا",
+const promptInput: PromptAssemblyInput = {
+  behaviorInstructions: {
+    responseLanguage: language,
+    groundingPolicy: "supplied_facts_only",
+    ambiguityPolicy: "clarify_instead_of_guessing",
+    handoffPolicy: "handoff_on_explicit_request_or_unsafe_help",
+    offTopicPolicy: "refuse",
+    stylePolicy: "concise_target_language",
+    responseFormat: "assistant_structured_output_v1",
+  },
+  conversationSummary: null,
+  conversationState: null,
+  recentTurns: [],
+  groundingBundle: null,
+  currentUserTurn: {
+    text: "مرحبا",
+  },
 };
-const prompt: BuiltGroundedChatPrompt = buildGroundedChatPrompt(promptInput);
+const prompt: PromptAssemblyOutput = assemblePrompt(promptInput);
 const retrievalService: ProductRetrievalService = {
   async retrieveCatalogContext() {
     return {
@@ -124,7 +138,7 @@ const catalogChatInput: CatalogChatInput = {
   },
   conversation: {
     conversationId: "conversation-1",
-    history: [
+    recentTurns: [
       {
         role: "user",
         text: "مرحبا",
