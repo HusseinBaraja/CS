@@ -127,7 +127,7 @@ export interface CanonicalConversationStateReadResultDto {
   invalidatedPaths: string[];
 }
 
-export type ConversationSummaryFreshnessStatus = "fresh" | "stale";
+export type ConversationSummaryFreshnessStatus = CanonicalConversationFreshnessStatus;
 
 export interface ConversationSummaryFreshnessDto {
   status: ConversationSummaryFreshnessStatus;
