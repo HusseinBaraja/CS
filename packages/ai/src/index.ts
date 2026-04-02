@@ -11,7 +11,7 @@ export { createChatRuntimeConfig } from "./chat/runtimeConfig";
 export { ChatProviderError } from "./chat/errors";
 export { ChatProviderChainError, createChatProviderManager } from "./chat/manager";
 export { detectChatLanguage, resolveChatResponseLanguage } from "./chat/language";
-export { buildGroundedChatPrompt } from "./chat/prompt";
+export { assemblePrompt, buildGroundedChatPrompt } from "./chat/prompt";
 export { DEFAULT_ALLOWED_ACTIONS, getAllowedActions } from "./chat/actions";
 export { parseAssistantStructuredOutput } from "./chat/output";
 export { StructuredOutputParseError } from "./chat/promptContracts";
@@ -41,12 +41,28 @@ export type {
 export type {
   AssistantActionType,
   AssistantStructuredOutput,
+  CatalogGroundingBundle,
+  CatalogGroundingCategory,
+  CatalogGroundingImageAvailability,
+  CatalogGroundingOffer,
+  CatalogGroundingOmission,
+  CatalogGroundingPricingFact,
+  CatalogGroundingProduct,
+  CatalogGroundingVariant,
   BuildGroundedChatPromptInput,
   BuiltGroundedChatPrompt,
   GroundingContextBlock,
+  GroundingEntityRef,
   ParseAssistantStructuredOutputResult,
   ParseAssistantStructuredOutputOptions,
+  PromptAssemblyInput,
+  PromptAssemblyOutput,
+  PromptBehaviorInstructions,
   PromptHistoryTurn,
+  PromptLayerBudget,
+  PromptLayerMetadata,
+  PromptLayerOmission,
+  PromptLayerType,
   StructuredOutputParseFailureKind,
 } from "./chat/promptContracts";
 export type {
