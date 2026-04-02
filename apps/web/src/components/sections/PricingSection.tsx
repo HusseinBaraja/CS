@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ArrowLeft } from '../icons';
+import { Link } from '../router/HonoRouter';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -139,9 +140,9 @@ export function PricingSection() {
               ))}
             </ul>
 
-            <button className="w-full bg-surface border border-primary/15 text-primary py-3.5 md:py-4 rounded-xl font-bold text-lg hover:bg-primary/5 hover:border-primary/20 hover:-translate-y-0.5 shadow-sm hover:shadow-md transition-all duration-300">
+            <Link href="/trial" className="block w-full text-center bg-surface border border-primary/15 text-primary py-3.5 md:py-4 rounded-xl font-bold text-lg hover:bg-primary/5 hover:border-primary/20 hover:-translate-y-0.5 shadow-sm hover:shadow-md transition-all duration-300">
               ابدأ التجربة
-            </button>
+            </Link>
           </div>
 
           {/* Professional Tier (Recommended) */}
@@ -194,10 +195,10 @@ export function PricingSection() {
               ))}
             </ul>
 
-            <button className="relative z-10 w-full bg-secondary text-[#11231a] py-3.5 md:py-4 rounded-xl font-bold text-lg hover:bg-white transition-all duration-300 shadow-[0_4px_14px_rgba(227,178,60,0.15)] hover:shadow-[0_6px_20px_rgba(227,178,60,0.25)] flex items-center justify-center gap-2 group translate-y-0 hover:-translate-y-0.5">
-              اطلب نسختك الآن
+            <Link href="/contact" className="relative z-10 w-full bg-secondary text-[#11231a] py-3.5 md:py-4 rounded-xl font-bold text-lg hover:bg-white transition-all duration-300 shadow-[0_4px_14px_rgba(227,178,60,0.15)] hover:shadow-[0_6px_20px_rgba(227,178,60,0.25)] flex items-center justify-center gap-2 group translate-y-0 hover:-translate-y-0.5">
+              تواصل معنا
               <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1.5 transition-transform duration-300" />
-            </button>
+            </Link>
           </div>
         </div>
       </div>

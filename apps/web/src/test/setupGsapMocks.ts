@@ -14,6 +14,7 @@ type GsapTarget =
 
 type TimelineInstance = {
   from: ReturnType<typeof vi.fn<(target: GsapTarget, vars?: object) => TimelineInstance>>;
+  fromTo: ReturnType<typeof vi.fn<(target: GsapTarget, fromVars?: object, toVars?: object, position?: number | string) => TimelineInstance>>;
   to: ReturnType<typeof vi.fn<(target: GsapTarget, vars?: object, position?: number | string) => TimelineInstance>>;
   progress: ReturnType<typeof vi.fn<(value?: number) => TimelineInstance>>;
   kill: ReturnType<typeof vi.fn<() => void>>;
@@ -47,11 +48,13 @@ let currentScope: ParentNode = document;
 function createTimelineInstance(): TimelineInstance {
   const timelineInstance = {} as TimelineInstance;
   timelineInstance.from = vi.fn<(target: GsapTarget, vars?: object) => TimelineInstance>();
+  timelineInstance.fromTo = vi.fn<(target: GsapTarget, fromVars?: object, toVars?: object, position?: number | string) => TimelineInstance>();
   timelineInstance.to = vi.fn<(target: GsapTarget, vars?: object, position?: number | string) => TimelineInstance>();
   timelineInstance.progress = vi.fn<(value?: number) => TimelineInstance>();
   timelineInstance.kill = vi.fn<() => void>();
 
   timelineInstance.from.mockImplementation(() => timelineInstance);
+  timelineInstance.fromTo.mockImplementation(() => timelineInstance);
   timelineInstance.to.mockImplementation(() => timelineInstance);
   timelineInstance.progress.mockImplementation(() => timelineInstance);
 

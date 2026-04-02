@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ArrowLeft } from '../icons';
+import { Link } from '../router/HonoRouter';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -55,10 +56,10 @@ export function CTASection() {
             تكلفة تشغيلية منخفضة جداً، دقة متناهية مبنية على كتالوج منتجاتك، وراحة بال تامة لك ولفريقك.
           </p>
           
-          <button className="bg-secondary text-[#11231a] px-8 md:px-10 py-4 md:py-5 rounded-full font-bold text-lg md:text-xl hover:bg-white transition-all duration-300 shadow-[0_8px_32px_rgba(227,178,60,0.25)] hover:shadow-[0_12px_40px_rgba(227,178,60,0.4)] flex items-center justify-center gap-3 group translate-y-0 hover:-translate-y-1">
+          <Link href="/trial" className="bg-secondary text-[#11231a] px-8 md:px-10 py-4 md:py-5 rounded-full font-bold text-lg md:text-xl hover:bg-white transition-all duration-300 shadow-[0_8px_32px_rgba(227,178,60,0.25)] hover:shadow-[0_12px_40px_rgba(227,178,60,0.4)] flex items-center justify-center gap-3 group translate-y-0 hover:-translate-y-1">
             اطلب نسختك التجريبية
             <ArrowLeft className="w-6 h-6 transform group-hover:-translate-x-1.5 transition-transform duration-300" />
-          </button>
+          </Link>
 
           <div className="mt-8 text-white/40 text-sm font-medium flex items-center gap-2  px-4 py-2 rounded-full border border-white/5">
              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 ring-[3px] ring-emerald-500/20 animate-pulse"></span>
