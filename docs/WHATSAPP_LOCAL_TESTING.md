@@ -46,6 +46,8 @@ bun run seed
 
 This seeds the sample tenant and builds embeddings so the catalog is RAG-ready.
 
+If the seeded tenant already exists, reseeding refreshes its catalog data in place and preserves the same tenant identity. That means reseeding alone should not force a fresh WhatsApp QR unless the tenant auth state was separately cleared or became invalid.
+
 ## Seeded tenant defaults
 
 The seeded company is created with:
@@ -108,6 +110,8 @@ data/bot/auth
 ```
 
 Each tenant gets its own session subdirectory keyed by the runtime session key.
+
+Because the seeded tenant identity is preserved across reseeds, its auth directory should also remain stable across repeated `bun run seed` runs.
 
 ## Re-pair one tenant
 

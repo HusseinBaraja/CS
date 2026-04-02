@@ -37,7 +37,7 @@
     "@edge-runtime/vm": "^5.0.0",
     "@types/bun": "1.3.9",
     "convex-test": "^0.0.41",
-    "turbo": "2.8.12",
+    "turbo": "^2.9.3",
     "typescript": "5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"

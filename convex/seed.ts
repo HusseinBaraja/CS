@@ -20,6 +20,7 @@ import {
 const SEED_SAMPLE_DATA_LOCK_KEY = "seedSampleData";
 const SEED_SAMPLE_DATA_LOCK_LEASE_MS = 2 * 60 * 1000;
 const SEED_SAMPLE_DATA_LOCK_POLL_MS = 250;
+const SEED_SAMPLE_DATA_LOCK_HEARTBEAT_MS = 25 * 1000;
 
 type SeedInsertResult = {
   companyId: Id<"companies">;
@@ -67,10 +68,75 @@ type LockRenewResult = {
   renewed: boolean;
 };
 
+type SeedCompanySkeletonResult = {
+  companyId: Id<"companies">;
+  companyName: string;
+};
+
 const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, delayMs);
   });
+
+const asError = (error: unknown): Error =>
+  error instanceof Error ? error : new Error(String(error));
+
+export const runWithSeedLockHeartbeat = async <T>({
+  refreshLock,
+  operation,
+  heartbeatMs = SEED_SAMPLE_DATA_LOCK_HEARTBEAT_MS,
+}: {
+  refreshLock: () => Promise<void>;
+  operation: () => Promise<T>;
+  heartbeatMs?: number;
+}): Promise<T> => {
+  let stopped = false;
+  let heartbeatError: Error | null = null;
+  let stopHeartbeat!: () => void;
+  const heartbeatStopSignal = new Promise<void>((resolve) => {
+    stopHeartbeat = resolve;
+  });
+
+  const heartbeat = (async (): Promise<void> => {
+    while (!stopped) {
+      await Promise.race([sleep(heartbeatMs), heartbeatStopSignal]);
+      if (stopped) {
+        return;
+      }
+
+      try {
+        await refreshLock();
+      } catch (error) {
+        heartbeatError = asError(error);
+        stopped = true;
+        return;
+      }
+    }
+  })();
+
+  let result: T | undefined;
+  let operationError: unknown;
+
+  try {
+    result = await operation();
+  } catch (error) {
+    operationError = error;
+  } finally {
+    stopped = true;
+    stopHeartbeat();
+    await heartbeat;
+  }
+
+  if (operationError) {
+    throw operationError;
+  }
+
+  if (heartbeatError) {
+    throw heartbeatError;
+  }
+
+  return result as T;
+};
 
 const loadSeedLock = async (
   ctx: MutationCtx,
@@ -99,6 +165,20 @@ const extendLockExpiry = async (
     expiresAt: now + SEED_SAMPLE_DATA_LOCK_LEASE_MS,
   });
 };
+
+const assertSeedCompanyTarget = (
+  company: Doc<"companies"> | null,
+  companyId: Id<"companies">,
+): void => {
+  if (!company) {
+    throw new Error(`Seed company ${companyId} was not found`);
+  }
+
+  if (company.seedKey !== seedCompanyTemplate.seedKey) {
+    throw new Error(`Company ${companyId} is not the seeded demo tenant`);
+  }
+};
+
 export const listSeedCompanyIds = internalQuery({
   args: {},
   handler: async (ctx) => {
@@ -239,18 +319,10 @@ export const releaseSeedSampleDataLock = internalMutation({
 
 export const insertSeedSampleData = internalMutation({
   args: {
-    ownerPhone: v.string(),
+    companyId: v.id("companies"),
   },
-  handler: async (ctx, args): Promise<SeedInsertResult> => {
-    const seedCompany = buildSeedCompany(args.ownerPhone);
-
-    const companyId = await ctx.db.insert("companies", {
-      name: seedCompany.name,
-      ownerPhone: seedCompany.ownerPhone,
-      seedKey: seedCompany.seedKey,
-      timezone: seedCompany.timezone,
-      config: seedCompany.config,
-    });
+  handler: async (ctx, args): Promise<Omit<SeedInsertResult, "companyName" | "companyId">["counts"]> => {
+    assertSeedCompanyTarget(await ctx.db.get(args.companyId), args.companyId);
 
     const categoryIds = new Map<string, Id<"categories">>();
     for (const category of seedCategories) {
@@ -259,7 +331,7 @@ export const insertSeedSampleData = internalMutation({
       }
 
       const categoryId = await ctx.db.insert("categories", {
-        companyId,
+        companyId: args.companyId,
         nameEn: category.nameEn,
         nameAr: category.nameAr,
         descriptionEn: category.descriptionEn,
@@ -280,7 +352,7 @@ export const insertSeedSampleData = internalMutation({
       }
 
       const productId = await ctx.db.insert("products", {
-        companyId,
+        companyId: args.companyId,
         categoryId,
         nameEn: product.nameEn,
         nameAr: product.nameAr,
@@ -311,7 +383,7 @@ export const insertSeedSampleData = internalMutation({
     const now = Date.now();
     for (const offer of seedOffers) {
       await ctx.db.insert("offers", {
-        companyId,
+        companyId: args.companyId,
         contentEn: offer.contentEn,
         contentAr: offer.contentAr,
         active: true,
@@ -321,23 +393,62 @@ export const insertSeedSampleData = internalMutation({
     }
 
     await ctx.db.insert("currencyRates", {
-      companyId,
+      companyId: args.companyId,
       fromCurrency: seedCurrencyRate.fromCurrency,
       toCurrency: seedCurrencyRate.toCurrency,
       rate: seedCurrencyRate.rate,
     });
 
     return {
+      categories: seedCategories.length,
+      embeddings: 0,
+      products: seedProducts.length,
+      productVariants: seedVariants.length,
+      offers: seedOffers.length,
+      currencyRates: 1,
+    };
+  },
+});
+
+export const upsertSeedCompanySkeleton = internalMutation({
+  args: {
+    ownerPhone: v.string(),
+    companyId: v.optional(v.id("companies")),
+  },
+  handler: async (ctx, args): Promise<SeedCompanySkeletonResult> => {
+    const seedCompany = buildSeedCompany(args.ownerPhone);
+    if (args.companyId) {
+      assertSeedCompanyTarget(await ctx.db.get(args.companyId), args.companyId);
+
+      await ctx.db.patch(args.companyId, {
+        name: seedCompany.name,
+        ownerPhone: seedCompany.ownerPhone,
+        seedKey: seedCompany.seedKey,
+        timezone: seedCompany.timezone,
+        config: seedCompany.config,
+        botRuntimePairingLeaseExpiresAt: undefined,
+        botRuntimePairingLeaseOwner: undefined,
+        botRuntimeSessionLeaseExpiresAt: undefined,
+        botRuntimeSessionLeaseOwner: undefined,
+      });
+
+      return {
+        companyId: args.companyId,
+        companyName: seedCompany.name,
+      };
+    }
+
+    const companyId = await ctx.db.insert("companies", {
+      name: seedCompany.name,
+      ownerPhone: seedCompany.ownerPhone,
+      seedKey: seedCompany.seedKey,
+      timezone: seedCompany.timezone,
+      config: seedCompany.config,
+    });
+
+    return {
       companyId,
       companyName: seedCompany.name,
-      counts: {
-        categories: seedCategories.length,
-        embeddings: 0,
-        products: seedProducts.length,
-        productVariants: seedVariants.length,
-        offers: seedOffers.length,
-        currencyRates: 1,
-      },
     };
   },
 });
@@ -418,7 +529,10 @@ export const seedSampleData = internalAction({
     }
 
     try {
-      const companyIds: Array<Id<"companies">> = await ctx.runQuery(internal.seed.listSeedCompanyIds, {});
+      const companyIds: Array<Id<"companies">> = (
+        await ctx.runQuery(internal.seed.listSeedCompanyIds, {})
+      ).sort((left, right) => left.localeCompare(right));
+      const preservedCompanyId = companyIds[0] ?? null;
 
       for (const companyId of companyIds) {
         let cleanupResult: CleanupBatchResult = {
@@ -433,6 +547,7 @@ export const seedSampleData = internalAction({
           await refreshLock();
           cleanupResult = await ctx.runMutation(internal.companyCleanup.clearCompanyDataBatch, {
             companyId,
+            deleteCompany: companyId !== preservedCompanyId,
             ...(cursor ? { cursor } : {}),
           });
           cursor = cleanupResult.nextCursor;
@@ -440,17 +555,26 @@ export const seedSampleData = internalAction({
       }
 
       await refreshLock();
-      const seededResult: SeedInsertResult = await ctx.runMutation(internal.seed.insertSeedSampleData, {
+      const seededCompany: SeedCompanySkeletonResult = await ctx.runMutation(internal.seed.upsertSeedCompanySkeleton, {
         ownerPhone: args.ownerPhone,
+        ...(preservedCompanyId ? { companyId: preservedCompanyId } : {}),
       });
-      const syncedEmbeddings: { embeddings: number } = await ctx.runAction(internal.seed.syncSeedEmbeddings, {
-        companyId: seededResult.companyId,
+      const insertedCounts = await ctx.runMutation(internal.seed.insertSeedSampleData, {
+        companyId: seededCompany.companyId,
+      });
+      await refreshLock();
+      const syncedEmbeddings: { embeddings: number } = await runWithSeedLockHeartbeat({
+        refreshLock,
+        operation: () => ctx.runAction(internal.seed.syncSeedEmbeddings, {
+          companyId: seededCompany.companyId,
+        }),
       });
 
       return {
-        ...seededResult,
+        companyId: seededCompany.companyId,
+        companyName: seededCompany.companyName,
         counts: {
-          ...seededResult.counts,
+          ...insertedCounts,
           embeddings: syncedEmbeddings.embeddings,
         },
         clearedCompanies: companyIds.length,

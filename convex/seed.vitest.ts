@@ -1,9 +1,10 @@
 /// <reference types="vite/client" />
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { convexTest } from 'convex-test';
 import { setGeminiClientFactoryForTests } from '@cs/ai';
 import { internal } from './_generated/api';
 import schema from './schema';
+import { runWithSeedLockHeartbeat } from './seed';
 import {
   buildSeedCompany,
   seedCategories,
@@ -32,6 +33,7 @@ let hasStoredGeminiApiKey = false;
 afterEach(() => {
   resetGeminiClientFactory?.();
   resetGeminiClientFactory = null;
+  vi.useRealTimers();
   if (hasStoredGeminiApiKey) {
     if (originalGeminiApiKey === undefined) {
       delete process.env.GEMINI_API_KEY;
@@ -97,7 +99,78 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
     };
   });
 
+const getSeededCompanies = async (t: ReturnType<typeof convexTest>) =>
+  t.run(async (ctx) =>
+    (await ctx.db.query("companies").collect()).filter(
+      (company) => company.seedKey === seedCompanyTemplate.seedKey,
+    )
+  );
+
+const getSeededCompany = async (t: ReturnType<typeof convexTest>) => {
+  const companies = await getSeededCompanies(t);
+
+  if (companies.length !== 1) {
+    throw new Error(
+      `getSeededCompany expected exactly one seeded company from getSeededCompanies, found ${companies.length}; duplicates or missing seed data would hide reseed regressions`,
+    );
+  }
+
+  return companies[0]!;
+};
+
 describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => {
+  it("keeps refreshing the seed lock while a long embedding sync is running", async () => {
+    vi.useFakeTimers();
+
+    const refreshLock = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    let finishOperation: ((value: number) => void) | null = null;
+
+    const resultPromise = runWithSeedLockHeartbeat({
+      heartbeatMs: 1_000,
+      refreshLock,
+      operation: () =>
+        new Promise<number>((resolve) => {
+          finishOperation = resolve;
+        }),
+    });
+
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    expect(refreshLock).toHaveBeenCalledTimes(3);
+
+    expect(finishOperation).not.toBeNull();
+    finishOperation!(42);
+    await expect(resultPromise).resolves.toBe(42);
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(refreshLock).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not swallow the embedding sync failure when the lock heartbeat also fails", async () => {
+    vi.useFakeTimers();
+
+    const refreshLock = vi.fn<() => Promise<void>>().mockRejectedValue(new Error("Lost the seedSampleData lock while seeding"));
+    const syncError = new Error("seed embedding generation failed");
+    let rejectOperation: ((error: Error) => void) | null = null;
+
+    const resultPromise = runWithSeedLockHeartbeat({
+      heartbeatMs: 1_000,
+      refreshLock,
+      operation: () =>
+        new Promise<never>((_resolve, reject) => {
+          rejectOperation = reject;
+        }),
+    });
+
+    const rejection = expect(resultPromise).rejects.toThrow("seed embedding generation failed");
+
+    expect(rejectOperation).not.toBeNull();
+    rejectOperation!(syncError);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await rejection;
+  });
+
   it("creates the expected bilingual demo catalog", async () => {
     const t = convexTest(schema, modules);
     installGeminiStub();
@@ -150,13 +223,16 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     const firstRun = await t.action(internal.seed.seedSampleData, {
       ownerPhone: SEED_OWNER_PHONE,
     });
+    const firstSeededCompany = await getSeededCompany(t);
     const secondRun = await t.action(internal.seed.seedSampleData, {
       ownerPhone: SEED_OWNER_PHONE,
     });
     const counts = await collectCounts(t);
+    const secondSeededCompany = await getSeededCompany(t);
 
     expect(firstRun.counts).toEqual(secondRun.counts);
     expect(secondRun.clearedCompanies).toBe(1);
+    expect(secondSeededCompany._id).toBe(firstSeededCompany._id);
     expect(counts.companies).toHaveLength(1);
     expect(counts.categories).toHaveLength(seedCategories.length);
     expect(counts.products).toHaveLength(seedProducts.length);
@@ -164,6 +240,115 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(counts.offers).toHaveLength(seedOffers.length);
     expect(counts.currencyRates).toHaveLength(1);
     expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
+  });
+
+  it("resets seeded company metadata back to the template while preserving the company id", async () => {
+    const t = convexTest(schema, modules);
+    installGeminiStub();
+
+    await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
+
+    const seededCompany = await getSeededCompany(t);
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(seededCompany._id, {
+        name: "Edited Demo Tenant",
+        ownerPhone: "967700000000",
+        timezone: "Asia/Riyadh",
+        config: {
+          botEnabled: false,
+          welcomesEnabled: false,
+        },
+        botRuntimePairingLeaseExpiresAt: 123_456,
+        botRuntimePairingLeaseOwner: "pairing-owner",
+        botRuntimeSessionLeaseExpiresAt: 654_321,
+        botRuntimeSessionLeaseOwner: "session-owner",
+      });
+    });
+
+    await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
+
+    const reseededCompany = await getSeededCompany(t);
+
+    expect(reseededCompany._id).toBe(seededCompany._id);
+    expect(reseededCompany).toMatchObject({
+      name: seedCompany.name,
+      ownerPhone: SEED_OWNER_PHONE,
+      seedKey: seedCompany.seedKey,
+      timezone: seedCompany.timezone,
+      config: seedCompany.config,
+    });
+    expect(reseededCompany.botRuntimePairingLeaseExpiresAt).toBeUndefined();
+    expect(reseededCompany.botRuntimePairingLeaseOwner).toBeUndefined();
+    expect(reseededCompany.botRuntimeSessionLeaseExpiresAt).toBeUndefined();
+    expect(reseededCompany.botRuntimeSessionLeaseOwner).toBeUndefined();
+  });
+
+  it("rejects direct seed helper mutations for non-seed tenants", async () => {
+    const t = convexTest(schema, modules);
+
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Real Tenant",
+        ownerPhone: SEED_OWNER_PHONE,
+        timezone: "Asia/Riyadh",
+        config: { defaultLanguage: "en" },
+      })
+    );
+
+    await expect(
+      t.mutation(internal.seed.insertSeedSampleData, {
+        companyId,
+      }),
+    ).rejects.toThrow(`Company ${companyId} is not the seeded demo tenant`);
+
+    await expect(
+      t.mutation(internal.seed.upsertSeedCompanySkeleton, {
+        ownerPhone: SEED_OWNER_PHONE,
+        companyId,
+      }),
+    ).rejects.toThrow(`Company ${companyId} is not the seeded demo tenant`);
+  });
+
+  it("makes getSeededCompany fail when the seed is missing", async () => {
+    const t = convexTest(schema, modules);
+
+    await expect(getSeededCompany(t)).rejects.toThrow(
+      "getSeededCompany expected exactly one seeded company from getSeededCompanies, found 0",
+    );
+  });
+
+  it("makes getSeededCompany fail when duplicate seeded companies exist", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("companies", {
+        name: "Duplicate Seed A",
+        ownerPhone: "967700000101",
+        seedKey: seedCompanyTemplate.seedKey,
+        timezone: "Asia/Aden",
+        config: {
+          botEnabled: true,
+        },
+      });
+      await ctx.db.insert("companies", {
+        name: "Duplicate Seed B",
+        ownerPhone: "967700000102",
+        seedKey: seedCompanyTemplate.seedKey,
+        timezone: "Asia/Riyadh",
+        config: {
+          botEnabled: false,
+        },
+      });
+    });
+
+    await expect(getSeededCompany(t)).rejects.toThrow(
+      "getSeededCompany expected exactly one seeded company from getSeededCompanies, found 2",
+    );
   });
 
   it("uses a single seed lock owner and releases it after completion", async () => {
@@ -347,6 +532,53 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
   });
 
+  it("collapses duplicate seeded companies to the canonical preserved company", async () => {
+    const t = convexTest(schema, modules);
+    installGeminiStub();
+
+    const duplicateCompanies = await t.run(async (ctx) => {
+      const firstCompanyId = await ctx.db.insert("companies", {
+        name: "Duplicate Seed A",
+        ownerPhone: "967700000101",
+        seedKey: seedCompanyTemplate.seedKey,
+        timezone: "Asia/Aden",
+        config: {
+          botEnabled: true,
+        },
+      });
+      const secondCompanyId = await ctx.db.insert("companies", {
+        name: "Duplicate Seed B",
+        ownerPhone: "967700000102",
+        seedKey: seedCompanyTemplate.seedKey,
+        timezone: "Asia/Riyadh",
+        config: {
+          botEnabled: false,
+        },
+      });
+
+      return [firstCompanyId, secondCompanyId].sort((left, right) => left.localeCompare(right));
+    });
+
+    const result = await t.action(internal.seed.seedSampleData, {
+      ownerPhone: SEED_OWNER_PHONE,
+    });
+    const seededCompanies = await getSeededCompanies(t);
+    const counts = await collectCounts(t);
+
+    expect(result.clearedCompanies).toBe(2);
+    expect(seededCompanies).toHaveLength(1);
+    expect(seededCompanies[0]?._id).toBe(duplicateCompanies[0]);
+    expect(seededCompanies[0]).toMatchObject({
+      name: seedCompany.name,
+      ownerPhone: SEED_OWNER_PHONE,
+      seedKey: seedCompany.seedKey,
+      timezone: seedCompany.timezone,
+      config: seedCompany.config,
+    });
+    expect(counts.companies).toHaveLength(1);
+    expect(counts.products).toHaveLength(seedProducts.length);
+  });
+
   it("fails seeding when embedding sync fails and succeeds on a later retry", async () => {
     const t = convexTest(schema, modules);
     installGeminiStub("failure");
@@ -357,14 +589,18 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
       "AI_PROVIDER_FAILED: seed embedding generation failed",
     );
 
+    const failedSeededCompany = await getSeededCompany(t);
+
     installGeminiStub("success");
 
     const result = await t.action(internal.seed.seedSampleData, {
       ownerPhone: SEED_OWNER_PHONE,
     });
     const counts = await collectCounts(t);
+    const recoveredSeededCompany = await getSeededCompany(t);
 
     expect(result.counts.embeddings).toBe(seedProducts.length * 2);
+    expect(recoveredSeededCompany._id).toBe(failedSeededCompany._id);
     expect(counts.companies).toHaveLength(1);
     expect(counts.products).toHaveLength(seedProducts.length);
     expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
