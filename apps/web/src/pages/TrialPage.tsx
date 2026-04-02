@@ -3,7 +3,7 @@ import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { Link } from '../components/router/HonoRouter';
 import { ArrowLeft, CheckCircle2 } from '../components/icons';
-import logoUrl from '../../assets/Reda_logo.svg';
+import logoUrl from '../assets/Reda_logo.svg';
 
 export function TrialPage() {
   const container = useRef<HTMLDivElement>(null);
@@ -120,7 +120,6 @@ export function TrialPage() {
                  {/* Shine effect */}
                  <div className="absolute top-0 -inset-full h-full w-1/2 z-0 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
                </button>
-               <p className="trial-content text-center text-primary/40 text-sm mt-3 font-medium">لن نطلب منك أي بطاقة ائتمانية في هذه المرحلة.</p>
             </form>
           </div>
 

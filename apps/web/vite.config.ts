@@ -9,8 +9,9 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
   },
+  // @ts-ignore
   test: {
     environment: 'jsdom',
     include: ['src/**/*.vitest.tsx'],
   },
-})
+});
