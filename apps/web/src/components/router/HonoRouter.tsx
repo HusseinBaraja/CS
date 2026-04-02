@@ -15,31 +15,51 @@ export function useLocation() {
   return useContext(RouterContext);
 }
 
-export function Link({ href, children, className, onClick }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
+export function Link({
+  href,
+  children,
+  onClick,
+  target,
+  download,
+  ...props
+}: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   const { navigate } = useLocation();
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (onClick) onClick(e);
-    
-    // Allow default behavior for external links or modifiers
-    if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || href?.startsWith('http') || href?.startsWith('mailto')) {
+    onClick?.(e);
+
+    if (
+      e.defaultPrevented ||
+      e.button !== 0 ||
+      e.altKey ||
+      e.ctrlKey ||
+      e.metaKey ||
+      e.shiftKey ||
+      (target && target !== '_self') ||
+      download ||
+      !href
+    ) {
       return;
     }
-    
-    e.preventDefault();
-    if (href) {
-      if (href.startsWith('#')) {
-        // In-page anchor scroll
-        const el = document.getElementById(href.substring(1));
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      } else {
-        navigate(href);
-      }
+
+    if (href.startsWith('#')) {
+      e.preventDefault();
+      const el = document.getElementById(href.substring(1));
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      return;
     }
+
+    const url = new URL(href, window.location.href);
+    if (!['http:', 'https:'].includes(url.protocol) || url.origin !== window.location.origin) {
+      return;
+    }
+
+    e.preventDefault();
+    navigate(`${url.pathname}${url.search}${url.hash}`);
   };
 
   return (
-    <a href={href} className={className} onClick={handleClick}>
+    <a {...props} href={href} target={target} download={download} onClick={handleClick}>
       {children}
     </a>
   );
