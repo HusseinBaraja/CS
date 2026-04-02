@@ -4,6 +4,7 @@ import type {
   CatalogChatOrchestrator,
   CatalogChatResult,
   CatalogChatTenantContext,
+  CatalogGroundingBundle,
   ChatLanguage,
   GroundingContextBlock,
   ProductRetrievalService,
@@ -56,6 +57,32 @@ const contextBlock: GroundingContextBlock = {
   id: "product-1",
   heading: "Burger Box",
   body: "Name (EN): Burger Box",
+};
+const groundingBundle: CatalogGroundingBundle = {
+  bundleId: "bundle-1",
+  retrievalMode: "raw_latest_message",
+  resolvedQuery: "Burger Box",
+  entityRefs: [
+    {
+      entityKind: "product",
+      entityId: "product-1",
+    },
+  ],
+  contextBlocks: [contextBlock],
+  language,
+  retrievalConfidence: 0.9,
+  products: [
+    {
+      id: "product-1",
+      name: "Burger Box",
+    },
+  ],
+  categories: [],
+  variants: [],
+  offers: [],
+  pricingFacts: [],
+  imageAvailability: [],
+  omissions: [],
 };
 
 const retrievedProduct: RetrievedProductContext = {
@@ -139,6 +166,7 @@ void serviceOptions;
 void service;
 void input;
 void contextBlock;
+void groundingBundle;
 void retrievedProduct;
 void candidate;
 void outcome;

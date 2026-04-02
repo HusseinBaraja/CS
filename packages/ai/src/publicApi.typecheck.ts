@@ -1,8 +1,7 @@
 import {
   type AssistantActionType,
   type AssistantStructuredOutput,
-  type BuildGroundedChatPromptInput,
-  type BuiltGroundedChatPrompt,
+  type CatalogGroundingBundle,
   type ChatCallOptions,
   type ChatLanguage,
   type ChatManagerCallOptions,
@@ -17,14 +16,18 @@ import {
   type LanguageResolutionOptions,
   type ParseAssistantStructuredOutputOptions,
   type ParseAssistantStructuredOutputResult,
+  type PromptAssemblyInput,
+  type PromptAssemblyOutput,
+  type PromptBehaviorInstructions,
   type PromptHistoryTurn,
-  buildGroundedChatPrompt,
+  assemblePrompt,
   createChatProviderManager,
   detectChatLanguage,
   parseAssistantStructuredOutput,
   resolveChatResponseLanguage,
   StructuredOutputParseError,
 } from './index';
+import type { CanonicalConversationStateDto, ConversationSummaryDto } from '@cs/shared';
 
 const request: ChatRequest = {
   messages: [
@@ -106,19 +109,101 @@ const groundingContext: GroundingContextBlock[] = [
     body: "Sizes: S, M, L",
   },
 ];
-const conversationHistory: PromptHistoryTurn[] = [
+const recentTurns: PromptHistoryTurn[] = [
   {
     role: "user",
     text: "hello",
   },
 ];
-const promptInput: BuildGroundedChatPromptInput = {
-  responseLanguage: "en",
-  customerMessage: "Need burger boxes",
-  groundingContext,
-  conversationHistory,
+const summary: ConversationSummaryDto = {
+  summaryId: "summary-1",
+  conversationId: "conversation-1",
+  durableCustomerGoal: "Find burger boxes",
+  stablePreferences: ["English responses"],
+  importantResolvedDecisions: [
+    {
+      summary: "Customer asked about burger boxes",
+    },
+  ],
+  historicalContextNeededForFutureTurns: ["Customer is asking about packaging products"],
+  freshness: {
+    status: "fresh",
+  },
+  provenance: {
+    source: "shadow",
+  },
+  coveredMessageRange: {
+    messageCount: 2,
+  },
 };
-const builtPrompt: BuiltGroundedChatPrompt = buildGroundedChatPrompt(promptInput);
+const state: CanonicalConversationStateDto = {
+  schemaVersion: "v1",
+  conversationId: "conversation-1",
+  companyId: "company-1",
+  responseLanguage: "en",
+  currentFocus: {
+    kind: "product",
+    entityIds: ["product-1"],
+  },
+  pendingClarification: {
+    active: false,
+  },
+  freshness: {
+    status: "fresh",
+  },
+  sourceOfTruthMarkers: {},
+  heuristicHints: {
+    usedQuotedReference: false,
+    topCandidates: [],
+  },
+};
+const behaviorInstructions: PromptBehaviorInstructions = {
+  responseLanguage: "en",
+  allowedActions: ["clarify"],
+  groundingPolicy: "supplied_facts_only",
+  ambiguityPolicy: "clarify_instead_of_guessing",
+  handoffPolicy: "handoff_on_explicit_request_or_unsafe_help",
+  offTopicPolicy: "refuse",
+  stylePolicy: "concise_target_language",
+  responseFormat: "assistant_structured_output_v1",
+};
+const groundingBundle: CatalogGroundingBundle = {
+  bundleId: "bundle-1",
+  retrievalMode: "raw_latest_message",
+  resolvedQuery: "Need burger boxes",
+  entityRefs: [
+    {
+      entityKind: "product",
+      entityId: "product-1",
+    },
+  ],
+  contextBlocks: groundingContext,
+  language: "en",
+  retrievalConfidence: 0.9,
+  products: [
+    {
+      id: "product-1",
+      name: "Burger Box",
+    },
+  ],
+  categories: [],
+  variants: [],
+  offers: [],
+  pricingFacts: [],
+  imageAvailability: [],
+  omissions: [],
+};
+const promptInput: PromptAssemblyInput = {
+  behaviorInstructions,
+  conversationSummary: summary,
+  conversationState: state,
+  recentTurns,
+  groundingBundle,
+  currentUserTurn: {
+    text: "Need burger boxes",
+  },
+};
+const builtPrompt: PromptAssemblyOutput = assemblePrompt(promptInput);
 const structuredOutput: AssistantStructuredOutput = {
   schemaVersion: "v1",
   text: "Please clarify which size you need.",
@@ -153,7 +238,11 @@ void detectionResult;
 void responseLanguage;
 void actionType;
 void groundingContext;
-void conversationHistory;
+void recentTurns;
+void summary;
+void state;
+void behaviorInstructions;
+void groundingBundle;
 void promptInput;
 void builtPrompt;
 void structuredOutput;

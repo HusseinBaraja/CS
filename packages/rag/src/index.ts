@@ -5,6 +5,7 @@ import {
   type ChatLanguage,
   type ChatProviderManager,
   type ChatResponse,
+  type CatalogGroundingBundle,
   createChatProviderManager,
   detectChatLanguage,
   GEMINI_EMBEDDING_DIMENSIONS,
@@ -87,7 +88,7 @@ type HydratedProductRecord = {
   variants: ProductVariantRecord[];
 };
 
-export type { ChatLanguage, GroundingContextBlock } from '@cs/ai';
+export type { CatalogGroundingBundle, ChatLanguage, GroundingContextBlock } from '@cs/ai';
 export type {
   AssistantActionType,
   AssistantStructuredOutput,
