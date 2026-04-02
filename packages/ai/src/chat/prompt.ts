@@ -123,9 +123,12 @@ const buildGroundingFactsPrompt = (bundle: CatalogGroundingBundle | null): strin
   ].join("\n");
 };
 
-const buildFinalUserPrompt = (input: PromptAssemblyInput): string =>
+const buildFinalUserPrompt = (
+  input: PromptAssemblyInput,
+  groundingFactsPrompt: string,
+): string =>
   [
-    buildGroundingFactsPrompt(input.groundingBundle),
+    groundingFactsPrompt,
     "<CURRENT_USER_TURN>",
     escapeForDelimiter(input.currentUserTurn.text),
     "</CURRENT_USER_TURN>",
@@ -158,8 +161,8 @@ export const assemblePrompt = (
   const behaviorPrompt = buildBehaviorInstructionsPrompt(input.behaviorInstructions);
   const summaryPrompt = buildSummaryPrompt(input.conversationSummary);
   const statePrompt = buildStatePrompt(input.conversationState);
-  const finalUserPrompt = buildFinalUserPrompt(input);
   const groundingFactsPrompt = buildGroundingFactsPrompt(input.groundingBundle);
+  const finalUserPrompt = buildFinalUserPrompt(input, groundingFactsPrompt);
   const messages: ChatRequest["messages"] = [
     {
       role: "system",

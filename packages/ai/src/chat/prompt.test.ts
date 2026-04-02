@@ -133,6 +133,12 @@ describe("assemblePrompt", () => {
       role: "user",
       content: expect.stringContaining("<CURRENT_USER_TURN>\nNeed burger boxes\n</CURRENT_USER_TURN>"),
     });
+    expect(prompt.messages[5]?.content).toContain("<GROUNDING_BUNDLE>");
+    expect(typeof prompt.messages[5]?.content).toBe("string");
+    if (typeof prompt.messages[5]?.content !== "string") {
+      throw new Error("expected final user prompt content to be a string");
+    }
+    expect(prompt.messages[5].content.match(/<GROUNDING_BUNDLE>/g)).toHaveLength(1);
   });
 
   test("includes language policy, schema contract, and allowed actions in behavior instructions", () => {
