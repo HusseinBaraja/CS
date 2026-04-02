@@ -18,6 +18,9 @@ router.add('GET', '/', LandingPage);
 router.add('GET', '/contact', ContactPage);
 router.add('GET', '/trial', TrialPage);
 
+/**
+ * App wires the marketing-site layout to the lightweight client router.
+ */
 function App() {
   return (
     <RouterProvider>

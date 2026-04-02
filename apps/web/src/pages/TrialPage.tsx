@@ -5,6 +5,9 @@ import { Link } from '../components/router/HonoRouter';
 import { ArrowLeft, CheckCircle2 } from '../components/icons';
 import logoUrl from '../assets/Reda_logo.svg';
 
+/**
+ * TrialPage collects demo trial requests and outlines the guided setup flow.
+ */
 export function TrialPage() {
   const container = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({ name: '', phone: '', company: '' });

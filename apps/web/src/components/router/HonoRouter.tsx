@@ -11,10 +11,16 @@ const RouterContext = createContext<RouterContextValue>({
   navigate: () => {},
 });
 
+/**
+ * useLocation exposes the current pathname and in-app navigate function.
+ */
 export function useLocation() {
   return useContext(RouterContext);
 }
 
+/**
+ * Link wraps anchors so same-origin document navigation goes through the app router.
+ */
 export function Link({
   href,
   children,

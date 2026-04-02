@@ -4,6 +4,9 @@ import { useGSAP } from '@gsap/react';
 import { Mail, MessageCircle, MapPin, ArrowRight } from '../components/icons';
 import { Link } from '../components/router/HonoRouter';
 
+/**
+ * ContactPage shows contact details and the demo contact intake form.
+ */
 export function ContactPage() {
   const container = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({ name: '', phone: '', company: '', message: '' });
