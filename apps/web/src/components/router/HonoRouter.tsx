@@ -29,7 +29,7 @@ export function Link({ href, children, className, onClick }: React.AnchorHTMLAtt
     e.preventDefault();
     if (href) {
       if (href.startsWith('#')) {
-        // Cross-page anchor support if needed later, for now just scroll
+        // In-page anchor scroll
         const el = document.getElementById(href.substring(1));
         if (el) el.scrollIntoView({ behavior: 'smooth' });
       } else {
@@ -45,11 +45,11 @@ export function Link({ href, children, className, onClick }: React.AnchorHTMLAtt
   );
 }
 
-interface HonoRouterProps {
-  router: TrieRouter<React.FC<any>>;
-}
-
-export function HonoRouter({ router }: HonoRouterProps) {
+/**
+ * RouterProvider wraps its children with the navigation context.
+ * Must be placed above any component that uses useLocation() or Link.
+ */
+export function RouterProvider({ children }: { children: React.ReactNode }) {
   const [path, setPath] = useState(window.location.pathname);
 
   useEffect(() => {
@@ -59,7 +59,6 @@ export function HonoRouter({ router }: HonoRouterProps) {
   }, []);
 
   const navigate = (to: string) => {
-    // Basic support for `#` links cross-page
     const url = new URL(to, window.location.origin);
     
     if (url.pathname !== path) {
@@ -68,21 +67,41 @@ export function HonoRouter({ router }: HonoRouterProps) {
     }
     
     if (url.hash) {
-      setTimeout(() => {
-        const el = document.getElementById(url.hash.substring(1));
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
+      const id = url.hash.substring(1);
+      let attempts = 0;
+      const maxAttempts = 10;
+      const tryScroll = () => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+        } else if (attempts < maxAttempts) {
+          attempts++;
+          setTimeout(tryScroll, 50);
+        }
+      };
+      // Start after a frame so React can flush the new route
+      requestAnimationFrame(tryScroll);
     } else {
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
   };
 
-  const match = router.match('GET', path);
-  const Component = match && match[0].length > 0 ? match[0][0][0] : () => <div>م الصفحة غير موجودة - 404</div>;
-
   return (
     <RouterContext.Provider value={{ path, navigate }}>
-      <Component />
+      {children}
     </RouterContext.Provider>
   );
 }
+
+/**
+ * RouteView matches the current path against the router and renders the
+ * corresponding page component.
+ */
+export function RouteView({ router }: { router: TrieRouter<React.FC<any>> }) {
+  const { path } = useLocation();
+  const match = router.match('GET', path);
+  const Component = match && match[0].length > 0 ? match[0][0][0] : () => <div>الصفحة غير موجودة - 404</div>;
+
+  return <Component />;
+}
+

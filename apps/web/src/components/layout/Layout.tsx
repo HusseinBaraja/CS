@@ -32,9 +32,13 @@ export function Layout({ children }: LayoutProps) {
             <span className="text-2xl font-black text-primary tracking-tight">رضا</span>
           </Link>
           <div className="hidden md:flex gap-8 items-center text-primary/80 font-medium">
-            <Link href="/#features" className="hover:text-primary transition-colors">المميزات</Link>
-            <Link href="/#how-it-works" className="hover:text-primary transition-colors">كيف يعمل</Link>
-            <Link href="/#pricing" className="hover:text-primary transition-colors">أسعارنا</Link>
+            {isLandingPage && (
+              <>
+                <Link href="/#features" className="hover:text-primary transition-colors">المميزات</Link>
+                <Link href="/#how-it-works" className="hover:text-primary transition-colors">كيف يعمل</Link>
+                <Link href="/#pricing" className="hover:text-primary transition-colors">أسعارنا</Link>
+              </>
+            )}
             <Link href="/contact" className="bg-primary text-white px-6 py-2.5 rounded-full hover:bg-primary/90 transition-all font-semibold shadow-sm hover:shadow-md">
               تواصل معنا
             </Link>

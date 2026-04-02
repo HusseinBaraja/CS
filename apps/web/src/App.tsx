@@ -4,7 +4,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { TrieRouter } from 'hono/router/trie-router';
 
 import { Layout } from './components/layout/Layout';
-import { HonoRouter } from './components/router/HonoRouter';
+import { RouterProvider, RouteView } from './components/router/HonoRouter';
 import { LandingPage } from './pages/LandingPage';
 import { ContactPage } from './pages/ContactPage';
 import { TrialPage } from './pages/TrialPage';
@@ -20,9 +20,11 @@ router.add('GET', '/trial', TrialPage);
 
 function App() {
   return (
-    <Layout>
-      <HonoRouter router={router} />
-    </Layout>
+    <RouterProvider>
+      <Layout>
+        <RouteView router={router} />
+      </Layout>
+    </RouterProvider>
   );
 }
 
