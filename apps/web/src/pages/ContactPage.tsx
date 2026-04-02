@@ -36,7 +36,6 @@ export function ContactPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Dummy Contact Form Submit: ', formData);
     alert('شكراً لتواصلك معنا. هذه نسخة تجريبية، وتم استلام طلبك بنجاح.');
     setFormData({ name: '', phone: '', company: '', message: '' });
   };
