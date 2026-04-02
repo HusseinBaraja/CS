@@ -1,36 +1,43 @@
 import React from 'react';
 import logoUrl from '../../assets/Reda_logo.svg';
+import { Link, useLocation } from '../router/HonoRouter';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 export function Layout({ children }: LayoutProps) {
+  const { path } = useLocation();
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Only show section links if on the landing page
+  const isLandingPage = path === '/';
 
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden">
       <nav className="w-full fixed top-0 left-0 bg-bg-light/80 backdrop-blur-md z-50 border-b border-primary/5">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <a
-            href="#"
+          <Link
+            href="/"
             aria-label="CSCB"
             className="flex items-center gap-3"
-            onClick={(event) => {
-              event.preventDefault();
-              scrollToTop();
+            onClick={(event: React.MouseEvent) => {
+              if (isLandingPage) {
+                event.preventDefault();
+                scrollToTop();
+              }
             }}
           >
             <img src={logoUrl} alt="" className="h-10 w-auto" />
             <span className="text-2xl font-black text-primary tracking-tight">رضا</span>
-          </a>
+          </Link>
           <div className="hidden md:flex gap-8 items-center text-primary/80 font-medium">
-            <a href="#features" className="hover:text-primary transition-colors">المميزات</a>
-            <a href="#how-it-works" className="hover:text-primary transition-colors">كيف يعمل</a>
-            <a href="#pricing" className="hover:text-primary transition-colors">أسعارنا</a>
-            <button type="button" className="bg-primary text-white px-6 py-2.5 rounded-full hover:bg-primary/90 transition-all font-semibold shadow-sm hover:shadow-md">
+            <Link href="/#features" className="hover:text-primary transition-colors">المميزات</Link>
+            <Link href="/#how-it-works" className="hover:text-primary transition-colors">كيف يعمل</Link>
+            <Link href="/#pricing" className="hover:text-primary transition-colors">أسعارنا</Link>
+            <Link href="/contact" className="bg-primary text-white px-6 py-2.5 rounded-full hover:bg-primary/90 transition-all font-semibold shadow-sm hover:shadow-md">
               تواصل معنا
-            </button>
+            </Link>
           </div>
         </div>
       </nav>
