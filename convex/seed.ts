@@ -104,6 +104,20 @@ const extendLockExpiry = async (
     expiresAt: now + SEED_SAMPLE_DATA_LOCK_LEASE_MS,
   });
 };
+
+const assertSeedCompanyTarget = (
+  company: Doc<"companies"> | null,
+  companyId: Id<"companies">,
+): void => {
+  if (!company) {
+    throw new Error(`Seed company ${companyId} was not found`);
+  }
+
+  if (company.seedKey !== seedCompanyTemplate.seedKey) {
+    throw new Error(`Company ${companyId} is not the seeded demo tenant`);
+  }
+};
+
 export const listSeedCompanyIds = internalQuery({
   args: {},
   handler: async (ctx) => {
@@ -247,10 +261,7 @@ export const insertSeedSampleData = internalMutation({
     companyId: v.id("companies"),
   },
   handler: async (ctx, args): Promise<Omit<SeedInsertResult, "companyName" | "companyId">["counts"]> => {
-    const company = await ctx.db.get(args.companyId);
-    if (!company) {
-      throw new Error(`Seed company ${args.companyId} was not found`);
-    }
+    assertSeedCompanyTarget(await ctx.db.get(args.companyId), args.companyId);
 
     const categoryIds = new Map<string, Id<"categories">>();
     for (const category of seedCategories) {
@@ -346,10 +357,7 @@ export const upsertSeedCompanySkeleton = internalMutation({
   handler: async (ctx, args): Promise<SeedCompanySkeletonResult> => {
     const seedCompany = buildSeedCompany(args.ownerPhone);
     if (args.companyId) {
-      const existingCompany = await ctx.db.get(args.companyId);
-      if (!existingCompany) {
-        throw new Error(`Seed company ${args.companyId} was not found`);
-      }
+      assertSeedCompanyTarget(await ctx.db.get(args.companyId), args.companyId);
 
       await ctx.db.patch(args.companyId, {
         name: seedCompany.name,

@@ -233,6 +233,32 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(reseededCompany.botRuntimeSessionLeaseOwner).toBeUndefined();
   });
 
+  it("rejects direct seed helper mutations for non-seed tenants", async () => {
+    const t = convexTest(schema, modules);
+
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Real Tenant",
+        ownerPhone: SEED_OWNER_PHONE,
+        timezone: "Asia/Riyadh",
+        config: { defaultLanguage: "en" },
+      })
+    );
+
+    await expect(
+      t.mutation(internal.seed.insertSeedSampleData, {
+        companyId,
+      }),
+    ).rejects.toThrow(`Company ${companyId} is not the seeded demo tenant`);
+
+    await expect(
+      t.mutation(internal.seed.upsertSeedCompanySkeleton, {
+        ownerPhone: SEED_OWNER_PHONE,
+        companyId,
+      }),
+    ).rejects.toThrow(`Company ${companyId} is not the seeded demo tenant`);
+  });
+
   it("uses a single seed lock owner and releases it after completion", async () => {
     const t = convexTest(schema, modules);
     const ownerToken = "seed-lock-owner";
