@@ -338,6 +338,111 @@ describe("createCatalogChatOrchestrator", () => {
     expect(result.language.responseLanguage).toBe("ar");
   });
 
+  test("limits grounding bundle entities to products included in context blocks", async () => {
+    let promptInput: PromptAssemblyInput | undefined;
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(groundedRetrievalResult({
+        candidates: [
+          {
+            productId: "product-1",
+            score: 0.92,
+            matchedEmbeddingId: "embedding-1",
+            matchedText: "Burger box hit",
+            language: "en",
+            contextBlock: {
+              id: "product-1",
+              heading: "Burger Box",
+              body: "Name (EN): Burger Box",
+            },
+            product: {
+              id: "product-1",
+              categoryId: "category-1",
+              nameEn: "Burger Box",
+              imageCount: 1,
+              basePrice: 12,
+              baseCurrency: "USD",
+              variants: [],
+            },
+          },
+          {
+            productId: "product-2",
+            score: 0.81,
+            matchedEmbeddingId: "embedding-2",
+            matchedText: "Tray hit",
+            language: "en",
+            contextBlock: {
+              id: "product-2",
+              heading: "Food Tray",
+              body: "Name (EN): Food Tray",
+            },
+            product: {
+              id: "product-2",
+              categoryId: "category-2",
+              nameEn: "Food Tray",
+              imageCount: 3,
+              basePrice: 20,
+              baseCurrency: "USD",
+              variants: [],
+            },
+          },
+        ],
+        contextBlocks: [
+          {
+            id: "product-1",
+            heading: "Burger Box",
+            body: "Name (EN): Burger Box",
+          },
+        ],
+      })),
+      buildPrompt: (input: PromptAssemblyInput) => {
+        promptInput = input;
+        return createPromptAssemblyOutputStub(input);
+      },
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        text: '{"schemaVersion":"v1","text":"We have burger boxes.","action":{"type":"none"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      userMessage: "Burger Box",
+    });
+
+    expect(promptInput?.groundingBundle).toEqual(expect.objectContaining({
+      entityRefs: [
+        {
+          entityKind: "product",
+          entityId: "product-1",
+        },
+      ],
+      products: [
+        {
+          id: "product-1",
+          name: "Burger Box",
+        },
+      ],
+      pricingFacts: [
+        {
+          entityId: "product-1",
+          kind: "base_price",
+          value: 12,
+          currency: "USD",
+        },
+      ],
+      imageAvailability: [
+        {
+          entityId: "product-1",
+          hasImages: true,
+          imageCount: 1,
+        },
+      ],
+    }));
+  });
+
   test("skips provider invocation and returns a clarification fallback for blank input", async () => {
     const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
     const { logger, infoCalls } = createLoggerStub();

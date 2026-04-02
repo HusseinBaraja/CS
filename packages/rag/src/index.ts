@@ -378,8 +378,13 @@ const buildCatalogGroundingBundle = (
     return null;
   }
 
+  const groundedContextBlockIds = new Set(retrieval.contextBlocks.map((block) => block.id));
   const uniqueProducts = Array.from(
-    new Map(retrieval.candidates.map((candidate) => [candidate.product.id, candidate.product] as const)).values(),
+    new Map(
+      retrieval.candidates
+        .filter((candidate) => groundedContextBlockIds.has(candidate.contextBlock.id))
+        .map((candidate) => [candidate.product.id, candidate.product] as const),
+    ).values(),
   );
   const pricingFacts = uniqueProducts.flatMap((product) =>
     product.basePrice !== undefined
