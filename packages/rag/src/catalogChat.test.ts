@@ -3,6 +3,8 @@ import {
   createChatProviderManager,
   type ChatProviderHealth,
   type ChatProviderName,
+  type PromptAssemblyInput,
+  type PromptAssemblyOutput,
   type ChatResponse,
   type ChatRuntimeConfig,
 } from '@cs/ai';
@@ -160,6 +162,80 @@ const createFailoverChatManager = (
     }),
   });
 
+const createPromptAssemblyOutputStub = (
+  input: PromptAssemblyInput,
+): PromptAssemblyOutput => ({
+  messages: [
+    {
+      role: "system",
+      content: "system",
+    },
+    {
+      role: "user",
+      content: "user",
+    },
+  ],
+  layerMetadata: [
+    {
+      layer: "behavior_instructions",
+      present: true,
+      messageRole: "system",
+      itemCount: 1,
+      charCount: 6,
+      truncated: false,
+    },
+    {
+      layer: "conversation_summary",
+      present: Boolean(input.conversationSummary),
+      messageRole: "system",
+      itemCount: input.conversationSummary ? 1 : 0,
+      charCount: input.conversationSummary ? 7 : 0,
+      truncated: false,
+    },
+    {
+      layer: "conversation_state",
+      present: Boolean(input.conversationState),
+      messageRole: "system",
+      itemCount: input.conversationState ? 1 : 0,
+      charCount: input.conversationState ? 5 : 0,
+      truncated: false,
+    },
+    {
+      layer: "recent_turns",
+      present: input.recentTurns.length > 0,
+      messageRole: "mixed",
+      itemCount: input.recentTurns.length,
+      charCount: input.recentTurns.reduce((total, turn) => total + turn.text.length, 0),
+      truncated: false,
+    },
+    {
+      layer: "grounding_facts",
+      present: Boolean(input.groundingBundle),
+      messageRole: "user",
+      itemCount: input.groundingBundle?.contextBlocks.length ?? 0,
+      charCount: input.groundingBundle?.contextBlocks.reduce((total, block) => total + block.body.length, 0) ?? 0,
+      truncated: false,
+    },
+    {
+      layer: "current_user_turn",
+      present: true,
+      messageRole: "user",
+      itemCount: 1,
+      charCount: input.currentUserTurn.text.length,
+      truncated: false,
+    },
+  ],
+  tokenBudgetByLayer: {
+    behavior_instructions: { layer: "behavior_instructions", maxTokens: null },
+    conversation_summary: { layer: "conversation_summary", maxTokens: null },
+    conversation_state: { layer: "conversation_state", maxTokens: null },
+    recent_turns: { layer: "recent_turns", maxTokens: null },
+    grounding_facts: { layer: "grounding_facts", maxTokens: null },
+    current_user_turn: { layer: "current_user_turn", maxTokens: null },
+  },
+  omittedContext: [],
+});
+
 describe("createCatalogChatOrchestrator", () => {
   test("returns a grounded provider response when retrieval is grounded and output parses cleanly", async () => {
     const retrievalCalls: unknown[] = [];
@@ -225,24 +301,9 @@ describe("createCatalogChatOrchestrator", () => {
         }),
         retrievalCalls,
       ),
-      buildPrompt: (input) => {
+      buildPrompt: (input: PromptAssemblyInput) => {
         promptInput = input as unknown as Record<string, unknown>;
-        return {
-          systemPrompt: "system",
-          userPrompt: "user",
-          request: {
-            messages: [
-              {
-                role: "system",
-                content: "system",
-              },
-              {
-                role: "user",
-                content: "user",
-              },
-            ],
-          },
-        };
+        return createPromptAssemblyOutputStub(input);
       },
       chatManager: createChatManagerStub(async () => ({
         provider: "gemini",
@@ -267,7 +328,13 @@ describe("createCatalogChatOrchestrator", () => {
     expect((retrievalCalls[0] as { maxResults: number }).maxResults).toBe(2);
     expect((retrievalCalls[0] as { maxContextBlocks: number }).maxContextBlocks).toBe(1);
     expect((retrievalCalls[0] as { minScore: number }).minScore).toBe(0.8);
-    expect(promptInput?.responseLanguage).toBe("ar");
+    expect(promptInput?.behaviorInstructions).toEqual(expect.objectContaining({
+      responseLanguage: "ar",
+    }));
+    expect(promptInput?.groundingBundle).toEqual(expect.objectContaining({
+      retrievalMode: "raw_latest_message",
+      resolvedQuery: "علبة برجر",
+    }));
     expect(result.language.responseLanguage).toBe("ar");
   });
 
@@ -780,7 +847,7 @@ describe("createCatalogChatOrchestrator", () => {
 
   test("passes caller-supplied history unchanged into prompt assembly", async () => {
     let promptInput: Record<string, unknown> | undefined;
-    const history = [
+    const recentTurns = [
       {
         role: "user" as const,
         text: "Hello",
@@ -792,24 +859,9 @@ describe("createCatalogChatOrchestrator", () => {
     ];
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
-      buildPrompt: (input) => {
+      buildPrompt: (input: PromptAssemblyInput) => {
         promptInput = input as unknown as Record<string, unknown>;
-        return {
-          systemPrompt: "system",
-          userPrompt: "user",
-          request: {
-            messages: [
-              {
-                role: "system",
-                content: "system",
-              },
-              {
-                role: "user",
-                content: "user",
-              },
-            ],
-          },
-        };
+        return createPromptAssemblyOutputStub(input);
       },
       chatManager: createChatManagerStub(async () => ({
         provider: "gemini",
@@ -823,14 +875,16 @@ describe("createCatalogChatOrchestrator", () => {
         companyId: COMPANY_ID,
       },
       conversation: {
-        history,
+        recentTurns,
         allowedActions: ["none", "clarify"],
       },
       userMessage: "Burger Box",
     });
 
-    expect(promptInput?.conversationHistory).toEqual(history);
-    expect(promptInput?.allowedActions).toEqual(["none", "clarify"]);
+    expect(promptInput?.recentTurns).toEqual(recentTurns);
+    expect(promptInput?.behaviorInstructions).toEqual(expect.objectContaining({
+      allowedActions: ["none", "clarify"],
+    }));
     expect(result.assistant.action.type).toBe("none");
   });
 
@@ -840,24 +894,9 @@ describe("createCatalogChatOrchestrator", () => {
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
       logger,
-      buildPrompt: (input) => {
+      buildPrompt: (input: PromptAssemblyInput) => {
         promptInput = input as unknown as Record<string, unknown>;
-        return {
-          systemPrompt: "system",
-          userPrompt: "user",
-          request: {
-            messages: [
-              {
-                role: "system",
-                content: "system",
-              },
-              {
-                role: "user",
-                content: "user",
-              },
-            ],
-          },
-        };
+        return createPromptAssemblyOutputStub(input);
       },
       chatManager: createChatManagerStub(async () => ({
         provider: "gemini",
@@ -872,7 +911,7 @@ describe("createCatalogChatOrchestrator", () => {
       },
       conversation: {
         conversationId: "conversation-1",
-        history: [
+        recentTurns: [
           {
             role: "user",
             text: "Show me burger boxes",
@@ -910,7 +949,7 @@ describe("createCatalogChatOrchestrator", () => {
       userMessage: "Burger Box",
     });
 
-    expect(promptInput?.conversationHistory).toEqual([
+    expect(promptInput?.recentTurns).toEqual([
       {
         role: "user",
         text: "Show me burger boxes",
@@ -921,7 +960,7 @@ describe("createCatalogChatOrchestrator", () => {
         event: "rag.context_usage.recorded",
         conversationId: "conversation-1",
         requestId: "request-1",
-        usedConversationState: false,
+        usedConversationState: true,
       },
     });
   });
@@ -1030,7 +1069,7 @@ describe("createCatalogChatOrchestrator", () => {
       },
       conversation: {
         conversationId: "conversation-1",
-        history: [
+        recentTurns: [
           {
             role: "user",
             text: "Show me the burger boxes",

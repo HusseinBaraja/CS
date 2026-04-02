@@ -1,7 +1,5 @@
 import type { ChatRequest } from './contracts';
 import type {
-  BuildGroundedChatPromptInput,
-  BuiltGroundedChatPrompt,
   CatalogGroundingBundle,
   GroundingContextBlock,
   PromptAssemblyInput,
@@ -234,71 +232,5 @@ export const assemblePrompt = (
     ],
     tokenBudgetByLayer: createLayerBudgets(),
     omittedContext,
-  };
-};
-
-export const buildGroundedChatPrompt = (
-  input: BuildGroundedChatPromptInput,
-): BuiltGroundedChatPrompt => {
-  const assembledPrompt = assemblePrompt({
-    behaviorInstructions: {
-      responseLanguage: input.responseLanguage,
-      allowedActions: input.allowedActions,
-      groundingPolicy: "supplied_facts_only",
-      ambiguityPolicy: "clarify_instead_of_guessing",
-      handoffPolicy: "handoff_on_explicit_request_or_unsafe_help",
-      offTopicPolicy: "refuse",
-      stylePolicy: "concise_target_language",
-      responseFormat: "assistant_structured_output_v1",
-    },
-    conversationSummary: null,
-    conversationState: null,
-    recentTurns: input.conversationHistory ?? [],
-    groundingBundle: input.groundingContext
-      ? {
-        bundleId: "legacy-grounding-bundle",
-        retrievalMode: "raw_latest_message",
-        resolvedQuery: input.customerMessage,
-        entityRefs: [],
-        contextBlocks: input.groundingContext,
-        language: input.responseLanguage,
-        retrievalConfidence: null,
-        products: [],
-        categories: [],
-        variants: [],
-        offers: [],
-        pricingFacts: [],
-        imageAvailability: [],
-        omissions: input.groundingContext.length > 0
-          ? []
-          : [
-            { kind: "categories", reason: "not_collected" as const },
-            { kind: "products", reason: "not_collected" as const },
-            { kind: "variants", reason: "not_collected" as const },
-            { kind: "offers", reason: "not_collected" as const },
-            { kind: "pricing_facts", reason: "not_collected" as const },
-            { kind: "image_availability", reason: "not_collected" as const },
-          ],
-      }
-      : null,
-    currentUserTurn: {
-      text: input.customerMessage,
-    },
-  });
-  const firstMessage = assembledPrompt.messages[0];
-  const lastMessage = assembledPrompt.messages[assembledPrompt.messages.length - 1];
-  const systemPrompt = firstMessage && typeof firstMessage.content === "string"
-    ? firstMessage.content
-    : "";
-  const userPrompt = lastMessage && typeof lastMessage.content === "string"
-    ? lastMessage.content
-    : "";
-
-  return {
-    systemPrompt,
-    userPrompt,
-    request: {
-      messages: assembledPrompt.messages,
-    },
   };
 };

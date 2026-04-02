@@ -138,7 +138,7 @@ const catalogChatInput: CatalogChatInput = {
   },
   conversation: {
     conversationId: "conversation-1",
-    history: [
+    recentTurns: [
       {
         role: "user",
         text: "مرحبا",

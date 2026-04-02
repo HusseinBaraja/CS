@@ -11,7 +11,7 @@ export { createChatRuntimeConfig } from "./chat/runtimeConfig";
 export { ChatProviderError } from "./chat/errors";
 export { ChatProviderChainError, createChatProviderManager } from "./chat/manager";
 export { detectChatLanguage, resolveChatResponseLanguage } from "./chat/language";
-export { assemblePrompt, buildGroundedChatPrompt } from "./chat/prompt";
+export { assemblePrompt } from "./chat/prompt";
 export { DEFAULT_ALLOWED_ACTIONS, getAllowedActions } from "./chat/actions";
 export { parseAssistantStructuredOutput } from "./chat/output";
 export { StructuredOutputParseError } from "./chat/promptContracts";
@@ -49,8 +49,6 @@ export type {
   CatalogGroundingPricingFact,
   CatalogGroundingProduct,
   CatalogGroundingVariant,
-  BuildGroundedChatPromptInput,
-  BuiltGroundedChatPrompt,
   GroundingContextBlock,
   GroundingEntityRef,
   ParseAssistantStructuredOutputResult,
