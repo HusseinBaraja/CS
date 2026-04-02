@@ -43,7 +43,7 @@ export function TrialPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Dummy Trial Form Submit: ', formData);
-    alert('نشكرك على تسجيلك! سيقوم فريقنا بالتواصل معك قريباً لتفعيل النسخة التجريبية.');
+    alert('تم تسجيل طلبك. بيتواصل معك فريقنا قريباً لترتيب التجربة المجانية.');
   };
 
   return (
@@ -69,10 +69,10 @@ export function TrialPage() {
           <div className="p-8 md:p-12 md:col-span-3">
             <div className="mb-10 text-center">
               <h1 className="trial-content text-3xl md:text-4xl font-black text-primary mb-4 leading-tight">
-                ابدأ رحلة <span className="text-emerald-700">النمو</span> مجاناً
+                جرّب <span className="text-emerald-700">رضا</span> على واتساب مع نشاطك
               </h1>
               <p className="trial-content text-primary/60 text-lg font-medium">
-                قم بتسجيل بياناتك وسنوفر لك بيئة تجريبية متكاملة لتقييم المساعد الذكي.
+                عبّ بياناتك وبنتواصل معك لترتيب تجربة تناسب شغلك وطريقة ردك مع العملاء في اليمن.
               </p>
             </div>
 
@@ -83,7 +83,7 @@ export function TrialPage() {
                    required
                    value={formData.name}
                    onChange={e => setFormData({...formData, name: e.target.value})}
-                   placeholder="الاسم الكريم"
+                   placeholder="الاسم الكامل"
                    className="w-full bg-white border border-primary/10 rounded-2xl px-5 py-4 text-primary font-medium placeholder-primary/30 focus:outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10 transition-all shadow-sm"
                  />
                </div>
@@ -95,7 +95,7 @@ export function TrialPage() {
                    value={formData.phone}
                    onChange={e => setFormData({...formData, phone: e.target.value})}
                    style={{ direction: 'ltr' }}
-                   placeholder="+966 5x xxx xxxx"
+                   placeholder="+967 7xx xxx xxx"
                    className="w-full text-right bg-white border border-primary/10 rounded-2xl px-5 py-4 text-primary font-medium placeholder-primary/30 focus:outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10 transition-all shadow-sm"
                  />
                </div>
@@ -106,7 +106,7 @@ export function TrialPage() {
                    required
                    value={formData.company}
                    onChange={e => setFormData({...formData, company: e.target.value})}
-                   placeholder="اسم المتجر أو العلامة التجارية"
+                   placeholder="اسم المحل أو الشركة"
                    className="w-full bg-white border border-primary/10 rounded-2xl px-5 py-4 text-primary font-medium placeholder-primary/30 focus:outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10 transition-all shadow-sm"
                  />
                </div>
@@ -115,7 +115,7 @@ export function TrialPage() {
                  type="submit"
                  className="trial-content relative overflow-hidden group mt-4 w-full bg-primary text-white py-4 rounded-2xl font-bold text-lg hover:bg-primary/90 transition-all duration-300 shadow-xl shadow-primary/20 hover:shadow-2xl hover:shadow-primary/30 flex items-center justify-center gap-3 translate-y-0 hover:-translate-y-1"
                >
-                 <span className="relative z-10">اطلب النسخة التجريبية</span>
+                 <span className="relative z-10">احجز التجربة المجانية</span>
                  <ArrowLeft className="w-5 h-5 relative z-10 group-hover:-translate-x-1 transition-transform" />
                  {/* Shine effect */}
                  <div className="absolute top-0 -inset-full h-full w-1/2 z-0 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
@@ -127,14 +127,14 @@ export function TrialPage() {
           <div className="bg-primary p-8 md:p-12 md:col-span-2 flex flex-col justify-center text-white/90 relative overflow-hidden">
             <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top_right,var(--color-secondary),transparent_70%)]" />
             
-            <h3 className="trial-content text-2xl font-black text-white mb-8">ماذا تقدم لك النسخة التجريبية؟</h3>
+            <h3 className="trial-content text-2xl font-black text-white mb-8">ما الذي ستحصل عليه في التجربة؟</h3>
             
             <ul className="space-y-6">
               {[
-                { title: 'ردود آلية سريعة', desc: 'نظام مدرب للرد على الأسئلة الشائعة.' },
-                { title: 'فهم دقيق للعملاء', desc: 'تعرف على المنتجات والسياق بسهولة.' },
-                { title: 'تحويل للمبيعات', desc: 'إحالة المحادثات المعقدة للموظف المختص.' },
-                { title: 'لوحة تحكم كاملة', desc: 'تتبع كافة المحادثات والتقارير.' },
+                { title: 'ردود مرتبة باللهجة المناسبة', desc: 'صياغة واضحة ومقنعة تناسب طبيعة العملاء والسوق المحلي.' },
+                { title: 'تهيئة تناسب نشاطك', desc: 'نرتب الردود الأولى بحسب منتجاتك وطريقة بيعك على واتساب.' },
+                { title: 'تحويل سريع للحالات المهمة', desc: 'لما يحتاج العميل متابعة بشرية يتحول الطلب بدون لخبطة.' },
+                { title: 'صورة أوضح عن الاستفسارات', desc: 'تعرف أكثر الأسئلة والمنتجات التي يركز عليها عملاؤك.' },
               ].map((item, idx) => (
                 <li key={idx} className="trial-content flex items-start gap-4">
                   <CheckCircle2 className="w-6 h-6 text-secondary shrink-0 mt-0.5" />

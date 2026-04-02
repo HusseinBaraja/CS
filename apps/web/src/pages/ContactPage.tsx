@@ -35,7 +35,7 @@ export function ContactPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Dummy Contact Form Submit: ', formData);
-    alert('نشكرك على تواصلك. هذه نسخة تجريبية وتم الإرسال بنجاح!');
+    alert('شكراً لتواصلك معنا. هذه نسخة تجريبية، وتم استلام طلبك بنجاح.');
     setFormData({ name: '', phone: '', company: '', message: '' });
   };
 
@@ -57,11 +57,11 @@ export function ContactPage() {
           </Link>
 
           <h1 className="contact-left-anim text-5xl md:text-6xl font-black text-white leading-tight mb-6">
-            دائماً في الجوار <br/>
-            <span className="text-secondary italic font-light">لخدمتكم</span>
+            جاهزين نسمع منك <br/>
+            <span className="text-secondary italic font-light">ونرتب معك البداية</span>
           </h1>
           <p className="contact-left-anim text-lg text-white/60 mb-12 max-w-md font-light leading-relaxed">
-            سواء كنت تحتاج لحل مخصص أو مساعدة تقنية، فريقنا جاهز لتحقيق أهدافك.
+            مخصص للأعمال في اليمن التي تريد خدمة عملاء أسرع على واتساب بدون تعقيد.
           </p>
 
           <div className="contact-left-anim space-y-8">
@@ -70,8 +70,8 @@ export function ContactPage() {
                 <MessageCircle className="w-6 h-6 text-secondary" />
               </div>
               <div>
-                <h3 className="text-white/50 text-sm mb-1">واتساب مباشر</h3>
-                <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors">+966 50 000 0000</p>
+                <h3 className="text-white/50 text-sm mb-1">واتساب للتواصل</h3>
+                <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors">+967 77 000 0000</p>
               </div>
             </div>
 
@@ -91,7 +91,7 @@ export function ContactPage() {
               </div>
               <div>
                 <h3 className="text-white/50 text-sm mb-1">المقر الرئيسي</h3>
-                <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors">الرياض، المملكة العربية السعودية</p>
+                <p className="font-medium text-lg text-white group-hover:text-secondary transition-colors">صنعاء، اليمن</p>
               </div>
             </div>
           </div>
@@ -103,49 +103,49 @@ export function ContactPage() {
             <form onSubmit={handleSubmit} className="flex flex-col gap-6">
               
               <div className="contact-right-anim flex flex-col gap-2">
-                <label className="text-white/70 text-sm font-medium pr-2">الاسم الكريم</label>
+                <label className="text-white/70 text-sm font-medium pr-2">الاسم الكامل</label>
                 <input 
                   type="text" 
                   value={formData.name}
                   onChange={e => setFormData({...formData, name: e.target.value})}
                   required
-                  placeholder="محمد العبدالله"
+                  placeholder="مثال: محمد الآنسي"
                   className="bg-primary/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-secondary/60 focus:bg-white/5 transition-colors duration-300 w-full"
                 />
               </div>
 
               <div className="contact-right-anim flex flex-col gap-2">
-                <label className="text-white/70 text-sm font-medium pr-2">رقم الجوال</label>
+                <label className="text-white/70 text-sm font-medium pr-2">رقم الواتساب</label>
                 <input 
                   type="tel" 
                   value={formData.phone}
                   onChange={e => setFormData({...formData, phone: e.target.value})}
                   required
                   style={{ direction: 'ltr' }}
-                  placeholder="+966 5x xxx xxxx"
+                  placeholder="+967 7xx xxx xxx"
                   className="text-right bg-primary/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-secondary/60 focus:bg-white/5 transition-all w-full"
                 />
               </div>
 
               <div className="contact-right-anim flex flex-col gap-2">
-                <label className="text-white/70 text-sm font-medium pr-2">اسم الشركة / المتجر</label>
+                <label className="text-white/70 text-sm font-medium pr-2">اسم المحل أو الشركة</label>
                 <input 
                   type="text" 
                   value={formData.company}
                   onChange={e => setFormData({...formData, company: e.target.value})}
                   required
-                  placeholder="مؤسسة التقنية العالية"
+                  placeholder="مثال: مؤسسة الخير للتجارة"
                   className="bg-primary/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-secondary/60 focus:bg-white/5 transition-colors duration-300 w-full"
                 />
               </div>
 
               <div className="contact-right-anim flex flex-col gap-2 mb-2">
-                <label className="text-white/70 text-sm font-medium pr-2">تفاصيل الطلب</label>
+                <label className="text-white/70 text-sm font-medium pr-2">كيف نقدر نخدمك؟</label>
                 <textarea 
                   rows={4}
                   value={formData.message}
                   onChange={e => setFormData({...formData, message: e.target.value})}
-                  placeholder="كيف يمكننا مساعدتك؟"
+                  placeholder="اكتب لنا طبيعة شغلك أو عدد الرسائل التي تستقبلها يومياً"
                   className="bg-primary/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-secondary/60 focus:bg-white/5 transition-all w-full resize-none"
                 />
               </div>
@@ -154,7 +154,7 @@ export function ContactPage() {
                 type="submit" 
                 className="contact-right-anim w-full bg-secondary text-primary font-bold text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(227,178,60,0.3)] hover:shadow-[0_0_30px_rgba(227,178,60,0.5)] hover:-translate-y-1 transition-[background-color,box-shadow,color] duration-300"
               >
-                إرسال الطلب
+                أرسل طلبك
               </button>
             </form>
           </div>
