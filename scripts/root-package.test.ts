@@ -81,7 +81,7 @@ describe("web TypeScript config", () => {
 
 describe("command validation conventions", () => {
   test("keep non-linting workspaces on typecheck-only check scripts", () => {
-    expect(apiScripts.dev).toBe("powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/watch-from-root.ps1 src/index.ts");
+    expect(apiScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
     expect(apiScripts.check).toBe("bun run typecheck");
     expect(apiScripts.lint).toBeUndefined();
 
@@ -90,7 +90,7 @@ describe("command validation conventions", () => {
     expect(cliScripts.check).toBe("bun run typecheck");
     expect(cliScripts.lint).toBeUndefined();
 
-    expect(workerScripts.dev).toBe("powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/watch-from-root.ps1 src/index.ts");
+    expect(workerScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
     expect(workerScripts.check).toBe("bun run typecheck");
     expect(workerScripts.lint).toBeUndefined();
 
