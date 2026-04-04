@@ -80,6 +80,16 @@ describe("web TypeScript config", () => {
 });
 
 describe("command validation conventions", () => {
+  test("validate the PowerShell watcher entry path before resolving it", async () => {
+    const script = await Bun.file(new URL("../scripts/watch-from-root.ps1", import.meta.url)).text();
+    const testPathIndex = script.indexOf("Test-Path $EntryPath");
+    const resolvePathIndex = script.indexOf("(Resolve-Path $EntryPath).Path");
+
+    expect(testPathIndex).toBeGreaterThanOrEqual(0);
+    expect(resolvePathIndex).toBeGreaterThanOrEqual(0);
+    expect(testPathIndex).toBeLessThan(resolvePathIndex);
+  });
+
   test("keep non-linting workspaces on typecheck-only check scripts", () => {
     expect(apiScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
     expect(apiScripts.check).toBe("bun run typecheck");
