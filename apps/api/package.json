@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --env-file=../../.env --watch src/index.ts",
+    "dev": "bun ../../scripts/watch-from-root.ts src/index.ts",
     "build": "bun --env-file=../../.env build src/index.ts --outdir dist --target bun",
     "typecheck": "tsc --noEmit",
     "check": "bun run typecheck",

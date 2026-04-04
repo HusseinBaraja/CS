@@ -27,10 +27,10 @@ const storageScripts = storagePackageJson.scripts as PackageScripts;
 
 describe("root package scripts", () => {
   test("exposes app-runtime commands from the repository root", () => {
-    expect(scripts.dev).toBe("turbo run dev --filter=api --filter=bot --filter=web --filter=worker --parallel");
+    expect(scripts.dev).toBe("turbo run dev --filter=api --filter=bot --filter=web --filter=worker");
     expect(scripts.web).toBe("bun run dev:web");
     expect(scripts["dev:api"]).toBe("turbo run dev --filter=api");
-    expect(scripts["dev:bot"]).toBe("turbo run dev --filter=api --filter=bot --parallel");
+    expect(scripts["dev:bot"]).toBe("turbo run dev --filter=api --filter=bot");
     expect(scripts["dev:web"]).toBe("turbo run dev --filter=web");
     expect(scripts["dev:worker"]).toBe("turbo run dev --filter=worker");
     expect(scripts["build:web"]).toBe("turbo run build --filter=web");
@@ -80,7 +80,18 @@ describe("web TypeScript config", () => {
 });
 
 describe("command validation conventions", () => {
+  test("validate the PowerShell watcher entry path before resolving it", async () => {
+    const script = await Bun.file(new URL("../scripts/watch-from-root.ps1", import.meta.url)).text();
+    const testPathIndex = script.indexOf("Test-Path $EntryPath");
+    const resolvePathIndex = script.indexOf("(Resolve-Path $EntryPath).Path");
+
+    expect(testPathIndex).toBeGreaterThanOrEqual(0);
+    expect(resolvePathIndex).toBeGreaterThanOrEqual(0);
+    expect(testPathIndex).toBeLessThan(resolvePathIndex);
+  });
+
   test("keep non-linting workspaces on typecheck-only check scripts", () => {
+    expect(apiScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
     expect(apiScripts.check).toBe("bun run typecheck");
     expect(apiScripts.lint).toBeUndefined();
 
@@ -89,6 +100,7 @@ describe("command validation conventions", () => {
     expect(cliScripts.check).toBe("bun run typecheck");
     expect(cliScripts.lint).toBeUndefined();
 
+    expect(workerScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
     expect(workerScripts.check).toBe("bun run typecheck");
     expect(workerScripts.lint).toBeUndefined();
 
