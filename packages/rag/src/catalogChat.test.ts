@@ -102,11 +102,6 @@ const createLoggerStub = (): {
   };
 };
 
-const findLoggedEvent = (
-  calls: Array<{ payload: Record<string, unknown>; message: string }>,
-  eventName: string,
-) => calls.find((call) => call.payload.event === eventName);
-
 const runtimeConfig: ChatRuntimeConfig = {
   providerOrder: ["deepseek", "gemini"],
   requestTimeoutMs: 10_000,
@@ -323,7 +318,7 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(chatCalls).toHaveLength(0);
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.completed")).toMatchObject({
+    expect(infoCalls[0]).toMatchObject({
       message: "catalog retrieval completed",
       payload: {
         event: "rag.retrieval.completed",
@@ -339,52 +334,6 @@ describe("createCatalogChatOrchestrator", () => {
         },
       },
     });
-    const retrievalOutcomeLog = findLoggedEvent(infoCalls, "rag.retrieval.outcome_recorded");
-    expect(retrievalOutcomeLog).toMatchObject({
-      message: "catalog retrieval outcome recorded",
-      payload: {
-        event: "rag.retrieval.outcome_recorded",
-        retrievalMode: "raw_latest_message",
-        retrievalOutcome: "empty",
-        candidateCount: 0,
-        topScore: null,
-        contextBlockCount: 0,
-        fallbackChosen: "clarify",
-      },
-    });
-    expect(retrievalOutcomeLog?.payload).not.toHaveProperty("conversationId");
-    expect(retrievalOutcomeLog?.payload).not.toHaveProperty("requestId");
-    const contextUsageLog = findLoggedEvent(infoCalls, "rag.context_usage.recorded");
-    expect(contextUsageLog).toMatchObject({
-      message: "catalog context usage recorded",
-      payload: {
-        event: "rag.context_usage.recorded",
-        stage: "prompt_assembly",
-        promptHistorySelectionMode: "no_history",
-        usedRecentTurns: false,
-        usedConversationState: false,
-        usedSummary: false,
-        usedQuotedReference: false,
-        usedGroundingFacts: false,
-      },
-    });
-    expect(contextUsageLog?.payload).not.toHaveProperty("conversationId");
-    expect(contextUsageLog?.payload).not.toHaveProperty("requestId");
-    const fallbackDecisionLog = findLoggedEvent(infoCalls, "rag.decision.recorded");
-    expect(fallbackDecisionLog).toMatchObject({
-      message: "catalog fallback decision recorded",
-      payload: {
-        event: "rag.decision.recorded",
-        decisionType: "clarify",
-        reason: "empty_query",
-        precedingStage: "retrieval",
-        resolutionConfidence: null,
-        retrievalOutcome: "empty",
-        providerOutcome: "not_requested",
-      },
-    });
-    expect(fallbackDecisionLog?.payload).not.toHaveProperty("conversationId");
-    expect(fallbackDecisionLog?.payload).not.toHaveProperty("requestId");
   });
 
   test("skips provider invocation on no_hits and returns a scope-safe fallback", async () => {
@@ -421,28 +370,13 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(chatCalls).toHaveLength(0);
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.completed")).toMatchObject({
+    expect(infoCalls[0]).toMatchObject({
       payload: {
         event: "rag.retrieval.completed",
         outcome: "empty",
         retrieval: {
           reason: "no_hits",
         },
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.outcome_recorded")).toMatchObject({
-      payload: {
-        event: "rag.retrieval.outcome_recorded",
-        retrievalOutcome: "empty",
-        fallbackChosen: "no_match_reply",
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.decision.recorded")).toMatchObject({
-      payload: {
-        event: "rag.decision.recorded",
-        decisionType: "no_match_reply",
-        reason: "no_hits",
-        providerOutcome: "not_requested",
       },
     });
   });
@@ -482,28 +416,13 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(chatCalls).toHaveLength(0);
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.completed")).toMatchObject({
+    expect(infoCalls[0]).toMatchObject({
       payload: {
         event: "rag.retrieval.completed",
         outcome: "low_signal",
         retrieval: {
           topScore: 0.2,
         },
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.outcome_recorded")).toMatchObject({
-      payload: {
-        event: "rag.retrieval.outcome_recorded",
-        retrievalOutcome: "low_signal",
-        fallbackChosen: "low_signal_reply",
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.decision.recorded")).toMatchObject({
-      payload: {
-        event: "rag.decision.recorded",
-        decisionType: "low_signal_reply",
-        reason: "below_min_score",
-        providerOutcome: "not_requested",
       },
     });
   });
@@ -552,30 +471,12 @@ describe("createCatalogChatOrchestrator", () => {
       userMessage: "Burger Box",
     });
 
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.completed")).toMatchObject({
+    expect(infoCalls[0]).toMatchObject({
       payload: {
         event: "rag.retrieval.completed",
         outcome: "grounded",
         requestId: "request-1",
         conversationId: "conversation-1",
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.outcome_recorded")).toMatchObject({
-      payload: {
-        event: "rag.retrieval.outcome_recorded",
-        conversationId: "conversation-1",
-        requestId: "request-1",
-        retrievalOutcome: "grounded",
-        fallbackChosen: null,
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.context_usage.recorded")).toMatchObject({
-      payload: {
-        event: "rag.context_usage.recorded",
-        conversationId: "conversation-1",
-        requestId: "request-1",
-        promptHistorySelectionMode: "no_history",
-        usedGroundingFacts: true,
       },
     });
     expect(result).toMatchObject({
@@ -612,18 +513,6 @@ describe("createCatalogChatOrchestrator", () => {
           message: "all providers failed",
           stack: expect.any(String),
         },
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.decision.recorded")).toMatchObject({
-      payload: {
-        event: "rag.decision.recorded",
-        conversationId: "conversation-1",
-        requestId: "request-1",
-        decisionType: "handoff",
-        reason: "provider_failure",
-        precedingStage: "assistant",
-        retrievalOutcome: "grounded",
-        providerOutcome: "provider_failure",
       },
     });
   });
@@ -673,34 +562,9 @@ describe("createCatalogChatOrchestrator", () => {
         }),
       }),
     ]));
-    const structuredOutputFailureLog = findLoggedEvent(errorCalls, "rag.structured_output.failure_recorded");
-    expect(structuredOutputFailureLog).toMatchObject({
-      message: "catalog structured output failure recorded",
-      payload: {
-        event: "rag.structured_output.failure_recorded",
-        provider: "gemini",
-        model: "gemini-2.0-flash",
-        failureKind: "invalid_json",
-        repairAttempted: false,
-        fallbackChosen: "handoff",
-      },
-    });
-    expect(structuredOutputFailureLog?.payload).not.toHaveProperty("conversationId");
-    expect(structuredOutputFailureLog?.payload).not.toHaveProperty("requestId");
-    expect(findLoggedEvent(infoCalls, "rag.decision.recorded")).toMatchObject({
-      message: "catalog fallback decision recorded",
-      payload: {
-        event: "rag.decision.recorded",
-        decisionType: "handoff",
-        reason: "invalid_json",
-        precedingStage: "assistant",
-        retrievalOutcome: "grounded",
-        providerOutcome: "invalid_model_output",
-      },
-    });
-    expect(findLoggedEvent(errorCalls, "rag.catalog_chat.parse_failed")).toMatchObject({
-      message: "catalog chat structured output parsing failed",
-      payload: {
+    expect(errorCalls).toHaveLength(1);
+    expect(errorCalls[0]?.message).toBe("catalog chat structured output parsing failed");
+    expect(errorCalls[0]?.payload).toMatchObject({
       event: "rag.catalog_chat.parse_failed",
       runtime: "rag",
       surface: "orchestrator",
@@ -723,17 +587,12 @@ describe("createCatalogChatOrchestrator", () => {
       providerTextLength: 600,
       providerTextLineCount: 1,
       error: {
-        name: "StructuredOutputParseError",
+        name: "Error",
         message: "Assistant structured output must be valid JSON",
       },
-    }});
-    const serializedLogs = JSON.stringify({
-      infoCalls,
-      errorCalls,
     });
+    const serializedLogs = JSON.stringify(errorCalls);
     expect(serializedLogs).not.toContain(invalidText);
-    expect(serializedLogs).not.toContain("unknown_conversation");
-    expect(serializedLogs).not.toContain("unknown_request");
   });
 
   test("forwards conversation and request metadata into the chat-manager log context", async () => {
@@ -832,65 +691,5 @@ describe("createCatalogChatOrchestrator", () => {
     expect(promptInput?.conversationHistory).toEqual(history);
     expect(promptInput?.allowedActions).toEqual(["none", "clarify"]);
     expect(result.assistant.action.type).toBe("none");
-  });
-
-  test("records assistant clarify actions and quoted-reference context diagnostics", async () => {
-    const { logger, infoCalls } = createLoggerStub();
-    const orchestrator = createCatalogChatOrchestrator({
-      retrievalService: createRetrievalService(groundedRetrievalResult()),
-      logger,
-      chatManager: createChatManagerStub(async () => ({
-        provider: "gemini",
-        text: '{"schemaVersion":"v1","text":"Which size do you want?","action":{"type":"clarify"}}',
-        finishReason: "stop",
-      })),
-    });
-
-    const result = await orchestrator.respond({
-      tenant: {
-        companyId: COMPANY_ID,
-      },
-      conversation: {
-        conversationId: "conversation-1",
-        history: [
-          {
-            role: "user",
-            text: "Show me the burger boxes",
-          },
-        ],
-        historyDiagnostics: {
-          selectionMode: "quoted_reference_window",
-          usedQuotedReference: true,
-        },
-      },
-      requestId: "request-1",
-      userMessage: "What sizes does the second one come in?",
-    });
-
-    expect(result.outcome).toBe("provider_response");
-    expect(result.assistant.action.type).toBe("clarify");
-    expect(findLoggedEvent(infoCalls, "rag.context_usage.recorded")).toMatchObject({
-      payload: {
-        event: "rag.context_usage.recorded",
-        conversationId: "conversation-1",
-        requestId: "request-1",
-        promptHistorySelectionMode: "quoted_reference_window",
-        usedRecentTurns: true,
-        usedQuotedReference: true,
-        usedGroundingFacts: true,
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.decision.recorded")).toMatchObject({
-      payload: {
-        event: "rag.decision.recorded",
-        conversationId: "conversation-1",
-        requestId: "request-1",
-        decisionType: "clarify",
-        reason: "assistant_action",
-        precedingStage: "assistant",
-        retrievalOutcome: "grounded",
-        providerOutcome: "response_received",
-      },
-    });
   });
 });

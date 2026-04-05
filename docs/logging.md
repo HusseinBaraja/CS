@@ -55,18 +55,6 @@ Do not log:
 - full phone numbers
 - owner phone numbers
 
-## Step 0 Conversational Intelligence Diagnostics
-
-Step 0 adds normalized conversational-intelligence events as an additive guardrail layer only. These events must not change retrieval order, prompt content, fallback wording, or persistence behavior. Existing RAG and provider events remain in place for backward compatibility.
-
-Step 0 event safety rules:
-
-- `rag.context_usage.recorded` may log `conversationId`, `requestId`, `stage`, prompt-history selection mode, and boolean context-source flags only
-- `rag.retrieval.outcome_recorded` may log `conversationId`, `requestId`, retrieval mode, retrieval outcome, counts, top score, fallback choice, and summarized query metrics from `summarizeTextForLog` only
-- `rag.decision.recorded` may log `conversationId`, `requestId`, decision type, reason, preceding stage, `resolutionConfidence`, retrieval outcome, and provider outcome only
-- `rag.structured_output.failure_recorded` may log `conversationId`, `requestId`, provider name, model name, failure kind, repair-attempt flag, and fallback choice only
-- None of the Step 0 events may log raw customer text, prompt bodies, or model output text
-
 ## Error Shape
 
 - Always log serialized errors under `error`
@@ -86,13 +74,10 @@ For a WhatsApp customer message, the normal path is:
 
 1. `bot.router.inbound_persisted`
 2. `rag.retrieval.completed`
-3. `rag.retrieval.outcome_recorded`
-4. `rag.context_usage.recorded`
-5. `ai.provider.*`
-6. `rag.decision.recorded` when a fallback, clarify, or handoff path is taken
-7. `bot.router.assistant_pending_created`
-8. `bot.outbound.sequence_completed`
-9. `bot.router.assistant_committed`
+3. `ai.provider.*`
+4. `bot.router.assistant_pending_created`
+5. `bot.outbound.sequence_completed`
+6. `bot.router.assistant_committed`
 
 If a path hands off or fails, keep the same `requestId` and inspect the first event whose `outcome` becomes `failed`, `retrying`, `provider_failure_fallback`, or `invalid_model_output_fallback`.
 
@@ -117,10 +102,6 @@ If a path hands off or fails, keep the same `requestId` and inspect the first ev
 | `bot` | `outbound` | `bot.outbound.sequence_completed` | `success` | Outbound send success with `durationMs` |
 | `bot` | `outbound` | `bot.outbound.sequence_failed` | `failed` | Outbound send failure with serialized `error` |
 | `rag` | `retrieval` | `rag.retrieval.completed` | `grounded`, `empty`, `low_signal` | Retrieval summary with query metadata only |
-| `rag` | `retrieval` | `rag.retrieval.outcome_recorded` | `recorded` | Normalized Step 0 retrieval event with counts, top score, fallback choice, and summarized query metrics only |
-| `rag` | `orchestrator` | `rag.context_usage.recorded` | `recorded` | Step 0 context-source provenance with booleans and prompt-history selection metadata only |
-| `rag` | `orchestrator` | `rag.decision.recorded` | `recorded` | Normalized clarify, fallback, and handoff decision event |
-| `rag` | `orchestrator` | `rag.structured_output.failure_recorded` | `recorded` | Structured-output failure taxonomy with provider and failure metadata only |
 | `rag` | `orchestrator` | `rag.catalog_chat.provider_fallback` | `provider_failure_fallback` | Provider chain failed and RAG returned a safe handoff fallback |
 | `rag` | `orchestrator` | `rag.catalog_chat.parse_failed` | `invalid_model_output_fallback` | Model output could not be parsed; logs metadata only |
 | `ai` | `chat` | `ai.provider.request_completed` | `success` | Final provider success with `usage` and `durationMs` |

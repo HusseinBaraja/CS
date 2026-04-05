@@ -5,17 +5,15 @@ import type {
   ConversationStateDto,
   ConversationStateEventSource,
   ConversationStateEventType,
-  PromptHistorySelection,
-  PromptHistorySelectionMode,
 } from '@cs/shared';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import {
-  type ActionCtx,
-  type DatabaseReader,
   internalAction,
   internalMutation,
   internalQuery,
+  type ActionCtx,
+  type DatabaseReader,
   type MutationCtx,
 } from './_generated/server';
 
@@ -164,15 +162,6 @@ const toMessageDto = (message: Doc<"messages">): ConversationMessageDto => ({
 const toPromptHistoryTurn = (message: ConversationMessageDto): PromptHistoryTurn => ({
   role: message.role,
   text: message.content,
-});
-
-const toPromptHistorySelection = (
-  turns: PromptHistoryTurn[],
-  selectionMode: PromptHistorySelectionMode,
-): PromptHistorySelection<PromptHistoryTurn> => ({
-  turns,
-  selectionMode,
-  usedQuotedReference: selectionMode === "quoted_reference_window",
 });
 
 const normalizeOptionalString = (value: string | undefined, fieldName: string): string | undefined => {
@@ -1348,7 +1337,7 @@ export const getPromptHistoryForInbound = internalQuery({
     referencedTransportMessageId: v.optional(v.string()),
     limit: v.number(),
   },
-  handler: async (ctx, args): Promise<PromptHistorySelection<PromptHistoryTurn>> => {
+  handler: async (ctx, args): Promise<PromptHistoryTurn[]> => {
     await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const inboundTimestamp = normalizeTimestamp(args.inboundTimestamp, Date.now());
     const limit = normalizePositiveInteger(args.limit, "limit");
@@ -1368,7 +1357,7 @@ export const getPromptHistoryForInbound = internalQuery({
     });
 
     if (priorMessagesDescending.length === 0) {
-      return toPromptHistorySelection([], "no_history");
+      return [];
     }
 
     const latestMessage = priorMessagesDescending[0];
@@ -1379,14 +1368,11 @@ export const getPromptHistoryForInbound = internalQuery({
         ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
         minimumCount: limit,
       });
-      return toPromptHistorySelection(
-        recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn),
-        "recent_window",
-      );
+      return recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn);
     }
 
     if (!referencedTransportMessageId) {
-      return toPromptHistorySelection([], "stale_reset_empty");
+      return [];
     }
 
     const referencedMessage = await resolveMessageByTransportMessageId(
@@ -1395,7 +1381,7 @@ export const getPromptHistoryForInbound = internalQuery({
       referencedTransportMessageId,
     );
     if (!referencedMessage) {
-      return toPromptHistorySelection([], "stale_reset_empty");
+      return [];
     }
 
     if (referencedMessage.timestamp >= activeWindowStart) {
@@ -1404,10 +1390,7 @@ export const getPromptHistoryForInbound = internalQuery({
         ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
         minimumCount: limit,
       });
-      return toPromptHistorySelection(
-        recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn),
-        "recent_window",
-      );
+      return recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn);
     }
 
     const referencedWindow = await collectReferencedHistorySliceAscending(ctx, args.conversationId, {
@@ -1415,20 +1398,7 @@ export const getPromptHistoryForInbound = internalQuery({
       ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
       referencedMessageId: referencedMessage._id,
     });
-    const referencedIndex = referencedWindow.findIndex(
-      (message) => message.id === referencedMessage._id,
-    );
-    const centeredStart = referencedIndex === -1
-      ? 0
-      : Math.max(0, referencedIndex - Math.floor((limit - 1) / 2));
-    const sliceStart = Math.min(centeredStart, Math.max(0, referencedWindow.length - limit));
-    const referencedTurns = referencedWindow
-      .slice(sliceStart, sliceStart + limit)
-      .map(toPromptHistoryTurn);
-
-    return referencedTurns.length === 0
-      ? toPromptHistorySelection([], "stale_reset_empty")
-      : toPromptHistorySelection(referencedTurns, "quoted_reference_window");
+    return referencedWindow.map(toPromptHistoryTurn);
   },
 });
 

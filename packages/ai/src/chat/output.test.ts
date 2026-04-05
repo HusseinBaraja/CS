@@ -8,64 +8,34 @@ describe("parseAssistantStructuredOutput", () => {
         '{"schemaVersion":"v1","text":"  We have burger boxes available.  ","action":{"type":"none"}}',
       ),
     ).toEqual({
-      ok: true,
-      value: {
-        schemaVersion: "v1",
-        text: "We have burger boxes available.",
-        action: {
-          type: "none",
-        },
+      schemaVersion: "v1",
+      text: "We have burger boxes available.",
+      action: {
+        type: "none",
       },
     });
   });
 
-  test("returns invalid_json for malformed JSON", () => {
-    const result = parseAssistantStructuredOutput("{");
-
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      throw new Error("expected a parse failure");
-    }
-
-    expect(result.error.kind).toBe("invalid_json");
-    expect(result.error.message).toBe("Assistant structured output must be valid JSON");
-  });
-
-  test("returns invalid_payload_shape for non-object payloads", () => {
-    const result = parseAssistantStructuredOutput('["not","an","object"]');
-
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      throw new Error("expected a parse failure");
-    }
-
-    expect(result.error.kind).toBe("invalid_payload_shape");
-  });
-
-  test("returns invalid_schema_version for unexpected schema versions", () => {
-    const result = parseAssistantStructuredOutput(
-      '{"schemaVersion":"v2","text":"Hello","action":{"type":"none"}}',
+  test("rejects malformed JSON", () => {
+    expect(() => parseAssistantStructuredOutput("{")).toThrow(
+      "Assistant structured output must be valid JSON",
     );
-
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      throw new Error("expected a parse failure");
-    }
-
-    expect(result.error.kind).toBe("invalid_schema_version");
   });
 
-  test("returns invalid_text for missing or blank text", () => {
-    const result = parseAssistantStructuredOutput(
-      '{"schemaVersion":"v1","text":"   ","action":{"type":"clarify"}}',
-    );
+  test("rejects unknown action types", () => {
+    expect(() =>
+      parseAssistantStructuredOutput(
+        '{"schemaVersion":"v1","text":"Hello","action":{"type":"catalog"}}',
+      )
+    ).toThrow('Assistant structured output action.type must be one of: none, clarify, handoff');
+  });
 
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      throw new Error("expected a parse failure");
-    }
-
-    expect(result.error.kind).toBe("invalid_text");
+  test("rejects missing or blank text", () => {
+    expect(() =>
+      parseAssistantStructuredOutput(
+        '{"schemaVersion":"v1","text":"   ","action":{"type":"clarify"}}',
+      )
+    ).toThrow("Assistant structured output text must be a non-empty string");
   });
 
   test("respects narrowed allowedActions", () => {
@@ -77,28 +47,20 @@ describe("parseAssistantStructuredOutput", () => {
         },
       ),
     ).toEqual({
-      ok: true,
-      value: {
-        schemaVersion: "v1",
-        text: "Can you clarify which size you need?",
-        action: {
-          type: "clarify",
-        },
+      schemaVersion: "v1",
+      text: "Can you clarify which size you need?",
+      action: {
+        type: "clarify",
       },
     });
 
-    const disallowedResult = parseAssistantStructuredOutput(
-      '{"schemaVersion":"v1","text":"Connecting you to a person.","action":{"type":"handoff"}}',
-      {
-        allowedActions: ["clarify"],
-      },
-    );
-
-    expect(disallowedResult.ok).toBe(false);
-    if (disallowedResult.ok) {
-      throw new Error("expected a parse failure");
-    }
-
-    expect(disallowedResult.error.kind).toBe("invalid_action");
+    expect(() =>
+      parseAssistantStructuredOutput(
+        '{"schemaVersion":"v1","text":"Connecting you to a person.","action":{"type":"handoff"}}',
+        {
+          allowedActions: ["clarify"],
+        },
+      )
+    ).toThrow('Assistant structured output action.type must be one of: clarify');
   });
 });

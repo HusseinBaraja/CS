@@ -1,4 +1,3 @@
-import type { PromptHistoryTurn } from '@cs/ai';
 import type { CatalogChatOrchestrator } from '@cs/rag';
 import {
   logEvent,
@@ -13,7 +12,6 @@ import {
   canonicalizePhoneNumber,
   formatOwnerNotification,
   type NormalizedInboundMessage,
-  type PromptHistoryDiagnostics,
 } from '@cs/shared';
 import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId, type ConversationStore } from './conversationStore';
@@ -109,8 +107,7 @@ export const createCustomerConversationRouter = (
 
     const userMessage = serializeInboundMessage(message);
     let conversationId: string;
-    let history: PromptHistoryTurn[] | undefined;
-    let historyDiagnostics: PromptHistoryDiagnostics | undefined;
+    let history;
     try {
       const inboundAppend = await options.conversationStore.appendInboundCustomerMessage({
         companyId: message.companyId,
@@ -165,7 +162,7 @@ export const createCustomerConversationRouter = (
         "customer conversation inbound message recorded",
       );
 
-      const promptHistorySelection = await options.conversationStore.getPromptHistoryForInbound({
+      history = await options.conversationStore.getPromptHistoryForInbound({
         companyId: message.companyId,
         conversationId,
         inboundTimestamp: message.occurredAtMs,
@@ -175,11 +172,6 @@ export const createCustomerConversationRouter = (
           : {}),
         limit: conversationHistoryWindowMessages,
       });
-      history = promptHistorySelection.turns;
-      historyDiagnostics = {
-        selectionMode: promptHistorySelection.selectionMode,
-        usedQuotedReference: promptHistorySelection.usedQuotedReference,
-      };
     } catch (error) {
       logEvent(
         routeLogger,
@@ -210,7 +202,6 @@ export const createCustomerConversationRouter = (
         conversation: {
           conversationId,
           history,
-          ...(historyDiagnostics ? { historyDiagnostics } : {}),
         },
         logger: routeLogger,
         requestId: message.messageId,

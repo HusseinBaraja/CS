@@ -31,24 +31,6 @@ const createCatalogChatResult = (text: string, query = "hello") => ({
   },
 });
 
-const createPromptHistorySelection = (
-  turns: Array<{ role: "user" | "assistant"; text: string }> = [],
-  overrides: Partial<{
-    selectionMode: "no_history" | "recent_window" | "stale_reset_empty" | "quoted_reference_window";
-    usedQuotedReference: boolean;
-  }> = {},
-) => {
-  const selectionMode =
-    overrides.selectionMode ?? (turns.length > 0 ? "recent_window" : "no_history");
-
-  return {
-    turns,
-    selectionMode,
-    usedQuotedReference:
-      overrides.usedQuotedReference ?? selectionMode === "quoted_reference_window",
-  };
-};
-
 const createMessage = (
   overrides: Partial<NormalizedInboundMessage> = {},
 ): NormalizedInboundMessage => ({
@@ -262,7 +244,7 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
     muted: false,
   }),
   getPromptHistory: async () => [],
-  getPromptHistoryForInbound: async () => createPromptHistorySelection(),
+  getPromptHistoryForInbound: async () => [],
   listRecentMessages: async () => [],
   recordAnalyticsEvent: async () => undefined,
   recordMutedCustomerActivity: async () => ({
@@ -438,7 +420,7 @@ describe("createCustomerConversationRouter", () => {
       }),
       getPromptHistoryForInbound: async () => {
         historyCalled = true;
-        return createPromptHistorySelection();
+        return [];
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
@@ -468,20 +450,16 @@ describe("createCustomerConversationRouter", () => {
     const store = createStore({
       getPromptHistoryForInbound: async (input) => {
         historyLimit = input.limit;
-        return createPromptHistorySelection([
+        return [
           { role: "user", text: "older question" },
           { role: "assistant", text: "older answer" },
           { role: "user", text: "hello" },
-        ]);
+        ];
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async (input) => {
         promptHistory = input.conversation?.history;
-        expect(input.conversation?.historyDiagnostics).toEqual({
-          selectionMode: "recent_window",
-          usedQuotedReference: false,
-        });
         return createCatalogChatResult("Assistant reply", input.userMessage);
       },
     };
@@ -556,7 +534,7 @@ describe("createCustomerConversationRouter", () => {
           muted: false,
         };
       },
-      getPromptHistoryForInbound: async () => createPromptHistorySelection(),
+      getPromptHistoryForInbound: async () => [],
       trimConversationMessages: async (input) => {
         calls.push(`trim:${input.maxMessages}`);
         return {
@@ -1249,18 +1227,12 @@ describe("createCustomerConversationRouter", () => {
     const store = createStore({
       getPromptHistoryForInbound: async (input) => {
         historyInput = input;
-        return createPromptHistorySelection([], {
-          selectionMode: "stale_reset_empty",
-        });
+        return [];
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async (input) => {
         promptHistory = input.conversation?.history;
-        expect(input.conversation?.historyDiagnostics).toEqual({
-          selectionMode: "stale_reset_empty",
-          usedQuotedReference: false,
-        });
         return createCatalogChatResult("Assistant reply", input.userMessage);
       },
     };
@@ -1310,22 +1282,12 @@ describe("createCustomerConversationRouter", () => {
           currentTransportMessageId: input.currentTransportMessageId,
           referencedTransportMessageId: input.referencedTransportMessageId,
         });
-        return createPromptHistorySelection(
-          [{ role: "assistant", text: "older answer" }],
-          {
-            selectionMode: "quoted_reference_window",
-            usedQuotedReference: true,
-          },
-        );
+        return [{ role: "assistant", text: "older answer" }];
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
-      respond: async (input) => {
-        orchestratorInput = input;
-        return createCatalogChatResult("Assistant reply", input.userMessage);
-      },
+      respond: async (input) => createCatalogChatResult("Assistant reply", input.userMessage),
     };
-    let orchestratorInput: Parameters<CatalogChatOrchestrator["respond"]>[0] | undefined;
     const { logger } = createLogger();
     const { outbound } = createOutbound();
     const router = createCustomerConversationRouter({
@@ -1352,10 +1314,6 @@ describe("createCustomerConversationRouter", () => {
         referencedTransportMessageId: "quoted-message-1",
       },
     ]);
-    expect(orchestratorInput?.conversation?.historyDiagnostics).toEqual({
-      selectionMode: "quoted_reference_window",
-      usedQuotedReference: true,
-    });
   });
 
   test("logs and stops when outbound is unavailable", async () => {

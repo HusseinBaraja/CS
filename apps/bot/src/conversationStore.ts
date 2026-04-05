@@ -2,7 +2,6 @@ import type { PromptHistoryTurn } from '@cs/ai';
 import type {
   AnalyticsEventType,
   ConversationMessageDto,
-  PromptHistorySelection,
   ConversationStateDto,
   ConversationStateEventSource,
 } from '@cs/shared';
@@ -126,7 +125,7 @@ export interface ConversationStore {
     currentTransportMessageId?: string;
     referencedTransportMessageId?: string;
     limit: number;
-  }): Promise<PromptHistorySelection<PromptHistoryTurn>>;
+  }): Promise<PromptHistoryTurn[]>;
   listRecentMessages(input: { companyId: string; conversationId: string; limit: number }): Promise<ConversationMessageRecord[]>;
   recordAnalyticsEvent(input: {
     companyId: string;
