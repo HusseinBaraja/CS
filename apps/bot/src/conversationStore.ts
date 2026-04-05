@@ -1,14 +1,17 @@
 import type { PromptHistoryTurn } from '@cs/ai';
 import type {
+  AssistantSemanticRecordDto,
   AnalyticsEventType,
   CanonicalConversationStateDto,
   CanonicalConversationStateReadResultDto,
+  ConversationSummaryDto,
   ConversationMessageDto,
   PromptHistorySelection,
   ConversationRecordDto,
   ConversationLifecycleEventSource,
   PromptHistorySelectionMode,
   RetrievalOutcome,
+  TurnResolutionQuotedReference,
 } from '@cs/shared';
 import { convexInternal, createConvexAdminClient, type ConvexAdminClient, type Id } from '@cs/db';
 export type ConversationRecord = ConversationRecordDto;
@@ -55,6 +58,28 @@ export interface ApplyCanonicalConversationTurnOutcomeInput {
     score: number;
   }>;
 }
+
+export interface GetQuotedReferenceContextInput {
+  companyId: string;
+  conversationId: string;
+  referencedTransportMessageId: string;
+}
+
+export interface ListRelevantAssistantSemanticRecordsInput {
+  companyId: string;
+  conversationId: string;
+  limit: number;
+  beforeTimestamp?: number;
+}
+
+export interface GetLatestConversationSummaryInput {
+  companyId: string;
+  conversationId: string;
+}
+
+export type PersistAssistantSemanticRecordInput = Omit<AssistantSemanticRecordDto, "id">;
+
+export type UpsertConversationSummaryInput = ConversationSummaryDto & { companyId: string };
 
 export interface ConversationStore {
   getOrCreateActiveConversation(companyId: string, phoneNumber: string): Promise<ConversationRecord>;
@@ -154,6 +179,13 @@ export interface ConversationStore {
     conversationId: string;
     now?: number;
   }): Promise<CanonicalConversationStateReadResultDto>;
+  getQuotedReferenceContext(input: GetQuotedReferenceContextInput): Promise<TurnResolutionQuotedReference | null>;
+  listRelevantAssistantSemanticRecords(
+    input: ListRelevantAssistantSemanticRecordsInput,
+  ): Promise<AssistantSemanticRecordDto[]>;
+  getLatestConversationSummary(input: GetLatestConversationSummaryInput): Promise<ConversationSummaryDto | null>;
+  persistAssistantSemanticRecord(input: PersistAssistantSemanticRecordInput): Promise<AssistantSemanticRecordDto>;
+  upsertConversationSummary(input: UpsertConversationSummaryInput): Promise<ConversationSummaryDto>;
   applyCanonicalConversationTurnOutcome(
     input: ApplyCanonicalConversationTurnOutcomeInput,
   ): Promise<CanonicalConversationStateDto>;
@@ -432,6 +464,72 @@ export const createConvexConversationStore = (
           companyId: toCompanyId(input.companyId),
           conversationId: toConversationId(input.conversationId),
           ...(input.now !== undefined ? { now: input.now } : {}),
+        })
+      ),
+    getQuotedReferenceContext: (input) =>
+      withClient((client) =>
+        client.query(convexInternal.conversations.getQuotedReferenceContext, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          referencedTransportMessageId: input.referencedTransportMessageId,
+        })
+      ),
+    listRelevantAssistantSemanticRecords: (input) =>
+      withClient((client) =>
+        client.query(convexInternal.conversations.listRelevantAssistantSemanticRecords, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          limit: input.limit,
+          ...(input.beforeTimestamp !== undefined ? { beforeTimestamp: input.beforeTimestamp } : {}),
+        })
+      ),
+    getLatestConversationSummary: (input) =>
+      withClient((client) =>
+        client.query(convexInternal.conversations.getLatestConversationSummary, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+        })
+      ),
+    persistAssistantSemanticRecord: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.persistAssistantSemanticRecord, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          assistantMessageId: toMessageId(input.assistantMessageId),
+          schemaVersion: input.schemaVersion,
+          actionType: input.actionType,
+          normalizedAction: input.normalizedAction,
+          semanticRecordStatus: input.semanticRecordStatus,
+          presentedNumberedList: input.presentedNumberedList,
+          orderedPresentedEntityIds: input.orderedPresentedEntityIds,
+          displayIndexToEntityIdMap: input.displayIndexToEntityIdMap,
+          ...(input.presentedList ? { presentedList: input.presentedList } : {}),
+          referencedEntities: input.referencedEntities,
+          ...(input.resolvedStandaloneQueryUsed
+            ? { resolvedStandaloneQueryUsed: input.resolvedStandaloneQueryUsed }
+            : {}),
+          ...(input.responseLanguage ? { responseLanguage: input.responseLanguage } : {}),
+          responseMode: input.responseMode,
+          groundingSourceMetadata: input.groundingSourceMetadata,
+          ...(input.handoffRationale ? { handoffRationale: input.handoffRationale } : {}),
+          ...(input.clarificationRationale ? { clarificationRationale: input.clarificationRationale } : {}),
+          stateMutationHints: input.stateMutationHints,
+          createdAt: input.createdAt,
+        })
+      ),
+    upsertConversationSummary: (input) =>
+      withClient((client) =>
+        client.mutation(convexInternal.conversations.upsertConversationSummary, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          summaryId: input.summaryId,
+          ...(input.durableCustomerGoal ? { durableCustomerGoal: input.durableCustomerGoal } : {}),
+          stablePreferences: input.stablePreferences,
+          importantResolvedDecisions: input.importantResolvedDecisions,
+          historicalContextNeededForFutureTurns: input.historicalContextNeededForFutureTurns,
+          freshness: input.freshness,
+          provenance: input.provenance,
+          coveredMessageRange: input.coveredMessageRange,
         })
       ),
     applyCanonicalConversationTurnOutcome: (input) =>

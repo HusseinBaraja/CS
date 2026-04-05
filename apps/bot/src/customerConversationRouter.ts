@@ -18,6 +18,11 @@ import {
   type NormalizedInboundMessage,
   type PromptHistoryDiagnostics,
 } from '@cs/shared';
+import {
+  buildAssistantSemanticRecordInput,
+  DEFAULT_TURN_RESOLUTION_POLICY,
+  toAssistantSemanticRecordForResolution,
+} from './assistantSemanticRecordMapper';
 import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId, type ConversationStore } from './conversationStore';
 
@@ -85,6 +90,36 @@ const buildCanonicalStateWriteEvent = (
 const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
   `pendingMessage:${pendingMessageId}:handoff_started`;
 
+const logAuxiliaryContextLoadFailure = (
+  logger: CustomerConversationLogger,
+  payload: {
+    companyId: string;
+    conversationId: string;
+    requestId: string;
+    sessionKey: string;
+    event: string;
+    error: unknown;
+  },
+  message: string,
+) => {
+  logEvent(
+    logger,
+    "error",
+    {
+      companyId: payload.companyId,
+      conversationId: payload.conversationId,
+      error: serializeErrorForLog(payload.error),
+      event: payload.event,
+      messageId: payload.requestId,
+      outcome: "error",
+      runtime: "bot",
+      sessionKey: payload.sessionKey,
+      surface: "router",
+    },
+    message,
+  );
+};
+
 const serializeInboundMessage = (message: NormalizedInboundMessage): string => {
   const text = message.content.text.trim();
 
@@ -145,6 +180,9 @@ export const createCustomerConversationRouter = (
     let recentTurns: PromptHistoryTurn[] | undefined;
     let historyDiagnostics: PromptHistoryDiagnostics | undefined;
     let canonicalState: Awaited<ReturnType<ConversationStore["getCanonicalConversationState"]>>["state"] | undefined;
+    let quotedReference: Awaited<ReturnType<ConversationStore["getQuotedReferenceContext"]>> | undefined;
+    let semanticAssistantRecords: ReturnType<typeof toAssistantSemanticRecordForResolution>[] | undefined;
+    let summary: Awaited<ReturnType<ConversationStore["getLatestConversationSummary"]>> | undefined;
     try {
       const inboundAppend = await options.conversationStore.appendInboundCustomerMessage({
         companyId: message.companyId,
@@ -214,6 +252,149 @@ export const createCustomerConversationRouter = (
         selectionMode: promptHistorySelection.selectionMode,
         usedQuotedReference: promptHistorySelection.usedQuotedReference,
       };
+
+      const auxiliaryLoads = await Promise.allSettled([
+        options.conversationStore.getCanonicalConversationState({
+          companyId: message.companyId,
+          conversationId,
+          now: message.occurredAtMs,
+        }),
+        message.replyContext?.referencedMessageId
+          ? options.conversationStore.getQuotedReferenceContext({
+            companyId: message.companyId,
+            conversationId,
+            referencedTransportMessageId: message.replyContext.referencedMessageId,
+          })
+          : Promise.resolve(null),
+        options.conversationStore.listRelevantAssistantSemanticRecords({
+          companyId: message.companyId,
+          conversationId,
+          limit: conversationHistoryWindowMessages,
+          beforeTimestamp: message.occurredAtMs,
+        }),
+        options.conversationStore.getLatestConversationSummary({
+          companyId: message.companyId,
+          conversationId,
+        }),
+      ]);
+
+      const [canonicalStateLoad, quotedReferenceLoad, semanticRecordsLoad, summaryLoad] = auxiliaryLoads;
+
+      if (canonicalStateLoad.status === "fulfilled") {
+        canonicalState = canonicalStateLoad.value.state;
+        logEvent(
+          routeLogger,
+          "info",
+          toCanonicalConversationStateLoadLogPayload(
+            buildCanonicalStateLoadEvent(
+              canonicalStateLoad.value.state,
+              message.messageId,
+              canonicalStateLoad.value.invalidatedPaths,
+            ),
+            {
+              runtime: "bot",
+              surface: "router",
+              outcome: "loaded",
+            },
+          ),
+          "customer conversation canonical state loaded",
+        );
+        if (canonicalStateLoad.value.invalidatedPaths.length > 0) {
+          logEvent(
+            routeLogger,
+            "info",
+            toCanonicalConversationStateInvalidationLogPayload(
+              {
+                conversationId: canonicalStateLoad.value.state.conversationId,
+                requestId: message.messageId,
+                invalidatedPaths: canonicalStateLoad.value.invalidatedPaths,
+              },
+              {
+                runtime: "bot",
+                surface: "router",
+                outcome: "recorded",
+              },
+            ),
+            "customer conversation canonical state invalidated",
+          );
+        }
+      } else {
+        logEvent(
+          routeLogger,
+          "error",
+          {
+            ...toCanonicalConversationStateLoadLogPayload(
+              {
+                conversationId,
+                requestId: message.messageId,
+                invalidatedPaths: [],
+                heuristicCandidateCount: 0,
+              },
+              {
+                runtime: "bot",
+                surface: "router",
+                outcome: "load_failed",
+              },
+            ),
+            companyId: message.companyId,
+            error: serializeErrorForLog(canonicalStateLoad.reason),
+            messageId: message.messageId,
+            sessionKey: message.sessionKey,
+          },
+          "customer conversation canonical state load failed",
+        );
+      }
+
+      if (quotedReferenceLoad.status === "fulfilled") {
+        quotedReference = quotedReferenceLoad.value ?? undefined;
+      } else {
+        logAuxiliaryContextLoadFailure(
+          routeLogger,
+          {
+            companyId: message.companyId,
+            conversationId,
+            requestId: message.messageId,
+            sessionKey: message.sessionKey,
+            event: "bot.router.quoted_reference_load_failed",
+            error: quotedReferenceLoad.reason,
+          },
+          "customer conversation quoted reference load failed",
+        );
+      }
+
+      if (semanticRecordsLoad.status === "fulfilled") {
+        semanticAssistantRecords = semanticRecordsLoad.value.map(toAssistantSemanticRecordForResolution);
+      } else {
+        logAuxiliaryContextLoadFailure(
+          routeLogger,
+          {
+            companyId: message.companyId,
+            conversationId,
+            requestId: message.messageId,
+            sessionKey: message.sessionKey,
+            event: "bot.router.semantic_context_load_failed",
+            error: semanticRecordsLoad.reason,
+          },
+          "customer conversation assistant semantic context load failed",
+        );
+      }
+
+      if (summaryLoad.status === "fulfilled") {
+        summary = summaryLoad.value;
+      } else {
+        logAuxiliaryContextLoadFailure(
+          routeLogger,
+          {
+            companyId: message.companyId,
+            conversationId,
+            requestId: message.messageId,
+            sessionKey: message.sessionKey,
+            event: "bot.router.conversation_summary_load_failed",
+            error: summaryLoad.reason,
+          },
+          "customer conversation summary load failed",
+        );
+      }
     } catch (error) {
       logEvent(
         routeLogger,
@@ -234,72 +415,6 @@ export const createCustomerConversationRouter = (
       return;
     }
 
-    try {
-      const canonicalStateResult = await options.conversationStore.getCanonicalConversationState({
-        companyId: message.companyId,
-        conversationId,
-        now: message.occurredAtMs,
-      });
-      canonicalState = canonicalStateResult.state;
-      logEvent(
-        routeLogger,
-        "info",
-        toCanonicalConversationStateLoadLogPayload(
-          buildCanonicalStateLoadEvent(canonicalStateResult.state, message.messageId, canonicalStateResult.invalidatedPaths),
-          {
-            runtime: "bot",
-            surface: "router",
-            outcome: "loaded",
-          },
-        ),
-        "customer conversation canonical state loaded",
-      );
-      if (canonicalStateResult.invalidatedPaths.length > 0) {
-        logEvent(
-          routeLogger,
-          "info",
-          toCanonicalConversationStateInvalidationLogPayload(
-            {
-              conversationId: canonicalStateResult.state.conversationId,
-              requestId: message.messageId,
-              invalidatedPaths: canonicalStateResult.invalidatedPaths,
-            },
-            {
-              runtime: "bot",
-              surface: "router",
-              outcome: "recorded",
-            },
-          ),
-          "customer conversation canonical state invalidated",
-        );
-      }
-    } catch (error) {
-      logEvent(
-        routeLogger,
-        "error",
-        {
-          ...toCanonicalConversationStateLoadLogPayload(
-            {
-              conversationId,
-              requestId: message.messageId,
-              invalidatedPaths: [],
-              heuristicCandidateCount: 0,
-            },
-            {
-              runtime: "bot",
-              surface: "router",
-              outcome: "load_failed",
-            },
-          ),
-          companyId: message.companyId,
-          error: serializeErrorForLog(error),
-          messageId: message.messageId,
-          sessionKey: message.sessionKey,
-        },
-        "customer conversation canonical state load failed",
-      );
-    }
-
     let assistantText: string;
     let handoffSource: "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback" | null = null;
     let chatResponse: CatalogChatResult;
@@ -313,6 +428,10 @@ export const createCustomerConversationRouter = (
           recentTurns,
           ...(historyDiagnostics ? { historyDiagnostics } : {}),
           ...(canonicalState ? { canonicalState } : {}),
+          ...(quotedReference ? { quotedReference } : {}),
+          ...(semanticAssistantRecords ? { semanticAssistantRecords } : {}),
+          ...(summary !== undefined ? { summary } : {}),
+          resolutionPolicy: DEFAULT_TURN_RESOLUTION_POLICY,
         },
         logger: routeLogger,
         requestId: message.messageId,
@@ -535,6 +654,37 @@ export const createCustomerConversationRouter = (
       },
       "customer conversation assistant reply committed",
     );
+
+    try {
+      await options.conversationStore.persistAssistantSemanticRecord(buildAssistantSemanticRecordInput({
+        companyId: message.companyId,
+        conversationId,
+        assistantMessageId: pendingMessageId,
+        assistantText,
+        chatResponse,
+        canonicalState: canonicalState ?? null,
+        createdAt: assistantTimestamp,
+      }));
+    } catch (error) {
+      logEvent(
+        routeLogger,
+        "error",
+        {
+          ...summarizeAssistantText(assistantText),
+          companyId: message.companyId,
+          conversationId,
+          error: serializeErrorForLog(error),
+          event: "bot.router.assistant_semantic_persistence_failed",
+          messageId: message.messageId,
+          outcome: "error",
+          pendingMessageId,
+          runtime: "bot",
+          sessionKey: message.sessionKey,
+          surface: "router",
+        },
+        "customer conversation assistant semantic persistence failed",
+      );
+    }
 
     try {
       const nextCanonicalState = await options.conversationStore.applyCanonicalConversationTurnOutcome({

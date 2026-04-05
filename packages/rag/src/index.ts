@@ -33,10 +33,13 @@ import {
   withLogBindings,
 } from '@cs/core';
 import type {
+  AssistantSemanticRecordForResolution,
   CanonicalConversationStateDto,
   ConversationSummaryDto,
   FallbackDecisionType,
   PromptHistoryDiagnostics,
+  TurnResolutionPolicy,
+  TurnResolutionQuotedReference,
 } from '@cs/shared';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient, type Id } from '@cs/db';
 
@@ -186,7 +189,10 @@ export interface CatalogChatConversationContext {
   recentTurns?: PromptHistoryTurn[];
   historyDiagnostics?: PromptHistoryDiagnostics;
   canonicalState?: CanonicalConversationStateDto;
+  quotedReference?: TurnResolutionQuotedReference;
+  semanticAssistantRecords?: AssistantSemanticRecordForResolution[];
   summary?: ConversationSummaryDto | null;
+  resolutionPolicy?: TurnResolutionPolicy;
   allowedActions?: readonly AssistantActionType[];
 }
 

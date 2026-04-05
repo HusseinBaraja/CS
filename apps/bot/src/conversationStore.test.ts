@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import type { AssistantSemanticRecordDto, ConversationSummaryDto } from '@cs/shared';
 import { createConvexConversationStore } from './conversationStore';
 
 type StubConvexAdminClient = {
@@ -32,8 +33,26 @@ const isInboundPromptHistoryQuery = (args: StubArgs): boolean =>
 const isCanonicalStateQuery = (args: StubArgs): boolean =>
   "conversationId" in args && "now" in args && !("limit" in args);
 
+const isQuotedReferenceQuery = (args: StubArgs): boolean =>
+  "conversationId" in args && "referencedTransportMessageId" in args;
+
+const isSemanticAssistantRecordsQuery = (args: StubArgs): boolean =>
+  "conversationId" in args && "limit" in args && "beforeTimestamp" in args && !("inboundTimestamp" in args);
+
+const isConversationSummaryQuery = (args: StubArgs): boolean =>
+  "conversationId" in args
+  && !("limit" in args)
+  && !("now" in args)
+  && !("referencedTransportMessageId" in args);
+
 const isInboundAppendAction = (args: StubArgs): boolean =>
   "phoneNumber" in args && "content" in args && "timestamp" in args;
+
+const isAssistantSemanticRecordMutation = (args: StubArgs): boolean =>
+  "assistantMessageId" in args && "normalizedAction" in args && "responseMode" in args;
+
+const isConversationSummaryMutation = (args: StubArgs): boolean =>
+  "summaryId" in args && "stablePreferences" in args && "freshness" in args;
 
 const createConversationStub = (args: StubArgs) => ({
   id: "conversation-1",
@@ -80,6 +99,69 @@ const createCanonicalStateStub = () => ({
   },
 });
 
+const createAssistantSemanticRecordStub = (
+  args: StubArgs = {},
+): AssistantSemanticRecordDto => ({
+  id: "assistant-semantic-record-1",
+  schemaVersion: "v1",
+  companyId: String(args.companyId ?? "company-1"),
+  conversationId: String(args.conversationId ?? "conversation-1"),
+  assistantMessageId: String(args.assistantMessageId ?? "message-1"),
+  actionType: "none",
+  normalizedAction: "answer",
+  semanticRecordStatus: "complete",
+  presentedNumberedList: false,
+  orderedPresentedEntityIds: [],
+  displayIndexToEntityIdMap: [],
+  referencedEntities: [],
+  responseLanguage: "en",
+  responseMode: "grounded",
+  groundingSourceMetadata: {
+    usedRetrieval: true,
+    usedConversationState: false,
+    usedSummary: false,
+    retrievalMode: "raw_latest_message",
+    groundedEntityIds: [],
+  },
+  stateMutationHints: {
+    focusEntityIds: [],
+    shouldSetPendingClarification: false,
+  },
+  createdAt: Number(args.createdAt ?? 1_000),
+});
+
+const createConversationSummaryStub = (
+  args: StubArgs = {},
+): ConversationSummaryDto => ({
+  summaryId: String(args.summaryId ?? "summary-1"),
+  conversationId: String(args.conversationId ?? "conversation-1"),
+  stablePreferences: [],
+  importantResolvedDecisions: [],
+  historicalContextNeededForFutureTurns: [],
+  freshness: {
+    status: "fresh",
+    updatedAt: 2_000,
+  },
+  provenance: {
+    source: "system_seed",
+    generatedAt: 2_000,
+  },
+  coveredMessageRange: {},
+});
+
+const createQuotedReferenceStub = () => ({
+  transportMessageId: "quoted-1",
+  conversationMessageId: "message-quoted-1",
+  role: "assistant" as const,
+  text: "Quoted assistant reply",
+  referencedEntities: [{
+    entityKind: "product" as const,
+    entityId: "product-1",
+    source: "semantic_assistant_record" as const,
+    confidence: "high" as const,
+  }],
+});
+
 const createClientStub = () => {
   const queryCalls: unknown[] = [];
   const mutationCalls: unknown[] = [];
@@ -110,6 +192,14 @@ const createClientStub = () => {
         return createMessageStub();
       }
 
+      if (isAssistantSemanticRecordMutation(stubArgs)) {
+        return createAssistantSemanticRecordStub(stubArgs);
+      }
+
+      if (isConversationSummaryMutation(stubArgs)) {
+        return createConversationSummaryStub(stubArgs);
+      }
+
       if (isAnalyticsMutation(stubArgs)) {
         return undefined;
       }
@@ -129,6 +219,18 @@ const createClientStub = () => {
       const stubArgs = asStubArgs(args);
       if (!stubArgs) {
         return [];
+      }
+
+      if (isQuotedReferenceQuery(stubArgs)) {
+        return createQuotedReferenceStub();
+      }
+
+      if (isSemanticAssistantRecordsQuery(stubArgs)) {
+        return [createAssistantSemanticRecordStub(stubArgs)];
+      }
+
+      if (isConversationSummaryQuery(stubArgs)) {
+        return createConversationSummaryStub(stubArgs);
       }
 
       if (isInboundPromptHistoryQuery(stubArgs)) {
@@ -316,6 +418,21 @@ describe("createConvexConversationStore", () => {
       conversationId: "conversation-1",
       now: 2_600,
     });
+    await store.getQuotedReferenceContext({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      referencedTransportMessageId: "quoted-1",
+    });
+    await store.listRelevantAssistantSemanticRecords({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      limit: 5,
+      beforeTimestamp: 2_550,
+    });
+    await store.getLatestConversationSummary({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+    });
     await store.applyCanonicalConversationTurnOutcome({
       companyId: "company-1",
       conversationId: "conversation-1",
@@ -332,6 +449,50 @@ describe("createConvexConversationStore", () => {
         entityId: "product-1",
         score: 0.9,
       }],
+    });
+    await store.persistAssistantSemanticRecord({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      assistantMessageId: "message-1",
+      schemaVersion: "v1",
+      actionType: "none",
+      normalizedAction: "answer",
+      semanticRecordStatus: "complete",
+      presentedNumberedList: false,
+      orderedPresentedEntityIds: [],
+      displayIndexToEntityIdMap: [],
+      referencedEntities: [],
+      responseLanguage: "en",
+      responseMode: "grounded",
+      groundingSourceMetadata: {
+        usedRetrieval: true,
+        usedConversationState: false,
+        usedSummary: false,
+        retrievalMode: "raw_latest_message",
+        groundedEntityIds: [],
+      },
+      stateMutationHints: {
+        focusEntityIds: [],
+        shouldSetPendingClarification: false,
+      },
+      createdAt: 2_700,
+    });
+    await store.upsertConversationSummary({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      summaryId: "summary-1",
+      stablePreferences: [],
+      importantResolvedDecisions: [],
+      historicalContextNeededForFutureTurns: [],
+      freshness: {
+        status: "fresh",
+        updatedAt: 2_800,
+      },
+      provenance: {
+        source: "system_seed",
+        generatedAt: 2_800,
+      },
+      coveredMessageRange: {},
     });
     await store.getOrCreateConversationForInbound("company-1", "967700000001");
     await store.startHandoff({
@@ -365,8 +526,8 @@ describe("createConvexConversationStore", () => {
     });
 
     expect(actionCalls).toHaveLength(3);
-    expect(mutationCalls).toHaveLength(13);
-    expect(queryCalls).toHaveLength(5);
+    expect(mutationCalls).toHaveLength(15);
+    expect(queryCalls).toHaveLength(8);
   });
 
   test("forwards pending assistant lifecycle mutations to Convex", async () => {
@@ -538,6 +699,193 @@ describe("createConvexConversationStore", () => {
         score: 0.42,
       }],
     });
+  });
+
+  test("forwards turn-resolution context reads and semantic persistence writes to Convex", async () => {
+    const { client, mutationCalls, queryCalls } = createClientStub();
+    const store = createConvexConversationStore({
+      createClient: () => client as never,
+    });
+
+    await store.getQuotedReferenceContext({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      referencedTransportMessageId: "quoted-1",
+    });
+    await store.listRelevantAssistantSemanticRecords({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      limit: 4,
+      beforeTimestamp: 2_000,
+    });
+    await store.getLatestConversationSummary({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+    });
+    await store.persistAssistantSemanticRecord({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      assistantMessageId: "message-1",
+      schemaVersion: "v1",
+      actionType: "clarify",
+      normalizedAction: "clarify",
+      semanticRecordStatus: "complete",
+      presentedNumberedList: true,
+      orderedPresentedEntityIds: ["product-1", "product-2"],
+      displayIndexToEntityIdMap: [
+        { displayIndex: 1, entityId: "product-1" },
+        { displayIndex: 2, entityId: "product-2" },
+      ],
+      presentedList: {
+        kind: "product",
+        items: [
+          { displayIndex: 1, entityKind: "product", entityId: "product-1", score: 0.9 },
+          { displayIndex: 2, entityKind: "product", entityId: "product-2", score: 0.8 },
+        ],
+      },
+      referencedEntities: [
+        { entityKind: "product", entityId: "product-1", source: "raw_text", confidence: "high" },
+      ],
+      resolvedStandaloneQueryUsed: {
+        text: "burger box",
+        status: "used",
+      },
+      responseLanguage: "en",
+      responseMode: "clarified",
+      groundingSourceMetadata: {
+        usedRetrieval: true,
+        usedConversationState: true,
+        usedSummary: false,
+        retrievalMode: "raw_latest_message",
+        groundedEntityIds: ["product-1", "product-2"],
+      },
+      clarificationRationale: {
+        reasonCode: "assistant_action",
+      },
+      stateMutationHints: {
+        focusKind: "product",
+        focusEntityIds: ["product-1", "product-2"],
+        shouldSetPendingClarification: true,
+        latestStandaloneQueryText: "burger box",
+      },
+      createdAt: 2_100,
+    });
+    await store.upsertConversationSummary({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      summaryId: "summary-2",
+      durableCustomerGoal: "Find burger box sizes",
+      stablePreferences: ["Arabic replies"],
+      importantResolvedDecisions: [{
+        summary: "Customer wants a burger box",
+      }],
+      historicalContextNeededForFutureTurns: ["Previously compared burger box sizes"],
+      freshness: {
+        status: "fresh",
+        updatedAt: 2_200,
+      },
+      provenance: {
+        source: "summary_job",
+        generatedAt: 2_200,
+      },
+      coveredMessageRange: {
+        fromMessageId: "message-1",
+        toMessageId: "message-9",
+        messageCount: 9,
+      },
+    });
+
+    expect(queryCalls).toEqual([
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        referencedTransportMessageId: "quoted-1",
+      },
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        limit: 4,
+        beforeTimestamp: 2_000,
+      },
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+      },
+    ]);
+    expect(mutationCalls).toEqual([
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        assistantMessageId: "message-1",
+        schemaVersion: "v1",
+        actionType: "clarify",
+        normalizedAction: "clarify",
+        semanticRecordStatus: "complete",
+        presentedNumberedList: true,
+        orderedPresentedEntityIds: ["product-1", "product-2"],
+        displayIndexToEntityIdMap: [
+          { displayIndex: 1, entityId: "product-1" },
+          { displayIndex: 2, entityId: "product-2" },
+        ],
+        presentedList: {
+          kind: "product",
+          items: [
+            { displayIndex: 1, entityKind: "product", entityId: "product-1", score: 0.9 },
+            { displayIndex: 2, entityKind: "product", entityId: "product-2", score: 0.8 },
+          ],
+        },
+        referencedEntities: [
+          { entityKind: "product", entityId: "product-1", source: "raw_text", confidence: "high" },
+        ],
+        resolvedStandaloneQueryUsed: {
+          text: "burger box",
+          status: "used",
+        },
+        responseLanguage: "en",
+        responseMode: "clarified",
+        groundingSourceMetadata: {
+          usedRetrieval: true,
+          usedConversationState: true,
+          usedSummary: false,
+          retrievalMode: "raw_latest_message",
+          groundedEntityIds: ["product-1", "product-2"],
+        },
+        clarificationRationale: {
+          reasonCode: "assistant_action",
+        },
+        stateMutationHints: {
+          focusKind: "product",
+          focusEntityIds: ["product-1", "product-2"],
+          shouldSetPendingClarification: true,
+          latestStandaloneQueryText: "burger box",
+        },
+        createdAt: 2_100,
+      },
+      {
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        summaryId: "summary-2",
+        durableCustomerGoal: "Find burger box sizes",
+        stablePreferences: ["Arabic replies"],
+        importantResolvedDecisions: [{
+          summary: "Customer wants a burger box",
+        }],
+        historicalContextNeededForFutureTurns: ["Previously compared burger box sizes"],
+        freshness: {
+          status: "fresh",
+          updatedAt: 2_200,
+        },
+        provenance: {
+          source: "summary_job",
+          generatedAt: 2_200,
+        },
+        coveredMessageRange: {
+          fromMessageId: "message-1",
+          toMessageId: "message-9",
+          messageCount: 9,
+        },
+      },
+    ]);
   });
 
   test("retries transient Convex transport failures with a fresh client", async () => {

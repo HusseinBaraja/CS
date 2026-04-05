@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import type { AssistantSemanticRecordDto } from '@cs/shared';
 import type { CatalogChatOrchestrator } from '@cs/rag';
 import type { NormalizedInboundMessage } from '@cs/shared';
 import type { OutboundMessenger } from './outbound';
@@ -71,6 +72,46 @@ const createCanonicalStateReadResult = () => ({
     },
   },
   invalidatedPaths: [],
+});
+
+const createAssistantSemanticRecord = (): AssistantSemanticRecordDto => ({
+  id: "semantic-record-1",
+  schemaVersion: "v1",
+  companyId: "company-1",
+  conversationId: "conversation-1",
+  assistantMessageId: "assistant-message-1",
+  actionType: "none",
+  normalizedAction: "answer",
+  semanticRecordStatus: "complete",
+  presentedNumberedList: false,
+  orderedPresentedEntityIds: ["product-1"],
+  displayIndexToEntityIdMap: [],
+  referencedEntities: [{
+    entityKind: "product",
+    entityId: "product-1",
+    source: "raw_text",
+    confidence: "high",
+  }],
+  resolvedStandaloneQueryUsed: {
+    text: "burger box",
+    status: "used",
+  },
+  responseLanguage: "en",
+  responseMode: "grounded",
+  groundingSourceMetadata: {
+    usedRetrieval: true,
+    usedConversationState: false,
+    usedSummary: false,
+    retrievalMode: "raw_latest_message",
+    groundedEntityIds: ["product-1"],
+  },
+  stateMutationHints: {
+    focusKind: "product",
+    focusEntityIds: ["product-1"],
+    shouldSetPendingClarification: false,
+    latestStandaloneQueryText: "burger box",
+  },
+  createdAt: 1_800,
 });
 
 const createMessage = (
@@ -288,7 +329,27 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
   getPromptHistory: async () => [],
   getPromptHistoryForInbound: async () => createPromptHistorySelection(),
   getCanonicalConversationState: async () => createCanonicalStateReadResult(),
+  getQuotedReferenceContext: async () => null,
+  listRelevantAssistantSemanticRecords: async () => [],
+  getLatestConversationSummary: async () => null,
   applyCanonicalConversationTurnOutcome: async () => createCanonicalStateReadResult().state,
+  persistAssistantSemanticRecord: async () => createAssistantSemanticRecord(),
+  upsertConversationSummary: async () => ({
+    summaryId: "summary-1",
+    conversationId: "conversation-1",
+    stablePreferences: [],
+    importantResolvedDecisions: [],
+    historicalContextNeededForFutureTurns: [],
+    freshness: {
+      status: "fresh",
+      updatedAt: 1_000,
+    },
+    provenance: {
+      source: "system_seed",
+      generatedAt: 1_000,
+    },
+    coveredMessageRange: {},
+  }),
   listRecentMessages: async () => [],
   recordAnalyticsEvent: async () => undefined,
   recordMutedCustomerActivity: async () => ({
@@ -756,6 +817,161 @@ describe("createCustomerConversationRouter", () => {
     ]));
   });
 
+  test("loads turn-resolution support context before orchestration", async () => {
+    const operations: string[] = [];
+    let orchestratorInput: Parameters<CatalogChatOrchestrator["respond"]>[0] | undefined;
+    const store = createStore({
+      getQuotedReferenceContext: async (input) => {
+        operations.push(`quoted:${input.referencedTransportMessageId}`);
+        return {
+          transportMessageId: "quoted-message-1",
+          conversationMessageId: "assistant-message-0",
+          role: "assistant",
+          text: "1. Burger Box",
+          presentedList: {
+            kind: "product",
+            items: [{
+              displayIndex: 1,
+              entityKind: "product",
+              entityId: "product-1",
+              score: 0.9,
+            }],
+          },
+          referencedEntities: [{
+            entityKind: "product",
+            entityId: "product-1",
+            source: "semantic_assistant_record",
+            confidence: "high",
+          }],
+        };
+      },
+      listRelevantAssistantSemanticRecords: async (input) => {
+        operations.push(`semantic:${input.limit}:${input.beforeTimestamp}`);
+        return [createAssistantSemanticRecord()];
+      },
+      getLatestConversationSummary: async (input) => {
+        operations.push(`summary:${input.conversationId}`);
+        return {
+          summaryId: "summary-1",
+          conversationId: input.conversationId,
+          durableCustomerGoal: "Find burger box options",
+          stablePreferences: ["Arabic replies"],
+          importantResolvedDecisions: [],
+          historicalContextNeededForFutureTurns: ["Customer compares burger box sizes"],
+          freshness: {
+            status: "fresh",
+            updatedAt: 1_600,
+          },
+          provenance: {
+            source: "summary_job",
+            generatedAt: 1_600,
+          },
+          coveredMessageRange: {
+            fromMessageId: "message-1",
+            toMessageId: "message-4",
+            messageCount: 4,
+          },
+        };
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async (input) => {
+        orchestratorInput = input;
+        return createCatalogChatResult("Assistant reply", input.userMessage);
+      },
+    };
+    const { logger } = createLogger();
+    const { outbound } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+    });
+
+    await router(createMessage({
+      replyContext: {
+        referencedMessageId: "quoted-message-1",
+      },
+    }), createContext(outbound));
+
+    expect(operations).toEqual([
+      "quoted:quoted-message-1",
+      "semantic:20:1700000000000",
+      "summary:conversation-1",
+    ]);
+    expect(orchestratorInput?.conversation?.quotedReference).toEqual({
+      transportMessageId: "quoted-message-1",
+      conversationMessageId: "assistant-message-0",
+      role: "assistant",
+      text: "1. Burger Box",
+      presentedList: {
+        kind: "product",
+        items: [{
+          displayIndex: 1,
+          entityKind: "product",
+          entityId: "product-1",
+          score: 0.9,
+        }],
+      },
+      referencedEntities: [{
+        entityKind: "product",
+        entityId: "product-1",
+        source: "semantic_assistant_record",
+        confidence: "high",
+      }],
+    });
+    expect(orchestratorInput?.conversation?.semanticAssistantRecords).toEqual([{
+      semanticRecordId: "semantic-record-1",
+      assistantMessageId: "assistant-message-1",
+      actionType: "none",
+      responseLanguage: "en",
+      responseMode: "grounded",
+      orderedPresentedEntityIds: ["product-1"],
+      referencedEntities: [{
+        entityKind: "product",
+        entityId: "product-1",
+        source: "raw_text",
+        confidence: "high",
+      }],
+      resolvedStandaloneQueryUsed: {
+        text: "burger box",
+        status: "used",
+      },
+      createdAt: 1_800,
+    }]);
+    expect(orchestratorInput?.conversation?.summary).toEqual({
+      summaryId: "summary-1",
+      conversationId: "conversation-1",
+      durableCustomerGoal: "Find burger box options",
+      stablePreferences: ["Arabic replies"],
+      importantResolvedDecisions: [],
+      historicalContextNeededForFutureTurns: ["Customer compares burger box sizes"],
+      freshness: {
+        status: "fresh",
+        updatedAt: 1_600,
+      },
+      provenance: {
+        source: "summary_job",
+        generatedAt: 1_600,
+      },
+      coveredMessageRange: {
+        fromMessageId: "message-1",
+        toMessageId: "message-4",
+        messageCount: 4,
+      },
+    });
+    expect(orchestratorInput?.conversation?.resolutionPolicy).toEqual({
+      allowModelAssistedFallback: false,
+      allowSemanticAssistantFallback: true,
+      allowSummarySupport: true,
+      staleContextWindowMs: 1_800_000,
+      quotedReferenceOverridesStaleness: true,
+      minimumConfidenceToProceed: "high",
+      allowMediumConfidenceProceed: false,
+      maxSemanticFallbackDepth: 3,
+    });
+  });
+
   test("continues orchestration when canonical state loading fails", async () => {
     let orchestratorCalled = false;
     const store = createStore({
@@ -1181,6 +1397,158 @@ describe("createCustomerConversationRouter", () => {
       recipientJid: "967700000001@s.whatsapp.net",
       text: "I couldn't confidently match your request.",
     }]);
+  });
+
+  test("persists assistant semantic records after assistant commit", async () => {
+    const persistedInputs: Array<Record<string, unknown>> = [];
+    const operations: string[] = [];
+    const store = createStore({
+      commitPendingAssistantMessage: async (input) => {
+        operations.push(`commit:${input.pendingMessageId}`);
+        return {
+          id: input.conversationId,
+          companyId: input.companyId,
+          phoneNumber: "967700000001",
+          muted: false,
+        };
+      },
+      persistAssistantSemanticRecord: async (input) => {
+        operations.push(`semantic:${input.assistantMessageId}`);
+        persistedInputs.push(input as unknown as Record<string, unknown>);
+        return createAssistantSemanticRecord();
+      },
+      applyCanonicalConversationTurnOutcome: async (input) => {
+        operations.push(`canonical:${input.conversationId}`);
+        return createCanonicalStateReadResult().state;
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async () => ({
+        ...createCatalogChatResult("Burger Box is available.", "burger box"),
+        retrieval: {
+          outcome: "grounded",
+          query: "burger box",
+          language: "en",
+          topScore: 0.93,
+          candidates: [{
+            productId: "product-1",
+            score: 0.93,
+            matchedEmbeddingId: "embedding-1",
+            matchedText: "Burger Box",
+            language: "en",
+            contextBlock: {
+              id: "product-1",
+              heading: "Burger Box",
+              body: "Name (EN): Burger Box",
+            },
+            product: {
+              id: "product-1",
+              categoryId: "category-1",
+              nameEn: "Burger Box",
+              imageCount: 0,
+              variants: [],
+            },
+          }],
+          contextBlocks: [{
+            id: "product-1",
+            heading: "Burger Box",
+            body: "Name (EN): Burger Box",
+          }],
+        },
+      }),
+    };
+    const { logger, errorCalls } = createLogger();
+    const { outbound } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+      now: () => 2_000,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(operations).toEqual([
+      "commit:pending-assistant-message",
+      "semantic:pending-assistant-message",
+      "canonical:conversation-1",
+    ]);
+    expect(persistedInputs).toEqual([expect.objectContaining({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      assistantMessageId: "pending-assistant-message",
+      actionType: "none",
+      normalizedAction: "answer",
+      semanticRecordStatus: "complete",
+      responseLanguage: "en",
+      responseMode: "grounded",
+      referencedEntities: [{
+        entityKind: "product",
+        entityId: "product-1",
+        source: "raw_text",
+        confidence: "high",
+      }],
+      groundingSourceMetadata: {
+        usedRetrieval: true,
+        usedConversationState: false,
+        usedSummary: false,
+        retrievalMode: "raw_latest_message",
+        groundedEntityIds: ["product-1"],
+      },
+      stateMutationHints: {
+        focusKind: "product",
+        focusEntityIds: ["product-1"],
+        shouldSetPendingClarification: false,
+        latestStandaloneQueryText: "burger box",
+      },
+      createdAt: 2_000,
+    })]);
+    expect(errorCalls).toEqual([]);
+  });
+
+  test("logs assistant semantic persistence failures without affecting the customer reply", async () => {
+    let canonicalWriteCalled = false;
+    const store = createStore({
+      persistAssistantSemanticRecord: async () => {
+        throw new Error("semantic persistence failed");
+      },
+      applyCanonicalConversationTurnOutcome: async () => {
+        canonicalWriteCalled = true;
+        return createCanonicalStateReadResult().state;
+      },
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async () => createCatalogChatResult("Assistant reply"),
+    };
+    const { logger, errorCalls } = createLogger();
+    const { outbound, sent } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      logger,
+      now: () => 2_000,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(sent).toEqual([{
+      recipientJid: "967700000001@s.whatsapp.net",
+      text: "Assistant reply",
+    }]);
+    expect(canonicalWriteCalled).toBe(true);
+    expect(errorCalls).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        message: "customer conversation assistant semantic persistence failed",
+        payload: expect.objectContaining({
+          event: "bot.router.assistant_semantic_persistence_failed",
+          companyId: "company-1",
+          conversationId: "conversation-1",
+          pendingMessageId: "pending-assistant-message",
+          outcome: "error",
+          assistantTextLength: "Assistant reply".length,
+        }),
+      }),
+    ]));
   });
 
   test("stops before orchestration when history loading fails", async () => {
