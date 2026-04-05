@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
 import { finished } from 'node:stream/promises';
 import { ValidationError } from '@cs/shared';
-import { createProductionLogDestination } from './logging/stream';
 import {
   createLogger,
   createLoggerRuntimeConfig,
+  createProductionLogDestination,
   logger,
   logError,
   logEvent,

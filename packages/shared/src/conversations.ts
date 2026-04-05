@@ -1,12 +1,12 @@
-export const CONVERSATION_LIFECYCLE_EVENT_TYPES = [
+export const CONVERSATION_STATE_EVENT_TYPES = [
   "handoff_started",
   "handoff_resumed_manual",
   "handoff_resumed_auto",
 ] as const;
 
-export type ConversationLifecycleEventType = (typeof CONVERSATION_LIFECYCLE_EVENT_TYPES)[number];
+export type ConversationStateEventType = (typeof CONVERSATION_STATE_EVENT_TYPES)[number];
 
-export const CONVERSATION_LIFECYCLE_EVENT_SOURCES = [
+export const CONVERSATION_STATE_EVENT_SOURCES = [
   "assistant_action",
   "provider_failure_fallback",
   "invalid_model_output_fallback",
@@ -14,9 +14,9 @@ export const CONVERSATION_LIFECYCLE_EVENT_SOURCES = [
   "worker_auto",
 ] as const;
 
-export type ConversationLifecycleEventSource = (typeof CONVERSATION_LIFECYCLE_EVENT_SOURCES)[number];
+export type ConversationStateEventSource = (typeof CONVERSATION_STATE_EVENT_SOURCES)[number];
 
-export interface ConversationRecordDto {
+export interface ConversationStateDto {
   id: string;
   companyId: string;
   phoneNumber: string;
@@ -33,7 +33,7 @@ export interface ConversationMessageDto {
   content: string;
   timestamp: number;
   deliveryState?: "pending" | "sent" | "failed";
-  handoffSource?: ConversationLifecycleEventSource;
+  handoffSource?: ConversationStateEventSource;
   providerAcknowledgedAt?: number;
   sideEffectsState?: "pending" | "completed";
   ownerNotificationState?: "pending" | "sent" | "completed" | "not_applicable";

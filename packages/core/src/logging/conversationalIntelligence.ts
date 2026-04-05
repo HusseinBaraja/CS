@@ -1,8 +1,4 @@
 import type {
-  CanonicalConversationStateFallbackMismatchEvent,
-  CanonicalConversationStateInvalidationEvent,
-  CanonicalConversationStateLoadEvent,
-  CanonicalConversationStateWriteEvent,
   ContextUsageEvent,
   FallbackDecisionEvent,
   RetrievalOutcomeEvent,
@@ -11,29 +7,6 @@ import type {
 import type { StructuredLogPayloadInput } from "./types";
 import { summarizeTextForLog } from "./helpers";
 
-interface CanonicalConversationStateLogContext {
-  runtime: string;
-  surface: string;
-  outcome: string;
-}
-
-const withConversationIdentifiers = (
-  event: Pick<
-    | CanonicalConversationStateLoadEvent
-    | CanonicalConversationStateWriteEvent
-    | CanonicalConversationStateInvalidationEvent
-    | CanonicalConversationStateFallbackMismatchEvent
-    | ContextUsageEvent
-    | RetrievalOutcomeEvent
-    | FallbackDecisionEvent
-    | StructuredOutputFailureEvent,
-    "conversationId" | "requestId"
-  >,
-) => ({
-  ...(event.conversationId ? { conversationId: event.conversationId } : {}),
-  ...(event.requestId ? { requestId: event.requestId } : {}),
-});
-
 export const toContextUsageLogPayload = (
   event: ContextUsageEvent,
 ): StructuredLogPayloadInput => ({
@@ -41,7 +14,8 @@ export const toContextUsageLogPayload = (
   runtime: "rag",
   surface: "orchestrator",
   outcome: "recorded",
-  ...withConversationIdentifiers(event),
+  ...(event.conversationId ? { conversationId: event.conversationId } : {}),
+  ...(event.requestId ? { requestId: event.requestId } : {}),
   stage: event.stage,
   promptHistorySelectionMode: event.promptHistorySelectionMode,
   usedRecentTurns: event.usedRecentTurns,
@@ -58,7 +32,8 @@ export const toRetrievalOutcomeLogPayload = (
   runtime: "rag",
   surface: "retrieval",
   outcome: "recorded",
-  ...withConversationIdentifiers(event),
+  ...(event.conversationId ? { conversationId: event.conversationId } : {}),
+  ...(event.requestId ? { requestId: event.requestId } : {}),
   retrievalMode: event.retrievalMode,
   retrievalOutcome: event.outcome,
   candidateCount: event.candidateCount,
@@ -75,7 +50,8 @@ export const toFallbackDecisionLogPayload = (
   runtime: "rag",
   surface: "orchestrator",
   outcome: "recorded",
-  ...withConversationIdentifiers(event),
+  ...(event.conversationId ? { conversationId: event.conversationId } : {}),
+  ...(event.requestId ? { requestId: event.requestId } : {}),
   decisionType: event.decisionType,
   reason: event.reason,
   precedingStage: event.precedingStage,
@@ -91,76 +67,11 @@ export const toStructuredOutputFailureLogPayload = (
   runtime: "rag",
   surface: "orchestrator",
   outcome: "recorded",
-  ...withConversationIdentifiers(event),
+  ...(event.conversationId ? { conversationId: event.conversationId } : {}),
+  ...(event.requestId ? { requestId: event.requestId } : {}),
   provider: event.provider,
   model: event.model,
   failureKind: event.failureKind,
   repairAttempted: event.repairAttempted,
   fallbackChosen: event.fallbackChosen,
-});
-
-export const toCanonicalConversationStateLoadLogPayload = (
-  event: CanonicalConversationStateLoadEvent,
-  context: CanonicalConversationStateLogContext,
-): StructuredLogPayloadInput => ({
-  event: "conversation.canonical_state.load_recorded",
-  runtime: context.runtime,
-  surface: context.surface,
-  outcome: context.outcome,
-  ...withConversationIdentifiers(event),
-  invalidatedPathCount: event.invalidatedPaths.length,
-  ...(event.freshnessStatus ? { freshnessStatus: event.freshnessStatus } : {}),
-  ...(event.authoritativeFocusKind ? { authoritativeFocusKind: event.authoritativeFocusKind } : {}),
-  authoritativeFocusEntityCount: event.authoritativeFocusEntityCount ?? 0,
-  heuristicCandidateCount: event.heuristicCandidateCount,
-});
-
-export const toCanonicalConversationStateWriteLogPayload = (
-  event: CanonicalConversationStateWriteEvent,
-  context: CanonicalConversationStateLogContext,
-): StructuredLogPayloadInput => ({
-  event: "conversation.canonical_state.write_recorded",
-  runtime: context.runtime,
-  surface: context.surface,
-  outcome: context.outcome,
-  ...withConversationIdentifiers(event),
-  authoritativeFocusKind: event.authoritativeFocusKind ?? "none",
-  authoritativeFocusEntityCount: event.authoritativeFocusEntityCount ?? 0,
-  ...(event.authoritativeFocusSource ? { authoritativeFocusSource: event.authoritativeFocusSource } : {}),
-  ...(event.pendingClarificationActive !== undefined
-    ? { pendingClarificationActive: event.pendingClarificationActive }
-    : {}),
-  heuristicCandidateCount: event.heuristicCandidateCount,
-  ...(event.latestStandaloneQueryStatus ? { latestStandaloneQueryStatus: event.latestStandaloneQueryStatus } : {}),
-  ...(event.responseLanguage ? { responseLanguage: event.responseLanguage } : {}),
-});
-
-export const toCanonicalConversationStateInvalidationLogPayload = (
-  event: CanonicalConversationStateInvalidationEvent,
-  context: CanonicalConversationStateLogContext,
-): StructuredLogPayloadInput => ({
-  event: "conversation.canonical_state.invalidation_recorded",
-  runtime: context.runtime,
-  surface: context.surface,
-  outcome: context.outcome,
-  ...withConversationIdentifiers(event),
-  invalidatedPathCount: event.invalidatedPaths.length,
-  invalidatedPaths: [...event.invalidatedPaths],
-});
-
-export const toCanonicalConversationStateFallbackMismatchLogPayload = (
-  event: CanonicalConversationStateFallbackMismatchEvent,
-  context: CanonicalConversationStateLogContext,
-): StructuredLogPayloadInput => ({
-  event: "conversation.canonical_state.fallback_mismatch_recorded",
-  runtime: context.runtime,
-  surface: context.surface,
-  outcome: context.outcome,
-  ...withConversationIdentifiers(event),
-  retrievalOutcome: event.retrievalOutcome,
-  ...(event.freshnessStatus ? { freshnessStatus: event.freshnessStatus } : {}),
-  promptHistorySelectionMode: event.promptHistorySelectionMode,
-  ...(event.authoritativeFocusKind ? { authoritativeFocusKind: event.authoritativeFocusKind } : {}),
-  ...(event.authoritativeFocusSource ? { authoritativeFocusSource: event.authoritativeFocusSource } : {}),
-  heuristicCandidateCount: event.heuristicCandidateCount,
 });

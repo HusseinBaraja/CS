@@ -22,18 +22,13 @@ import {
   type StructuredLogger,
   type StructuredLogPayloadInput,
   summarizeTextForLog,
-  toCanonicalConversationStateFallbackMismatchLogPayload,
   toContextUsageLogPayload,
   toFallbackDecisionLogPayload,
   toRetrievalOutcomeLogPayload,
   toStructuredOutputFailureLogPayload,
   withLogBindings,
 } from '@cs/core';
-import type {
-  CanonicalConversationStateDto,
-  FallbackDecisionType,
-  PromptHistoryDiagnostics,
-} from '@cs/shared';
+import type { FallbackDecisionType, PromptHistoryDiagnostics } from '@cs/shared';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient, type Id } from '@cs/db';
 
 const DEFAULT_MAX_RESULTS = 5;
@@ -181,7 +176,6 @@ export interface CatalogChatConversationContext {
   conversationId?: string;
   history?: PromptHistoryTurn[];
   historyDiagnostics?: PromptHistoryDiagnostics;
-  canonicalState?: CanonicalConversationStateDto;
   allowedActions?: readonly AssistantActionType[];
 }
 
@@ -567,15 +561,6 @@ const getPromptHistorySelectionMode = (input: CatalogChatInput) =>
   input.conversation?.historyDiagnostics?.selectionMode
   ?? (input.conversation?.history?.length ? "recent_window" : "no_history");
 
-const hasRecoverableCanonicalState = (input: CatalogChatInput): boolean => {
-  const canonicalState = input.conversation?.canonicalState;
-  if (!canonicalState) {
-    return false;
-  }
-
-  return canonicalState.currentFocus.kind !== "none" || canonicalState.heuristicHints.topCandidates.length > 0;
-};
-
 const getRetrievalFallbackDecisionType = (
   retrieval: RetrieveCatalogContextResult,
 ): FallbackDecisionType | null => {
@@ -764,30 +749,6 @@ export const createCatalogChatOrchestrator = (
         }),
         "catalog context usage recorded",
       );
-      if (retrieval.outcome !== "grounded" && hasRecoverableCanonicalState(input)) {
-        safeLogEvent(
-          routeLogger,
-          "info",
-          toCanonicalConversationStateFallbackMismatchLogPayload(
-            {
-              conversationId,
-              requestId,
-              retrievalOutcome: retrieval.outcome,
-              freshnessStatus: input.conversation?.canonicalState?.freshness.status,
-              promptHistorySelectionMode: getPromptHistorySelectionMode(input),
-              authoritativeFocusKind: input.conversation?.canonicalState?.currentFocus.kind,
-              authoritativeFocusSource: input.conversation?.canonicalState?.currentFocus.source,
-              heuristicCandidateCount: input.conversation?.canonicalState?.heuristicHints.topCandidates.length ?? 0,
-            },
-            {
-              runtime: "rag",
-              surface: "orchestrator",
-              outcome: "recorded",
-            },
-          ),
-          "catalog canonical state fallback mismatch recorded",
-        );
-      }
 
       if (retrieval.outcome === "empty") {
         const assistant = buildAssistantFallback(

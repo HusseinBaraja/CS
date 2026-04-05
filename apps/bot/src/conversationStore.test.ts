@@ -14,9 +14,6 @@ const asStubArgs = (value: unknown): StubArgs | null =>
 
 const isAnalyticsMutation = (args: StubArgs): boolean => "eventType" in args;
 
-const isCanonicalStateMutation = (args: StubArgs): boolean =>
-  "assistantActionType" in args && "retrievalOutcome" in args;
-
 const isConversationMutation = (args: StubArgs): boolean =>
   "source" in args
   || "pendingMessageId" in args
@@ -28,9 +25,6 @@ const isConversationQuery = (args: StubArgs): boolean => "conversationId" in arg
 
 const isInboundPromptHistoryQuery = (args: StubArgs): boolean =>
   "conversationId" in args && "limit" in args && "inboundTimestamp" in args;
-
-const isCanonicalStateQuery = (args: StubArgs): boolean =>
-  "conversationId" in args && "now" in args && !("limit" in args);
 
 const isInboundAppendAction = (args: StubArgs): boolean =>
   "phoneNumber" in args && "content" in args && "timestamp" in args;
@@ -57,27 +51,6 @@ const createActionConversationStub = () => ({
   companyId: "company-1",
   phoneNumber: "967700000001",
   muted: false,
-});
-
-const createCanonicalStateStub = () => ({
-  schemaVersion: "v1" as const,
-  conversationId: "conversation-1",
-  companyId: "company-1",
-  currentFocus: {
-    kind: "none" as const,
-    entityIds: [],
-  },
-  pendingClarification: {
-    active: false,
-  },
-  freshness: {
-    status: "stale" as const,
-  },
-  sourceOfTruthMarkers: {},
-  heuristicHints: {
-    usedQuotedReference: false,
-    topCandidates: [],
-  },
 });
 
 const createClientStub = () => {
@@ -114,10 +87,6 @@ const createClientStub = () => {
         return undefined;
       }
 
-      if (isCanonicalStateMutation(stubArgs)) {
-        return createCanonicalStateStub();
-      }
-
       if (isConversationMutation(stubArgs)) {
         return createConversationStub(stubArgs);
       }
@@ -136,13 +105,6 @@ const createClientStub = () => {
           turns: [],
           selectionMode: "no_history",
           usedQuotedReference: false,
-        };
-      }
-
-      if (isCanonicalStateQuery(stubArgs)) {
-        return {
-          state: createCanonicalStateStub(),
-          invalidatedPaths: [],
         };
       }
 
@@ -311,28 +273,6 @@ describe("createConvexConversationStore", () => {
       referencedTransportMessageId: "quoted-3",
       limit: 20,
     });
-    await store.getCanonicalConversationState({
-      companyId: "company-1",
-      conversationId: "conversation-1",
-      now: 2_600,
-    });
-    await store.applyCanonicalConversationTurnOutcome({
-      companyId: "company-1",
-      conversationId: "conversation-1",
-      responseLanguage: "en",
-      latestUserMessageText: "hello",
-      assistantActionType: "none",
-      committedAssistantTimestamp: 2_650,
-      promptHistorySelectionMode: "recent_window",
-      usedQuotedReference: false,
-      referencedTransportMessageId: "quoted-4",
-      retrievalOutcome: "grounded",
-      candidates: [{
-        entityKind: "product",
-        entityId: "product-1",
-        score: 0.9,
-      }],
-    });
     await store.getOrCreateConversationForInbound("company-1", "967700000001");
     await store.startHandoff({
       companyId: "company-1",
@@ -365,8 +305,8 @@ describe("createConvexConversationStore", () => {
     });
 
     expect(actionCalls).toHaveLength(3);
-    expect(mutationCalls).toHaveLength(13);
-    expect(queryCalls).toHaveLength(5);
+    expect(mutationCalls).toHaveLength(12);
+    expect(queryCalls).toHaveLength(4);
   });
 
   test("forwards pending assistant lifecycle mutations to Convex", async () => {
@@ -485,59 +425,6 @@ describe("createConvexConversationStore", () => {
 
     expect(createdClients).toHaveLength(3);
     expect(createdClients).toEqual([client, client, client]);
-  });
-
-  test("forwards canonical state reads and writes to Convex", async () => {
-    const { client, mutationCalls, queryCalls } = createClientStub();
-    const store = createConvexConversationStore({
-      createClient: () => client as never,
-    });
-
-    await store.getCanonicalConversationState({
-      companyId: "company-1",
-      conversationId: "conversation-1",
-      now: 2_000,
-    });
-    await store.applyCanonicalConversationTurnOutcome({
-      companyId: "company-1",
-      conversationId: "conversation-1",
-      responseLanguage: "ar",
-      latestUserMessageText: "الثاني",
-      assistantActionType: "clarify",
-      committedAssistantTimestamp: 2_100,
-      promptHistorySelectionMode: "quoted_reference_window",
-      usedQuotedReference: true,
-      referencedTransportMessageId: "quoted-1",
-      retrievalOutcome: "low_signal",
-      candidates: [{
-        entityKind: "product",
-        entityId: "product-1",
-        score: 0.42,
-      }],
-    });
-
-    expect(queryCalls.at(-1)).toEqual({
-      companyId: "company-1",
-      conversationId: "conversation-1",
-      now: 2_000,
-    });
-    expect(mutationCalls.at(-1)).toEqual({
-      companyId: "company-1",
-      conversationId: "conversation-1",
-      responseLanguage: "ar",
-      latestUserMessageText: "الثاني",
-      assistantActionType: "clarify",
-      committedAssistantTimestamp: 2_100,
-      promptHistorySelectionMode: "quoted_reference_window",
-      usedQuotedReference: true,
-      referencedTransportMessageId: "quoted-1",
-      retrievalOutcome: "low_signal",
-      candidates: [{
-        entityKind: "product",
-        entityId: "product-1",
-        score: 0.42,
-      }],
-    });
   });
 
   test("retries transient Convex transport failures with a fresh client", async () => {
