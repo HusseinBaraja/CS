@@ -142,7 +142,7 @@ export const createCustomerConversationRouter = (
 
     const userMessage = serializeInboundMessage(message);
     let conversationId: string;
-    let recentTurns: PromptHistoryTurn[] | undefined;
+    let history: PromptHistoryTurn[] | undefined;
     let historyDiagnostics: PromptHistoryDiagnostics | undefined;
     let canonicalState: Awaited<ReturnType<ConversationStore["getCanonicalConversationState"]>>["state"] | undefined;
     try {
@@ -209,7 +209,7 @@ export const createCustomerConversationRouter = (
           : {}),
         limit: conversationHistoryWindowMessages,
       });
-      recentTurns = promptHistorySelection.turns;
+      history = promptHistorySelection.turns;
       historyDiagnostics = {
         selectionMode: promptHistorySelection.selectionMode,
         usedQuotedReference: promptHistorySelection.usedQuotedReference,
@@ -310,7 +310,7 @@ export const createCustomerConversationRouter = (
         },
         conversation: {
           conversationId,
-          recentTurns,
+          history,
           ...(historyDiagnostics ? { historyDiagnostics } : {}),
           ...(canonicalState ? { canonicalState } : {}),
         },

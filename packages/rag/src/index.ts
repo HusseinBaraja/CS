@@ -1,13 +1,10 @@
 import {
   type AssistantActionType,
   type AssistantStructuredOutput,
-  assemblePrompt,
-  type PromptAssemblyInput,
-  type PromptAssemblyOutput,
+  buildGroundedChatPrompt,
   type ChatLanguage,
   type ChatProviderManager,
   type ChatResponse,
-  type CatalogGroundingBundle,
   createChatProviderManager,
   detectChatLanguage,
   GEMINI_EMBEDDING_DIMENSIONS,
@@ -34,7 +31,6 @@ import {
 } from '@cs/core';
 import type {
   CanonicalConversationStateDto,
-  ConversationSummaryDto,
   FallbackDecisionType,
   PromptHistoryDiagnostics,
 } from '@cs/shared';
@@ -91,7 +87,7 @@ type HydratedProductRecord = {
   variants: ProductVariantRecord[];
 };
 
-export type { CatalogGroundingBundle, ChatLanguage, GroundingContextBlock } from '@cs/ai';
+export type { ChatLanguage, GroundingContextBlock } from '@cs/ai';
 export type {
   AssistantActionType,
   AssistantStructuredOutput,
@@ -183,10 +179,9 @@ export interface CatalogChatTenantContext {
 
 export interface CatalogChatConversationContext {
   conversationId?: string;
-  recentTurns?: PromptHistoryTurn[];
+  history?: PromptHistoryTurn[];
   historyDiagnostics?: PromptHistoryDiagnostics;
   canonicalState?: CanonicalConversationStateDto;
-  summary?: ConversationSummaryDto | null;
   allowedActions?: readonly AssistantActionType[];
 }
 
@@ -234,7 +229,7 @@ export interface CreateCatalogChatOrchestratorOptions {
   retrievalService?: ProductRetrievalService;
   chatManager?: ChatProviderManager;
   detectLanguage?: typeof detectChatLanguage;
-  buildPrompt?: typeof assemblePrompt;
+  buildPrompt?: typeof buildGroundedChatPrompt;
   parseStructuredOutput?: typeof parseAssistantStructuredOutput;
   logger?: CatalogChatLogger;
 }
@@ -365,70 +360,6 @@ const buildContextBlock = (
   heading: language === "ar" && product.nameAr ? product.nameAr : product.nameEn,
   body: buildContextBlockBody(product, language),
 });
-
-const getPreferredProductName = (
-  product: Pick<RetrievedProductContext, "nameEn" | "nameAr">,
-  language: ChatLanguage,
-): string => language === "ar" ? product.nameAr ?? product.nameEn : product.nameEn ?? product.nameAr ?? "";
-
-const buildCatalogGroundingBundle = (
-  retrieval: RetrieveCatalogContextResult,
-): CatalogGroundingBundle | null => {
-  if (retrieval.outcome !== "grounded") {
-    return null;
-  }
-
-  const groundedContextBlockIds = new Set(retrieval.contextBlocks.map((block) => block.id));
-  const uniqueProducts = Array.from(
-    new Map(
-      retrieval.candidates
-        .filter((candidate) => groundedContextBlockIds.has(candidate.contextBlock.id))
-        .map((candidate) => [candidate.product.id, candidate.product] as const),
-    ).values(),
-  );
-  const pricingFacts = uniqueProducts.flatMap((product) =>
-    product.basePrice !== undefined
-      ? [{
-        entityId: product.id,
-        kind: "base_price" as const,
-        value: product.basePrice,
-        ...(product.baseCurrency ? { currency: product.baseCurrency } : {}),
-      }]
-      : []
-  );
-
-  return {
-    bundleId: `grounding:${retrieval.language}:${retrieval.query}`,
-    retrievalMode: "raw_latest_message",
-    resolvedQuery: retrieval.query,
-    entityRefs: uniqueProducts.map((product) => ({
-      entityKind: "product" as const,
-      entityId: product.id,
-    })),
-    contextBlocks: retrieval.contextBlocks,
-    language: retrieval.language,
-    retrievalConfidence: retrieval.topScore ?? null,
-    products: uniqueProducts.map((product) => ({
-      id: product.id,
-      name: getPreferredProductName(product, retrieval.language),
-    })),
-    categories: [],
-    variants: [],
-    offers: [],
-    pricingFacts,
-    imageAvailability: uniqueProducts.map((product) => ({
-      entityId: product.id,
-      hasImages: product.imageCount > 0,
-      imageCount: product.imageCount,
-    })),
-    omissions: [
-      { kind: "categories", reason: "not_collected" },
-      { kind: "variants", reason: "not_collected" },
-      { kind: "offers", reason: "not_collected" },
-      ...(pricingFacts.length > 0 ? [] : [{ kind: "pricing_facts" as const, reason: "not_available" as const }]),
-    ],
-  };
-};
 
 const dedupeHitsByProduct = (hits: VectorSearchHit[]): VectorSearchHit[] => {
   const sortedHits = hits
@@ -634,37 +565,7 @@ const getDiagnosticRequestId = (input: CatalogChatInput): string | undefined =>
 
 const getPromptHistorySelectionMode = (input: CatalogChatInput) =>
   input.conversation?.historyDiagnostics?.selectionMode
-  ?? (input.conversation?.recentTurns?.length ? "recent_window" : "no_history");
-
-const buildPromptAssemblyInput = (
-  input: CatalogChatInput,
-  retrieval: RetrieveCatalogContextResult,
-  responseLanguage: ChatLanguage,
-  allowedActions: readonly AssistantActionType[],
-): PromptAssemblyInput => ({
-  behaviorInstructions: {
-    responseLanguage,
-    allowedActions,
-    groundingPolicy: "supplied_facts_only",
-    ambiguityPolicy: "clarify_instead_of_guessing",
-    handoffPolicy: "handoff_on_explicit_request_or_unsafe_help",
-    offTopicPolicy: "refuse",
-    stylePolicy: "concise_target_language",
-    responseFormat: "assistant_structured_output_v1",
-  },
-  conversationSummary: input.conversation?.summary ?? null,
-  conversationState: input.conversation?.canonicalState ?? null,
-  recentTurns: input.conversation?.recentTurns ?? [],
-  groundingBundle: buildCatalogGroundingBundle(retrieval),
-  currentUserTurn: {
-    text: input.userMessage,
-  },
-});
-
-const getPromptLayerMetadata = (
-  prompt: PromptAssemblyOutput,
-  layer: PromptAssemblyOutput["layerMetadata"][number]["layer"],
-) => prompt.layerMetadata.find((entry) => entry.layer === layer);
+  ?? (input.conversation?.history?.length ? "recent_window" : "no_history");
 
 const hasRecoverableCanonicalState = (input: CatalogChatInput): boolean => {
   const canonicalState = input.conversation?.canonicalState;
@@ -783,7 +684,7 @@ export const createCatalogChatOrchestrator = (
   const retrievalService = options.retrievalService ?? createProductRetrievalService();
   const chatManager = options.chatManager ?? createChatProviderManager();
   const detectLanguage = options.detectLanguage ?? detectChatLanguage;
-  const buildPrompt = options.buildPrompt ?? assemblePrompt;
+  const buildPrompt = options.buildPrompt ?? buildGroundedChatPrompt;
   const parseStructuredOutput = options.parseStructuredOutput ?? parseAssistantStructuredOutput;
   const logger = options.logger ?? defaultCatalogChatLogger;
 
@@ -846,24 +747,23 @@ export const createCatalogChatOrchestrator = (
         }),
         "catalog retrieval outcome recorded",
       );
-      if (retrieval.outcome !== "grounded") {
-        safeLogEvent(
-          routeLogger,
-          "info",
-          toContextUsageLogPayload({
-            conversationId,
-            requestId,
-            usedRecentTurns: false,
-            usedConversationState: false,
-            usedSummary: false,
-            usedQuotedReference: false,
-            usedGroundingFacts: false,
-            stage: "prompt_assembly",
-            promptHistorySelectionMode: getPromptHistorySelectionMode(input),
-          }),
-          "catalog context usage recorded",
-        );
-      }
+      safeLogEvent(
+        routeLogger,
+        "info",
+        toContextUsageLogPayload({
+          conversationId,
+          requestId,
+          usedRecentTurns: retrieval.outcome === "grounded" && Boolean(input.conversation?.history?.length),
+          usedConversationState: false,
+          usedSummary: false,
+          usedQuotedReference:
+            retrieval.outcome === "grounded" && Boolean(input.conversation?.historyDiagnostics?.usedQuotedReference),
+          usedGroundingFacts: retrieval.contextBlocks.length > 0,
+          stage: "prompt_assembly",
+          promptHistorySelectionMode: getPromptHistorySelectionMode(input),
+        }),
+        "catalog context usage recorded",
+      );
       if (retrieval.outcome !== "grounded" && hasRecoverableCanonicalState(input)) {
         safeLogEvent(
           routeLogger,
@@ -942,33 +842,17 @@ export const createCatalogChatOrchestrator = (
         };
       }
 
-      const promptInput = buildPromptAssemblyInput(
-        input,
-        retrieval,
-        language.responseLanguage,
+      const prompt = buildPrompt({
+        responseLanguage: language.responseLanguage,
+        customerMessage: input.userMessage,
+        conversationHistory: input.conversation?.history,
+        groundingContext: retrieval.contextBlocks,
         allowedActions,
-      );
-      const prompt = buildPrompt(promptInput);
-      safeLogEvent(
-        routeLogger,
-        "info",
-        toContextUsageLogPayload({
-          conversationId,
-          requestId,
-          usedRecentTurns: Boolean(getPromptLayerMetadata(prompt, "recent_turns")?.itemCount),
-          usedConversationState: Boolean(getPromptLayerMetadata(prompt, "conversation_state")?.present),
-          usedSummary: Boolean(getPromptLayerMetadata(prompt, "conversation_summary")?.present),
-          usedQuotedReference: Boolean(input.conversation?.historyDiagnostics?.usedQuotedReference),
-          usedGroundingFacts: Boolean(getPromptLayerMetadata(prompt, "grounding_facts")?.itemCount),
-          stage: "prompt_assembly",
-          promptHistorySelectionMode: getPromptHistorySelectionMode(input),
-        }),
-        "catalog context usage recorded",
-      );
+      });
 
       let providerResponse: ChatResponse;
       try {
-        providerResponse = await chatManager.chat({ messages: prompt.messages }, {
+        providerResponse = await chatManager.chat(prompt.request, {
           signal: input.signal,
           timeoutMs: input.provider?.timeoutMs,
           maxRetriesPerProvider: input.provider?.maxRetriesPerProvider,

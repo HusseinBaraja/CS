@@ -52,8 +52,8 @@ describe("root package scripts", () => {
 
 describe("bot package scripts", () => {
   test("run the Baileys bot on Node while keeping the root command stable", () => {
-    expect(botScripts.dev).toBe("node --watch --env-file-if-exists=../../.env --import tsx src/main.ts");
-    expect(botScripts.start).toBe("node --env-file-if-exists=../../.env --import tsx src/main.ts");
+    expect(botScripts.dev).toBe("node --watch --env-file=../../.env --import tsx src/main.ts");
+    expect(botScripts.start).toBe("node --env-file=../../.env --import tsx src/main.ts");
     expect(botScripts["dev:bun-experimental"]).toBe("bun --env-file=../../.env --watch src/main.ts");
     expect(botScripts.build).toBe("bun --env-file=../../.env build src/main.ts --outdir dist");
     expect(botScripts.check).toBe("bun run typecheck");

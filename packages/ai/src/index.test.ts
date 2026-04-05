@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  assemblePrompt,
+  buildGroundedChatPrompt,
   createChatProviderManager,
   detectChatLanguage,
   getAllowedActions,
@@ -26,7 +26,7 @@ describe("@cs/ai public API", () => {
   });
 
   test("exports prompt policy helpers", () => {
-    expect(typeof assemblePrompt).toBe("function");
+    expect(typeof buildGroundedChatPrompt).toBe("function");
   });
 
   test("exports structured output helpers", () => {

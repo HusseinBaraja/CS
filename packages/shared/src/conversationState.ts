@@ -126,38 +126,3 @@ export interface CanonicalConversationStateReadResultDto {
   state: CanonicalConversationStateDto;
   invalidatedPaths: string[];
 }
-
-export type ConversationSummaryFreshnessStatus = CanonicalConversationFreshnessStatus;
-
-export interface ConversationSummaryFreshnessDto {
-  status: ConversationSummaryFreshnessStatus;
-  updatedAt?: number;
-}
-
-export interface ConversationSummaryProvenanceDto {
-  source: "shadow" | "system_seed" | "summary_job";
-  generatedAt?: number;
-}
-
-export interface ConversationSummaryCoveredMessageRangeDto {
-  fromMessageId?: string;
-  toMessageId?: string;
-  messageCount?: number;
-}
-
-export interface ConversationSummaryResolvedDecisionDto {
-  summary: string;
-  source?: string;
-}
-
-export interface ConversationSummaryDto {
-  summaryId: string;
-  conversationId: string;
-  durableCustomerGoal?: string;
-  stablePreferences: string[];
-  importantResolvedDecisions: ConversationSummaryResolvedDecisionDto[];
-  historicalContextNeededForFutureTurns: string[];
-  freshness: ConversationSummaryFreshnessDto;
-  provenance: ConversationSummaryProvenanceDto;
-  coveredMessageRange: ConversationSummaryCoveredMessageRangeDto;
-}
