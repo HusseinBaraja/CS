@@ -2326,6 +2326,407 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     });
   });
 
+  it("persists assistant semantic records immutably per assistant message", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+    const assistantMessage = await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "1. Burger Box",
+      timestamp: 1_000,
+      transportMessageId: "assistant-1",
+    });
+
+    const record = await t.mutation(internal.conversations.persistAssistantSemanticRecord, {
+      companyId,
+      conversationId,
+      assistantMessageId: assistantMessage.id as Id<"messages">,
+      schemaVersion: "v1",
+      actionType: "none",
+      normalizedAction: "present_list",
+      semanticRecordStatus: "complete",
+      presentedNumberedList: true,
+      orderedPresentedEntityIds: [],
+      displayIndexToEntityIdMap: [],
+      referencedEntities: [],
+      responseLanguage: "en",
+      responseMode: "grounded",
+      groundingSourceMetadata: {
+        usedRetrieval: true,
+        usedConversationState: false,
+        usedSummary: false,
+        retrievalMode: "semantic_catalog_search",
+        groundedEntityIds: [],
+      },
+      stateMutationHints: {
+        focusEntityIds: [],
+        shouldSetPendingClarification: false,
+      },
+      createdAt: 1_100,
+    });
+
+    expect(record).toMatchObject({
+      assistantMessageId: assistantMessage.id,
+      normalizedAction: "present_list",
+      semanticRecordStatus: "complete",
+      responseMode: "grounded",
+    });
+
+    await expect(
+      t.mutation(internal.conversations.persistAssistantSemanticRecord, {
+        companyId,
+        conversationId,
+        assistantMessageId: assistantMessage.id as Id<"messages">,
+        schemaVersion: "v1",
+        actionType: "none",
+        normalizedAction: "fallback",
+        semanticRecordStatus: "partial",
+        presentedNumberedList: false,
+        orderedPresentedEntityIds: [],
+        displayIndexToEntityIdMap: [],
+        referencedEntities: [],
+        responseLanguage: "en",
+        responseMode: "fallback",
+        groundingSourceMetadata: {
+          usedRetrieval: false,
+          usedConversationState: false,
+          usedSummary: false,
+          groundedEntityIds: [],
+        },
+        stateMutationHints: {
+          focusEntityIds: [],
+          shouldSetPendingClarification: false,
+        },
+        createdAt: 1_200,
+      }),
+    ).rejects.toThrow("Assistant semantic record already exists for message");
+  });
+
+  it("sanitizes deleted entities out of assistant semantic records on read", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const categoryId = await t.run(async (ctx) =>
+      ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Boxes",
+      })
+    );
+    const productId = await t.run(async (ctx) =>
+      ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+    const assistantMessage = await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "1. Burger Box",
+      timestamp: 1_000,
+      transportMessageId: "assistant-1",
+    });
+
+    await t.mutation(internal.conversations.persistAssistantSemanticRecord, {
+      companyId,
+      conversationId,
+      assistantMessageId: assistantMessage.id as Id<"messages">,
+      schemaVersion: "v1",
+      actionType: "none",
+      normalizedAction: "present_list",
+      semanticRecordStatus: "complete",
+      presentedNumberedList: true,
+      orderedPresentedEntityIds: [productId],
+      displayIndexToEntityIdMap: [{ displayIndex: 1, entityId: productId }],
+      presentedList: {
+        kind: "product",
+        items: [{
+          displayIndex: 1,
+          entityKind: "product",
+          entityId: productId,
+        }],
+      },
+      referencedEntities: [{
+        entityKind: "product",
+        entityId: productId,
+        source: "semantic_assistant_record",
+        confidence: "high",
+      }],
+      responseLanguage: "en",
+      responseMode: "grounded",
+      groundingSourceMetadata: {
+        usedRetrieval: true,
+        usedConversationState: false,
+        usedSummary: false,
+        retrievalMode: "semantic_catalog_search",
+        groundedEntityIds: [productId],
+      },
+      stateMutationHints: {
+        focusKind: "product",
+        focusEntityIds: [productId],
+        shouldSetPendingClarification: false,
+        lastPresentedList: {
+          kind: "product",
+          items: [{
+            displayIndex: 1,
+            entityKind: "product",
+            entityId: productId,
+          }],
+        },
+      },
+      createdAt: 1_100,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.delete(productId);
+    });
+
+    const records = await t.query(internal.conversations.listRelevantAssistantSemanticRecords, {
+      companyId,
+      conversationId,
+      limit: 5,
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      orderedPresentedEntityIds: [],
+      displayIndexToEntityIdMap: [],
+      referencedEntities: [],
+      stateMutationHints: {
+        focusKind: "product",
+        focusEntityIds: [],
+        shouldSetPendingClarification: false,
+      },
+    });
+    expect(records[0]).not.toHaveProperty("presentedList");
+  });
+
+  it("returns quoted reference context enriched with assistant semantic metadata", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const categoryId = await t.run(async (ctx) =>
+      ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Boxes",
+      })
+    );
+    const productId = await t.run(async (ctx) =>
+      ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+    const assistantMessage = await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "1. Burger Box",
+      timestamp: 1_000,
+      transportMessageId: "assistant-1",
+    });
+
+    await t.mutation(internal.conversations.persistAssistantSemanticRecord, {
+      companyId,
+      conversationId,
+      assistantMessageId: assistantMessage.id as Id<"messages">,
+      schemaVersion: "v1",
+      actionType: "none",
+      normalizedAction: "present_list",
+      semanticRecordStatus: "complete",
+      presentedNumberedList: true,
+      orderedPresentedEntityIds: [productId],
+      displayIndexToEntityIdMap: [{ displayIndex: 1, entityId: productId }],
+      presentedList: {
+        kind: "product",
+        items: [{
+          displayIndex: 1,
+          entityKind: "product",
+          entityId: productId,
+        }],
+      },
+      referencedEntities: [{
+        entityKind: "product",
+        entityId: productId,
+        source: "semantic_assistant_record",
+        confidence: "high",
+      }],
+      responseLanguage: "en",
+      responseMode: "grounded",
+      groundingSourceMetadata: {
+        usedRetrieval: true,
+        usedConversationState: false,
+        usedSummary: false,
+        retrievalMode: "semantic_catalog_search",
+        groundedEntityIds: [productId],
+      },
+      stateMutationHints: {
+        focusKind: "product",
+        focusEntityIds: [productId],
+        shouldSetPendingClarification: false,
+        lastPresentedList: {
+          kind: "product",
+          items: [{
+            displayIndex: 1,
+            entityKind: "product",
+            entityId: productId,
+          }],
+        },
+      },
+      createdAt: 1_100,
+    });
+
+    const quotedReference = await t.query(internal.conversations.getQuotedReferenceContext, {
+      companyId,
+      conversationId,
+      referencedTransportMessageId: "assistant-1",
+    });
+
+    expect(quotedReference).toEqual({
+      transportMessageId: "assistant-1",
+      conversationMessageId: assistantMessage.id,
+      role: "assistant",
+      text: "1. Burger Box",
+      presentedList: {
+        kind: "product",
+        items: [{
+          displayIndex: 1,
+          entityKind: "product",
+          entityId: productId,
+        }],
+      },
+      referencedEntities: [{
+        entityKind: "product",
+        entityId: productId,
+        source: "semantic_assistant_record",
+        confidence: "high",
+      }],
+    });
+  });
+
+  it("returns the latest conversation summary after multiple upserts", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await t.mutation(internal.conversations.upsertConversationSummary, {
+      companyId,
+      conversationId,
+      summaryId: "summary-1",
+      durableCustomerGoal: "Find burger boxes",
+      stablePreferences: ["English responses"],
+      importantResolvedDecisions: [{ summary: "Asked about burger boxes" }],
+      historicalContextNeededForFutureTurns: ["Customer is asking about packaging products"],
+      freshness: {
+        status: "fresh",
+        updatedAt: 1_000,
+      },
+      provenance: {
+        source: "shadow",
+      },
+      coveredMessageRange: {
+        messageCount: 2,
+      },
+    });
+    await t.mutation(internal.conversations.upsertConversationSummary, {
+      companyId,
+      conversationId,
+      summaryId: "summary-2",
+      durableCustomerGoal: "Find burger boxes",
+      stablePreferences: ["Arabic responses"],
+      importantResolvedDecisions: [{ summary: "Asked for photos" }],
+      historicalContextNeededForFutureTurns: ["Customer wants photos next"],
+      freshness: {
+        status: "fresh",
+        updatedAt: 2_000,
+      },
+      provenance: {
+        source: "summary_job",
+        generatedAt: 2_100,
+      },
+      coveredMessageRange: {
+        fromMessageId: "message-1",
+        toMessageId: "message-4",
+        messageCount: 4,
+      },
+    });
+
+    const summary = await t.query(internal.conversations.getLatestConversationSummary, {
+      companyId,
+      conversationId,
+    });
+
+    expect(summary).toEqual({
+      summaryId: "summary-2",
+      conversationId,
+      durableCustomerGoal: "Find burger boxes",
+      stablePreferences: ["Arabic responses"],
+      importantResolvedDecisions: [{ summary: "Asked for photos" }],
+      historicalContextNeededForFutureTurns: ["Customer wants photos next"],
+      freshness: {
+        status: "fresh",
+        updatedAt: 2_000,
+      },
+      provenance: {
+        source: "summary_job",
+        generatedAt: 2_100,
+      },
+      coveredMessageRange: {
+        fromMessageId: "message-1",
+        toMessageId: "message-4",
+        messageCount: 4,
+      },
+    });
+  });
+
   it("times out when the conversation lock remains held", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>

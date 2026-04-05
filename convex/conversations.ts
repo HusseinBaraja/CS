@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import type { PromptHistoryTurn } from '@cs/ai/chat/promptContracts';
 import type {
+  AssistantSemanticRecordDto,
   CanonicalConversationFocusDto,
   CanonicalConversationFocusKind,
   CanonicalConversationHeuristicCandidateDto,
@@ -9,11 +10,14 @@ import type {
   CanonicalConversationStateReadResultDto,
   ConversationMessageDto,
   ConversationRecordDto,
+  ConversationSummaryDto,
   ConversationLifecycleEventSource,
   ConversationLifecycleEventType,
   PromptHistorySelection,
   PromptHistorySelectionMode,
   RetrievalOutcome,
+  TurnReferencedEntity,
+  TurnResolutionQuotedReference,
 } from '@cs/shared';
 import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
@@ -36,6 +40,7 @@ export const STALE_CONTEXT_RESET_MS = 30 * 60 * 1_000;
 const REFERENCED_HISTORY_SIDE_MESSAGES = 5;
 const MAX_CANONICAL_STATE_CANDIDATES = 5;
 const CANONICAL_STATE_SCHEMA_VERSION = "v1";
+const ASSISTANT_SEMANTIC_RECORD_SCHEMA_VERSION = "v1";
 
 type LockAcquireResult = {
   acquired: boolean;
@@ -288,6 +293,62 @@ const toCanonicalStateReadResult = (
   invalidatedPaths,
 });
 
+const sanitizeNonEmptyStringArray = (values: string[]): string[] =>
+  values
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+
+const toAssistantSemanticRecordDto = (
+  record: Doc<"assistantSemanticRecords">,
+): AssistantSemanticRecordDto => ({
+  id: record._id,
+  schemaVersion: record.schemaVersion,
+  companyId: record.companyId,
+  conversationId: record.conversationId,
+  assistantMessageId: record.assistantMessageId,
+  actionType: record.actionType,
+  normalizedAction: record.normalizedAction,
+  semanticRecordStatus: record.semanticRecordStatus,
+  presentedNumberedList: record.presentedNumberedList,
+  orderedPresentedEntityIds: [...record.orderedPresentedEntityIds],
+  displayIndexToEntityIdMap: [...record.displayIndexToEntityIdMap],
+  ...(record.presentedList ? { presentedList: record.presentedList } : {}),
+  referencedEntities: [...record.referencedEntities],
+  ...(record.resolvedStandaloneQueryUsed
+    ? { resolvedStandaloneQueryUsed: record.resolvedStandaloneQueryUsed }
+    : {}),
+  ...(record.responseLanguage ? { responseLanguage: record.responseLanguage } : {}),
+  responseMode: record.responseMode,
+  groundingSourceMetadata: {
+    ...record.groundingSourceMetadata,
+    groundedEntityIds: [...record.groundingSourceMetadata.groundedEntityIds],
+  },
+  ...(record.handoffRationale ? { handoffRationale: record.handoffRationale } : {}),
+  ...(record.clarificationRationale ? { clarificationRationale: record.clarificationRationale } : {}),
+  stateMutationHints: {
+    ...record.stateMutationHints,
+    focusEntityIds: [...record.stateMutationHints.focusEntityIds],
+    ...(record.stateMutationHints.lastPresentedList
+      ? { lastPresentedList: record.stateMutationHints.lastPresentedList }
+      : {}),
+  },
+  createdAt: record.createdAt,
+});
+
+const toConversationSummaryDto = (
+  summary: Doc<"conversationSummaries">,
+): ConversationSummaryDto => ({
+  summaryId: summary.summaryId,
+  conversationId: summary.conversationId,
+  ...(summary.durableCustomerGoal ? { durableCustomerGoal: summary.durableCustomerGoal } : {}),
+  stablePreferences: [...summary.stablePreferences],
+  importantResolvedDecisions: [...summary.importantResolvedDecisions],
+  historicalContextNeededForFutureTurns: [...summary.historicalContextNeededForFutureTurns],
+  freshness: summary.freshness,
+  provenance: summary.provenance,
+  coveredMessageRange: summary.coveredMessageRange,
+});
+
 const loadCanonicalConversationStateDoc = async (
   ctx: { db: DatabaseReader },
   conversationId: Id<"conversations">,
@@ -298,6 +359,44 @@ const loadCanonicalConversationStateDoc = async (
     .collect();
 
   return states[0] ?? null;
+};
+
+const loadAssistantSemanticRecordByMessageId = async (
+  ctx: { db: DatabaseReader },
+  assistantMessageId: Id<"messages">,
+): Promise<Doc<"assistantSemanticRecords"> | null> => {
+  const records = await ctx.db
+    .query("assistantSemanticRecords")
+    .withIndex("by_assistant_message", (q) => q.eq("assistantMessageId", assistantMessageId))
+    .collect();
+
+  return records[0] ?? null;
+};
+
+const loadConversationSummaryByConversationAndSummaryId = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+  summaryId: string,
+): Promise<Doc<"conversationSummaries"> | null> => {
+  const summaries = await ctx.db
+    .query("conversationSummaries")
+    .withIndex("by_conversation_summary_id", (q) => q.eq("conversationId", conversationId).eq("summaryId", summaryId))
+    .collect();
+
+  return summaries[0] ?? null;
+};
+
+const loadLatestConversationSummaryDoc = async (
+  ctx: { db: DatabaseReader },
+  conversationId: Id<"conversations">,
+): Promise<Doc<"conversationSummaries"> | null> => {
+  const summaries = await ctx.db
+    .query("conversationSummaries")
+    .withIndex("by_conversation_updated_at", (q) => q.eq("conversationId", conversationId))
+    .order("desc")
+    .take(1);
+
+  return summaries[0] ?? null;
 };
 
 const isScopedCategoryId = async (
@@ -373,6 +472,108 @@ const isValidCanonicalEntityId = async (
     case "variant":
       return isScopedVariantId(ctx, companyId, entityId);
   }
+};
+
+const sanitizeTurnReferencedEntities = async (
+  ctx: { db: DatabaseReader },
+  companyId: Id<"companies">,
+  referencedEntities: TurnReferencedEntity[],
+): Promise<TurnReferencedEntity[]> => {
+  const sanitized: TurnReferencedEntity[] = [];
+
+  for (const entity of referencedEntities) {
+    if (await isValidCanonicalEntityId(ctx, companyId, entity.entityKind, entity.entityId)) {
+      sanitized.push(entity);
+    }
+  }
+
+  return sanitized;
+};
+
+const sanitizeAssistantSemanticStateMutationHints = async (
+  ctx: { db: DatabaseReader },
+  companyId: Id<"companies">,
+  hints: AssistantSemanticRecordDto["stateMutationHints"],
+): Promise<AssistantSemanticRecordDto["stateMutationHints"]> => {
+  const focusEntityIds = sanitizeNonEmptyStringArray(hints.focusEntityIds);
+  let sanitizedFocusEntityIds = focusEntityIds;
+
+  if (hints.focusKind && hints.focusKind !== "catalog_slice" && hints.focusKind !== "none") {
+    sanitizedFocusEntityIds = [];
+    for (const entityId of focusEntityIds) {
+      if (await isValidCanonicalEntityId(ctx, companyId, hints.focusKind, entityId)) {
+        sanitizedFocusEntityIds.push(entityId);
+      }
+    }
+  }
+
+  const sanitizedList = hints.lastPresentedList
+    ? await sanitizeCanonicalPresentedList(ctx, companyId, hints.lastPresentedList, "stateMutationHints.lastPresentedList")
+    : { list: undefined, invalidatedPaths: [] as string[] };
+
+  return {
+    ...(hints.focusKind ? { focusKind: hints.focusKind } : {}),
+    focusEntityIds: sanitizedFocusEntityIds,
+    shouldSetPendingClarification: hints.shouldSetPendingClarification,
+    ...(hints.latestStandaloneQueryText
+      ? { latestStandaloneQueryText: hints.latestStandaloneQueryText.trim() }
+      : {}),
+    ...(sanitizedList.list ? { lastPresentedList: sanitizedList.list } : {}),
+  };
+};
+
+const sanitizeAssistantSemanticRecordDto = async (
+  ctx: { db: DatabaseReader },
+  companyId: Id<"companies">,
+  record: AssistantSemanticRecordDto,
+): Promise<AssistantSemanticRecordDto> => {
+  const { presentedList: _presentedList, ...restRecord } = record;
+  const sanitizedPresentedList = record.presentedList
+    ? await sanitizeCanonicalPresentedList(ctx, companyId, record.presentedList, "presentedList")
+    : { list: undefined, invalidatedPaths: [] as string[] };
+  const referencedEntities = await sanitizeTurnReferencedEntities(ctx, companyId, record.referencedEntities);
+  const orderedPresentedEntityIds = sanitizedPresentedList.list
+    ? sanitizedPresentedList.list.items
+      .slice()
+      .sort((left, right) => left.displayIndex - right.displayIndex)
+      .map((item) => item.entityId)
+    : record.presentedList
+      ? []
+    : sanitizeNonEmptyStringArray(record.orderedPresentedEntityIds);
+  const displayIndexToEntityIdMap = sanitizedPresentedList.list
+    ? sanitizedPresentedList.list.items
+      .slice()
+      .sort((left, right) => left.displayIndex - right.displayIndex)
+      .map((item) => ({
+        displayIndex: item.displayIndex,
+        entityId: item.entityId,
+      }))
+    : record.presentedList
+      ? []
+    : record.displayIndexToEntityIdMap
+      .map((item) => ({
+        displayIndex: Math.trunc(item.displayIndex),
+        entityId: item.entityId.trim(),
+      }))
+      .filter((item) => item.displayIndex > 0 && item.entityId.length > 0);
+  const groundedEntityIds = sanitizeNonEmptyStringArray(record.groundingSourceMetadata.groundedEntityIds);
+
+  return {
+    ...restRecord,
+    orderedPresentedEntityIds,
+    displayIndexToEntityIdMap,
+    ...(sanitizedPresentedList.list ? { presentedList: sanitizedPresentedList.list } : {}),
+    referencedEntities,
+    groundingSourceMetadata: {
+      ...record.groundingSourceMetadata,
+      groundedEntityIds,
+    },
+    stateMutationHints: await sanitizeAssistantSemanticStateMutationHints(
+      ctx,
+      companyId,
+      record.stateMutationHints,
+    ),
+  };
 };
 
 const sanitizeCanonicalFocus = async (
@@ -1182,6 +1383,373 @@ export const getCanonicalConversationState = internalQuery({
       state: seededState,
       now,
     });
+  },
+});
+
+export const getQuotedReferenceContext = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    referencedTransportMessageId: v.string(),
+  },
+  handler: async (ctx, args): Promise<TurnResolutionQuotedReference | null> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const referencedMessage = await resolveMessageByTransportMessageId(
+      ctx,
+      args.conversationId,
+      args.referencedTransportMessageId,
+    );
+
+    if (!referencedMessage) {
+      return null;
+    }
+
+    let presentedList: CanonicalConversationPresentedListDto | undefined;
+    let referencedEntities: TurnReferencedEntity[] | undefined;
+    if (referencedMessage.role === "assistant") {
+      const semanticRecord = await loadAssistantSemanticRecordByMessageId(ctx, referencedMessage._id);
+      if (semanticRecord) {
+        const sanitizedSemanticRecord = await sanitizeAssistantSemanticRecordDto(
+          ctx,
+          args.companyId,
+          toAssistantSemanticRecordDto(semanticRecord),
+        );
+        presentedList = sanitizedSemanticRecord.presentedList ?? sanitizedSemanticRecord.stateMutationHints.lastPresentedList;
+        referencedEntities = sanitizedSemanticRecord.referencedEntities;
+      }
+    }
+
+    return {
+      ...(referencedMessage.transportMessageId
+        ? { transportMessageId: referencedMessage.transportMessageId }
+        : {}),
+      conversationMessageId: referencedMessage._id,
+      role: referencedMessage.role,
+      text: referencedMessage.content,
+      ...(presentedList ? { presentedList } : {}),
+      ...(referencedEntities && referencedEntities.length > 0 ? { referencedEntities } : {}),
+    };
+  },
+});
+
+export const listRelevantAssistantSemanticRecords = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    limit: v.number(),
+    beforeTimestamp: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<AssistantSemanticRecordDto[]> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const limit = normalizePositiveInteger(args.limit, "limit");
+    const records = await ctx.db
+      .query("assistantSemanticRecords")
+      .withIndex("by_conversation_created_at", (q) => q.eq("conversationId", args.conversationId))
+      .order("desc")
+      .collect();
+
+    const filteredRecords = records
+      .filter((record) => record.companyId === args.companyId)
+      .filter((record) => args.beforeTimestamp === undefined || record.createdAt <= args.beforeTimestamp)
+      .slice(0, limit);
+
+    const sanitizedRecords: AssistantSemanticRecordDto[] = [];
+    for (const record of filteredRecords) {
+      sanitizedRecords.push(
+        await sanitizeAssistantSemanticRecordDto(ctx, args.companyId, toAssistantSemanticRecordDto(record)),
+      );
+    }
+
+    return sanitizedRecords;
+  },
+});
+
+export const getLatestConversationSummary = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+  },
+  handler: async (ctx, args): Promise<ConversationSummaryDto | null> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const summary = await loadLatestConversationSummaryDoc(ctx, args.conversationId);
+
+    return summary && summary.companyId === args.companyId ? toConversationSummaryDto(summary) : null;
+  },
+});
+
+export const persistAssistantSemanticRecord = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    assistantMessageId: v.id("messages"),
+    schemaVersion: v.literal("v1"),
+    actionType: v.union(v.literal("none"), v.literal("clarify"), v.literal("handoff")),
+    normalizedAction: v.union(
+      v.literal("answer"),
+      v.literal("present_list"),
+      v.literal("clarify"),
+      v.literal("handoff"),
+      v.literal("fallback"),
+    ),
+    semanticRecordStatus: v.union(
+      v.literal("complete"),
+      v.literal("partial"),
+      v.literal("unavailable"),
+      v.literal("skipped"),
+    ),
+    presentedNumberedList: v.boolean(),
+    orderedPresentedEntityIds: v.array(v.string()),
+    displayIndexToEntityIdMap: v.array(v.object({
+      displayIndex: v.number(),
+      entityId: v.string(),
+    })),
+    presentedList: v.optional(v.object({
+      kind: v.union(v.literal("category"), v.literal("product"), v.literal("variant"), v.literal("catalog_slice")),
+      items: v.array(v.object({
+        displayIndex: v.number(),
+        entityKind: v.union(v.literal("category"), v.literal("product"), v.literal("variant"), v.literal("catalog_slice")),
+        entityId: v.string(),
+        score: v.optional(v.number()),
+      })),
+      source: v.optional(v.union(
+        v.literal("system_seed"),
+        v.literal("system_passthrough"),
+        v.literal("assistant_action"),
+        v.literal("retrieval_single_candidate"),
+        v.literal("quoted_reference"),
+        v.literal("heuristic"),
+      )),
+      updatedAt: v.optional(v.number()),
+    })),
+    referencedEntities: v.array(v.object({
+      entityKind: v.union(v.literal("category"), v.literal("product"), v.literal("variant")),
+      entityId: v.string(),
+      source: v.union(
+        v.literal("quoted_reference"),
+        v.literal("current_focus"),
+        v.literal("last_presented_list"),
+        v.literal("pending_clarification"),
+        v.literal("semantic_assistant_record"),
+        v.literal("recent_turns"),
+        v.literal("summary"),
+        v.literal("raw_text"),
+        v.literal("heuristic_hint"),
+      ),
+      confidence: v.optional(v.union(v.literal("high"), v.literal("medium"), v.literal("low"))),
+    })),
+    resolvedStandaloneQueryUsed: v.optional(v.object({
+      text: v.string(),
+      status: v.union(v.literal("used"), v.literal("not_used")),
+    })),
+    responseLanguage: v.optional(v.union(v.literal("ar"), v.literal("en"))),
+    responseMode: v.union(
+      v.literal("grounded"),
+      v.literal("inferred"),
+      v.literal("clarified"),
+      v.literal("fallback"),
+      v.literal("handoff"),
+    ),
+    groundingSourceMetadata: v.object({
+      usedRetrieval: v.boolean(),
+      usedConversationState: v.boolean(),
+      usedSummary: v.boolean(),
+      retrievalMode: v.optional(v.union(
+        v.literal("raw_latest_message"),
+        v.literal("semantic_catalog_search"),
+        v.literal("direct_entity_lookup"),
+        v.literal("variant_lookup"),
+        v.literal("filtered_catalog_search"),
+        v.literal("skip_retrieval"),
+        v.literal("clarification_required"),
+      )),
+      groundedEntityIds: v.array(v.string()),
+    }),
+    handoffRationale: v.optional(v.object({
+      reasonCode: v.string(),
+      detail: v.optional(v.string()),
+    })),
+    clarificationRationale: v.optional(v.object({
+      reasonCode: v.string(),
+      detail: v.optional(v.string()),
+    })),
+    stateMutationHints: v.object({
+      focusKind: v.optional(v.union(
+        v.literal("none"),
+        v.literal("category"),
+        v.literal("product"),
+        v.literal("variant"),
+        v.literal("catalog_slice"),
+      )),
+      focusEntityIds: v.array(v.string()),
+      shouldSetPendingClarification: v.boolean(),
+      latestStandaloneQueryText: v.optional(v.string()),
+      lastPresentedList: v.optional(v.object({
+        kind: v.union(v.literal("category"), v.literal("product"), v.literal("variant"), v.literal("catalog_slice")),
+        items: v.array(v.object({
+          displayIndex: v.number(),
+          entityKind: v.union(v.literal("category"), v.literal("product"), v.literal("variant"), v.literal("catalog_slice")),
+          entityId: v.string(),
+          score: v.optional(v.number()),
+        })),
+        source: v.optional(v.union(
+          v.literal("system_seed"),
+          v.literal("system_passthrough"),
+          v.literal("assistant_action"),
+          v.literal("retrieval_single_candidate"),
+          v.literal("quoted_reference"),
+          v.literal("heuristic"),
+        )),
+        updatedAt: v.optional(v.number()),
+      })),
+    }),
+    createdAt: v.number(),
+  },
+  handler: async (ctx, args): Promise<AssistantSemanticRecordDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const assistantMessage = await loadMessageOrThrow(ctx, args.assistantMessageId);
+    if (assistantMessage.conversationId !== args.conversationId || assistantMessage.role !== "assistant") {
+      throw new Error("Assistant message not found for conversation");
+    }
+
+    const existing = await loadAssistantSemanticRecordByMessageId(ctx, args.assistantMessageId);
+    if (existing) {
+      throw new Error("Assistant semantic record already exists for message");
+    }
+
+    const sanitizedRecord = await sanitizeAssistantSemanticRecordDto(ctx, args.companyId, {
+      id: args.assistantMessageId,
+      schemaVersion: ASSISTANT_SEMANTIC_RECORD_SCHEMA_VERSION,
+      companyId: args.companyId,
+      conversationId: args.conversationId,
+      assistantMessageId: args.assistantMessageId,
+      actionType: args.actionType,
+      normalizedAction: args.normalizedAction,
+      semanticRecordStatus: args.semanticRecordStatus,
+      presentedNumberedList: args.presentedNumberedList,
+      orderedPresentedEntityIds: [...args.orderedPresentedEntityIds],
+      displayIndexToEntityIdMap: [...args.displayIndexToEntityIdMap],
+      ...(args.presentedList ? { presentedList: args.presentedList } : {}),
+      referencedEntities: [...args.referencedEntities],
+      ...(args.resolvedStandaloneQueryUsed
+        ? { resolvedStandaloneQueryUsed: args.resolvedStandaloneQueryUsed }
+        : {}),
+      ...(args.responseLanguage ? { responseLanguage: args.responseLanguage } : {}),
+      responseMode: args.responseMode,
+      groundingSourceMetadata: {
+        ...args.groundingSourceMetadata,
+        groundedEntityIds: [...args.groundingSourceMetadata.groundedEntityIds],
+      },
+      ...(args.handoffRationale ? { handoffRationale: args.handoffRationale } : {}),
+      ...(args.clarificationRationale ? { clarificationRationale: args.clarificationRationale } : {}),
+      stateMutationHints: {
+        ...args.stateMutationHints,
+        focusEntityIds: [...args.stateMutationHints.focusEntityIds],
+      },
+      createdAt: args.createdAt,
+    });
+
+    const recordId = await ctx.db.insert("assistantSemanticRecords", {
+      companyId: args.companyId,
+      conversationId: args.conversationId,
+      assistantMessageId: args.assistantMessageId,
+      schemaVersion: sanitizedRecord.schemaVersion,
+      actionType: sanitizedRecord.actionType,
+      normalizedAction: sanitizedRecord.normalizedAction,
+      semanticRecordStatus: sanitizedRecord.semanticRecordStatus,
+      presentedNumberedList: sanitizedRecord.presentedNumberedList,
+      orderedPresentedEntityIds: sanitizedRecord.orderedPresentedEntityIds,
+      displayIndexToEntityIdMap: sanitizedRecord.displayIndexToEntityIdMap,
+      ...(sanitizedRecord.presentedList ? { presentedList: sanitizedRecord.presentedList } : {}),
+      referencedEntities: sanitizedRecord.referencedEntities,
+      ...(sanitizedRecord.resolvedStandaloneQueryUsed
+        ? { resolvedStandaloneQueryUsed: sanitizedRecord.resolvedStandaloneQueryUsed }
+        : {}),
+      ...(sanitizedRecord.responseLanguage ? { responseLanguage: sanitizedRecord.responseLanguage } : {}),
+      responseMode: sanitizedRecord.responseMode,
+      groundingSourceMetadata: sanitizedRecord.groundingSourceMetadata,
+      ...(sanitizedRecord.handoffRationale ? { handoffRationale: sanitizedRecord.handoffRationale } : {}),
+      ...(sanitizedRecord.clarificationRationale
+        ? { clarificationRationale: sanitizedRecord.clarificationRationale }
+        : {}),
+      stateMutationHints: sanitizedRecord.stateMutationHints,
+      createdAt: sanitizedRecord.createdAt,
+    });
+
+    return toAssistantSemanticRecordDto(await ctx.db.get(recordId) as Doc<"assistantSemanticRecords">);
+  },
+});
+
+export const upsertConversationSummary = internalMutation({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    summaryId: v.string(),
+    durableCustomerGoal: v.optional(v.string()),
+    stablePreferences: v.array(v.string()),
+    importantResolvedDecisions: v.array(v.object({
+      summary: v.string(),
+      source: v.optional(v.string()),
+    })),
+    historicalContextNeededForFutureTurns: v.array(v.string()),
+    freshness: v.object({
+      status: v.union(v.literal("fresh"), v.literal("stale")),
+      updatedAt: v.optional(v.number()),
+    }),
+    provenance: v.object({
+      source: v.union(v.literal("shadow"), v.literal("system_seed"), v.literal("summary_job")),
+      generatedAt: v.optional(v.number()),
+    }),
+    coveredMessageRange: v.object({
+      fromMessageId: v.optional(v.string()),
+      toMessageId: v.optional(v.string()),
+      messageCount: v.optional(v.number()),
+    }),
+  },
+  handler: async (ctx, args): Promise<ConversationSummaryDto> => {
+    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    const freshnessUpdatedAt = normalizeTimestamp(args.freshness.updatedAt, Date.now());
+    const existing = await loadConversationSummaryByConversationAndSummaryId(
+      ctx,
+      args.conversationId,
+      args.summaryId,
+    );
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        ...(args.durableCustomerGoal ? { durableCustomerGoal: args.durableCustomerGoal } : {}),
+        stablePreferences: [...args.stablePreferences],
+        importantResolvedDecisions: [...args.importantResolvedDecisions],
+        historicalContextNeededForFutureTurns: [...args.historicalContextNeededForFutureTurns],
+        freshness: {
+          ...args.freshness,
+          updatedAt: freshnessUpdatedAt,
+        },
+        freshnessUpdatedAt,
+        provenance: args.provenance,
+        coveredMessageRange: args.coveredMessageRange,
+      });
+
+      return toConversationSummaryDto(await ctx.db.get(existing._id) as Doc<"conversationSummaries">);
+    }
+
+    const summaryId = await ctx.db.insert("conversationSummaries", {
+      companyId: args.companyId,
+      conversationId: args.conversationId,
+      summaryId: args.summaryId,
+      ...(args.durableCustomerGoal ? { durableCustomerGoal: args.durableCustomerGoal } : {}),
+      stablePreferences: [...args.stablePreferences],
+      importantResolvedDecisions: [...args.importantResolvedDecisions],
+      historicalContextNeededForFutureTurns: [...args.historicalContextNeededForFutureTurns],
+      freshness: {
+        ...args.freshness,
+        updatedAt: freshnessUpdatedAt,
+      },
+      freshnessUpdatedAt,
+      provenance: args.provenance,
+      coveredMessageRange: args.coveredMessageRange,
+    });
+
+    return toConversationSummaryDto(await ctx.db.get(summaryId) as Doc<"conversationSummaries">);
   },
 });
 

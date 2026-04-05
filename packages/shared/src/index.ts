@@ -7,6 +7,7 @@ export interface HealthStatus {
 
 export * from "./analytics";
 export * from "./accessControl";
+export * from "./assistantSemanticRecord";
 export * from "./companyRuntime";
 export * from "./conversationState";
 export * from "./conversationalIntelligenceDiagnostics";

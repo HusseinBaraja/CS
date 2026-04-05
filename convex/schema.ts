@@ -1,6 +1,9 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import {
+  ASSISTANT_SEMANTIC_NORMALIZED_ACTION_VALUES,
+  ASSISTANT_SEMANTIC_RECORD_STATUS_VALUES,
+  ASSISTANT_SEMANTIC_RESPONSE_MODE_VALUES,
   BOT_RUNTIME_SESSION_STATES,
   CANONICAL_CONVERSATION_FOCUS_KINDS,
   CANONICAL_CONVERSATION_FRESHNESS_STATUSES,
@@ -9,6 +12,7 @@ import {
   CANONICAL_CONVERSATION_SOURCE_VALUES,
   CONVERSATION_LIFECYCLE_EVENT_SOURCES,
   CONVERSATION_LIFECYCLE_EVENT_TYPES,
+  TURN_REFERENCED_ENTITY_SOURCE_VALUES,
 } from '@cs/shared';
 
 // ── Reusable field patterns ──────────────────────────────────────────────────
@@ -123,6 +127,76 @@ const canonicalConversationHeuristicHintsValidator = v.object({
   topCandidates: v.array(canonicalConversationHeuristicCandidateValidator),
   retrievalOrderListProxy: v.optional(canonicalConversationPresentedListValidator),
   heuristicFocus: v.optional(canonicalConversationFocusValidator),
+});
+const retrievalModeValidator = v.union(
+  v.literal("raw_latest_message"),
+  v.literal("semantic_catalog_search"),
+  v.literal("direct_entity_lookup"),
+  v.literal("variant_lookup"),
+  v.literal("filtered_catalog_search"),
+  v.literal("skip_retrieval"),
+  v.literal("clarification_required"),
+);
+const turnReferencedEntitySourceValidator = v.union(
+  ...TURN_REFERENCED_ENTITY_SOURCE_VALUES.map((source) => v.literal(source)),
+);
+const assistantSemanticNormalizedActionValidator = v.union(
+  ...ASSISTANT_SEMANTIC_NORMALIZED_ACTION_VALUES.map((action) => v.literal(action)),
+);
+const assistantSemanticRecordStatusValidator = v.union(
+  ...ASSISTANT_SEMANTIC_RECORD_STATUS_VALUES.map((status) => v.literal(status)),
+);
+const assistantSemanticResponseModeValidator = v.union(
+  ...ASSISTANT_SEMANTIC_RESPONSE_MODE_VALUES.map((mode) => v.literal(mode)),
+);
+const turnReferencedEntityValidator = v.object({
+  entityKind: v.union(v.literal("category"), v.literal("product"), v.literal("variant")),
+  entityId: v.string(),
+  source: turnReferencedEntitySourceValidator,
+  confidence: v.optional(v.union(v.literal("high"), v.literal("medium"), v.literal("low"))),
+});
+const assistantSemanticDisplayIndexMappingValidator = v.object({
+  displayIndex: v.number(),
+  entityId: v.string(),
+});
+const assistantSemanticResolvedStandaloneQueryValidator = v.object({
+  text: v.string(),
+  status: v.union(v.literal("used"), v.literal("not_used")),
+});
+const assistantSemanticGroundingSourceMetadataValidator = v.object({
+  usedRetrieval: v.boolean(),
+  usedConversationState: v.boolean(),
+  usedSummary: v.boolean(),
+  retrievalMode: v.optional(retrievalModeValidator),
+  groundedEntityIds: v.array(v.string()),
+});
+const assistantSemanticRationaleValidator = v.object({
+  reasonCode: v.string(),
+  detail: v.optional(v.string()),
+});
+const assistantSemanticStateMutationHintsValidator = v.object({
+  focusKind: v.optional(canonicalConversationFocusKindValidator),
+  focusEntityIds: v.array(v.string()),
+  shouldSetPendingClarification: v.boolean(),
+  latestStandaloneQueryText: v.optional(v.string()),
+  lastPresentedList: v.optional(canonicalConversationPresentedListValidator),
+});
+const conversationSummaryResolvedDecisionValidator = v.object({
+  summary: v.string(),
+  source: v.optional(v.string()),
+});
+const conversationSummaryFreshnessValidator = v.object({
+  status: canonicalConversationFreshnessStatusValidator,
+  updatedAt: v.optional(v.number()),
+});
+const conversationSummaryProvenanceValidator = v.object({
+  source: v.union(v.literal("shadow"), v.literal("system_seed"), v.literal("summary_job")),
+  generatedAt: v.optional(v.number()),
+});
+const conversationSummaryCoveredMessageRangeValidator = v.object({
+  fromMessageId: v.optional(v.string()),
+  toMessageId: v.optional(v.string()),
+  messageCount: v.optional(v.number()),
 });
 const [
   initializingState,
@@ -330,6 +404,49 @@ export default defineSchema({
   })
     .index("by_conversation", ["conversationId"])
     .index("by_company_conversation", ["companyId", "conversationId"]),
+
+  assistantSemanticRecords: defineTable({
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    assistantMessageId: v.id("messages"),
+    schemaVersion: v.literal("v1"),
+    actionType: v.union(v.literal("none"), v.literal("clarify"), v.literal("handoff")),
+    normalizedAction: assistantSemanticNormalizedActionValidator,
+    semanticRecordStatus: assistantSemanticRecordStatusValidator,
+    presentedNumberedList: v.boolean(),
+    orderedPresentedEntityIds: v.array(v.string()),
+    displayIndexToEntityIdMap: v.array(assistantSemanticDisplayIndexMappingValidator),
+    presentedList: v.optional(canonicalConversationPresentedListValidator),
+    referencedEntities: v.array(turnReferencedEntityValidator),
+    resolvedStandaloneQueryUsed: v.optional(assistantSemanticResolvedStandaloneQueryValidator),
+    responseLanguage: v.optional(v.union(v.literal("ar"), v.literal("en"))),
+    responseMode: assistantSemanticResponseModeValidator,
+    groundingSourceMetadata: assistantSemanticGroundingSourceMetadataValidator,
+    handoffRationale: v.optional(assistantSemanticRationaleValidator),
+    clarificationRationale: v.optional(assistantSemanticRationaleValidator),
+    stateMutationHints: assistantSemanticStateMutationHintsValidator,
+    createdAt: v.number(),
+  })
+    .index("by_assistant_message", ["assistantMessageId"])
+    .index("by_conversation_created_at", ["conversationId", "createdAt"])
+    .index("by_company_conversation_created_at", ["companyId", "conversationId", "createdAt"]),
+
+  conversationSummaries: defineTable({
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    summaryId: v.string(),
+    durableCustomerGoal: v.optional(v.string()),
+    stablePreferences: v.array(v.string()),
+    importantResolvedDecisions: v.array(conversationSummaryResolvedDecisionValidator),
+    historicalContextNeededForFutureTurns: v.array(v.string()),
+    freshness: conversationSummaryFreshnessValidator,
+    freshnessUpdatedAt: v.number(),
+    provenance: conversationSummaryProvenanceValidator,
+    coveredMessageRange: conversationSummaryCoveredMessageRangeValidator,
+  })
+    .index("by_conversation_updated_at", ["conversationId", "freshnessUpdatedAt"])
+    .index("by_company_conversation_updated_at", ["companyId", "conversationId", "freshnessUpdatedAt"])
+    .index("by_conversation_summary_id", ["conversationId", "summaryId"]),
 
   // ── Messages ────────────────────────────────────────────────────────────
   messages: defineTable({
