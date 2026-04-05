@@ -5,6 +5,10 @@ import type {
   CanonicalConversationStateWriteEvent,
   ContextUsageEvent,
   FallbackDecisionEvent,
+  ResolutionClarificationShortCircuitEvent,
+  ResolutionPassthroughEvent,
+  ResolutionShadowDisagreementEvent,
+  ResolutionSourceSelectionEvent,
   RetrievalOutcomeEvent,
   StructuredOutputFailureEvent,
 } from "@cs/shared";
@@ -25,6 +29,10 @@ const withConversationIdentifiers = (
     | CanonicalConversationStateFallbackMismatchEvent
     | ContextUsageEvent
     | RetrievalOutcomeEvent
+    | ResolutionSourceSelectionEvent
+    | ResolutionClarificationShortCircuitEvent
+    | ResolutionPassthroughEvent
+    | ResolutionShadowDisagreementEvent
     | FallbackDecisionEvent
     | StructuredOutputFailureEvent,
     "conversationId" | "requestId"
@@ -66,6 +74,68 @@ export const toRetrievalOutcomeLogPayload = (
   contextBlockCount: event.contextBlockCount,
   fallbackChosen: event.fallbackChosen,
   ...summarizeTextForLog(event.queryText),
+});
+
+export const toResolutionSourceSelectionLogPayload = (
+  event: ResolutionSourceSelectionEvent,
+): StructuredLogPayloadInput => ({
+  event: "rag.turn_resolution.source_selection_recorded",
+  runtime: "rag",
+  surface: "orchestrator",
+  outcome: "recorded",
+  ...withConversationIdentifiers(event),
+  selectedResolutionSource: event.selectedResolutionSource,
+  resolvedIntent: event.resolvedIntent,
+  preferredRetrievalMode: event.preferredRetrievalMode,
+  resolutionConfidence: event.resolutionConfidence,
+  clarificationRequired: event.clarificationRequired,
+  selectedSources: event.selectedSources,
+  supportingSources: event.supportingSources,
+  conflictingSources: event.conflictingSources,
+  discardedSources: event.discardedSources,
+});
+
+export const toResolutionClarificationShortCircuitLogPayload = (
+  event: ResolutionClarificationShortCircuitEvent,
+): StructuredLogPayloadInput => ({
+  event: "rag.turn_resolution.clarification_short_circuit_recorded",
+  runtime: "rag",
+  surface: "orchestrator",
+  outcome: "recorded",
+  ...withConversationIdentifiers(event),
+  selectedResolutionSource: event.selectedResolutionSource,
+  resolutionConfidence: event.resolutionConfidence,
+  preferredRetrievalMode: event.preferredRetrievalMode,
+  clarificationReason: event.clarificationReason,
+});
+
+export const toResolutionPassthroughLogPayload = (
+  event: ResolutionPassthroughEvent,
+): StructuredLogPayloadInput => ({
+  event: "rag.turn_resolution.passthrough_recorded",
+  runtime: "rag",
+  surface: "orchestrator",
+  outcome: "recorded",
+  ...withConversationIdentifiers(event),
+  selectedResolutionSource: event.selectedResolutionSource,
+  preferredRetrievalMode: event.preferredRetrievalMode,
+  queryStatus: event.queryStatus,
+  passthroughReason: event.passthroughReason,
+});
+
+export const toResolutionShadowDisagreementLogPayload = (
+  event: ResolutionShadowDisagreementEvent,
+): StructuredLogPayloadInput => ({
+  event: "rag.turn_resolution.shadow_disagreement_recorded",
+  runtime: "rag",
+  surface: "orchestrator",
+  outcome: "recorded",
+  ...withConversationIdentifiers(event),
+  deterministicSource: event.deterministicSource,
+  deterministicMode: event.deterministicMode,
+  shadowMode: event.shadowMode,
+  deterministicConfidence: event.deterministicConfidence,
+  shadowConfidence: event.shadowConfidence,
 });
 
 export const toFallbackDecisionLogPayload = (

@@ -6,6 +6,10 @@ import {
   toCanonicalConversationStateWriteLogPayload,
   toContextUsageLogPayload,
   toFallbackDecisionLogPayload,
+  toResolutionClarificationShortCircuitLogPayload,
+  toResolutionPassthroughLogPayload,
+  toResolutionShadowDisagreementLogPayload,
+  toResolutionSourceSelectionLogPayload,
   toRetrievalOutcomeLogPayload,
   toStructuredOutputFailureLogPayload,
 } from "./conversationalIntelligence";
@@ -61,6 +65,80 @@ describe("conversational intelligence log payload helpers", () => {
     });
     expect(payload).not.toHaveProperty("conversationId");
     expect(payload).not.toHaveProperty("requestId");
+  });
+
+  test("builds resolution-stage payloads", () => {
+    const selectionPayload = toResolutionSourceSelectionLogPayload({
+      conversationId: "conversation-1",
+      requestId: "request-1",
+      selectedResolutionSource: "current_focus",
+      resolvedIntent: "entity_followup",
+      preferredRetrievalMode: "semantic_catalog_search",
+      resolutionConfidence: "high",
+      clarificationRequired: false,
+      selectedSources: ["current_focus"],
+      supportingSources: ["semantic_assistant_record"],
+      conflictingSources: ["summary"],
+      discardedSources: ["recent_turns"],
+    });
+    const clarificationPayload = toResolutionClarificationShortCircuitLogPayload({
+      selectedResolutionSource: "raw_text",
+      resolutionConfidence: "low",
+      preferredRetrievalMode: "clarification_required",
+      clarificationReason: "missing_required_entity",
+    });
+    const passthroughPayload = toResolutionPassthroughLogPayload({
+      selectedResolutionSource: "raw_text",
+      preferredRetrievalMode: "semantic_catalog_search",
+      queryStatus: "resolved_passthrough",
+      passthroughReason: "already_standalone",
+    });
+    const shadowPayload = toResolutionShadowDisagreementLogPayload({
+      deterministicSource: "last_presented_list",
+      deterministicMode: "clarification_required",
+      shadowMode: "variant_lookup",
+      deterministicConfidence: "low",
+      shadowConfidence: "medium",
+    });
+
+    expect(selectionPayload).toMatchObject({
+      event: "rag.turn_resolution.source_selection_recorded",
+      conversationId: "conversation-1",
+      requestId: "request-1",
+      selectedResolutionSource: "current_focus",
+      resolvedIntent: "entity_followup",
+      preferredRetrievalMode: "semantic_catalog_search",
+      resolutionConfidence: "high",
+      clarificationRequired: false,
+      selectedSources: ["current_focus"],
+      supportingSources: ["semantic_assistant_record"],
+      conflictingSources: ["summary"],
+      discardedSources: ["recent_turns"],
+    });
+    expect(clarificationPayload).toMatchObject({
+      event: "rag.turn_resolution.clarification_short_circuit_recorded",
+      selectedResolutionSource: "raw_text",
+      preferredRetrievalMode: "clarification_required",
+      clarificationReason: "missing_required_entity",
+    });
+    expect(passthroughPayload).toMatchObject({
+      event: "rag.turn_resolution.passthrough_recorded",
+      selectedResolutionSource: "raw_text",
+      preferredRetrievalMode: "semantic_catalog_search",
+      queryStatus: "resolved_passthrough",
+      passthroughReason: "already_standalone",
+    });
+    expect(shadowPayload).toMatchObject({
+      event: "rag.turn_resolution.shadow_disagreement_recorded",
+      deterministicSource: "last_presented_list",
+      deterministicMode: "clarification_required",
+      shadowMode: "variant_lookup",
+      deterministicConfidence: "low",
+      shadowConfidence: "medium",
+    });
+    expect(clarificationPayload).not.toHaveProperty("conversationId");
+    expect(passthroughPayload).not.toHaveProperty("requestId");
+    expect(shadowPayload).not.toHaveProperty("conversationId");
   });
 
   test("builds decision and structured output failure payloads", () => {

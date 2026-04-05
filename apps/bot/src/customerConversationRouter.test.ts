@@ -102,7 +102,7 @@ const createAssistantSemanticRecord = (): AssistantSemanticRecordDto => ({
     usedRetrieval: true,
     usedConversationState: false,
     usedSummary: false,
-    retrievalMode: "raw_latest_message",
+    retrievalMode: "semantic_catalog_search",
     groundedEntityIds: ["product-1"],
   },
   stateMutationHints: {
@@ -1492,7 +1492,7 @@ describe("createCustomerConversationRouter", () => {
         usedRetrieval: true,
         usedConversationState: false,
         usedSummary: false,
-        retrievalMode: "raw_latest_message",
+        retrievalMode: "semantic_catalog_search",
         groundedEntityIds: ["product-1"],
       },
       stateMutationHints: {

@@ -47,6 +47,31 @@ const serializeEntityRefs = (bundle: CatalogGroundingBundle): string =>
       .join(" | ")
     : "NONE";
 
+const serializeResolvedReferencedEntities = (
+  entities: NonNullable<PromptAssemblyInput["currentUserTurn"]["resolvedTurn"]>["referencedEntities"],
+): string =>
+  entities.length > 0
+    ? entities
+      .map((entity) => `${entity.entityKind}:${entity.entityId}@${entity.source}`)
+      .map(escapeForDelimiter)
+      .join(" | ")
+    : "NONE";
+
+const serializeProvenanceSources = (
+  sources: NonNullable<PromptAssemblyInput["currentUserTurn"]["resolvedTurn"]>["provenanceSummary"]["selectedSources"],
+): string =>
+  sources.length > 0
+    ? sources
+      .map((source) => {
+        const evidenceSummary = source.evidence.length > 0
+          ? `[${source.evidence.map((evidence) => `${evidence.kind}:${evidence.value}`).join(", ")}]`
+          : "";
+        return `${source.source}${evidenceSummary}`;
+      })
+      .map(escapeForDelimiter)
+      .join(" | ")
+    : "NONE";
+
 const buildBehaviorInstructionsPrompt = (instructions: PromptBehaviorInstructions): string => {
   const allowedActions = getAllowedActions(instructions.allowedActions);
   const targetLanguageInstruction = instructions.responseLanguage === "ar"
@@ -123,12 +148,52 @@ const buildGroundingFactsPrompt = (bundle: CatalogGroundingBundle | null): strin
   ].join("\n");
 };
 
+const buildResolvedUserTurnPrompt = (
+  resolvedTurn: NonNullable<PromptAssemblyInput["currentUserTurn"]["resolvedTurn"]>,
+): string => {
+  return [
+    "<RESOLVED_USER_TURN>",
+    `<RESOLVED_INTENT>${escapeForDelimiter(resolvedTurn.resolvedIntent)}</RESOLVED_INTENT>`,
+    `<SELECTED_RESOLUTION_SOURCE>${
+      escapeForDelimiter(resolvedTurn.selectedResolutionSource)
+    }</SELECTED_RESOLUTION_SOURCE>`,
+    `<STANDALONE_QUERY>${
+      escapeForDelimiter(resolvedTurn.standaloneQuery ?? "NONE")
+    }</STANDALONE_QUERY>`,
+    `<REFERENCED_ENTITIES>${serializeResolvedReferencedEntities(resolvedTurn.referencedEntities)}</REFERENCED_ENTITIES>`,
+    `<CLARIFICATION_REQUIRED>${resolvedTurn.clarification ? "true" : "false"}</CLARIFICATION_REQUIRED>`,
+    resolvedTurn.clarification
+      ? `<CLARIFICATION_REASON>${escapeForDelimiter(resolvedTurn.clarification.reason)}</CLARIFICATION_REASON>`
+      : undefined,
+    resolvedTurn.clarification
+      ? `<CLARIFICATION_TARGET>${escapeForDelimiter(resolvedTurn.clarification.target)}</CLARIFICATION_TARGET>`
+      : undefined,
+    resolvedTurn.clarification
+      ? `<CLARIFICATION_PROMPT_STRATEGY>${
+        escapeForDelimiter(resolvedTurn.clarification.suggestedPromptStrategy)
+      }</CLARIFICATION_PROMPT_STRATEGY>`
+      : undefined,
+    `<PROVENANCE_SELECTED_SOURCES>${
+      serializeProvenanceSources(resolvedTurn.provenanceSummary.selectedSources)
+    }</PROVENANCE_SELECTED_SOURCES>`,
+    `<PROVENANCE_CONFLICTING_SOURCES>${
+      serializeProvenanceSources(resolvedTurn.provenanceSummary.conflictingSources)
+    }</PROVENANCE_CONFLICTING_SOURCES>`,
+    "</RESOLVED_USER_TURN>",
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
+};
+
 const buildFinalUserPrompt = (
   input: PromptAssemblyInput,
   groundingFactsPrompt: string,
 ): string =>
   [
     groundingFactsPrompt,
+    ...(input.currentUserTurn.resolvedTurn
+      ? [buildResolvedUserTurnPrompt(input.currentUserTurn.resolvedTurn)]
+      : []),
     "<CURRENT_USER_TURN>",
     escapeForDelimiter(input.currentUserTurn.rawText),
     "</CURRENT_USER_TURN>",

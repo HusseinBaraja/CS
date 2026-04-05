@@ -9,10 +9,21 @@ import {
   type ChatRuntimeConfig,
 } from '@cs/ai';
 import type { Id } from '@cs/db';
+import type { ResolvedUserTurn, TurnResolutionPolicy } from '@cs/shared';
 import type { CatalogChatLogger, ProductRetrievalService, RetrieveCatalogContextResult } from './index';
 import { createCatalogChatOrchestrator } from './index';
 
 const COMPANY_ID = "company-1" as Id<"companies">;
+const DEFAULT_RESOLUTION_POLICY: TurnResolutionPolicy = {
+  allowModelAssistedFallback: false,
+  allowSemanticAssistantFallback: true,
+  allowSummarySupport: true,
+  staleContextWindowMs: 1_800_000,
+  quotedReferenceOverridesStaleness: true,
+  minimumConfidenceToProceed: "high",
+  allowMediumConfidenceProceed: false,
+  maxSemanticFallbackDepth: 3,
+};
 
 const groundedRetrievalResult = (
   overrides: Partial<RetrieveCatalogContextResult> = {},
@@ -108,6 +119,33 @@ const findLoggedEvent = (
   calls: Array<{ payload: Record<string, unknown>; message: string }>,
   eventName: string,
 ) => calls.find((call) => call.payload.event === eventName);
+
+const createResolvedTurn = (
+  overrides: Partial<ResolvedUserTurn> = {},
+): ResolvedUserTurn => ({
+  rawInboundText: "Burger Box",
+  normalizedInboundText: "Burger Box",
+  resolvedIntent: "catalog_search",
+  preferredRetrievalMode: "semantic_catalog_search",
+  queryStatus: "resolved_passthrough",
+  standaloneQuery: "Burger Box",
+  passthroughReason: "already_standalone",
+  presentedListTarget: null,
+  referencedEntities: [],
+  primaryEntityId: null,
+  resolutionConfidence: "high",
+  clarificationRequired: false,
+  clarification: null,
+  selectedResolutionSource: "raw_text",
+  provenance: {
+    selectedSources: [{ source: "raw_text", evidence: [] }],
+    supportingSources: [],
+    conflictingSources: [],
+    discardedSources: [],
+  },
+  language: "en",
+  ...overrides,
+});
 
 const runtimeConfig: ChatRuntimeConfig = {
   providerOrder: ["deepseek", "gemini"],
@@ -332,10 +370,252 @@ describe("createCatalogChatOrchestrator", () => {
       responseLanguage: "ar",
     }));
     expect(promptInput?.groundingBundle).toEqual(expect.objectContaining({
-      retrievalMode: "raw_latest_message",
+      retrievalMode: "semantic_catalog_search",
       resolvedQuery: "علبة برجر",
     }));
+    expect(promptInput?.currentUserTurn).toEqual(expect.objectContaining({
+      rawText: "عندكم علب برجر؟",
+      resolvedTurn: expect.objectContaining({
+        resolvedIntent: "catalog_search",
+        standaloneQuery: "عندكم علب برجر؟",
+        selectedResolutionSource: "raw_text",
+      }),
+    }));
     expect(result.language.responseLanguage).toBe("ar");
+  });
+
+  test("uses the resolved standalone query for retrieval and passes resolved-turn metadata into prompt assembly", async () => {
+    const retrievalCalls: unknown[] = [];
+    let promptInput: PromptAssemblyInput | undefined;
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(groundedRetrievalResult(), retrievalCalls),
+      resolveTurn: async () => createResolvedTurn({
+        rawInboundText: "what sizes does it come in",
+        normalizedInboundText: "what sizes does it come in",
+        resolvedIntent: "entity_followup",
+        standaloneQuery: "What sizes does Burger Box come in?",
+        queryStatus: "rewritten",
+        selectedResolutionSource: "current_focus",
+        referencedEntities: [{
+          entityKind: "product",
+          entityId: "product-1",
+          source: "current_focus",
+          confidence: "high",
+        }],
+      }),
+      buildPrompt: (input: PromptAssemblyInput) => {
+        promptInput = input;
+        return createPromptAssemblyOutputStub(input);
+      },
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        text: '{"schemaVersion":"v1","text":"Burger Box comes in S, M, and L.","action":{"type":"none"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      conversation: {
+        resolutionPolicy: DEFAULT_RESOLUTION_POLICY,
+      },
+      userMessage: "what sizes does it come in",
+    });
+
+    expect(retrievalCalls).toEqual([
+      expect.objectContaining({
+        query: "What sizes does Burger Box come in?",
+        language: "en",
+      }),
+    ]);
+    expect(promptInput?.currentUserTurn).toEqual(expect.objectContaining({
+      rawText: "what sizes does it come in",
+      resolvedTurn: expect.objectContaining({
+        resolvedIntent: "entity_followup",
+        standaloneQuery: "What sizes does Burger Box come in?",
+        referencedEntities: [
+          expect.objectContaining({
+            entityId: "product-1",
+            source: "current_focus",
+          }),
+        ],
+      }),
+    }));
+    expect(promptInput?.groundingBundle).toEqual(expect.objectContaining({
+      retrievalMode: "semantic_catalog_search",
+      resolvedQuery: "Burger Box",
+    }));
+  });
+
+  test("short-circuits clarification-required resolutions before retrieval", async () => {
+    const retrievalCalls: unknown[] = [];
+    const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
+    const { logger, infoCalls } = createLoggerStub();
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(groundedRetrievalResult(), retrievalCalls),
+      resolveTurn: async () => createResolvedTurn({
+        rawInboundText: "its picture",
+        normalizedInboundText: "its picture",
+        resolvedIntent: "ambiguous_unresolved",
+        preferredRetrievalMode: "clarification_required",
+        queryStatus: "not_applicable",
+        standaloneQuery: null,
+        passthroughReason: "clarification_short_circuit",
+        clarificationRequired: true,
+        resolutionConfidence: "low",
+        clarification: {
+          reason: "ambiguous_referent",
+          target: "referent",
+          suggestedPromptStrategy: "ask_for_name",
+        },
+      }),
+      logger,
+      chatManager: createChatManagerStub(async () => {
+        throw new Error("should not be called");
+      }, chatCalls),
+    });
+
+    const result = await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      conversation: {
+        resolutionPolicy: DEFAULT_RESOLUTION_POLICY,
+      },
+      requestId: "request-1",
+      userMessage: "its picture",
+    });
+
+    expect(result.outcome).toBe("clarification_fallback");
+    expect(result.assistant).toEqual({
+      schemaVersion: "v1",
+      text: "Which product do you mean?",
+      action: {
+        type: "clarify",
+      },
+    });
+    expect(retrievalCalls).toHaveLength(0);
+    expect(chatCalls).toHaveLength(0);
+    expect(findLoggedEvent(infoCalls, "rag.turn_resolution.source_selection_recorded")).toMatchObject({
+      payload: {
+        preferredRetrievalMode: "clarification_required",
+        clarificationRequired: true,
+      },
+    });
+    expect(findLoggedEvent(infoCalls, "rag.turn_resolution.clarification_short_circuit_recorded")).toMatchObject({
+      payload: {
+        preferredRetrievalMode: "clarification_required",
+        clarificationReason: "ambiguous_referent",
+      },
+    });
+  });
+
+  test("logs shadow disagreement and clarifies when typed retrieval fallback has no safe standalone query", async () => {
+    const retrievalCalls: unknown[] = [];
+    const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
+    const { logger, infoCalls } = createLoggerStub();
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(groundedRetrievalResult(), retrievalCalls),
+      resolveTurn: async () => createResolvedTurn({
+        rawInboundText: "show me its picture",
+        normalizedInboundText: "show me its picture",
+        resolvedIntent: "image_request",
+        preferredRetrievalMode: "direct_entity_lookup",
+        queryStatus: "not_applicable",
+        standaloneQuery: null,
+        referencedEntities: [{
+          entityKind: "product",
+          entityId: "product-1",
+          source: "current_focus",
+          confidence: "high",
+        }],
+        selectedResolutionSource: "current_focus",
+        shadowModelAssistedResult: {
+          agreedWithDeterministic: false,
+          preferredRetrievalMode: "variant_lookup",
+          resolutionConfidence: "medium",
+        },
+      }),
+      logger,
+      chatManager: createChatManagerStub(async () => {
+        throw new Error("should not be called");
+      }, chatCalls),
+    });
+
+    const result = await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      conversation: {
+        resolutionPolicy: DEFAULT_RESOLUTION_POLICY,
+      },
+      userMessage: "show me its picture",
+    });
+
+    expect(result.outcome).toBe("clarification_fallback");
+    expect(retrievalCalls).toHaveLength(0);
+    expect(chatCalls).toHaveLength(0);
+    expect(findLoggedEvent(infoCalls, "rag.turn_resolution.shadow_disagreement_recorded")).toMatchObject({
+      payload: {
+        deterministicMode: "direct_entity_lookup",
+        shadowMode: "variant_lookup",
+      },
+    });
+    expect(findLoggedEvent(infoCalls, "rag.turn_resolution.compatibility_fallback")).toMatchObject({
+      payload: {
+        preferredRetrievalMode: "direct_entity_lookup",
+        hasStandaloneQuery: false,
+        fallback: "clarification",
+      },
+    });
+  });
+
+  test("skips retrieval for unsupported turns and still invokes the provider with null grounding", async () => {
+    const retrievalCalls: unknown[] = [];
+    let promptInput: PromptAssemblyInput | undefined;
+    const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(groundedRetrievalResult(), retrievalCalls),
+      resolveTurn: async () => createResolvedTurn({
+        rawInboundText: "tell me a joke",
+        normalizedInboundText: "tell me a joke",
+        resolvedIntent: "non_catalog_or_unsupported",
+        preferredRetrievalMode: "skip_retrieval",
+        queryStatus: "not_applicable",
+        standaloneQuery: null,
+      }),
+      buildPrompt: (input: PromptAssemblyInput) => {
+        promptInput = input;
+        return createPromptAssemblyOutputStub(input);
+      },
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        text: '{"schemaVersion":"v1","text":"I can only help with catalog questions.","action":{"type":"none"}}',
+        finishReason: "stop",
+      }), chatCalls),
+    });
+
+    const result = await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      conversation: {
+        resolutionPolicy: DEFAULT_RESOLUTION_POLICY,
+      },
+      userMessage: "tell me a joke",
+    });
+
+    expect(result.outcome).toBe("provider_response");
+    expect(retrievalCalls).toHaveLength(0);
+    expect(chatCalls).toHaveLength(1);
+    expect(promptInput?.groundingBundle).toBeNull();
+    expect(promptInput?.currentUserTurn.resolvedTurn).toEqual(expect.objectContaining({
+      resolvedIntent: "non_catalog_or_unsupported",
+      selectedResolutionSource: "raw_text",
+      standaloneQuery: null,
+    }));
   });
 
   test("limits grounding bundle entities to products included in context blocks", async () => {
@@ -489,7 +769,7 @@ describe("createCatalogChatOrchestrator", () => {
         outcome: "empty",
         reason: "empty_query",
         query: "",
-        language: "en",
+        language: "ar",
         candidates: [],
         contextBlocks: [],
       },
@@ -507,7 +787,7 @@ describe("createCatalogChatOrchestrator", () => {
           reason: "empty_query",
           candidateCount: 0,
           contextBlockCount: 0,
-          language: "en",
+          language: "ar",
         },
       },
     });
@@ -516,7 +796,7 @@ describe("createCatalogChatOrchestrator", () => {
       message: "catalog retrieval outcome recorded",
       payload: {
         event: "rag.retrieval.outcome_recorded",
-        retrievalMode: "raw_latest_message",
+        retrievalMode: "skip_retrieval",
         retrievalOutcome: "empty",
         candidateCount: 0,
         topScore: null,
@@ -1113,8 +1393,15 @@ describe("createCatalogChatOrchestrator", () => {
             updatedAt: 1_000,
             activeWindowExpiresAt: 31_000,
           },
+          latestStandaloneQuery: {
+            text: "Burger Box",
+            status: "unresolved_passthrough",
+            source: "retrieval_single_candidate",
+            updatedAt: 1_000,
+          },
           sourceOfTruthMarkers: {
             currentFocus: "retrieval_single_candidate",
+            latestStandaloneQuery: "retrieval_single_candidate",
           },
           heuristicHints: {
             promptHistorySelectionMode: "quoted_reference_window",
@@ -1180,13 +1467,47 @@ describe("createCatalogChatOrchestrator", () => {
             text: "Show me the burger boxes",
           },
         ],
+        canonicalState: {
+          schemaVersion: "v1",
+          conversationId: "conversation-1",
+          companyId: "company-1",
+          responseLanguage: "en",
+          currentFocus: {
+            kind: "product",
+            entityIds: ["product-1"],
+            source: "retrieval_single_candidate",
+            updatedAt: 1_000,
+          },
+          pendingClarification: {
+            active: false,
+          },
+          latestStandaloneQuery: {
+            text: "Burger Box",
+            status: "unresolved_passthrough",
+            source: "retrieval_single_candidate",
+            updatedAt: 1_000,
+          },
+          freshness: {
+            status: "fresh",
+            updatedAt: 1_000,
+            activeWindowExpiresAt: 31_000,
+          },
+          sourceOfTruthMarkers: {
+            currentFocus: "retrieval_single_candidate",
+            latestStandaloneQuery: "retrieval_single_candidate",
+          },
+          heuristicHints: {
+            usedQuotedReference: true,
+            topCandidates: [],
+          },
+        },
         historyDiagnostics: {
           selectionMode: "quoted_reference_window",
           usedQuotedReference: true,
         },
       },
       requestId: "request-1",
-      userMessage: "What sizes does the second one come in?",
+      userMessage: "What sizes does it come in?",
     });
 
     expect(result.outcome).toBe("provider_response");

@@ -234,7 +234,7 @@ export const buildAssistantSemanticRecordInput = (
       usedRetrieval: input.chatResponse.retrieval.outcome === "grounded",
       usedConversationState: currentFocusFallbackEntities.length > 0,
       usedSummary: false,
-      ...(retrievalQuery.length > 0 ? { retrievalMode: "raw_latest_message" as const } : {}),
+      ...(retrievalQuery.length > 0 ? { retrievalMode: "semantic_catalog_search" as const } : {}),
       groundedEntityIds: shownGroundedCandidates.map((candidate) => candidate.product.id),
     },
     ...((input.chatResponse.outcome === "provider_failure_fallback" || input.chatResponse.outcome === "invalid_model_output_fallback")

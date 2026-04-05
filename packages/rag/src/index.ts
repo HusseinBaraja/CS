@@ -28,6 +28,10 @@ import {
   toCanonicalConversationStateFallbackMismatchLogPayload,
   toContextUsageLogPayload,
   toFallbackDecisionLogPayload,
+  toResolutionClarificationShortCircuitLogPayload,
+  toResolutionPassthroughLogPayload,
+  toResolutionShadowDisagreementLogPayload,
+  toResolutionSourceSelectionLogPayload,
   toRetrievalOutcomeLogPayload,
   toStructuredOutputFailureLogPayload,
   withLogBindings,
@@ -38,16 +42,28 @@ import type {
   ConversationSummaryDto,
   FallbackDecisionType,
   PromptHistoryDiagnostics,
+  ResolvedUserTurn,
   TurnResolutionPolicy,
   TurnResolutionQuotedReference,
 } from '@cs/shared';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient, type Id } from '@cs/db';
+import { resolveUserTurn, type TurnResolutionShadowModelRefiner } from "./turnResolution";
 
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_MAX_CONTEXT_BLOCKS = 3;
 const DEFAULT_MIN_SCORE = 0.55;
+const DEFAULT_TURN_RESOLUTION_POLICY: TurnResolutionPolicy = {
+  allowModelAssistedFallback: false,
+  allowSemanticAssistantFallback: true,
+  allowSummarySupport: true,
+  staleContextWindowMs: 30 * 60 * 1_000,
+  quotedReferenceOverridesStaleness: true,
+  minimumConfidenceToProceed: "high",
+  allowMediumConfidenceProceed: false,
+  maxSemanticFallbackDepth: 3,
+};
 
-type RetrievalReason = "empty_query" | "no_hits" | "below_min_score";
+type RetrievalReason = "empty_query" | "no_hits" | "below_min_score" | "skipped_by_resolution";
 
 type RetrievalEmbeddingGenerator = (
   text: string,
@@ -227,6 +243,7 @@ export interface CatalogChatInput {
 
 export type CatalogChatOutcome =
   | "provider_response"
+  | "clarification_fallback"
   | "empty_query_fallback"
   | "no_hits_fallback"
   | "low_signal_fallback"
@@ -252,6 +269,8 @@ export interface CreateCatalogChatOrchestratorOptions {
   chatManager?: ChatProviderManager;
   detectLanguage?: typeof detectChatLanguage;
   buildPrompt?: typeof assemblePrompt;
+  resolveTurn?: typeof resolveUserTurn;
+  runTurnResolutionShadowModel?: TurnResolutionShadowModelRefiner;
   parseStructuredOutput?: typeof parseAssistantStructuredOutput;
   logger?: CatalogChatLogger;
 }
@@ -390,6 +409,7 @@ const getPreferredProductName = (
 
 const buildCatalogGroundingBundle = (
   retrieval: RetrieveCatalogContextResult,
+  retrievalMode: CatalogGroundingBundle["retrievalMode"],
 ): CatalogGroundingBundle | null => {
   if (retrieval.outcome !== "grounded") {
     return null;
@@ -416,7 +436,7 @@ const buildCatalogGroundingBundle = (
 
   return {
     bundleId: `grounding:${retrieval.language}:${retrieval.query}`,
-    retrievalMode: "raw_latest_message",
+    retrievalMode,
     resolvedQuery: retrieval.query,
     entityRefs: uniqueProducts.map((product) => ({
       entityKind: "product" as const,
@@ -653,9 +673,147 @@ const getPromptHistorySelectionMode = (input: CatalogChatInput) =>
   input.conversation?.historyDiagnostics?.selectionMode
   ?? (input.conversation?.recentTurns?.length ? "recent_window" : "no_history");
 
+const toPromptResolvedUserTurn = (
+  resolvedTurn: ResolvedUserTurn,
+): NonNullable<PromptAssemblyInput["currentUserTurn"]["resolvedTurn"]> => ({
+  resolvedIntent: resolvedTurn.resolvedIntent,
+  standaloneQuery: resolvedTurn.standaloneQuery,
+  referencedEntities: resolvedTurn.referencedEntities,
+  clarification: resolvedTurn.clarification,
+  provenanceSummary: {
+    selectedSources: resolvedTurn.provenance.selectedSources,
+    conflictingSources: resolvedTurn.provenance.conflictingSources,
+  },
+  selectedResolutionSource: resolvedTurn.selectedResolutionSource,
+});
+
+const createResolutionSkippedRetrieval = (
+  language: ChatLanguage,
+): RetrieveCatalogContextResult => ({
+  outcome: "empty",
+  reason: "skipped_by_resolution",
+  query: "",
+  language,
+  candidates: [],
+  contextBlocks: [],
+});
+
+const createEmptyQueryRetrieval = (
+  language: ChatLanguage,
+): RetrieveCatalogContextResult => ({
+  outcome: "empty",
+  reason: "empty_query",
+  query: "",
+  language,
+  candidates: [],
+  contextBlocks: [],
+});
+
+const buildClarificationAssistantFromResolution = (
+  resolvedTurn: ResolvedUserTurn,
+): AssistantStructuredOutput => {
+  const reason = resolvedTurn.clarification?.reason;
+  const strategy = resolvedTurn.clarification?.suggestedPromptStrategy;
+
+  if (resolvedTurn.language === "ar") {
+    if (reason === "referenced_entity_invalid") {
+      return {
+        schemaVersion: "v1",
+        text: "لم أعد أستطيع الاعتماد على المرجع السابق. اكتب اسم المنتج من فضلك.",
+        action: { type: "clarify" },
+      };
+    }
+
+    if (strategy === "ask_to_restate") {
+      return {
+        schemaVersion: "v1",
+        text: "أعد كتابة اسم المنتج أو الطلب الذي تقصده من فضلك.",
+        action: { type: "clarify" },
+      };
+    }
+
+    if (strategy === "ask_for_index") {
+      return {
+        schemaVersion: "v1",
+        text: "أي واحد تقصد؟ أرسل الرقم من فضلك.",
+        action: { type: "clarify" },
+      };
+    }
+
+    if (strategy === "explain_unsupported_scope") {
+      return {
+        schemaVersion: "v1",
+        text: "أستطيع المساعدة فقط في أسئلة الكتالوج الحالية.",
+        action: { type: "clarify" },
+      };
+    }
+
+    return {
+      schemaVersion: "v1",
+      text: "أي منتج تقصد؟",
+      action: { type: "clarify" },
+    };
+  }
+
+  if (reason === "referenced_entity_invalid") {
+    return {
+      schemaVersion: "v1",
+      text: "I can't rely on that earlier reference anymore. Please send the product name again.",
+      action: { type: "clarify" },
+    };
+  }
+
+  if (strategy === "ask_to_restate") {
+    return {
+      schemaVersion: "v1",
+      text: "Please restate the product or request you mean.",
+      action: { type: "clarify" },
+    };
+  }
+
+  if (strategy === "ask_for_index") {
+    return {
+      schemaVersion: "v1",
+      text: "Which one do you mean? Reply with the number.",
+      action: { type: "clarify" },
+    };
+  }
+
+  if (strategy === "explain_unsupported_scope") {
+    return {
+      schemaVersion: "v1",
+      text: "I can only help with the current catalog.",
+      action: { type: "clarify" },
+    };
+  }
+
+  return {
+    schemaVersion: "v1",
+    text: "Which product do you mean?",
+    action: { type: "clarify" },
+  };
+};
+
+const buildCompatibilityClarificationAssistant = (
+  language: ChatLanguage,
+): AssistantStructuredOutput =>
+  language === "ar"
+    ? {
+      schemaVersion: "v1",
+      text: "اكتب اسم المنتج الذي تقصده من فضلك حتى أساعدك فيه.",
+      action: { type: "clarify" },
+    }
+    : {
+      schemaVersion: "v1",
+      text: "Please send the product name you mean so I can help with that item.",
+      action: { type: "clarify" },
+    };
+
 const buildPromptAssemblyInput = (
   input: CatalogChatInput,
   retrieval: RetrieveCatalogContextResult,
+  retrievalMode: CatalogGroundingBundle["retrievalMode"] | null,
+  resolvedTurn: ResolvedUserTurn,
   responseLanguage: ChatLanguage,
   allowedActions: readonly AssistantActionType[],
 ): PromptAssemblyInput => ({
@@ -672,9 +830,10 @@ const buildPromptAssemblyInput = (
   conversationSummary: input.conversation?.summary ?? null,
   conversationState: input.conversation?.canonicalState ?? null,
   recentTurns: input.conversation?.recentTurns ?? [],
-  groundingBundle: buildCatalogGroundingBundle(retrieval),
+  groundingBundle: retrievalMode ? buildCatalogGroundingBundle(retrieval, retrievalMode) : null,
   currentUserTurn: {
     rawText: input.userMessage,
+    resolvedTurn: toPromptResolvedUserTurn(resolvedTurn),
   },
 });
 
@@ -801,6 +960,8 @@ export const createCatalogChatOrchestrator = (
   const chatManager = options.chatManager ?? createChatProviderManager();
   const detectLanguage = options.detectLanguage ?? detectChatLanguage;
   const buildPrompt = options.buildPrompt ?? assemblePrompt;
+  const resolveTurn = options.resolveTurn ?? resolveUserTurn;
+  const runTurnResolutionShadowModel = options.runTurnResolutionShadowModel;
   const parseStructuredOutput = options.parseStructuredOutput ?? parseAssistantStructuredOutput;
   const logger = options.logger ?? defaultCatalogChatLogger;
 
@@ -825,45 +986,108 @@ export const createCatalogChatOrchestrator = (
       const allowedActions = getAllowedActions(input.conversation?.allowedActions);
       const conversationId = getDiagnosticConversationId(input);
       const requestId = getDiagnosticRequestId(input);
-      const retrieval = await retrievalService.retrieveCatalogContext({
-        companyId: input.tenant.companyId,
-        query: input.userMessage,
-        language: language.responseLanguage,
-        maxResults: input.retrieval?.maxResults,
-        maxContextBlocks: input.retrieval?.maxContextBlocks,
-        minScore: input.retrieval?.minScore,
-      });
+      const resolutionPolicy = input.conversation?.resolutionPolicy ?? DEFAULT_TURN_RESOLUTION_POLICY;
+      const resolvedTurn = await resolveTurn({
+        rawInboundText: input.userMessage,
+        recentTurns: input.conversation?.recentTurns ?? [],
+        canonicalState: input.conversation?.canonicalState ?? null,
+        conversationSummary: input.conversation?.summary ?? null,
+        resolutionPolicy,
+        languageHint: language.responseLanguage,
+        ...(input.conversation?.quotedReference ? { quotedReference: input.conversation.quotedReference } : {}),
+        ...(input.conversation?.semanticAssistantRecords
+          ? { semanticAssistantRecords: input.conversation.semanticAssistantRecords }
+          : {}),
+      }, runTurnResolutionShadowModel ? { runShadowModel: runTurnResolutionShadowModel } : {});
+      const skippedRetrieval = createResolutionSkippedRetrieval(language.responseLanguage);
+
       safeLogEvent(
-        retrievalLogger,
+        routeLogger,
         "info",
-        {
-          event: "rag.retrieval.completed",
-          runtime: "rag",
-          surface: "retrieval",
-          outcome: retrieval.outcome,
-          responseLanguage: language.responseLanguage,
-          retrieval: buildRetrievalLogContext(retrieval),
-          ...summarizeQueryForLog(input.userMessage),
-        },
-        "catalog retrieval completed",
-      );
-      safeLogEvent(
-        retrievalLogger,
-        "info",
-        toRetrievalOutcomeLogPayload({
+        toResolutionSourceSelectionLogPayload({
           conversationId,
           requestId,
-          queryText: input.userMessage,
-          retrievalMode: "raw_latest_message",
-          outcome: retrieval.outcome,
-          candidateCount: retrieval.candidates.length,
-          topScore: retrieval.topScore ?? null,
-          contextBlockCount: retrieval.contextBlocks.length,
-          fallbackChosen: getRetrievalFallbackDecisionType(retrieval),
+          selectedResolutionSource: resolvedTurn.selectedResolutionSource,
+          resolvedIntent: resolvedTurn.resolvedIntent,
+          preferredRetrievalMode: resolvedTurn.preferredRetrievalMode,
+          resolutionConfidence: resolvedTurn.resolutionConfidence,
+          clarificationRequired: resolvedTurn.clarificationRequired,
+          selectedSources: resolvedTurn.provenance.selectedSources.map((source) => source.source),
+          supportingSources: resolvedTurn.provenance.supportingSources.map((source) => source.source),
+          conflictingSources: resolvedTurn.provenance.conflictingSources.map((source) => source.source),
+          discardedSources: resolvedTurn.provenance.discardedSources.map((source) => source.source),
         }),
-        "catalog retrieval outcome recorded",
+        "turn resolution source selection recorded",
       );
-      if (retrieval.outcome !== "grounded") {
+
+      if (
+        resolvedTurn.passthroughReason
+        && (resolvedTurn.queryStatus === "resolved_passthrough" || resolvedTurn.queryStatus === "unresolved_passthrough")
+      ) {
+        safeLogEvent(
+          routeLogger,
+          "info",
+          toResolutionPassthroughLogPayload({
+            conversationId,
+            requestId,
+            selectedResolutionSource: resolvedTurn.selectedResolutionSource,
+            preferredRetrievalMode: resolvedTurn.preferredRetrievalMode,
+            queryStatus: resolvedTurn.queryStatus,
+            passthroughReason: resolvedTurn.passthroughReason,
+          }),
+          "turn resolution passthrough recorded",
+        );
+      }
+
+      if (resolvedTurn.shadowModelAssistedResult && !resolvedTurn.shadowModelAssistedResult.agreedWithDeterministic) {
+        safeLogEvent(
+          routeLogger,
+          "info",
+          toResolutionShadowDisagreementLogPayload({
+            conversationId,
+            requestId,
+            deterministicSource: resolvedTurn.selectedResolutionSource,
+            deterministicMode: resolvedTurn.preferredRetrievalMode,
+            shadowMode: resolvedTurn.shadowModelAssistedResult.preferredRetrievalMode,
+            deterministicConfidence: resolvedTurn.resolutionConfidence,
+            shadowConfidence: resolvedTurn.shadowModelAssistedResult.resolutionConfidence,
+          }),
+          "turn resolution shadow disagreement recorded",
+        );
+      }
+
+      if (input.userMessage.trim().length === 0) {
+        const retrieval = createEmptyQueryRetrieval(language.responseLanguage);
+        safeLogEvent(
+          retrievalLogger,
+          "info",
+          {
+            event: "rag.retrieval.completed",
+            runtime: "rag",
+            surface: "retrieval",
+            outcome: retrieval.outcome,
+            responseLanguage: language.responseLanguage,
+            retrieval: buildRetrievalLogContext(retrieval),
+            ...summarizeQueryForLog(retrieval.query),
+          },
+          "catalog retrieval completed",
+        );
+        safeLogEvent(
+          retrievalLogger,
+          "info",
+          toRetrievalOutcomeLogPayload({
+            conversationId,
+            requestId,
+            queryText: retrieval.query,
+            retrievalMode: "skip_retrieval",
+            outcome: retrieval.outcome,
+            candidateCount: retrieval.candidates.length,
+            topScore: retrieval.topScore ?? null,
+            contextBlockCount: retrieval.contextBlocks.length,
+            fallbackChosen: "clarify",
+          }),
+          "catalog retrieval outcome recorded",
+        );
         safeLogEvent(
           routeLogger,
           "info",
@@ -880,88 +1104,245 @@ export const createCatalogChatOrchestrator = (
           }),
           "catalog context usage recorded",
         );
-      }
-      if (retrieval.outcome !== "grounded" && hasRecoverableCanonicalState(input)) {
         safeLogEvent(
           routeLogger,
           "info",
-          toCanonicalConversationStateFallbackMismatchLogPayload(
+          toFallbackDecisionLogPayload({
+            conversationId,
+            requestId,
+            decisionType: "clarify",
+            reason: "empty_query",
+            precedingStage: "retrieval",
+            resolutionConfidence: null,
+            retrievalOutcome: retrieval.outcome,
+            providerOutcome: "not_requested",
+          }),
+          "catalog fallback decision recorded",
+        );
+        return {
+          outcome: "empty_query_fallback",
+          assistant: buildAssistantFallback(language.responseLanguage, "empty_query"),
+          language,
+          retrieval,
+        };
+      }
+
+      if (resolvedTurn.clarificationRequired) {
+        safeLogEvent(
+          routeLogger,
+          "info",
+          toResolutionClarificationShortCircuitLogPayload({
+            conversationId,
+            requestId,
+            selectedResolutionSource: resolvedTurn.selectedResolutionSource,
+            resolutionConfidence: resolvedTurn.resolutionConfidence,
+            preferredRetrievalMode: "clarification_required",
+            clarificationReason: resolvedTurn.clarification?.reason ?? "missing_required_entity",
+          }),
+          "turn resolution clarification short-circuit recorded",
+        );
+        return {
+          outcome: "clarification_fallback",
+          assistant: buildClarificationAssistantFromResolution(resolvedTurn),
+          language,
+          retrieval: skippedRetrieval,
+        };
+      }
+
+      let retrieval = skippedRetrieval;
+      let liveRetrievalMode: CatalogGroundingBundle["retrievalMode"] | null = null;
+      let retrievalQuery: string | null = null;
+
+      switch (resolvedTurn.preferredRetrievalMode) {
+        case "semantic_catalog_search":
+          retrievalQuery = resolvedTurn.standaloneQuery?.trim() ?? null;
+          liveRetrievalMode = "semantic_catalog_search";
+          break;
+        case "direct_entity_lookup":
+        case "variant_lookup":
+          retrievalQuery = resolvedTurn.standaloneQuery?.trim() ?? null;
+          safeLogEvent(
+            routeLogger,
+            "info",
             {
-              conversationId,
-              requestId,
-              retrievalOutcome: retrieval.outcome,
-              freshnessStatus: input.conversation?.canonicalState?.freshness.status,
-              promptHistorySelectionMode: getPromptHistorySelectionMode(input),
-              authoritativeFocusKind: input.conversation?.canonicalState?.currentFocus.kind,
-              authoritativeFocusSource: input.conversation?.canonicalState?.currentFocus.source,
-              heuristicCandidateCount: input.conversation?.canonicalState?.heuristicHints.topCandidates.length ?? 0,
-            },
-            {
+              event: "rag.turn_resolution.compatibility_fallback",
               runtime: "rag",
               surface: "orchestrator",
               outcome: "recorded",
+              ...(conversationId ? { conversationId } : {}),
+              ...(requestId ? { requestId } : {}),
+              preferredRetrievalMode: resolvedTurn.preferredRetrievalMode,
+              hasStandaloneQuery: Boolean(retrievalQuery),
+              fallback: retrievalQuery ? "semantic_catalog_search" : "clarification",
             },
-          ),
-          "catalog canonical state fallback mismatch recorded",
-        );
+            "turn resolution compatibility fallback recorded",
+          );
+          if (!retrievalQuery) {
+            return {
+              outcome: "clarification_fallback",
+              assistant: buildCompatibilityClarificationAssistant(language.responseLanguage),
+              language,
+              retrieval,
+            };
+          }
+          liveRetrievalMode = "semantic_catalog_search";
+          break;
+        case "skip_retrieval":
+          break;
+        case "filtered_catalog_search":
+          retrievalQuery = resolvedTurn.standaloneQuery?.trim() ?? null;
+          liveRetrievalMode = "semantic_catalog_search";
+          break;
+        case "clarification_required":
+          return {
+            outcome: "clarification_fallback",
+            assistant: buildClarificationAssistantFromResolution(resolvedTurn),
+            language,
+            retrieval,
+          };
       }
 
-      if (retrieval.outcome === "empty") {
-        const assistant = buildAssistantFallback(
-          language.responseLanguage,
-          retrieval.reason === "empty_query" ? "empty_query" : "no_hits",
+      if (liveRetrievalMode && retrievalQuery) {
+        retrieval = await retrievalService.retrieveCatalogContext({
+          companyId: input.tenant.companyId,
+          query: retrievalQuery,
+          language: language.responseLanguage,
+          maxResults: input.retrieval?.maxResults,
+          maxContextBlocks: input.retrieval?.maxContextBlocks,
+          minScore: input.retrieval?.minScore,
+        });
+        safeLogEvent(
+          retrievalLogger,
+          "info",
+          {
+            event: "rag.retrieval.completed",
+            runtime: "rag",
+            surface: "retrieval",
+            outcome: retrieval.outcome,
+            responseLanguage: language.responseLanguage,
+            retrieval: buildRetrievalLogContext(retrieval),
+            ...summarizeQueryForLog(retrievalQuery),
+          },
+          "catalog retrieval completed",
         );
         safeLogEvent(
-          routeLogger,
+          retrievalLogger,
           "info",
-          toFallbackDecisionLogPayload({
+          toRetrievalOutcomeLogPayload({
             conversationId,
             requestId,
-            decisionType: retrieval.reason === "empty_query" ? "clarify" : "no_match_reply",
-            reason: retrieval.reason === "empty_query" ? "empty_query" : "no_hits",
-            precedingStage: "retrieval",
-            resolutionConfidence: null,
-            retrievalOutcome: retrieval.outcome,
-            providerOutcome: "not_requested",
+            queryText: retrievalQuery,
+            retrievalMode: liveRetrievalMode,
+            outcome: retrieval.outcome,
+            candidateCount: retrieval.candidates.length,
+            topScore: retrieval.topScore ?? null,
+            contextBlockCount: retrieval.contextBlocks.length,
+            fallbackChosen: getRetrievalFallbackDecisionType(retrieval),
           }),
-          "catalog fallback decision recorded",
+          "catalog retrieval outcome recorded",
         );
+        if (retrieval.outcome !== "grounded") {
+          safeLogEvent(
+            routeLogger,
+            "info",
+            toContextUsageLogPayload({
+              conversationId,
+              requestId,
+              usedRecentTurns: false,
+              usedConversationState: false,
+              usedSummary: false,
+              usedQuotedReference: false,
+              usedGroundingFacts: false,
+              stage: "prompt_assembly",
+              promptHistorySelectionMode: getPromptHistorySelectionMode(input),
+            }),
+            "catalog context usage recorded",
+          );
+        }
+        if (retrieval.outcome !== "grounded" && hasRecoverableCanonicalState(input)) {
+          safeLogEvent(
+            routeLogger,
+            "info",
+            toCanonicalConversationStateFallbackMismatchLogPayload(
+              {
+                conversationId,
+                requestId,
+                retrievalOutcome: retrieval.outcome,
+                freshnessStatus: input.conversation?.canonicalState?.freshness.status,
+                promptHistorySelectionMode: getPromptHistorySelectionMode(input),
+                authoritativeFocusKind: input.conversation?.canonicalState?.currentFocus.kind,
+                authoritativeFocusSource: input.conversation?.canonicalState?.currentFocus.source,
+                heuristicCandidateCount: input.conversation?.canonicalState?.heuristicHints.topCandidates.length ?? 0,
+              },
+              {
+                runtime: "rag",
+                surface: "orchestrator",
+                outcome: "recorded",
+              },
+            ),
+            "catalog canonical state fallback mismatch recorded",
+          );
+        }
 
-        return {
-          outcome: retrieval.reason === "empty_query" ? "empty_query_fallback" : "no_hits_fallback",
-          assistant,
-          language,
-          retrieval,
-        };
-      }
+        if (retrieval.outcome === "empty") {
+          const assistant = buildAssistantFallback(
+            language.responseLanguage,
+            retrieval.reason === "empty_query" ? "empty_query" : "no_hits",
+          );
+          safeLogEvent(
+            routeLogger,
+            "info",
+            toFallbackDecisionLogPayload({
+              conversationId,
+              requestId,
+              decisionType: retrieval.reason === "empty_query" ? "clarify" : "no_match_reply",
+              reason: retrieval.reason === "empty_query" ? "empty_query" : "no_hits",
+              precedingStage: "retrieval",
+              resolutionConfidence: null,
+              retrievalOutcome: retrieval.outcome,
+              providerOutcome: "not_requested",
+            }),
+            "catalog fallback decision recorded",
+          );
 
-      if (retrieval.outcome === "low_signal") {
-        safeLogEvent(
-          routeLogger,
-          "info",
-          toFallbackDecisionLogPayload({
-            conversationId,
-            requestId,
-            decisionType: "low_signal_reply",
-            reason: "below_min_score",
-            precedingStage: "retrieval",
-            resolutionConfidence: null,
-            retrievalOutcome: retrieval.outcome,
-            providerOutcome: "not_requested",
-          }),
-          "catalog fallback decision recorded",
-        );
-        return {
-          outcome: "low_signal_fallback",
-          assistant: buildAssistantFallback(language.responseLanguage, "low_signal"),
-          language,
-          retrieval,
-        };
+          return {
+            outcome: retrieval.reason === "empty_query" ? "empty_query_fallback" : "no_hits_fallback",
+            assistant,
+            language,
+            retrieval,
+          };
+        }
+
+        if (retrieval.outcome === "low_signal") {
+          safeLogEvent(
+            routeLogger,
+            "info",
+            toFallbackDecisionLogPayload({
+              conversationId,
+              requestId,
+              decisionType: "low_signal_reply",
+              reason: "below_min_score",
+              precedingStage: "retrieval",
+              resolutionConfidence: null,
+              retrievalOutcome: retrieval.outcome,
+              providerOutcome: "not_requested",
+            }),
+            "catalog fallback decision recorded",
+          );
+          return {
+            outcome: "low_signal_fallback",
+            assistant: buildAssistantFallback(language.responseLanguage, "low_signal"),
+            language,
+            retrieval,
+          };
+        }
       }
 
       const promptInput = buildPromptAssemblyInput(
         input,
         retrieval,
+        liveRetrievalMode,
+        resolvedTurn,
         language.responseLanguage,
         allowedActions,
       );
