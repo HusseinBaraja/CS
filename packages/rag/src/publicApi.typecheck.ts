@@ -14,6 +14,9 @@ import type {
   RetrieveCatalogContextResult,
   RetrievedProductCandidate,
   RetrievedProductContext,
+  ResolveUserTurnOptions,
+  TurnResolutionShadowModelInput,
+  TurnResolutionShadowModelOutput,
 } from './index';
 import type { ConvexAdminClient, Id } from '@cs/db';
 import {
@@ -21,6 +24,7 @@ import {
   createCatalogChatOrchestrator,
   createProductRetrievalService,
   generateRetrievalQueryEmbedding,
+  resolveUserTurn,
 } from './index';
 
 const language: ChatLanguage = "en";
@@ -111,6 +115,9 @@ const candidate: RetrievedProductCandidate = {
 };
 
 const outcome: RetrievalOutcome = "grounded";
+const shadowModelOptions: ResolveUserTurnOptions = {
+  runShadowModel: async (_input: TurnResolutionShadowModelInput): Promise<TurnResolutionShadowModelOutput | null> => null,
+};
 
 const resultPromise: Promise<RetrieveCatalogContextResult> = service.retrieveCatalogContext(input);
 const embeddingPromise: Promise<number[]> = generateRetrievalQueryEmbedding({
@@ -174,6 +181,21 @@ const orchestrator: CatalogChatOrchestrator = createCatalogChatOrchestrator({
   },
 });
 const catalogChatResultPromise: Promise<CatalogChatResult> = orchestrator.respond(catalogChatInput);
+const resolvedTurnPromise = resolveUserTurn({
+  rawInboundText: "what sizes does it come in",
+  recentTurns: [],
+  canonicalState: null,
+  conversationSummary: null,
+  resolutionPolicy: {
+    allowModelAssistedFallback: false,
+    allowSemanticAssistantFallback: true,
+    allowSummarySupport: true,
+    staleContextWindowMs: 1_800_000,
+    quotedReferenceOverridesStaleness: true,
+    minimumConfidenceToProceed: "high",
+    allowMediumConfidenceProceed: true,
+  },
+}, shadowModelOptions);
 const assistant: AssistantStructuredOutput = {
   schemaVersion: "v1",
   text: "We have burger boxes.",
@@ -194,9 +216,11 @@ void groundingBundle;
 void retrievedProduct;
 void candidate;
 void outcome;
+void shadowModelOptions;
 void resultPromise;
 void embeddingPromise;
 void catalogChatInput;
 void orchestrator;
 void catalogChatResultPromise;
+void resolvedTurnPromise;
 void assistant;

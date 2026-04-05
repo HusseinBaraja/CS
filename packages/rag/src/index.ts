@@ -101,6 +101,17 @@ export type {
   LanguageDetectionResult,
   PromptHistoryTurn,
 } from '@cs/ai';
+export {
+  resolveUserTurn,
+  resolveUserTurnDeterministically,
+} from "./turnResolution";
+export type {
+  ResolveUserTurnOptions,
+  TurnResolutionShadowCandidateFamily,
+  TurnResolutionShadowModelInput,
+  TurnResolutionShadowModelOutput,
+  TurnResolutionShadowModelRefiner,
+} from "./turnResolution";
 export { getStep0BaselineCaseById, step0BaselineCases } from "./evaluation/step0BaselineCases";
 export {
   assertStep0BaselineCurrentExpectations,
