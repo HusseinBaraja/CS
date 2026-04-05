@@ -221,7 +221,7 @@ const createPromptAssemblyOutputStub = (
       present: true,
       messageRole: "user",
       itemCount: 1,
-      charCount: input.currentUserTurn.text.length,
+      charCount: input.currentUserTurn.rawText.length,
       truncated: false,
     },
   ],

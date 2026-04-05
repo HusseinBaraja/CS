@@ -4,6 +4,13 @@ import type {
   CanonicalConversationQueryStatus,
   CanonicalConversationSource,
 } from "./conversationState";
+import type {
+  ResolvedIntent,
+  TurnPassthroughReason,
+  TurnPreferredRetrievalMode,
+  TurnResolutionConfidence,
+  TurnSelectedResolutionSource,
+} from "./turnResolution";
 
 export type ConversationalLanguage = "ar" | "en";
 
@@ -45,7 +52,9 @@ export interface PromptHistorySelection<TTurn> extends PromptHistoryDiagnostics 
 
 export type ContextUsageStage = "prompt_assembly";
 
-export type RetrievalMode = "raw_latest_message";
+export type RetrievalMode =
+  | "raw_latest_message"
+  | TurnPreferredRetrievalMode;
 
 export type RetrievalOutcome = "grounded" | "empty" | "low_signal";
 
@@ -130,6 +139,48 @@ export interface RetrievalOutcomeEvent {
   topScore: number | null;
   contextBlockCount: number;
   fallbackChosen: FallbackDecisionType | null;
+}
+
+export interface ResolutionSourceSelectionEvent {
+  conversationId?: string;
+  requestId?: string;
+  selectedResolutionSource: TurnSelectedResolutionSource;
+  resolvedIntent: ResolvedIntent;
+  preferredRetrievalMode: TurnPreferredRetrievalMode;
+  resolutionConfidence: TurnResolutionConfidence;
+  clarificationRequired: boolean;
+  selectedSources: TurnSelectedResolutionSource[];
+  supportingSources: TurnSelectedResolutionSource[];
+  conflictingSources: TurnSelectedResolutionSource[];
+  discardedSources: TurnSelectedResolutionSource[];
+}
+
+export interface ResolutionClarificationShortCircuitEvent {
+  conversationId?: string;
+  requestId?: string;
+  selectedResolutionSource: TurnSelectedResolutionSource;
+  resolutionConfidence: TurnResolutionConfidence;
+  preferredRetrievalMode: Extract<TurnPreferredRetrievalMode, "clarification_required">;
+  clarificationReason: string;
+}
+
+export interface ResolutionPassthroughEvent {
+  conversationId?: string;
+  requestId?: string;
+  selectedResolutionSource: TurnSelectedResolutionSource;
+  preferredRetrievalMode: TurnPreferredRetrievalMode;
+  queryStatus: "resolved_passthrough" | "unresolved_passthrough";
+  passthroughReason: TurnPassthroughReason;
+}
+
+export interface ResolutionShadowDisagreementEvent {
+  conversationId?: string;
+  requestId?: string;
+  deterministicSource: TurnSelectedResolutionSource;
+  deterministicMode: TurnPreferredRetrievalMode;
+  shadowMode: TurnPreferredRetrievalMode;
+  deterministicConfidence: TurnResolutionConfidence;
+  shadowConfidence: TurnResolutionConfidence;
 }
 
 export interface FallbackDecisionEvent {

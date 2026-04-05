@@ -1,6 +1,14 @@
 import type { ChatMessageRole, ChatRequest } from './contracts';
 import type { ChatLanguage } from './language';
-import type { CanonicalConversationStateDto, ConversationSummaryDto } from '@cs/shared';
+import type {
+  CanonicalConversationStateDto,
+  ConversationSummaryDto,
+  ResolvedIntent,
+  TurnReferencedEntity,
+  TurnResolutionClarification,
+  TurnResolutionProvenance,
+  TurnSelectedResolutionSource,
+} from '@cs/shared';
 
 export type AssistantActionType = "none" | "clarify" | "handoff";
 
@@ -156,6 +164,15 @@ export interface PromptBehaviorInstructions {
   responseFormat: "assistant_structured_output_v1";
 }
 
+export interface PromptResolvedUserTurn {
+  resolvedIntent: ResolvedIntent;
+  standaloneQuery: string | null;
+  referencedEntities: TurnReferencedEntity[];
+  clarification: TurnResolutionClarification | null;
+  provenanceSummary: Pick<TurnResolutionProvenance, "selectedSources" | "conflictingSources">;
+  selectedResolutionSource: TurnSelectedResolutionSource;
+}
+
 export interface PromptAssemblyInput {
   behaviorInstructions: PromptBehaviorInstructions;
   conversationSummary: ConversationSummaryDto | null;
@@ -163,7 +180,8 @@ export interface PromptAssemblyInput {
   recentTurns: PromptHistoryTurn[];
   groundingBundle: CatalogGroundingBundle | null;
   currentUserTurn: {
-    text: string;
+    rawText: string;
+    resolvedTurn?: PromptResolvedUserTurn;
   };
 }
 

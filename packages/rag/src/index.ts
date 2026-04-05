@@ -657,7 +657,7 @@ const buildPromptAssemblyInput = (
   recentTurns: input.conversation?.recentTurns ?? [],
   groundingBundle: buildCatalogGroundingBundle(retrieval),
   currentUserTurn: {
-    text: input.userMessage,
+    rawText: input.userMessage,
   },
 });
 

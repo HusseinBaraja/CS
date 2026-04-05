@@ -61,6 +61,7 @@ export type {
   PromptLayerMetadata,
   PromptLayerOmission,
   PromptLayerType,
+  PromptResolvedUserTurn,
   StructuredOutputParseFailureKind,
 } from "./chat/promptContracts";
 export type {

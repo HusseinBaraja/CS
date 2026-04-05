@@ -72,7 +72,7 @@ const promptInput: PromptAssemblyInput = {
   recentTurns: [],
   groundingBundle: null,
   currentUserTurn: {
-    text: "مرحبا",
+    rawText: "مرحبا",
   },
 };
 const prompt: PromptAssemblyOutput = assemblePrompt(promptInput);

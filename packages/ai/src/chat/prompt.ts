@@ -130,7 +130,7 @@ const buildFinalUserPrompt = (
   [
     groundingFactsPrompt,
     "<CURRENT_USER_TURN>",
-    escapeForDelimiter(input.currentUserTurn.text),
+    escapeForDelimiter(input.currentUserTurn.rawText),
     "</CURRENT_USER_TURN>",
   ].join("\n");
 
@@ -232,7 +232,7 @@ export const assemblePrompt = (
         input.groundingBundle?.contextBlocks.length ?? 0,
         groundingFactsPrompt.length > 0,
       ),
-      createLayerMetadata("current_user_turn", "user", input.currentUserTurn.text, 1, true),
+      createLayerMetadata("current_user_turn", "user", input.currentUserTurn.rawText, 1, true),
     ],
     tokenBudgetByLayer: createLayerBudgets(),
     omittedContext,

@@ -200,7 +200,7 @@ const promptInput: PromptAssemblyInput = {
   recentTurns,
   groundingBundle,
   currentUserTurn: {
-    text: "Need burger boxes",
+    rawText: "Need burger boxes",
   },
 };
 const builtPrompt: PromptAssemblyOutput = assemblePrompt(promptInput);

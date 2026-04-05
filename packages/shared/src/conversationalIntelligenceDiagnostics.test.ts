@@ -5,6 +5,10 @@ import type {
   CanonicalConversationStateWriteEvent,
   ConversationEvaluationCase,
   ContextUsageEvent,
+  ResolutionClarificationShortCircuitEvent,
+  ResolutionPassthroughEvent,
+  ResolutionShadowDisagreementEvent,
+  ResolutionSourceSelectionEvent,
 } from "./conversationalIntelligenceDiagnostics";
 
 describe("conversational intelligence diagnostics contracts", () => {
@@ -116,5 +120,51 @@ describe("conversational intelligence diagnostics contracts", () => {
     expect(loadEvent.invalidatedPaths).toHaveLength(2);
     expect(writeEvent.authoritativeFocusSource).toBe("retrieval_single_candidate");
     expect(fallbackMismatchEvent.promptHistorySelectionMode).toBe("quoted_reference_window");
+  });
+
+  test("tracks turn-resolution diagnostics for source selection, passthrough, clarification, and shadow disagreements", () => {
+    const sourceSelectionEvent: ResolutionSourceSelectionEvent = {
+      conversationId: "conversation-1",
+      requestId: "request-1",
+      selectedResolutionSource: "current_focus",
+      resolvedIntent: "entity_followup",
+      preferredRetrievalMode: "semantic_catalog_search",
+      resolutionConfidence: "high",
+      clarificationRequired: false,
+      selectedSources: ["current_focus"],
+      supportingSources: ["recent_turns"],
+      conflictingSources: ["summary"],
+      discardedSources: ["raw_text"],
+    };
+    const clarificationEvent: ResolutionClarificationShortCircuitEvent = {
+      conversationId: "conversation-1",
+      requestId: "request-1",
+      selectedResolutionSource: "last_presented_list",
+      resolutionConfidence: "low",
+      preferredRetrievalMode: "clarification_required",
+      clarificationReason: "multiple_candidate_lists",
+    };
+    const passthroughEvent: ResolutionPassthroughEvent = {
+      conversationId: "conversation-1",
+      requestId: "request-1",
+      selectedResolutionSource: "raw_text",
+      preferredRetrievalMode: "semantic_catalog_search",
+      queryStatus: "resolved_passthrough",
+      passthroughReason: "already_standalone",
+    };
+    const shadowDisagreementEvent: ResolutionShadowDisagreementEvent = {
+      conversationId: "conversation-1",
+      requestId: "request-1",
+      deterministicSource: "current_focus",
+      deterministicMode: "semantic_catalog_search",
+      shadowMode: "variant_lookup",
+      deterministicConfidence: "medium",
+      shadowConfidence: "high",
+    };
+
+    expect(sourceSelectionEvent.selectedSources).toContain("current_focus");
+    expect(clarificationEvent.preferredRetrievalMode).toBe("clarification_required");
+    expect(passthroughEvent.passthroughReason).toBe("already_standalone");
+    expect(shadowDisagreementEvent.shadowMode).toBe("variant_lookup");
   });
 });
