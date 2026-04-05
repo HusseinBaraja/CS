@@ -17,8 +17,6 @@ This step is not only about query rewriting. It is the stage that:
 ## Why This Step Comes Now
 This step depends on having canonical state, semantic assistant records, and a typed context-assembly contract. Without those foundations, rewriting would still be forced to infer too much from raw message text.
 
-This is also the step where semantic assistant records can become a bounded, supportable input for turn resolution, while earlier steps may keep them in shadow mode for comparison and observability.
-
 ## In Scope
 - Resolution of ambiguous follow-up language
 - Retrieval-intent selection
@@ -339,99 +337,20 @@ If quoted reference conflicts with `currentFocus`, quoted reference wins for bin
 ## Data Flow And Lifecycle
 Planned lifecycle:
 
-1. Load recent turns, canonical state, and summary.
-2. Load normalized quoted-reference data when present.
-3. Attempt deterministic resolution from quoted metadata, state, presented lists, active clarification state, and explicit index language.
-4. If needed, lazily load semantic assistant records and retry bounded deterministic resolution.
-5. If allowed by policy, run bounded model-assisted fallback only after deterministic resolution fails to safely complete the turn.
-6. Produce `ResolvedUserTurn`.
-7. If `clarificationRequired` is true, terminate the retrieval path and emit targeted clarification metadata.
-8. Otherwise, pass `ResolvedUserTurn` to Step 5.
+1. Load recent turns, state, and summary.
+2. Resolve the inbound turn against those sources.
+3. Produce `ResolvedUserTurn`.
+4. If confidence is sufficient, pass the standalone query to retrieval.
+5. If confidence is insufficient, emit a targeted clarification requirement instead of broad ambiguity handling.
 
 This stage is pure. It may not write canonical state directly.
 
-## Deterministic vs Model-Assisted Boundaries
-
-### Deterministic First
-The resolver should handle these cases deterministically:
-
-- quoted-reference binding
-- canonical `currentFocus` and `lastPresentedList` usage
-- pending clarification binding
-- ordinal and index parsing in Arabic and English
-- stale-window policy
-- tenant-scope validation
-
-Ordinal/index parsing should be deterministic pre-LLM logic.
-
-### Bounded Model-Assisted Fallback
-Model assistance is allowed only when:
-
-- deterministic resolution has failed to safely complete the turn
-- policy allows model-assisted fallback
-- clarification is not already mandatory
-
-Model-assisted fallback must be bounded.
-
-It may refine within an already-known candidate family, especially for variant-descriptor language such as:
-
-- `منه الكبير`
-- `the large one`
-
-It may not invent entities or candidate families from open-ended discourse.
-
-Model-assisted resolution starts in shadow mode only. It should not be authoritative until later rollout proves that it improves difficult cases without raising false-binding risk.
-
-## Clarification Short-Circuit Rules
-Step 4 may short-circuit retrieval and require clarification immediately when the unresolved condition is structural rather than evidential.
-
-This includes:
-
-- ambiguous referent
-- competing candidate lists
-- stale context without a new anchor
-- missing required entity
-- invalid referenced entity
-
-Retrieval is not a substitute for referent resolution.
-
-## Clarification-Answer Binding Rules
-`clarification_answer` should bind primarily to active canonical `pendingClarification`.
-
-Fallback is allowed when:
-
-- `pendingClarification.active` is false
-- the immediately preceding assistant turn is clearly a clarification question
-- that turn is recent enough to remain in active context
-
-Outside that narrow case, terse follow-up answers should not be assumed to answer a previous clarification prompt.
-
-## Staleness And Quoted Reference Rules
-- Quoted reference may override stale-window reset only for the quoted target and its local resolution neighborhood.
-- Quoted reference does not globally make the entire old conversation fresh again.
-- If no quoted anchor exists after the stale window expires, Step 4 should not revive stale discourse just because summary or recent old messages mention something related.
-
-## Multi-Entity Focus Rules
-- Multi-entity `currentFocus` is ambiguous by default.
-- Singular follow-ups such as `its picture`, `هذا`, or `how much is it` must not bind to multi-entity focus without another narrowing signal.
-- Explicitly plural or comparative turns may preserve multiple referenced entities.
-
-## Category, Product, And Variant Rules
-- Product and variant referents are first-class in this step.
-- Category referents are allowed, but only when explicitly grounded by existing context.
-- Summary alone may not authorize category binding.
-- Category/product conflicts must clarify rather than default upward to category scope.
-
-## Query And Retrieval Rules
-- Retrieval may not consume raw inbound text directly after this step unless `queryStatus` explicitly marks passthrough.
-- `preferredRetrievalMode` is emitted by Step 4 and must not be rediscovered by Step 5 from raw fields alone.
-- Step 5 may still receive raw inbound text as conversational context, but not as the direct retrieval query once resolved output exists.
-- Current-turn retrieval hits are forbidden as resolution inputs.
-
-## Tenant And Entity Validity Rules
-- All entity binding is tenant-scoped.
-- Any candidate entity that fails tenant validation is discarded.
-- If the user’s referent is clear but the entity is invalid or deleted, Step 4 should emit clarification metadata rather than collapsing the case into generic no-match behavior.
+1. explicit quoted reference
+2. explicit selected entity in state
+3. most recent presented list and index mapping
+4. recent-turn discourse
+5. summary as long-range support
+6. raw text only as the weakest source
 
 ## Edge Cases And Failure Modes
 - User references “the second one” after multiple lists were shown
