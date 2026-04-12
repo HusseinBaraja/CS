@@ -149,7 +149,21 @@ export const createLogger = (
   );
 };
 
-export const logger = createLogger();
+let defaultLoggerInstance: Logger | null = null;
+
+const getDefaultLogger = (): Logger => {
+  defaultLoggerInstance ??= createLogger();
+  return defaultLoggerInstance;
+};
+
+export const logger = new Proxy({} as Logger, {
+  get(_target, property, receiver) {
+    const activeLogger = getDefaultLogger();
+    const value = Reflect.get(activeLogger, property, receiver);
+
+    return typeof value === "function" ? value.bind(activeLogger) : value;
+  },
+}) as Logger;
 
 export interface LogErrorOptions {
   context?: Record<string, unknown>;
