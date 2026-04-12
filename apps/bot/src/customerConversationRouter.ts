@@ -107,7 +107,7 @@ export const createCustomerConversationRouter = (
 
     const userMessage = serializeInboundMessage(message);
     let conversationId: string;
-    let history;
+    let history: Awaited<ReturnType<ConversationStore["getPromptHistoryForInbound"]>>;
     try {
       const inboundAppend = await options.conversationStore.appendInboundCustomerMessage({
         companyId: message.companyId,
