@@ -2,13 +2,8 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import {
   BOT_RUNTIME_SESSION_STATES,
-  CANONICAL_CONVERSATION_FOCUS_KINDS,
-  CANONICAL_CONVERSATION_FRESHNESS_STATUSES,
-  CANONICAL_CONVERSATION_PRESENTABLE_KINDS,
-  CANONICAL_CONVERSATION_QUERY_STATUSES,
-  CANONICAL_CONVERSATION_SOURCE_VALUES,
-  CONVERSATION_LIFECYCLE_EVENT_SOURCES,
-  CONVERSATION_LIFECYCLE_EVENT_TYPES,
+  CONVERSATION_STATE_EVENT_SOURCES,
+  CONVERSATION_STATE_EVENT_TYPES,
 } from '@cs/shared';
 
 // ── Reusable field patterns ──────────────────────────────────────────────────
@@ -38,92 +33,19 @@ const mediaCleanupStatusValidator = v.union(
   v.literal("failed"),
 );
 const conversationStateEventTypeValidator = v.union(
-  ...CONVERSATION_LIFECYCLE_EVENT_TYPES.map((eventType) => v.literal(eventType)),
+  ...CONVERSATION_STATE_EVENT_TYPES.map((eventType) => v.literal(eventType)),
 );
 const conversationStateEventSourceValidator = v.union(
-  ...CONVERSATION_LIFECYCLE_EVENT_SOURCES.map((source) => v.literal(source)),
+  ...CONVERSATION_STATE_EVENT_SOURCES.map((source) => v.literal(source)),
 );
-const canonicalConversationSourceValidator = v.union(
-  ...CANONICAL_CONVERSATION_SOURCE_VALUES.map((source) => v.literal(source)),
+const MESSAGE_HANDOFF_SOURCES = [
+  "assistant_action",
+  "provider_failure_fallback",
+  "invalid_model_output_fallback",
+] as const;
+const messageHandoffSourceValidator = v.union(
+  ...MESSAGE_HANDOFF_SOURCES.map((source) => v.literal(source)),
 );
-const canonicalConversationFocusKindValidator = v.union(
-  ...CANONICAL_CONVERSATION_FOCUS_KINDS.map((kind) => v.literal(kind)),
-);
-const canonicalConversationPresentableKindValidator = v.union(
-  ...CANONICAL_CONVERSATION_PRESENTABLE_KINDS.map((kind) => v.literal(kind)),
-);
-const canonicalConversationFreshnessStatusValidator = v.union(
-  ...CANONICAL_CONVERSATION_FRESHNESS_STATUSES.map((status) => v.literal(status)),
-);
-const canonicalConversationQueryStatusValidator = v.union(
-  ...CANONICAL_CONVERSATION_QUERY_STATUSES.map((status) => v.literal(status)),
-);
-const promptHistorySelectionModeValidator = v.union(
-  v.literal("no_history"),
-  v.literal("recent_window"),
-  v.literal("stale_reset_empty"),
-  v.literal("quoted_reference_window"),
-);
-const retrievalOutcomeValidator = v.union(
-  v.literal("grounded"),
-  v.literal("empty"),
-  v.literal("low_signal"),
-);
-const canonicalConversationFocusValidator = v.object({
-  kind: canonicalConversationFocusKindValidator,
-  entityIds: v.array(v.string()),
-  source: v.optional(canonicalConversationSourceValidator),
-  updatedAt: v.optional(v.number()),
-});
-const canonicalConversationPresentedListItemValidator = v.object({
-  displayIndex: v.number(),
-  entityKind: canonicalConversationPresentableKindValidator,
-  entityId: v.string(),
-  score: v.optional(v.number()),
-});
-const canonicalConversationPresentedListValidator = v.object({
-  kind: canonicalConversationPresentableKindValidator,
-  items: v.array(canonicalConversationPresentedListItemValidator),
-  source: v.optional(canonicalConversationSourceValidator),
-  updatedAt: v.optional(v.number()),
-});
-const canonicalConversationPendingClarificationValidator = v.object({
-  active: v.boolean(),
-  source: v.optional(canonicalConversationSourceValidator),
-  updatedAt: v.optional(v.number()),
-});
-const canonicalConversationLatestQueryValidator = v.object({
-  text: v.string(),
-  status: canonicalConversationQueryStatusValidator,
-  source: canonicalConversationSourceValidator,
-  updatedAt: v.number(),
-});
-const canonicalConversationFreshnessValidator = v.object({
-  status: canonicalConversationFreshnessStatusValidator,
-  updatedAt: v.optional(v.number()),
-  activeWindowExpiresAt: v.optional(v.number()),
-});
-const canonicalConversationSourceOfTruthMarkersValidator = v.object({
-  responseLanguage: v.optional(canonicalConversationSourceValidator),
-  currentFocus: v.optional(canonicalConversationSourceValidator),
-  lastPresentedList: v.optional(canonicalConversationSourceValidator),
-  pendingClarification: v.optional(canonicalConversationSourceValidator),
-  latestStandaloneQuery: v.optional(canonicalConversationSourceValidator),
-});
-const canonicalConversationHeuristicCandidateValidator = v.object({
-  entityKind: v.union(v.literal("category"), v.literal("product"), v.literal("variant")),
-  entityId: v.string(),
-  score: v.number(),
-});
-const canonicalConversationHeuristicHintsValidator = v.object({
-  promptHistorySelectionMode: v.optional(promptHistorySelectionModeValidator),
-  usedQuotedReference: v.boolean(),
-  referencedTransportMessageId: v.optional(v.string()),
-  retrievalOutcome: v.optional(retrievalOutcomeValidator),
-  topCandidates: v.array(canonicalConversationHeuristicCandidateValidator),
-  retrievalOrderListProxy: v.optional(canonicalConversationPresentedListValidator),
-  heuristicFocus: v.optional(canonicalConversationFocusValidator),
-});
 const [
   initializingState,
   connectingState,
@@ -315,22 +237,6 @@ export default defineSchema({
     .index("by_conversation_time", ["conversationId", "timestamp"])
     .index("by_company_time", ["companyId", "timestamp"]),
 
-  conversationCanonicalStates: defineTable({
-    conversationId: v.id("conversations"),
-    companyId: v.id("companies"),
-    schemaVersion: v.literal("v1"),
-    responseLanguage: v.optional(v.union(v.literal("ar"), v.literal("en"))),
-    currentFocus: canonicalConversationFocusValidator,
-    lastPresentedList: v.optional(canonicalConversationPresentedListValidator),
-    pendingClarification: canonicalConversationPendingClarificationValidator,
-    latestStandaloneQuery: v.optional(canonicalConversationLatestQueryValidator),
-    freshness: canonicalConversationFreshnessValidator,
-    sourceOfTruthMarkers: canonicalConversationSourceOfTruthMarkersValidator,
-    heuristicHints: canonicalConversationHeuristicHintsValidator,
-  })
-    .index("by_conversation", ["conversationId"])
-    .index("by_company_conversation", ["companyId", "conversationId"]),
-
   // ── Messages ────────────────────────────────────────────────────────────
   messages: defineTable({
     conversationId: v.id("conversations"),
@@ -354,11 +260,7 @@ export default defineSchema({
     )),
     transportMessageId: v.optional(v.string()),
     referencedTransportMessageId: v.optional(v.string()),
-    handoffSource: v.optional(v.union(
-      v.literal("assistant_action"),
-      v.literal("provider_failure_fallback"),
-      v.literal("invalid_model_output_fallback"),
-    )),
+    handoffSource: v.optional(messageHandoffSourceValidator),
     handoffReason: v.optional(v.string()),
     handoffActorPhoneNumber: v.optional(v.string()),
     handoffMetadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),

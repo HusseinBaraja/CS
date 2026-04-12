@@ -1,7 +1,8 @@
 import {
   type AssistantActionType,
   type AssistantStructuredOutput,
-  type CatalogGroundingBundle,
+  type BuildGroundedChatPromptInput,
+  type BuiltGroundedChatPrompt,
   type ChatCallOptions,
   type ChatLanguage,
   type ChatManagerCallOptions,
@@ -15,19 +16,13 @@ import {
   type LanguageDetectionResult,
   type LanguageResolutionOptions,
   type ParseAssistantStructuredOutputOptions,
-  type ParseAssistantStructuredOutputResult,
-  type PromptAssemblyInput,
-  type PromptAssemblyOutput,
-  type PromptBehaviorInstructions,
   type PromptHistoryTurn,
-  assemblePrompt,
+  buildGroundedChatPrompt,
   createChatProviderManager,
   detectChatLanguage,
   parseAssistantStructuredOutput,
   resolveChatResponseLanguage,
-  StructuredOutputParseError,
 } from './index';
-import type { CanonicalConversationStateDto, ConversationSummaryDto } from '@cs/shared';
 
 const request: ChatRequest = {
   messages: [
@@ -109,101 +104,19 @@ const groundingContext: GroundingContextBlock[] = [
     body: "Sizes: S, M, L",
   },
 ];
-const recentTurns: PromptHistoryTurn[] = [
+const conversationHistory: PromptHistoryTurn[] = [
   {
     role: "user",
     text: "hello",
   },
 ];
-const summary: ConversationSummaryDto = {
-  summaryId: "summary-1",
-  conversationId: "conversation-1",
-  durableCustomerGoal: "Find burger boxes",
-  stablePreferences: ["English responses"],
-  importantResolvedDecisions: [
-    {
-      summary: "Customer asked about burger boxes",
-    },
-  ],
-  historicalContextNeededForFutureTurns: ["Customer is asking about packaging products"],
-  freshness: {
-    status: "fresh",
-  },
-  provenance: {
-    source: "shadow",
-  },
-  coveredMessageRange: {
-    messageCount: 2,
-  },
-};
-const state: CanonicalConversationStateDto = {
-  schemaVersion: "v1",
-  conversationId: "conversation-1",
-  companyId: "company-1",
+const promptInput: BuildGroundedChatPromptInput = {
   responseLanguage: "en",
-  currentFocus: {
-    kind: "product",
-    entityIds: ["product-1"],
-  },
-  pendingClarification: {
-    active: false,
-  },
-  freshness: {
-    status: "fresh",
-  },
-  sourceOfTruthMarkers: {},
-  heuristicHints: {
-    usedQuotedReference: false,
-    topCandidates: [],
-  },
+  customerMessage: "Need burger boxes",
+  groundingContext,
+  conversationHistory,
 };
-const behaviorInstructions: PromptBehaviorInstructions = {
-  responseLanguage: "en",
-  allowedActions: ["clarify"],
-  groundingPolicy: "supplied_facts_only",
-  ambiguityPolicy: "clarify_instead_of_guessing",
-  handoffPolicy: "handoff_on_explicit_request_or_unsafe_help",
-  offTopicPolicy: "refuse",
-  stylePolicy: "concise_target_language",
-  responseFormat: "assistant_structured_output_v1",
-};
-const groundingBundle: CatalogGroundingBundle = {
-  bundleId: "bundle-1",
-  retrievalMode: "raw_latest_message",
-  resolvedQuery: "Need burger boxes",
-  entityRefs: [
-    {
-      entityKind: "product",
-      entityId: "product-1",
-    },
-  ],
-  contextBlocks: groundingContext,
-  language: "en",
-  retrievalConfidence: 0.9,
-  products: [
-    {
-      id: "product-1",
-      name: "Burger Box",
-    },
-  ],
-  categories: [],
-  variants: [],
-  offers: [],
-  pricingFacts: [],
-  imageAvailability: [],
-  omissions: [],
-};
-const promptInput: PromptAssemblyInput = {
-  behaviorInstructions,
-  conversationSummary: summary,
-  conversationState: state,
-  recentTurns,
-  groundingBundle,
-  currentUserTurn: {
-    text: "Need burger boxes",
-  },
-};
-const builtPrompt: PromptAssemblyOutput = assemblePrompt(promptInput);
+const builtPrompt: BuiltGroundedChatPrompt = buildGroundedChatPrompt(promptInput);
 const structuredOutput: AssistantStructuredOutput = {
   schemaVersion: "v1",
   text: "Please clarify which size you need.",
@@ -214,13 +127,10 @@ const structuredOutput: AssistantStructuredOutput = {
 const parseOptions: ParseAssistantStructuredOutputOptions = {
   allowedActions: ["clarify"],
 };
-const parsedStructuredOutput: ParseAssistantStructuredOutputResult = parseAssistantStructuredOutput(
+const parsedStructuredOutput: AssistantStructuredOutput = parseAssistantStructuredOutput(
   '{"schemaVersion":"v1","text":"Please clarify which size you need.","action":{"type":"clarify"}}',
   parseOptions,
 );
-const parseError: StructuredOutputParseError = parsedStructuredOutput.ok
-  ? new StructuredOutputParseError("invalid_text", "invalid")
-  : parsedStructuredOutput.error;
 
 const manager = createChatProviderManager();
 
@@ -238,15 +148,10 @@ void detectionResult;
 void responseLanguage;
 void actionType;
 void groundingContext;
-void recentTurns;
-void summary;
-void state;
-void behaviorInstructions;
-void groundingBundle;
+void conversationHistory;
 void promptInput;
 void builtPrompt;
 void structuredOutput;
 void parseOptions;
 void parsedStructuredOutput;
-void parseError;
 void manager;

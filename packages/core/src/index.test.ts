@@ -5,11 +5,10 @@ import { join } from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
 import { finished } from 'node:stream/promises';
 import { ValidationError } from '@cs/shared';
-import { createProductionLogDestination } from './logging/stream';
 import {
   createLogger,
   createLoggerRuntimeConfig,
-  logger,
+  createProductionLogDestination,
   logError,
   logEvent,
   redactJidForLog,
@@ -45,19 +44,6 @@ const waitForCondition = async (predicate: () => boolean, message: string): Prom
 };
 
 describe("logger", () => {
-  test("forwards logger proxy accessors to the active logger instance", () => {
-    const originalLevel = logger.level;
-
-    try {
-      expect(typeof originalLevel).toBe("string");
-
-      logger.level = "warn";
-      expect(logger.level).toBe("warn");
-    } finally {
-      logger.level = originalLevel;
-    }
-  });
-
   test("outputs only messages at configured level", async () => {
     const stream = new PassThrough();
     let output = "";

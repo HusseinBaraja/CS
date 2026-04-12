@@ -31,48 +31,6 @@ const createCatalogChatResult = (text: string, query = "hello") => ({
   },
 });
 
-const createPromptHistorySelection = (
-  turns: Array<{ role: "user" | "assistant"; text: string }> = [],
-  overrides: Partial<{
-    selectionMode: "no_history" | "recent_window" | "stale_reset_empty" | "quoted_reference_window";
-    usedQuotedReference: boolean;
-  }> = {},
-) => {
-  const selectionMode =
-    overrides.selectionMode ?? (turns.length > 0 ? "recent_window" : "no_history");
-
-  return {
-    turns,
-    selectionMode,
-    usedQuotedReference:
-      overrides.usedQuotedReference ?? selectionMode === "quoted_reference_window",
-  };
-};
-
-const createCanonicalStateReadResult = () => ({
-  state: {
-    schemaVersion: "v1" as const,
-    conversationId: "conversation-1",
-    companyId: "company-1",
-    currentFocus: {
-      kind: "none" as const,
-      entityIds: [],
-    },
-    pendingClarification: {
-      active: false,
-    },
-    freshness: {
-      status: "stale" as const,
-    },
-    sourceOfTruthMarkers: {},
-    heuristicHints: {
-      usedQuotedReference: false,
-      topCandidates: [],
-    },
-  },
-  invalidatedPaths: [],
-});
-
 const createMessage = (
   overrides: Partial<NormalizedInboundMessage> = {},
 ): NormalizedInboundMessage => ({
@@ -286,9 +244,7 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
     muted: false,
   }),
   getPromptHistory: async () => [],
-  getPromptHistoryForInbound: async () => createPromptHistorySelection(),
-  getCanonicalConversationState: async () => createCanonicalStateReadResult(),
-  applyCanonicalConversationTurnOutcome: async () => createCanonicalStateReadResult().state,
+  getPromptHistoryForInbound: async () => [],
   listRecentMessages: async () => [],
   recordAnalyticsEvent: async () => undefined,
   recordMutedCustomerActivity: async () => ({
@@ -464,7 +420,7 @@ describe("createCustomerConversationRouter", () => {
       }),
       getPromptHistoryForInbound: async () => {
         historyCalled = true;
-        return createPromptHistorySelection();
+        return [];
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
@@ -494,20 +450,16 @@ describe("createCustomerConversationRouter", () => {
     const store = createStore({
       getPromptHistoryForInbound: async (input) => {
         historyLimit = input.limit;
-        return createPromptHistorySelection([
+        return [
           { role: "user", text: "older question" },
           { role: "assistant", text: "older answer" },
           { role: "user", text: "hello" },
-        ]);
+        ];
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async (input) => {
-        promptHistory = input.conversation?.recentTurns;
-        expect(input.conversation?.historyDiagnostics).toEqual({
-          selectionMode: "recent_window",
-          usedQuotedReference: false,
-        });
+        promptHistory = input.conversation?.history;
         return createCatalogChatResult("Assistant reply", input.userMessage);
       },
     };
@@ -528,330 +480,6 @@ describe("createCustomerConversationRouter", () => {
       { role: "assistant", text: "older answer" },
       { role: "user", text: "hello" },
     ]);
-  });
-
-  test("loads canonical state before orchestration and writes it after assistant commit", async () => {
-    const operations: string[] = [];
-    let orchestratorInput: Parameters<CatalogChatOrchestrator["respond"]>[0] | undefined;
-    const store = createStore({
-      getCanonicalConversationState: async (input) => {
-        operations.push(`loadCanonical:${input.conversationId}:${input.now}`);
-        return {
-          state: {
-            ...createCanonicalStateReadResult().state,
-            currentFocus: {
-              kind: "product",
-              entityIds: ["product-1"],
-              source: "retrieval_single_candidate",
-              updatedAt: 900,
-            },
-            heuristicHints: {
-              usedQuotedReference: false,
-              topCandidates: [{
-                entityKind: "product",
-                entityId: "product-1",
-                score: 0.92,
-              }],
-            },
-          },
-          invalidatedPaths: ["heuristicHints.heuristicFocus"],
-        };
-      },
-      appendPendingAssistantMessage: async (input) => ({
-        id: "pending-message-1",
-        conversationId: input.conversationId,
-        role: "assistant",
-        content: input.content,
-        timestamp: input.timestamp,
-        deliveryState: "pending",
-      }),
-      acknowledgePendingAssistantMessage: async (input) => ({
-        id: input.pendingMessageId,
-        conversationId: input.conversationId,
-        role: "assistant",
-        content: "Assistant reply",
-        timestamp: 2_000,
-        deliveryState: "pending",
-        providerAcknowledgedAt: input.acknowledgedAt,
-        analyticsState: "not_applicable",
-        ownerNotificationState: "not_applicable",
-      }),
-      commitPendingAssistantMessage: async (input) => {
-        operations.push(`commit:${input.pendingMessageId}`);
-        return {
-          id: input.conversationId,
-          companyId: input.companyId,
-          phoneNumber: "967700000001",
-          muted: false,
-        };
-      },
-      applyCanonicalConversationTurnOutcome: async (input) => {
-        operations.push(`writeCanonical:${input.conversationId}:${input.assistantActionType}:${input.retrievalOutcome}`);
-        expect(input).toEqual({
-          companyId: "company-1",
-          conversationId: "conversation-1",
-          responseLanguage: "en",
-          latestUserMessageText: "hello",
-          assistantActionType: "none",
-          committedAssistantTimestamp: 2_000,
-          promptHistorySelectionMode: "no_history",
-          usedQuotedReference: false,
-          retrievalOutcome: "grounded",
-          candidates: [{
-            entityKind: "product",
-            entityId: "product-1",
-            score: 0.92,
-          }],
-        });
-        return {
-          ...createCanonicalStateReadResult().state,
-          responseLanguage: "en",
-          currentFocus: {
-            kind: "product",
-            entityIds: ["product-1"],
-            source: "retrieval_single_candidate",
-            updatedAt: 2_000,
-          },
-          freshness: {
-            status: "fresh",
-            updatedAt: 2_000,
-            activeWindowExpiresAt: 32_000,
-          },
-          sourceOfTruthMarkers: {
-            currentFocus: "retrieval_single_candidate",
-            latestStandaloneQuery: "system_passthrough",
-            pendingClarification: "system_passthrough",
-            responseLanguage: "system_passthrough",
-          },
-          latestStandaloneQuery: {
-            text: "hello",
-            status: "unresolved_passthrough",
-            source: "system_passthrough",
-            updatedAt: 2_000,
-          },
-          heuristicHints: {
-            usedQuotedReference: false,
-            topCandidates: [{
-              entityKind: "product",
-              entityId: "product-1",
-              score: 0.92,
-            }],
-            heuristicFocus: {
-              kind: "product",
-              entityIds: ["product-1"],
-              source: "heuristic",
-              updatedAt: 2_000,
-            },
-          },
-        };
-      },
-    });
-    const orchestrator: CatalogChatOrchestrator = {
-      respond: async (input) => {
-        orchestratorInput = input;
-        return {
-          ...createCatalogChatResult("Assistant reply", input.userMessage),
-          retrieval: {
-            outcome: "grounded",
-            query: input.userMessage,
-            language: "en",
-            topScore: 0.92,
-            candidates: [{
-              productId: "product-1",
-              score: 0.92,
-              matchedEmbeddingId: "embedding-1",
-              matchedText: "Burger Box",
-              language: "en",
-              contextBlock: {
-                id: "product-1",
-                heading: "Burger Box",
-                body: "Name (EN): Burger Box",
-              },
-              product: {
-                id: "product-1",
-                categoryId: "category-1",
-                nameEn: "Burger Box",
-                imageCount: 0,
-                variants: [],
-              },
-            }],
-            contextBlocks: [{
-              id: "product-1",
-              heading: "Burger Box",
-              body: "Name (EN): Burger Box",
-            }],
-          },
-        };
-      },
-    };
-    const { logger, errorCalls, infoCalls } = createLogger();
-    const { outbound, sent } = createOutbound();
-    const router = createCustomerConversationRouter({
-      catalogChatOrchestrator: orchestrator,
-      conversationStore: store,
-      logger,
-      now: () => 2_000,
-    });
-
-    await router(createMessage(), createContext(outbound));
-
-    expect(orchestratorInput?.conversation?.canonicalState?.currentFocus).toEqual({
-      kind: "product",
-      entityIds: ["product-1"],
-      source: "retrieval_single_candidate",
-      updatedAt: 900,
-    });
-    expect(operations).toEqual([
-      "loadCanonical:conversation-1:1700000000000",
-      "commit:pending-message-1",
-      "writeCanonical:conversation-1:none:grounded",
-    ]);
-    expect(sent).toEqual([{
-      recipientJid: "967700000001@s.whatsapp.net",
-      text: "Assistant reply",
-    }]);
-    expect(errorCalls).toEqual([]);
-    expect(infoCalls).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        message: "customer conversation canonical state loaded",
-        payload: expect.objectContaining({
-          event: "conversation.canonical_state.load_recorded",
-          outcome: "loaded",
-          conversationId: "conversation-1",
-          requestId: "message-1",
-          invalidatedPathCount: 1,
-          freshnessStatus: "stale",
-          authoritativeFocusKind: "product",
-          authoritativeFocusEntityCount: 1,
-          heuristicCandidateCount: 1,
-        }),
-      }),
-      expect.objectContaining({
-        message: "customer conversation canonical state invalidated",
-        payload: expect.objectContaining({
-          event: "conversation.canonical_state.invalidation_recorded",
-          outcome: "recorded",
-          conversationId: "conversation-1",
-          requestId: "message-1",
-          invalidatedPathCount: 1,
-          invalidatedPaths: ["heuristicHints.heuristicFocus"],
-        }),
-      }),
-      expect.objectContaining({
-        message: "customer conversation canonical state written",
-        payload: expect.objectContaining({
-          event: "conversation.canonical_state.write_recorded",
-          outcome: "written",
-          conversationId: "conversation-1",
-          requestId: "message-1",
-          authoritativeFocusKind: "product",
-          authoritativeFocusEntityCount: 1,
-          authoritativeFocusSource: "retrieval_single_candidate",
-          pendingClarificationActive: false,
-          heuristicCandidateCount: 1,
-          latestStandaloneQueryStatus: "unresolved_passthrough",
-          responseLanguage: "en",
-        }),
-      }),
-    ]));
-  });
-
-  test("continues orchestration when canonical state loading fails", async () => {
-    let orchestratorCalled = false;
-    const store = createStore({
-      getCanonicalConversationState: async () => {
-        throw new Error("canonical load failed");
-      },
-      appendPendingAssistantMessage: async (input) => ({
-        id: "pending-assistant",
-        conversationId: input.conversationId,
-        role: "assistant",
-        content: input.content,
-        timestamp: input.timestamp,
-        deliveryState: "pending",
-      }),
-    });
-    const orchestrator: CatalogChatOrchestrator = {
-      respond: async (input) => {
-        orchestratorCalled = true;
-        expect(input.conversation?.canonicalState).toBeUndefined();
-        return createCatalogChatResult("Assistant reply", input.userMessage);
-      },
-    };
-    const { logger, errorCalls } = createLogger();
-    const { outbound, sent } = createOutbound();
-    const router = createCustomerConversationRouter({
-      catalogChatOrchestrator: orchestrator,
-      conversationStore: store,
-      logger,
-    });
-
-    await router(createMessage(), createContext(outbound));
-
-    expect(orchestratorCalled).toBe(true);
-    expect(sent).toEqual([{
-      recipientJid: "967700000001@s.whatsapp.net",
-      text: "Assistant reply",
-    }]);
-    expect(errorCalls).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        message: "customer conversation canonical state load failed",
-        payload: expect.objectContaining({
-          event: "conversation.canonical_state.load_recorded",
-          outcome: "load_failed",
-          conversationId: "conversation-1",
-          requestId: "message-1",
-          invalidatedPathCount: 0,
-        }),
-      }),
-    ]));
-  });
-
-  test("logs canonical state write failures without affecting the customer reply", async () => {
-    const store = createStore({
-      appendPendingAssistantMessage: async (input) => ({
-        id: "pending-assistant",
-        conversationId: input.conversationId,
-        role: "assistant",
-        content: input.content,
-        timestamp: input.timestamp,
-        deliveryState: "pending",
-      }),
-      applyCanonicalConversationTurnOutcome: async () => {
-        throw new Error("canonical write failed");
-      },
-    });
-    const orchestrator: CatalogChatOrchestrator = {
-      respond: async () => createCatalogChatResult("Assistant reply"),
-    };
-    const { logger, errorCalls } = createLogger();
-    const { outbound, sent } = createOutbound();
-    const router = createCustomerConversationRouter({
-      catalogChatOrchestrator: orchestrator,
-      conversationStore: store,
-      logger,
-    });
-
-    await router(createMessage(), createContext(outbound));
-
-    expect(sent).toEqual([{
-      recipientJid: "967700000001@s.whatsapp.net",
-      text: "Assistant reply",
-    }]);
-    expect(errorCalls).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        message: "customer conversation canonical state write failed",
-        payload: expect.objectContaining({
-          event: "conversation.canonical_state.write_recorded",
-          outcome: "write_failed",
-          conversationId: "conversation-1",
-          requestId: "message-1",
-          authoritativeFocusKind: "none",
-          authoritativeFocusEntityCount: 0,
-          heuristicCandidateCount: 0,
-        }),
-      }),
-    ]));
   });
 
   test("trims conversation messages after assistant persistence", async () => {
@@ -906,7 +534,7 @@ describe("createCustomerConversationRouter", () => {
           muted: false,
         };
       },
-      getPromptHistoryForInbound: async () => createPromptHistorySelection(),
+      getPromptHistoryForInbound: async () => [],
       trimConversationMessages: async (input) => {
         calls.push(`trim:${input.maxMessages}`);
         return {
@@ -1422,7 +1050,6 @@ describe("createCustomerConversationRouter", () => {
   });
 
   test("leaves a pending assistant reply for reconciliation when commit fails", async () => {
-    let canonicalWriteCalled = false;
     const store = createStore({
       appendInboundCustomerMessage: async (input) => ({
         conversation: {
@@ -1442,10 +1069,6 @@ describe("createCustomerConversationRouter", () => {
         timestamp: input.timestamp,
         deliveryState: "pending",
       }),
-      applyCanonicalConversationTurnOutcome: async () => {
-        canonicalWriteCalled = true;
-        throw new Error("should not write canonical state");
-      },
       commitPendingAssistantMessage: async () => {
         throw new Error("assistant commit failed");
       },
@@ -1472,7 +1095,6 @@ describe("createCustomerConversationRouter", () => {
       pendingMessageId: "pending-message-1",
       assistantTextLength: "Assistant reply".length,
     });
-    expect(canonicalWriteCalled).toBe(false);
     expect(errorCalls[0]?.payload).not.toHaveProperty("assistantText");
     expect(errorCalls[0]?.payload).not.toHaveProperty("assistantTextSha256");
   });
@@ -1605,18 +1227,12 @@ describe("createCustomerConversationRouter", () => {
     const store = createStore({
       getPromptHistoryForInbound: async (input) => {
         historyInput = input;
-        return createPromptHistorySelection([], {
-          selectionMode: "stale_reset_empty",
-        });
+        return [];
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
       respond: async (input) => {
-        promptHistory = input.conversation?.recentTurns;
-        expect(input.conversation?.historyDiagnostics).toEqual({
-          selectionMode: "stale_reset_empty",
-          usedQuotedReference: false,
-        });
+        promptHistory = input.conversation?.history;
         return createCatalogChatResult("Assistant reply", input.userMessage);
       },
     };
@@ -1666,22 +1282,12 @@ describe("createCustomerConversationRouter", () => {
           currentTransportMessageId: input.currentTransportMessageId,
           referencedTransportMessageId: input.referencedTransportMessageId,
         });
-        return createPromptHistorySelection(
-          [{ role: "assistant", text: "older answer" }],
-          {
-            selectionMode: "quoted_reference_window",
-            usedQuotedReference: true,
-          },
-        );
+        return [{ role: "assistant", text: "older answer" }];
       },
     });
     const orchestrator: CatalogChatOrchestrator = {
-      respond: async (input) => {
-        orchestratorInput = input;
-        return createCatalogChatResult("Assistant reply", input.userMessage);
-      },
+      respond: async (input) => createCatalogChatResult("Assistant reply", input.userMessage),
     };
-    let orchestratorInput: Parameters<CatalogChatOrchestrator["respond"]>[0] | undefined;
     const { logger } = createLogger();
     const { outbound } = createOutbound();
     const router = createCustomerConversationRouter({
@@ -1708,10 +1314,6 @@ describe("createCustomerConversationRouter", () => {
         referencedTransportMessageId: "quoted-message-1",
       },
     ]);
-    expect(orchestratorInput?.conversation?.historyDiagnostics).toEqual({
-      selectionMode: "quoted_reference_window",
-      usedQuotedReference: true,
-    });
   });
 
   test("logs and stops when outbound is unavailable", async () => {

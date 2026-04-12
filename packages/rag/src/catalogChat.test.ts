@@ -3,8 +3,6 @@ import {
   createChatProviderManager,
   type ChatProviderHealth,
   type ChatProviderName,
-  type PromptAssemblyInput,
-  type PromptAssemblyOutput,
   type ChatResponse,
   type ChatRuntimeConfig,
 } from '@cs/ai';
@@ -104,11 +102,6 @@ const createLoggerStub = (): {
   };
 };
 
-const findLoggedEvent = (
-  calls: Array<{ payload: Record<string, unknown>; message: string }>,
-  eventName: string,
-) => calls.find((call) => call.payload.event === eventName);
-
 const runtimeConfig: ChatRuntimeConfig = {
   providerOrder: ["deepseek", "gemini"],
   requestTimeoutMs: 10_000,
@@ -161,80 +154,6 @@ const createFailoverChatManager = (
       },
     }),
   });
-
-const createPromptAssemblyOutputStub = (
-  input: PromptAssemblyInput,
-): PromptAssemblyOutput => ({
-  messages: [
-    {
-      role: "system",
-      content: "system",
-    },
-    {
-      role: "user",
-      content: "user",
-    },
-  ],
-  layerMetadata: [
-    {
-      layer: "behavior_instructions",
-      present: true,
-      messageRole: "system",
-      itemCount: 1,
-      charCount: 6,
-      truncated: false,
-    },
-    {
-      layer: "conversation_summary",
-      present: Boolean(input.conversationSummary),
-      messageRole: "system",
-      itemCount: input.conversationSummary ? 1 : 0,
-      charCount: input.conversationSummary ? 7 : 0,
-      truncated: false,
-    },
-    {
-      layer: "conversation_state",
-      present: Boolean(input.conversationState),
-      messageRole: "system",
-      itemCount: input.conversationState ? 1 : 0,
-      charCount: input.conversationState ? 5 : 0,
-      truncated: false,
-    },
-    {
-      layer: "recent_turns",
-      present: input.recentTurns.length > 0,
-      messageRole: "mixed",
-      itemCount: input.recentTurns.length,
-      charCount: input.recentTurns.reduce((total, turn) => total + turn.text.length, 0),
-      truncated: false,
-    },
-    {
-      layer: "grounding_facts",
-      present: Boolean(input.groundingBundle),
-      messageRole: "user",
-      itemCount: input.groundingBundle?.contextBlocks.length ?? 0,
-      charCount: input.groundingBundle?.contextBlocks.reduce((total, block) => total + block.body.length, 0) ?? 0,
-      truncated: false,
-    },
-    {
-      layer: "current_user_turn",
-      present: true,
-      messageRole: "user",
-      itemCount: 1,
-      charCount: input.currentUserTurn.text.length,
-      truncated: false,
-    },
-  ],
-  tokenBudgetByLayer: {
-    behavior_instructions: { layer: "behavior_instructions", maxTokens: null },
-    conversation_summary: { layer: "conversation_summary", maxTokens: null },
-    conversation_state: { layer: "conversation_state", maxTokens: null },
-    recent_turns: { layer: "recent_turns", maxTokens: null },
-    grounding_facts: { layer: "grounding_facts", maxTokens: null },
-    current_user_turn: { layer: "current_user_turn", maxTokens: null },
-  },
-  omittedContext: [],
-});
 
 describe("createCatalogChatOrchestrator", () => {
   test("returns a grounded provider response when retrieval is grounded and output parses cleanly", async () => {
@@ -301,9 +220,24 @@ describe("createCatalogChatOrchestrator", () => {
         }),
         retrievalCalls,
       ),
-      buildPrompt: (input: PromptAssemblyInput) => {
+      buildPrompt: (input) => {
         promptInput = input as unknown as Record<string, unknown>;
-        return createPromptAssemblyOutputStub(input);
+        return {
+          systemPrompt: "system",
+          userPrompt: "user",
+          request: {
+            messages: [
+              {
+                role: "system",
+                content: "system",
+              },
+              {
+                role: "user",
+                content: "user",
+              },
+            ],
+          },
+        };
       },
       chatManager: createChatManagerStub(async () => ({
         provider: "gemini",
@@ -328,119 +262,8 @@ describe("createCatalogChatOrchestrator", () => {
     expect((retrievalCalls[0] as { maxResults: number }).maxResults).toBe(2);
     expect((retrievalCalls[0] as { maxContextBlocks: number }).maxContextBlocks).toBe(1);
     expect((retrievalCalls[0] as { minScore: number }).minScore).toBe(0.8);
-    expect(promptInput?.behaviorInstructions).toEqual(expect.objectContaining({
-      responseLanguage: "ar",
-    }));
-    expect(promptInput?.groundingBundle).toEqual(expect.objectContaining({
-      retrievalMode: "raw_latest_message",
-      resolvedQuery: "علبة برجر",
-    }));
+    expect(promptInput?.responseLanguage).toBe("ar");
     expect(result.language.responseLanguage).toBe("ar");
-  });
-
-  test("limits grounding bundle entities to products included in context blocks", async () => {
-    let promptInput: PromptAssemblyInput | undefined;
-    const orchestrator = createCatalogChatOrchestrator({
-      retrievalService: createRetrievalService(groundedRetrievalResult({
-        candidates: [
-          {
-            productId: "product-1",
-            score: 0.92,
-            matchedEmbeddingId: "embedding-1",
-            matchedText: "Burger box hit",
-            language: "en",
-            contextBlock: {
-              id: "product-1",
-              heading: "Burger Box",
-              body: "Name (EN): Burger Box",
-            },
-            product: {
-              id: "product-1",
-              categoryId: "category-1",
-              nameEn: "Burger Box",
-              imageCount: 1,
-              basePrice: 12,
-              baseCurrency: "USD",
-              variants: [],
-            },
-          },
-          {
-            productId: "product-2",
-            score: 0.81,
-            matchedEmbeddingId: "embedding-2",
-            matchedText: "Tray hit",
-            language: "en",
-            contextBlock: {
-              id: "product-2",
-              heading: "Food Tray",
-              body: "Name (EN): Food Tray",
-            },
-            product: {
-              id: "product-2",
-              categoryId: "category-2",
-              nameEn: "Food Tray",
-              imageCount: 3,
-              basePrice: 20,
-              baseCurrency: "USD",
-              variants: [],
-            },
-          },
-        ],
-        contextBlocks: [
-          {
-            id: "product-1",
-            heading: "Burger Box",
-            body: "Name (EN): Burger Box",
-          },
-        ],
-      })),
-      buildPrompt: (input: PromptAssemblyInput) => {
-        promptInput = input;
-        return createPromptAssemblyOutputStub(input);
-      },
-      chatManager: createChatManagerStub(async () => ({
-        provider: "gemini",
-        text: '{"schemaVersion":"v1","text":"We have burger boxes.","action":{"type":"none"}}',
-        finishReason: "stop",
-      })),
-    });
-
-    await orchestrator.respond({
-      tenant: {
-        companyId: COMPANY_ID,
-      },
-      userMessage: "Burger Box",
-    });
-
-    expect(promptInput?.groundingBundle).toEqual(expect.objectContaining({
-      entityRefs: [
-        {
-          entityKind: "product",
-          entityId: "product-1",
-        },
-      ],
-      products: [
-        {
-          id: "product-1",
-          name: "Burger Box",
-        },
-      ],
-      pricingFacts: [
-        {
-          entityId: "product-1",
-          kind: "base_price",
-          value: 12,
-          currency: "USD",
-        },
-      ],
-      imageAvailability: [
-        {
-          entityId: "product-1",
-          hasImages: true,
-          imageCount: 1,
-        },
-      ],
-    }));
   });
 
   test("skips provider invocation and returns a clarification fallback for blank input", async () => {
@@ -495,7 +318,7 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(chatCalls).toHaveLength(0);
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.completed")).toMatchObject({
+    expect(infoCalls[0]).toMatchObject({
       message: "catalog retrieval completed",
       payload: {
         event: "rag.retrieval.completed",
@@ -511,52 +334,6 @@ describe("createCatalogChatOrchestrator", () => {
         },
       },
     });
-    const retrievalOutcomeLog = findLoggedEvent(infoCalls, "rag.retrieval.outcome_recorded");
-    expect(retrievalOutcomeLog).toMatchObject({
-      message: "catalog retrieval outcome recorded",
-      payload: {
-        event: "rag.retrieval.outcome_recorded",
-        retrievalMode: "raw_latest_message",
-        retrievalOutcome: "empty",
-        candidateCount: 0,
-        topScore: null,
-        contextBlockCount: 0,
-        fallbackChosen: "clarify",
-      },
-    });
-    expect(retrievalOutcomeLog?.payload).not.toHaveProperty("conversationId");
-    expect(retrievalOutcomeLog?.payload).not.toHaveProperty("requestId");
-    const contextUsageLog = findLoggedEvent(infoCalls, "rag.context_usage.recorded");
-    expect(contextUsageLog).toMatchObject({
-      message: "catalog context usage recorded",
-      payload: {
-        event: "rag.context_usage.recorded",
-        stage: "prompt_assembly",
-        promptHistorySelectionMode: "no_history",
-        usedRecentTurns: false,
-        usedConversationState: false,
-        usedSummary: false,
-        usedQuotedReference: false,
-        usedGroundingFacts: false,
-      },
-    });
-    expect(contextUsageLog?.payload).not.toHaveProperty("conversationId");
-    expect(contextUsageLog?.payload).not.toHaveProperty("requestId");
-    const fallbackDecisionLog = findLoggedEvent(infoCalls, "rag.decision.recorded");
-    expect(fallbackDecisionLog).toMatchObject({
-      message: "catalog fallback decision recorded",
-      payload: {
-        event: "rag.decision.recorded",
-        decisionType: "clarify",
-        reason: "empty_query",
-        precedingStage: "retrieval",
-        resolutionConfidence: null,
-        retrievalOutcome: "empty",
-        providerOutcome: "not_requested",
-      },
-    });
-    expect(fallbackDecisionLog?.payload).not.toHaveProperty("conversationId");
-    expect(fallbackDecisionLog?.payload).not.toHaveProperty("requestId");
   });
 
   test("skips provider invocation on no_hits and returns a scope-safe fallback", async () => {
@@ -593,28 +370,13 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(chatCalls).toHaveLength(0);
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.completed")).toMatchObject({
+    expect(infoCalls[0]).toMatchObject({
       payload: {
         event: "rag.retrieval.completed",
         outcome: "empty",
         retrieval: {
           reason: "no_hits",
         },
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.outcome_recorded")).toMatchObject({
-      payload: {
-        event: "rag.retrieval.outcome_recorded",
-        retrievalOutcome: "empty",
-        fallbackChosen: "no_match_reply",
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.decision.recorded")).toMatchObject({
-      payload: {
-        event: "rag.decision.recorded",
-        decisionType: "no_match_reply",
-        reason: "no_hits",
-        providerOutcome: "not_requested",
       },
     });
   });
@@ -654,28 +416,13 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(chatCalls).toHaveLength(0);
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.completed")).toMatchObject({
+    expect(infoCalls[0]).toMatchObject({
       payload: {
         event: "rag.retrieval.completed",
         outcome: "low_signal",
         retrieval: {
           topScore: 0.2,
         },
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.outcome_recorded")).toMatchObject({
-      payload: {
-        event: "rag.retrieval.outcome_recorded",
-        retrievalOutcome: "low_signal",
-        fallbackChosen: "low_signal_reply",
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.decision.recorded")).toMatchObject({
-      payload: {
-        event: "rag.decision.recorded",
-        decisionType: "low_signal_reply",
-        reason: "below_min_score",
-        providerOutcome: "not_requested",
       },
     });
   });
@@ -724,30 +471,12 @@ describe("createCatalogChatOrchestrator", () => {
       userMessage: "Burger Box",
     });
 
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.completed")).toMatchObject({
+    expect(infoCalls[0]).toMatchObject({
       payload: {
         event: "rag.retrieval.completed",
         outcome: "grounded",
         requestId: "request-1",
         conversationId: "conversation-1",
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.retrieval.outcome_recorded")).toMatchObject({
-      payload: {
-        event: "rag.retrieval.outcome_recorded",
-        conversationId: "conversation-1",
-        requestId: "request-1",
-        retrievalOutcome: "grounded",
-        fallbackChosen: null,
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.context_usage.recorded")).toMatchObject({
-      payload: {
-        event: "rag.context_usage.recorded",
-        conversationId: "conversation-1",
-        requestId: "request-1",
-        promptHistorySelectionMode: "no_history",
-        usedGroundingFacts: true,
       },
     });
     expect(result).toMatchObject({
@@ -784,18 +513,6 @@ describe("createCatalogChatOrchestrator", () => {
           message: "all providers failed",
           stack: expect.any(String),
         },
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.decision.recorded")).toMatchObject({
-      payload: {
-        event: "rag.decision.recorded",
-        conversationId: "conversation-1",
-        requestId: "request-1",
-        decisionType: "handoff",
-        reason: "provider_failure",
-        precedingStage: "assistant",
-        retrievalOutcome: "grounded",
-        providerOutcome: "provider_failure",
       },
     });
   });
@@ -845,34 +562,9 @@ describe("createCatalogChatOrchestrator", () => {
         }),
       }),
     ]));
-    const structuredOutputFailureLog = findLoggedEvent(errorCalls, "rag.structured_output.failure_recorded");
-    expect(structuredOutputFailureLog).toMatchObject({
-      message: "catalog structured output failure recorded",
-      payload: {
-        event: "rag.structured_output.failure_recorded",
-        provider: "gemini",
-        model: "gemini-2.0-flash",
-        failureKind: "invalid_json",
-        repairAttempted: false,
-        fallbackChosen: "handoff",
-      },
-    });
-    expect(structuredOutputFailureLog?.payload).not.toHaveProperty("conversationId");
-    expect(structuredOutputFailureLog?.payload).not.toHaveProperty("requestId");
-    expect(findLoggedEvent(infoCalls, "rag.decision.recorded")).toMatchObject({
-      message: "catalog fallback decision recorded",
-      payload: {
-        event: "rag.decision.recorded",
-        decisionType: "handoff",
-        reason: "invalid_json",
-        precedingStage: "assistant",
-        retrievalOutcome: "grounded",
-        providerOutcome: "invalid_model_output",
-      },
-    });
-    expect(findLoggedEvent(errorCalls, "rag.catalog_chat.parse_failed")).toMatchObject({
-      message: "catalog chat structured output parsing failed",
-      payload: {
+    expect(errorCalls).toHaveLength(1);
+    expect(errorCalls[0]?.message).toBe("catalog chat structured output parsing failed");
+    expect(errorCalls[0]?.payload).toMatchObject({
       event: "rag.catalog_chat.parse_failed",
       runtime: "rag",
       surface: "orchestrator",
@@ -895,17 +587,12 @@ describe("createCatalogChatOrchestrator", () => {
       providerTextLength: 600,
       providerTextLineCount: 1,
       error: {
-        name: "StructuredOutputParseError",
+        name: "Error",
         message: "Assistant structured output must be valid JSON",
       },
-    }});
-    const serializedLogs = JSON.stringify({
-      infoCalls,
-      errorCalls,
     });
+    const serializedLogs = JSON.stringify(errorCalls);
     expect(serializedLogs).not.toContain(invalidText);
-    expect(serializedLogs).not.toContain("unknown_conversation");
-    expect(serializedLogs).not.toContain("unknown_request");
   });
 
   test("forwards conversation and request metadata into the chat-manager log context", async () => {
@@ -952,7 +639,7 @@ describe("createCatalogChatOrchestrator", () => {
 
   test("passes caller-supplied history unchanged into prompt assembly", async () => {
     let promptInput: Record<string, unknown> | undefined;
-    const recentTurns = [
+    const history = [
       {
         role: "user" as const,
         text: "Hello",
@@ -964,9 +651,24 @@ describe("createCatalogChatOrchestrator", () => {
     ];
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
-      buildPrompt: (input: PromptAssemblyInput) => {
+      buildPrompt: (input) => {
         promptInput = input as unknown as Record<string, unknown>;
-        return createPromptAssemblyOutputStub(input);
+        return {
+          systemPrompt: "system",
+          userPrompt: "user",
+          request: {
+            messages: [
+              {
+                role: "system",
+                content: "system",
+              },
+              {
+                role: "user",
+                content: "user",
+              },
+            ],
+          },
+        };
       },
       chatManager: createChatManagerStub(async () => ({
         provider: "gemini",
@@ -980,239 +682,14 @@ describe("createCatalogChatOrchestrator", () => {
         companyId: COMPANY_ID,
       },
       conversation: {
-        recentTurns,
+        history,
         allowedActions: ["none", "clarify"],
       },
       userMessage: "Burger Box",
     });
 
-    expect(promptInput?.recentTurns).toEqual(recentTurns);
-    expect(promptInput?.behaviorInstructions).toEqual(expect.objectContaining({
-      allowedActions: ["none", "clarify"],
-    }));
+    expect(promptInput?.conversationHistory).toEqual(history);
+    expect(promptInput?.allowedActions).toEqual(["none", "clarify"]);
     expect(result.assistant.action.type).toBe("none");
-  });
-
-  test("accepts canonical conversation state without making it authoritative in step 1", async () => {
-    const { logger, infoCalls } = createLoggerStub();
-    let promptInput: Record<string, unknown> | undefined;
-    const orchestrator = createCatalogChatOrchestrator({
-      retrievalService: createRetrievalService(groundedRetrievalResult()),
-      logger,
-      buildPrompt: (input: PromptAssemblyInput) => {
-        promptInput = input as unknown as Record<string, unknown>;
-        return createPromptAssemblyOutputStub(input);
-      },
-      chatManager: createChatManagerStub(async () => ({
-        provider: "gemini",
-        text: '{"schemaVersion":"v1","text":"We have burger boxes.","action":{"type":"none"}}',
-        finishReason: "stop",
-      })),
-    });
-
-    await orchestrator.respond({
-      tenant: {
-        companyId: COMPANY_ID,
-      },
-      conversation: {
-        conversationId: "conversation-1",
-        recentTurns: [
-          {
-            role: "user",
-            text: "Show me burger boxes",
-          },
-        ],
-        canonicalState: {
-          schemaVersion: "v1",
-          conversationId: "conversation-1",
-          companyId: "company-1",
-          responseLanguage: "en",
-          currentFocus: {
-            kind: "product",
-            entityIds: ["product-1"],
-            source: "retrieval_single_candidate",
-            updatedAt: 1_000,
-          },
-          pendingClarification: {
-            active: false,
-          },
-          freshness: {
-            status: "fresh",
-            updatedAt: 1_000,
-            activeWindowExpiresAt: 31_000,
-          },
-          sourceOfTruthMarkers: {
-            currentFocus: "retrieval_single_candidate",
-          },
-          heuristicHints: {
-            usedQuotedReference: false,
-            topCandidates: [],
-          },
-        },
-      },
-      requestId: "request-1",
-      userMessage: "Burger Box",
-    });
-
-    expect(promptInput?.recentTurns).toEqual([
-      {
-        role: "user",
-        text: "Show me burger boxes",
-      },
-    ]);
-    expect(findLoggedEvent(infoCalls, "rag.context_usage.recorded")).toMatchObject({
-      payload: {
-        event: "rag.context_usage.recorded",
-        conversationId: "conversation-1",
-        requestId: "request-1",
-        usedConversationState: true,
-      },
-    });
-  });
-
-  test("records fallback mismatches when retrieval falls back despite canonical recoverable context", async () => {
-    const { logger, infoCalls } = createLoggerStub();
-    const orchestrator = createCatalogChatOrchestrator({
-      retrievalService: createRetrievalService({
-        outcome: "low_signal",
-        reason: "below_min_score",
-        query: "what sizes does it come in",
-        language: "en",
-        topScore: 0.2,
-        candidates: groundedRetrievalResult().candidates,
-        contextBlocks: [],
-      }),
-      logger,
-      chatManager: createChatManagerStub(async () => {
-        throw new Error("should not be called");
-      }),
-    });
-
-    await orchestrator.respond({
-      tenant: {
-        companyId: COMPANY_ID,
-      },
-      conversation: {
-        conversationId: "conversation-1",
-        canonicalState: {
-          schemaVersion: "v1",
-          conversationId: "conversation-1",
-          companyId: "company-1",
-          responseLanguage: "en",
-          currentFocus: {
-            kind: "product",
-            entityIds: ["product-1"],
-            source: "retrieval_single_candidate",
-            updatedAt: 1_000,
-          },
-          pendingClarification: {
-            active: false,
-          },
-          freshness: {
-            status: "fresh",
-            updatedAt: 1_000,
-            activeWindowExpiresAt: 31_000,
-          },
-          sourceOfTruthMarkers: {
-            currentFocus: "retrieval_single_candidate",
-          },
-          heuristicHints: {
-            promptHistorySelectionMode: "quoted_reference_window",
-            usedQuotedReference: true,
-            topCandidates: [
-              {
-                entityKind: "product",
-                entityId: "product-1",
-                score: 0.92,
-              },
-            ],
-          },
-        },
-        historyDiagnostics: {
-          selectionMode: "quoted_reference_window",
-          usedQuotedReference: true,
-        },
-      },
-      requestId: "request-1",
-      userMessage: "what sizes does it come in",
-    });
-
-    expect(findLoggedEvent(infoCalls, "conversation.canonical_state.fallback_mismatch_recorded")).toMatchObject({
-      message: "catalog canonical state fallback mismatch recorded",
-      payload: {
-        event: "conversation.canonical_state.fallback_mismatch_recorded",
-        runtime: "rag",
-        surface: "orchestrator",
-        outcome: "recorded",
-        conversationId: "conversation-1",
-        requestId: "request-1",
-        retrievalOutcome: "low_signal",
-        freshnessStatus: "fresh",
-        promptHistorySelectionMode: "quoted_reference_window",
-        authoritativeFocusKind: "product",
-        authoritativeFocusSource: "retrieval_single_candidate",
-        heuristicCandidateCount: 1,
-      },
-    });
-  });
-
-  test("records assistant clarify actions and quoted-reference context diagnostics", async () => {
-    const { logger, infoCalls } = createLoggerStub();
-    const orchestrator = createCatalogChatOrchestrator({
-      retrievalService: createRetrievalService(groundedRetrievalResult()),
-      logger,
-      chatManager: createChatManagerStub(async () => ({
-        provider: "gemini",
-        text: '{"schemaVersion":"v1","text":"Which size do you want?","action":{"type":"clarify"}}',
-        finishReason: "stop",
-      })),
-    });
-
-    const result = await orchestrator.respond({
-      tenant: {
-        companyId: COMPANY_ID,
-      },
-      conversation: {
-        conversationId: "conversation-1",
-        recentTurns: [
-          {
-            role: "user",
-            text: "Show me the burger boxes",
-          },
-        ],
-        historyDiagnostics: {
-          selectionMode: "quoted_reference_window",
-          usedQuotedReference: true,
-        },
-      },
-      requestId: "request-1",
-      userMessage: "What sizes does the second one come in?",
-    });
-
-    expect(result.outcome).toBe("provider_response");
-    expect(result.assistant.action.type).toBe("clarify");
-    expect(findLoggedEvent(infoCalls, "rag.context_usage.recorded")).toMatchObject({
-      payload: {
-        event: "rag.context_usage.recorded",
-        conversationId: "conversation-1",
-        requestId: "request-1",
-        promptHistorySelectionMode: "quoted_reference_window",
-        usedRecentTurns: true,
-        usedQuotedReference: true,
-        usedGroundingFacts: true,
-      },
-    });
-    expect(findLoggedEvent(infoCalls, "rag.decision.recorded")).toMatchObject({
-      payload: {
-        event: "rag.decision.recorded",
-        conversationId: "conversation-1",
-        requestId: "request-1",
-        decisionType: "clarify",
-        reason: "assistant_action",
-        precedingStage: "assistant",
-        retrievalOutcome: "grounded",
-        providerOutcome: "response_received",
-      },
-    });
   });
 });

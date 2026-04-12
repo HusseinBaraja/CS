@@ -17,10 +17,10 @@
 - Run `bun dev`.
 - On large plan implementations, make a commit after finishing each logical step to avoid large commits that are hard to review.
 - On large plan implementations, do not begin the next logical step until the current step has:
-  1. its code changes finished,
-  2. the required repo-root `bun` commands run,
-  3. failures fixed or explicitly reported,
-  4. a commit created for that step.
+    1. its code changes finished,
+    2. the required repo-root `bun` commands run,
+    3. failures fixed or explicitly reported,
+    4. a commit created for that step.
 - Do not batch multiple logical steps into one uncommitted work block.
 - When fixing PR issues that were submitted by coderabbit, apply minimal fixes and don't go overboard. The goal is to just fix the issues.
 - For pr review Fixes, fix each comment in its own commit and resolve the comment on github after commiting. at the end, push the changes to the branch.
@@ -68,3 +68,4 @@ CSCB is an early-stage multi-tenant WhatsApp customer service platform for small
 
 - Read `docs/PROJECT_CHARTER_AND_VISION.md`.
 - Read `docs/SRS.md`.
+

@@ -29,9 +29,6 @@
       "@cs/ai": [
         "packages/ai/src/index.ts"
       ],
-      "@cs/ai/chat/promptContracts": [
-        "packages/ai/src/chat/promptContracts.ts"
-      ],
       "@cs/ai/embeddings": [
         "packages/ai/src/embeddings/index.ts"
       ],
