@@ -1,0 +1,7 @@
+flowchart TD
+    A[Worker starts conversation handling] --> B{Catalog context loaded?}
+    B -- No --> C[Trigger fallback prompt]
+    C --> D[AI response has low confidence]
+    D --> E[Escalate to human handoff]
+    E --> F[Owner receives issue summary]
+    B -- Yes --> G[Generate grounded reply]
