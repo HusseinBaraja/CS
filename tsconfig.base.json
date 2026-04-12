@@ -29,6 +29,9 @@
       "@cs/ai": [
         "packages/ai/src/index.ts"
       ],
+      "@cs/ai/embeddings": [
+        "packages/ai/src/embeddings/index.ts"
+      ],
       "@cs/storage": [
         "packages/storage/src/index.ts"
       ],

@@ -28,6 +28,7 @@
       "@cs/core": ["packages/core/src/index.ts"],
       "@cs/db": ["packages/db/src/index.ts"],
       "@cs/ai": ["packages/ai/src/index.ts"],
+      "@cs/ai/embeddings": ["packages/ai/src/embeddings/index.ts"],
       "@cs/storage": ["packages/storage/src/index.ts"],
       "@cs/rag": ["packages/rag/src/index.ts"]
     }

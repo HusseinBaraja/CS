@@ -12,6 +12,7 @@ export default defineConfig({
       "@cs/convex-api": resolveFromRepoRoot("packages/convex-api/src/index.ts"),
       "@cs/core": resolveFromRepoRoot("packages/core/src/index.ts"),
       "@cs/db": resolveFromRepoRoot("packages/db/src/index.ts"),
+      "@cs/ai/embeddings": resolveFromRepoRoot("packages/ai/src/embeddings/index.ts"),
       "@cs/ai": resolveFromRepoRoot("packages/ai/src/index.ts"),
       "@cs/storage": resolveFromRepoRoot("packages/storage/src/index.ts"),
       "@cs/rag": resolveFromRepoRoot("packages/rag/src/index.ts"),
