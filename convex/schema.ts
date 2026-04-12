@@ -38,6 +38,14 @@ const conversationStateEventTypeValidator = v.union(
 const conversationStateEventSourceValidator = v.union(
   ...CONVERSATION_STATE_EVENT_SOURCES.map((source) => v.literal(source)),
 );
+const MESSAGE_HANDOFF_SOURCES = [
+  "assistant_action",
+  "provider_failure_fallback",
+  "invalid_model_output_fallback",
+] as const;
+const messageHandoffSourceValidator = v.union(
+  ...MESSAGE_HANDOFF_SOURCES.map((source) => v.literal(source)),
+);
 const [
   initializingState,
   connectingState,
@@ -252,11 +260,7 @@ export default defineSchema({
     )),
     transportMessageId: v.optional(v.string()),
     referencedTransportMessageId: v.optional(v.string()),
-    handoffSource: v.optional(v.union(
-      v.literal("assistant_action"),
-      v.literal("provider_failure_fallback"),
-      v.literal("invalid_model_output_fallback"),
-    )),
+    handoffSource: v.optional(messageHandoffSourceValidator),
     handoffReason: v.optional(v.string()),
     handoffActorPhoneNumber: v.optional(v.string()),
     handoffMetadata: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
