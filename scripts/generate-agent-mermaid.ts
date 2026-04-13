@@ -13,6 +13,9 @@ const WINDOWS_BROWSER_PATH_CANDIDATES = [
   "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
   "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
 ];
+const DEFAULT_RENDER_WIDTH = "2400";
+const DEFAULT_RENDER_SCALE = "2";
+const DEFAULT_RENDER_BACKGROUND = "white";
 
 export class AgentMermaidArgumentError extends Error {
   constructor(message: string) {
@@ -110,6 +113,12 @@ export const buildMermaidCliCommand = (inputPath: string, outputPath: string): s
   inputPath,
   "--output",
   outputPath,
+  "--backgroundColor",
+  DEFAULT_RENDER_BACKGROUND,
+  "--width",
+  DEFAULT_RENDER_WIDTH,
+  "--scale",
+  DEFAULT_RENDER_SCALE,
 ];
 
 export const resolvePuppeteerExecutablePath = (

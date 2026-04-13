@@ -1,16 +1,17 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
-  AgentMermaidArgumentError,
   AGENT_ISSUES_DIRECTORY,
   AGENT_ISSUES_IMAGE_DIRECTORY,
+  AgentMermaidArgumentError,
+  buildMermaidCliCommand,
   buildMermaidCliEnv,
   parseCliArgs,
-  resolvePuppeteerExecutablePath,
   resolveIssueMermaidPath,
   resolveIssuePngPath,
+  resolvePuppeteerExecutablePath,
 } from './generate-agent-mermaid';
 
 let tempDirectory = "";
@@ -160,5 +161,30 @@ describe("buildMermaidCliEnv", () => {
         PUPPETEER_EXECUTABLE_PATH: "C:\\existing\\chrome.exe",
       }),
     );
+  });
+});
+
+describe("buildMermaidCliCommand", () => {
+  test("uses high-resolution render defaults for readable PNG output", () => {
+    expect(
+      buildMermaidCliCommand(
+        "C:\\repo\\agent-issues\\flow.mmd",
+        "C:\\repo\\agent-issues\\IMG\\flow.png",
+      ),
+    ).toEqual([
+      process.execPath,
+      "x",
+      "@mermaid-js/mermaid-cli",
+      "--input",
+      "C:\\repo\\agent-issues\\flow.mmd",
+      "--output",
+      "C:\\repo\\agent-issues\\IMG\\flow.png",
+      "--backgroundColor",
+      "white",
+      "--width",
+      "2400",
+      "--scale",
+      "2",
+    ]);
   });
 });
