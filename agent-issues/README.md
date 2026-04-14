@@ -18,6 +18,7 @@ bun run issue:diagram -- agent-issues/<issue-name>.mmd <png-name>
 ```
 
 Generated images are written to `agent-issues/IMG/`.
+That folder is local-only and should not be committed.
 
 The command prefers an installed Chrome/Edge executable and skips Puppeteer browser downloads by default.
 It renders PNG files in a high-resolution mode for better readability.

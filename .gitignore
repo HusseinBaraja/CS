@@ -16,3 +16,4 @@ coverage/
 .turbo/
 .DS_Store
 apps/web/*.tsbuildinfo
+agent-issues/IMG/
