@@ -1,11 +1,16 @@
 import type {
   AssistantStructuredOutput,
   CatalogChatInput,
+  CatalogChatConversationHistorySelection,
   CatalogChatOrchestrator,
   CatalogChatResult,
   CatalogChatTenantContext,
   ChatLanguage,
   GroundingContextBlock,
+  RetrievalQueryPlan,
+  RetrievalRewriteAttempt,
+  RetrievalRewriteInput,
+  RetrievalRewriteResult,
   ProductRetrievalService,
   ProductRetrievalServiceOptions,
   RetrievalOutcome,
@@ -16,10 +21,13 @@ import type {
 } from './index';
 import type { ConvexAdminClient, Id } from '@cs/db';
 import {
+  buildRetrievalQueryPlan,
   buildRetrievalQueryText,
+  buildRetrievalRewriteInput,
   createCatalogChatOrchestrator,
   createProductRetrievalService,
   generateRetrievalQueryEmbedding,
+  parseRetrievalRewriteResult,
 } from './index';
 
 const language: ChatLanguage = "en";
@@ -45,6 +53,33 @@ const tenant: CatalogChatTenantContext = {
   companyId,
   preferredLanguage: "en",
 };
+const historySelection: CatalogChatConversationHistorySelection = {
+  reason: "recent_window",
+};
+const rewriteInput: RetrievalRewriteInput = buildRetrievalRewriteInput({
+  userMessage: "Burger Box",
+  conversation: {
+    history: [
+      {
+        role: "user",
+        text: "Show me food boxes",
+      },
+    ],
+    historySelection,
+  },
+  responseLanguageHint: "en",
+});
+const rewriteResult: RetrievalRewriteResult = parseRetrievalRewriteResult(
+  '{"resolvedQuery":"Burger Box","confidence":"high","rewriteStrategy":"standalone","preservedTerms":["Burger Box"]}',
+);
+const rewriteAttempt: RetrievalRewriteAttempt = {
+  status: "success",
+  result: rewriteResult,
+};
+const queryPlan: RetrievalQueryPlan = buildRetrievalQueryPlan({
+  userMessage: "Burger Box",
+  rewriteAttempt,
+});
 
 const input: RetrieveCatalogContextInput = {
   companyId,
@@ -100,6 +135,7 @@ const catalogChatInput: CatalogChatInput = {
         text: "Hello",
       },
     ],
+    historySelection,
     allowedActions: ["none", "clarify"],
   },
   userMessage: "Burger Box",
@@ -134,6 +170,11 @@ const assistant: AssistantStructuredOutput = {
 void language;
 void companyId;
 void tenant;
+void historySelection;
+void rewriteInput;
+void rewriteResult;
+void rewriteAttempt;
+void queryPlan;
 void queryText;
 void serviceOptions;
 void service;

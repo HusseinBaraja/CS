@@ -28,6 +28,32 @@ import {
   convexInternal,
   createConvexAdminClient,
 } from '@cs/db';
+import type { CatalogChatConversationHistorySelection } from './retrievalRewrite';
+export {
+  buildQuotedMessageCombinedFallbackQuery,
+  buildRetrievalQueryPlan,
+  buildRetrievalRewriteInput,
+  mergeRetrievalResults,
+  parseRetrievalRewriteResult,
+  type CatalogChatConversationHistorySelection,
+  type MergedRetrievalCandidate,
+  type MergedRetrievalResult,
+  type MergeableRetrievedCandidate,
+  type MergeableRetrievalResult,
+  type RetrievalHistorySelectionReason,
+  type RetrievalMode,
+  type RetrievalPlannedQuery,
+  type RetrievalQueryPlan,
+  type RetrievalQueryProvenance,
+  type RetrievalQuerySource,
+  type RetrievalRewriteAttempt,
+  type RetrievalRewriteConfidence,
+  type RetrievalRewriteFailureReason,
+  type RetrievalRewriteInput,
+  type RetrievalRewriteResult,
+  type RetrievalRewriteStrategy,
+  type RetrievalRewriteUnresolvedReason,
+} from './retrievalRewrite';
 
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_MAX_CONTEXT_BLOCKS = 3;
@@ -167,6 +193,7 @@ export interface CatalogChatTenantContext {
 export interface CatalogChatConversationContext {
   conversationId?: string;
   history?: PromptHistoryTurn[];
+  historySelection?: CatalogChatConversationHistorySelection;
   allowedActions?: readonly AssistantActionType[];
 }
 
