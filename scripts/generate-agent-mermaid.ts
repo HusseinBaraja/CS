@@ -159,6 +159,8 @@ const main = async (): Promise<void> => {
 
     mkdirSync(dirname(outputPath), { recursive: true });
 
+const RENDER_TIMEOUT_MS = 60_000; // 60 seconds
+
     const processResult = Bun.spawn({
       cmd: buildMermaidCliCommand(inputPath, outputPath),
       env: buildMermaidCliEnv(process.env, browserExecutablePath),
@@ -166,7 +168,10 @@ const main = async (): Promise<void> => {
       stderr: "inherit",
     });
 
-    const exitCode = await processResult.exited;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Render timed out")), RENDER_TIMEOUT_MS),
+    );
+    const exitCode = await Promise.race([processResult.exited, timeoutPromise]);
     if (exitCode !== 0) {
       process.exitCode = exitCode;
       return;
