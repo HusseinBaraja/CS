@@ -28,11 +28,22 @@ import {
   convexInternal,
   createConvexAdminClient,
 } from '@cs/db';
-import type { CatalogChatConversationHistorySelection } from './retrievalRewrite';
+import {
+  buildRetrievalQueryPlan,
+  buildRetrievalRewriteInput,
+  createRetrievalRewriteService,
+  mergeRetrievalResults,
+  type CatalogChatConversationHistorySelection,
+  type RetrievalMode,
+  type RetrievalQueryProvenance,
+  type RetrievalRewriteAttempt,
+  type RetrievalRewriteService,
+} from './retrievalRewrite';
 export {
   buildQuotedMessageCombinedFallbackQuery,
   buildRetrievalQueryPlan,
   buildRetrievalRewriteInput,
+  createRetrievalRewriteService,
   mergeRetrievalResults,
   parseRetrievalRewriteResult,
   type CatalogChatConversationHistorySelection,
@@ -51,6 +62,7 @@ export {
   type RetrievalRewriteFailureReason,
   type RetrievalRewriteInput,
   type RetrievalRewriteResult,
+  type RetrievalRewriteService,
   type RetrievalRewriteStrategy,
   type RetrievalRewriteUnresolvedReason,
 } from './retrievalRewrite';
@@ -151,6 +163,7 @@ export interface RetrievedProductCandidate {
   language: ChatLanguage;
   contextBlock: GroundingContextBlock;
   product: RetrievedProductContext;
+  queryProvenance?: RetrievalQueryProvenance[];
 }
 
 export interface RetrieveCatalogContextResult {
@@ -161,6 +174,7 @@ export interface RetrieveCatalogContextResult {
   topScore?: number;
   candidates: RetrievedProductCandidate[];
   contextBlocks: GroundingContextBlock[];
+  retrievalMode?: RetrievalMode;
 }
 
 export interface GenerateRetrievalQueryEmbeddingInput {
@@ -228,6 +242,8 @@ export interface CatalogChatResult {
   assistant: AssistantStructuredOutput;
   language: LanguageDetectionResult;
   retrieval: RetrieveCatalogContextResult;
+  retrievalMode: RetrievalMode;
+  rewrite?: RetrievalRewriteAttempt;
   provider?: Pick<ChatResponse, "provider" | "model" | "finishReason" | "usage" | "responseId">;
 }
 
@@ -239,6 +255,7 @@ export type CatalogChatLogger = StructuredLogger;
 
 export interface CreateCatalogChatOrchestratorOptions {
   retrievalService?: ProductRetrievalService;
+  rewriteService?: RetrievalRewriteService;
   chatManager?: ChatProviderManager;
   detectLanguage?: typeof detectChatLanguage;
   buildPrompt?: typeof buildGroundedChatPrompt;
@@ -536,6 +553,15 @@ const summarizeQueryForLog = (text: string) => {
   };
 };
 
+const summarizePrimaryRetrievalQueryForLog = (text: string) => {
+  const summary = summarizeTextForLog(text);
+
+  return {
+    primaryQueryTextLength: summary.textLength,
+    primaryQueryTextLineCount: summary.textLineCount,
+  };
+};
+
 const summarizeProviderTextForLog = (text: string) => {
   const summary = summarizeTextForLog(text);
 
@@ -554,7 +580,41 @@ const buildRetrievalLogContext = (
   candidateCount: retrieval.candidates.length,
   contextBlockCount: retrieval.contextBlocks.length,
   language: retrieval.language,
+  ...(retrieval.retrievalMode ? { retrievalMode: retrieval.retrievalMode } : {}),
 });
+
+const buildRewriteLogContext = (
+  rewrite: RetrievalRewriteAttempt | undefined,
+): Record<string, unknown> => {
+  if (!rewrite) {
+    return {
+      outcome: "not_attempted",
+    };
+  }
+
+  if (rewrite.status === "success") {
+    return {
+      outcome: "success",
+      confidence: rewrite.result.confidence,
+      strategy: rewrite.result.rewriteStrategy,
+      aliasCount: rewrite.result.searchAliases?.length ?? 0,
+      ...(rewrite.result.unresolvedReason ? { unresolvedReason: rewrite.result.unresolvedReason } : {}),
+    };
+  }
+
+  return {
+    outcome: "failure",
+    failureReason: rewrite.failureReason,
+    ...(rewrite.result
+      ? {
+        confidence: rewrite.result.confidence,
+        strategy: rewrite.result.rewriteStrategy,
+        aliasCount: rewrite.result.searchAliases?.length ?? 0,
+        ...(rewrite.result.unresolvedReason ? { unresolvedReason: rewrite.result.unresolvedReason } : {}),
+      }
+      : {}),
+  };
+};
 
 const pickProviderMetadata = (
   response: ChatResponse,
@@ -660,6 +720,9 @@ export const createCatalogChatOrchestrator = (
 ): CatalogChatOrchestrator => {
   const retrievalService = options.retrievalService ?? createProductRetrievalService();
   const chatManager = options.chatManager ?? createChatProviderManager();
+  const rewriteService = options.rewriteService ?? createRetrievalRewriteService({
+    chatManager,
+  });
   const detectLanguage = options.detectLanguage ?? detectChatLanguage;
   const buildPrompt = options.buildPrompt ?? buildGroundedChatPrompt;
   const parseStructuredOutput = options.parseStructuredOutput ?? parseAssistantStructuredOutput;
@@ -684,14 +747,59 @@ export const createCatalogChatOrchestrator = (
         defaultLanguage: input.tenant.defaultLanguage,
       });
       const allowedActions = getAllowedActions(input.conversation?.allowedActions);
-      const retrieval = await retrievalService.retrieveCatalogContext({
-        companyId: input.tenant.companyId,
-        query: input.userMessage,
-        language: language.responseLanguage,
-        maxResults: input.retrieval?.maxResults,
-        maxContextBlocks: input.retrieval?.maxContextBlocks,
-        minScore: input.retrieval?.minScore,
+      const rewriteInput = buildRetrievalRewriteInput({
+        userMessage: input.userMessage,
+        conversation: input.conversation,
+        responseLanguageHint: language.responseLanguage,
       });
+      const rewrite = await rewriteService.rewrite(rewriteInput, {
+        signal: input.signal,
+        timeoutMs: input.provider?.timeoutMs,
+        maxRetriesPerProvider: input.provider?.maxRetriesPerProvider,
+        logger: input.logger ?? logger,
+        logContext: {
+          companyId: input.tenant.companyId,
+          ...(input.conversation?.conversationId
+            ? { conversationId: input.conversation.conversationId }
+            : {}),
+          ...(input.requestId ? { requestId: input.requestId } : {}),
+          feature: "catalog_retrieval_rewrite",
+        },
+      });
+      const queryPlan = buildRetrievalQueryPlan({
+        userMessage: input.userMessage,
+        quotedMessage: rewriteInput.quotedMessage,
+        rewriteAttempt: rewrite,
+      });
+      const maxContextBlocks = normalizeNonNegativeInteger(
+        input.retrieval?.maxContextBlocks,
+        DEFAULT_MAX_CONTEXT_BLOCKS,
+      );
+      const retrievalResults = await Promise.all(
+        queryPlan.queries.map((queryPlanEntry) =>
+          retrievalService.retrieveCatalogContext({
+            companyId: input.tenant.companyId,
+            query: queryPlanEntry.text,
+            language: language.responseLanguage,
+            maxResults: input.retrieval?.maxResults,
+            maxContextBlocks: maxContextBlocks,
+            minScore: input.retrieval?.minScore,
+          })
+        ),
+      );
+      const mergedRetrieval = mergeRetrievalResults({
+        queryPlan,
+        retrievals: retrievalResults,
+        maxContextBlocks,
+      });
+      const { reason: mergedReason, ...mergedRetrievalWithoutReason } = mergedRetrieval;
+      const retrieval: RetrieveCatalogContextResult = {
+        ...mergedRetrievalWithoutReason,
+        ...(mergedReason
+          ? { reason: mergedReason as RetrievalReason }
+          : {}),
+        retrievalMode: queryPlan.mode,
+      };
       safeLogEvent(
         retrievalLogger,
         "info",
@@ -701,32 +809,61 @@ export const createCatalogChatOrchestrator = (
           surface: "retrieval",
           outcome: retrieval.outcome,
           responseLanguage: language.responseLanguage,
+          historySelectionReason: rewriteInput.historySelectionReason,
+          rewrite: buildRewriteLogContext(rewrite),
+          queryCount: queryPlan.queries.length,
           retrieval: buildRetrievalLogContext(retrieval),
           ...summarizeQueryForLog(input.userMessage),
+          ...summarizePrimaryRetrievalQueryForLog(queryPlan.primaryQuery),
         },
         "catalog retrieval completed",
       );
+
+      const logCatalogChatCompletion = (outcome: CatalogChatOutcome): void => {
+        safeLogEvent(
+          routeLogger,
+          "info",
+          {
+            event: "rag.catalog_chat.completed",
+            runtime: "rag",
+            surface: "orchestrator",
+            outcome,
+            responseLanguage: language.responseLanguage,
+            finalResponseBranch: outcome,
+            rewrite: buildRewriteLogContext(rewrite),
+            retrieval: buildRetrievalLogContext(retrieval),
+          },
+          "catalog chat response completed",
+        );
+      };
 
       if (retrieval.outcome === "empty") {
         const assistant = buildAssistantFallback(
           language.responseLanguage,
           retrieval.reason === "empty_query" ? "empty_query" : "no_hits",
         );
+        const outcome = retrieval.reason === "empty_query" ? "empty_query_fallback" : "no_hits_fallback";
+        logCatalogChatCompletion(outcome);
 
         return {
-          outcome: retrieval.reason === "empty_query" ? "empty_query_fallback" : "no_hits_fallback",
+          outcome,
           assistant,
           language,
           retrieval,
+          retrievalMode: queryPlan.mode,
+          rewrite,
         };
       }
 
       if (retrieval.outcome === "low_signal") {
+        logCatalogChatCompletion("low_signal_fallback");
         return {
           outcome: "low_signal_fallback",
           assistant: buildAssistantFallback(language.responseLanguage, "low_signal"),
           language,
           retrieval,
+          retrievalMode: queryPlan.mode,
+          rewrite,
         };
       }
 
@@ -735,6 +872,7 @@ export const createCatalogChatOrchestrator = (
         customerMessage: input.userMessage,
         conversationHistory: input.conversation?.history,
         groundingContext: retrieval.contextBlocks,
+        retrievalMode: queryPlan.mode,
         allowedActions,
       });
 
@@ -769,16 +907,20 @@ export const createCatalogChatOrchestrator = (
               : {}),
             ...(input.requestId ? { requestId: input.requestId } : {}),
             responseLanguage: language.responseLanguage,
+            rewrite: buildRewriteLogContext(rewrite),
             retrieval: buildRetrievalLogContext(retrieval),
             error: serializeErrorForLog(error),
           },
           "catalog chat provider fallback selected",
         );
+        logCatalogChatCompletion("provider_failure_fallback");
         return {
           outcome: "provider_failure_fallback",
           assistant: buildAssistantFallback(language.responseLanguage, "handoff"),
           language,
           retrieval,
+          retrievalMode: queryPlan.mode,
+          rewrite,
         };
       }
 
@@ -786,12 +928,15 @@ export const createCatalogChatOrchestrator = (
         const assistant = parseStructuredOutput(providerResponse.text, {
           allowedActions,
         });
+        logCatalogChatCompletion("provider_response");
 
         return {
           outcome: "provider_response",
           assistant,
           language,
           retrieval,
+          retrievalMode: queryPlan.mode,
+          rewrite,
           provider: pickProviderMetadata(providerResponse),
         };
       } catch (error) {
@@ -809,6 +954,7 @@ export const createCatalogChatOrchestrator = (
               : {}),
             ...(input.requestId ? { requestId: input.requestId } : {}),
             responseLanguage: language.responseLanguage,
+            rewrite: buildRewriteLogContext(rewrite),
             retrieval: buildRetrievalLogContext(retrieval),
             provider: pickProviderMetadata(providerResponse),
             ...summarizeProviderTextForLog(providerResponse.text),
@@ -816,11 +962,14 @@ export const createCatalogChatOrchestrator = (
           },
           "catalog chat structured output parsing failed",
         );
+        logCatalogChatCompletion("invalid_model_output_fallback");
         return {
           outcome: "invalid_model_output_fallback",
           assistant: buildAssistantFallback(language.responseLanguage, "handoff"),
           language,
           retrieval,
+          retrievalMode: queryPlan.mode,
+          rewrite,
           provider: pickProviderMetadata(providerResponse),
         };
       }

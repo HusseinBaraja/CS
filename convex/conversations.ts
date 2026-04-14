@@ -42,6 +42,19 @@ type AppendInboundCustomerMessageResult = {
   wasDuplicate: boolean;
 };
 
+type PromptHistorySelectionReason =
+  | "recent_window"
+  | "quoted_reply_slice"
+  | "empty";
+
+type PromptHistorySelectionResult = {
+  history: PromptHistoryTurn[];
+  historySelection: {
+    reason: PromptHistorySelectionReason;
+    quotedMessage?: PromptHistoryTurn;
+  };
+};
+
 type AssistantHandoffSource = Extract<
   ConversationStateEventSource,
   "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback"
@@ -380,6 +393,114 @@ const collectReferencedHistorySliceAscending = async (
   }
 
   return foundReferencedMessage ? referencedWindow : [];
+};
+
+const getPromptHistorySelectionForInboundInternal = async (
+  ctx: { db: DatabaseReader },
+  input: {
+    companyId: Id<"companies">;
+    conversationId: Id<"conversations">;
+    inboundTimestamp: number;
+    currentTransportMessageId?: string;
+    referencedTransportMessageId?: string;
+    limit: number;
+  },
+): Promise<PromptHistorySelectionResult> => {
+  await loadConversationOrThrow(ctx, input.companyId, input.conversationId);
+  const inboundTimestamp = normalizeTimestamp(input.inboundTimestamp, Date.now());
+  const limit = normalizePositiveInteger(input.limit, "limit");
+  const currentTransportMessageId = normalizeOptionalMessageId(
+    input.currentTransportMessageId,
+    "currentTransportMessageId",
+  );
+  const referencedTransportMessageId = normalizeOptionalMessageId(
+    input.referencedTransportMessageId,
+    "referencedTransportMessageId",
+  );
+
+  const priorMessagesDescending = await collectPriorMessagesDescending(ctx, input.conversationId, {
+    inboundTimestamp,
+    ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+    stopWhenPriorMessagesFound: true,
+  });
+
+  if (priorMessagesDescending.length === 0) {
+    return {
+      history: [],
+      historySelection: {
+        reason: "empty",
+      },
+    };
+  }
+
+  const latestMessage = priorMessagesDescending[0];
+  const activeWindowStart = inboundTimestamp - STALE_CONTEXT_RESET_MS;
+  if (latestMessage && latestMessage.timestamp >= activeWindowStart) {
+    const recentPriorMessages = await collectPriorMessagesDescending(ctx, input.conversationId, {
+      inboundTimestamp,
+      ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+      minimumCount: limit,
+    });
+
+    return {
+      history: recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn),
+      historySelection: {
+        reason: "recent_window",
+      },
+    };
+  }
+
+  if (!referencedTransportMessageId) {
+    return {
+      history: [],
+      historySelection: {
+        reason: "empty",
+      },
+    };
+  }
+
+  const referencedMessage = await resolveMessageByTransportMessageId(
+    ctx,
+    input.conversationId,
+    referencedTransportMessageId,
+  );
+  if (!referencedMessage) {
+    return {
+      history: [],
+      historySelection: {
+        reason: "empty",
+      },
+    };
+  }
+
+  if (referencedMessage.timestamp >= activeWindowStart) {
+    const recentPriorMessages = await collectPriorMessagesDescending(ctx, input.conversationId, {
+      inboundTimestamp,
+      ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+      minimumCount: limit,
+    });
+
+    return {
+      history: recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn),
+      historySelection: {
+        reason: "recent_window",
+      },
+    };
+  }
+
+  const referencedWindow = await collectReferencedHistorySliceAscending(ctx, input.conversationId, {
+    inboundTimestamp,
+    ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
+    referencedMessageId: referencedMessage._id,
+  });
+
+  return {
+    history: referencedWindow.map(toPromptHistoryTurn),
+    historySelection: {
+      reason: "quoted_reply_slice",
+      quotedMessage: toPromptHistoryTurn(toMessageDto(referencedMessage)),
+    },
+  };
 };
 
 const listConversationsByPhone = async (
@@ -1338,67 +1459,21 @@ export const getPromptHistoryForInbound = internalQuery({
     limit: v.number(),
   },
   handler: async (ctx, args): Promise<PromptHistoryTurn[]> => {
-    await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
-    const inboundTimestamp = normalizeTimestamp(args.inboundTimestamp, Date.now());
-    const limit = normalizePositiveInteger(args.limit, "limit");
-    const currentTransportMessageId = normalizeOptionalMessageId(
-      args.currentTransportMessageId,
-      "currentTransportMessageId",
-    );
-    const referencedTransportMessageId = normalizeOptionalMessageId(
-      args.referencedTransportMessageId,
-      "referencedTransportMessageId",
-    );
+    return (await getPromptHistorySelectionForInboundInternal(ctx, args)).history;
+  },
+});
 
-    const priorMessagesDescending = await collectPriorMessagesDescending(ctx, args.conversationId, {
-      inboundTimestamp,
-      ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
-      stopWhenPriorMessagesFound: true,
-    });
-
-    if (priorMessagesDescending.length === 0) {
-      return [];
-    }
-
-    const latestMessage = priorMessagesDescending[0];
-    const activeWindowStart = inboundTimestamp - STALE_CONTEXT_RESET_MS;
-    if (latestMessage && latestMessage.timestamp >= activeWindowStart) {
-      const recentPriorMessages = await collectPriorMessagesDescending(ctx, args.conversationId, {
-        inboundTimestamp,
-        ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
-        minimumCount: limit,
-      });
-      return recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn);
-    }
-
-    if (!referencedTransportMessageId) {
-      return [];
-    }
-
-    const referencedMessage = await resolveMessageByTransportMessageId(
-      ctx,
-      args.conversationId,
-      referencedTransportMessageId,
-    );
-    if (!referencedMessage) {
-      return [];
-    }
-
-    if (referencedMessage.timestamp >= activeWindowStart) {
-      const recentPriorMessages = await collectPriorMessagesDescending(ctx, args.conversationId, {
-        inboundTimestamp,
-        ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
-        minimumCount: limit,
-      });
-      return recentPriorMessages.slice(0, limit).reverse().map(toPromptHistoryTurn);
-    }
-
-    const referencedWindow = await collectReferencedHistorySliceAscending(ctx, args.conversationId, {
-      inboundTimestamp,
-      ...(currentTransportMessageId ? { currentTransportMessageId } : {}),
-      referencedMessageId: referencedMessage._id,
-    });
-    return referencedWindow.map(toPromptHistoryTurn);
+export const getPromptHistorySelectionForInbound = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+    conversationId: v.id("conversations"),
+    inboundTimestamp: v.number(),
+    currentTransportMessageId: v.optional(v.string()),
+    referencedTransportMessageId: v.optional(v.string()),
+    limit: v.number(),
+  },
+  handler: async (ctx, args): Promise<PromptHistorySelectionResult> => {
+    return getPromptHistorySelectionForInboundInternal(ctx, args);
   },
 });
 

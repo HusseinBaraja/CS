@@ -2074,6 +2074,66 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(history).toEqual([]);
   });
 
+  it("returns recent-window selection metadata for active inbound history", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "message-1",
+      timestamp: 1_000,
+      transportMessageId: "transport-1",
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "assistant",
+      content: "message-2",
+      timestamp: 2_000,
+      transportMessageId: "transport-2",
+    });
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "current inbound",
+      timestamp: 3_000,
+      transportMessageId: "inbound-1",
+    });
+
+    const selection = await t.query(internal.conversations.getPromptHistorySelectionForInbound, {
+      companyId,
+      conversationId,
+      inboundTimestamp: 3_000,
+      currentTransportMessageId: "inbound-1",
+      limit: 20,
+    });
+
+    expect(selection).toEqual({
+      history: [
+        { role: "user", text: "message-1" },
+        { role: "assistant", text: "message-2" },
+      ],
+      historySelection: {
+        reason: "recent_window",
+      },
+    });
+  });
+
   it("returns an 11-message slice around a referenced stale message", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
@@ -2152,6 +2212,63 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       { role: "assistant", text: "message-12" },
       { role: "user", text: "message-13" },
     ]);
+  });
+
+  it("returns quoted-reply selection metadata for stale referenced history", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    for (let index = 1; index <= 8; index += 1) {
+      await t.mutation(internal.conversations.appendConversationMessage, {
+        companyId,
+        conversationId,
+        role: index % 2 === 0 ? "assistant" : "user",
+        content: `message-${index}`,
+        timestamp: index * 1_000,
+        transportMessageId: `transport-${index}`,
+      });
+    }
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "current inbound",
+      timestamp: STALE_CONTEXT_RESET_MS + 20_000,
+      transportMessageId: "inbound-1",
+    });
+
+    const selection = await t.query(internal.conversations.getPromptHistorySelectionForInbound, {
+      companyId,
+      conversationId,
+      inboundTimestamp: STALE_CONTEXT_RESET_MS + 20_000,
+      currentTransportMessageId: "inbound-1",
+      referencedTransportMessageId: "transport-8",
+      limit: 20,
+    });
+
+    expect(selection.historySelection).toEqual({
+      reason: "quoted_reply_slice",
+      quotedMessage: {
+        role: "assistant",
+        text: "message-8",
+      },
+    });
+    expect(selection.history[0]).toEqual({
+      role: "user",
+      text: "message-3",
+    });
   });
 
   it("keeps same-timestamp prior messages while excluding the current inbound transport id", async () => {

@@ -16,6 +16,7 @@ import {
   type LanguageDetectionResult,
   type LanguageResolutionOptions,
   type ParseAssistantStructuredOutputOptions,
+  type PromptRetrievalMode,
   type PromptHistoryTurn,
   buildGroundedChatPrompt,
   createChatProviderManager,
@@ -110,11 +111,13 @@ const conversationHistory: PromptHistoryTurn[] = [
     text: "hello",
   },
 ];
+const retrievalMode: PromptRetrievalMode = "primary_rewrite";
 const promptInput: BuildGroundedChatPromptInput = {
   responseLanguage: "en",
   customerMessage: "Need burger boxes",
   groundingContext,
   conversationHistory,
+  retrievalMode,
 };
 const builtPrompt: BuiltGroundedChatPrompt = buildGroundedChatPrompt(promptInput);
 const structuredOutput: AssistantStructuredOutput = {
@@ -149,6 +152,7 @@ void responseLanguage;
 void actionType;
 void groundingContext;
 void conversationHistory;
+void retrievalMode;
 void promptInput;
 void builtPrompt;
 void structuredOutput;

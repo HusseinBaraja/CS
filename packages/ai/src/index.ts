@@ -44,6 +44,7 @@ export type {
   BuiltGroundedChatPrompt,
   GroundingContextBlock,
   ParseAssistantStructuredOutputOptions,
+  PromptRetrievalMode,
   PromptHistoryTurn,
 } from "./chat/promptContracts";
 export type {

@@ -1,4 +1,12 @@
-import type { ChatLanguage, GroundingContextBlock, PromptHistoryTurn } from '@cs/ai';
+import {
+  createChatProviderManager,
+  type ChatLanguage,
+  type ChatManagerCallOptions,
+  type ChatProviderManager,
+  type ChatRequest,
+  type GroundingContextBlock,
+  type PromptHistoryTurn,
+} from '@cs/ai';
 
 export type RetrievalHistorySelectionReason =
   | "recent_window"
@@ -69,6 +77,17 @@ export type RetrievalRewriteAttempt =
     failureReason: RetrievalRewriteFailureReason;
     result?: RetrievalRewriteResult;
   };
+
+export interface RetrievalRewriteService {
+  rewrite(
+    input: RetrievalRewriteInput,
+    options?: ChatManagerCallOptions,
+  ): Promise<RetrievalRewriteAttempt>;
+}
+
+export interface CreateRetrievalRewriteServiceOptions {
+  chatManager?: ChatProviderManager;
+}
 
 export interface RetrievalPlannedQuery {
   text: string;
@@ -212,6 +231,149 @@ const normalizeUniqueQueries = (
 };
 
 const normalizeUserMessage = (value: string): string => value.trim();
+
+const escapeForDelimiter = (value: string): string =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+
+const serializePromptHistoryTurn = (turn: PromptHistoryTurn): string =>
+  [
+    `<TURN role="${turn.role}">`,
+    escapeForDelimiter(turn.text),
+    "</TURN>",
+  ].join("\n");
+
+const buildRetrievalRewritePrompt = (
+  input: RetrievalRewriteInput,
+): ChatRequest => {
+  const systemPrompt = [
+    "You improve internal catalog retrieval queries for CSCB.",
+    "You are not answering the customer.",
+    "Use only the current message and the selected history slice.",
+    "Resolve references such as 'the third one', 'that one', and quoted replies when supported by the conversation.",
+    "Preserve uncertainty instead of inventing details.",
+    "Do not add product facts, categories, attributes, prices, or availability that are not grounded in the conversation.",
+    "Preserve the user's language in resolvedQuery.",
+    "Return raw JSON only using this exact schema:",
+    '{"resolvedQuery":"<string>","confidence":"high|medium|low","rewriteStrategy":"standalone|recent_history_resolution|quoted_reply_resolution","preservedTerms":["<string>"],"searchAliases":["<string>"],"unresolvedReason":"missing_referent|ambiguous_reference|insufficient_history|unclear_product_target","notes":"<string>"}',
+  ].join("\n");
+
+  const userPrompt = [
+    "<CURRENT_USER_MESSAGE>",
+    escapeForDelimiter(input.currentUserMessage),
+    "</CURRENT_USER_MESSAGE>",
+    "<SELECTED_HISTORY_REASON>",
+    input.historySelectionReason,
+    "</SELECTED_HISTORY_REASON>",
+    "<SELECTED_HISTORY>",
+    input.selectedHistory.length > 0
+      ? input.selectedHistory.map(serializePromptHistoryTurn).join("\n")
+      : "NO_SELECTED_HISTORY",
+    "</SELECTED_HISTORY>",
+    ...(input.quotedMessage
+      ? [
+        "<QUOTED_MESSAGE>",
+        serializePromptHistoryTurn(input.quotedMessage),
+        "</QUOTED_MESSAGE>",
+      ]
+      : []),
+    "<RESPONSE_LANGUAGE_HINT>",
+    input.responseLanguageHint,
+    "</RESPONSE_LANGUAGE_HINT>",
+    ...(input.catalogLanguageHints && input.catalogLanguageHints.length > 0
+      ? [
+        "<CATALOG_LANGUAGE_HINTS>",
+        input.catalogLanguageHints.join(", "),
+        "</CATALOG_LANGUAGE_HINTS>",
+      ]
+      : []),
+  ].join("\n");
+
+  return {
+    temperature: 0,
+    maxOutputTokens: 250,
+    messages: [
+      {
+        role: "system",
+        content: systemPrompt,
+      },
+      {
+        role: "user",
+        content: userPrompt,
+      },
+    ],
+  };
+};
+
+const classifyRetrievalRewriteFailure = (error: unknown): RetrievalRewriteFailureReason => {
+  const errorWithCode = error as Error & { code?: string };
+  if (errorWithCode?.code === "AI_TIMEOUT" || errorWithCode?.name === "AbortError") {
+    return "timeout";
+  }
+
+  return "provider_error";
+};
+
+export const createRetrievalRewriteService = (
+  options: CreateRetrievalRewriteServiceOptions = {},
+): RetrievalRewriteService => {
+  const chatManager = options.chatManager ?? createChatProviderManager();
+
+  return {
+    async rewrite(
+      input: RetrievalRewriteInput,
+      chatOptions: ChatManagerCallOptions = {},
+    ): Promise<RetrievalRewriteAttempt> {
+      let responseText: string;
+      try {
+        const response = await chatManager.chat(
+          buildRetrievalRewritePrompt(input),
+          {
+            ...chatOptions,
+            logContext: {
+              ...chatOptions.logContext,
+              feature: "catalog_retrieval_rewrite",
+            },
+          },
+        );
+        responseText = response.text;
+      } catch (error) {
+        return {
+          status: "failure",
+          failureReason: classifyRetrievalRewriteFailure(error),
+        };
+      }
+
+      try {
+        const parsedResult = parseRetrievalRewriteResult(responseText);
+        if (parsedResult.confidence === "low") {
+          return {
+            status: "failure",
+            failureReason: "low_confidence",
+            result: parsedResult,
+          };
+        }
+
+        return {
+          status: "success",
+          result: parsedResult,
+        };
+      } catch (error) {
+        return {
+          status: "failure",
+          failureReason:
+            error instanceof Error
+              && error.message === "Retrieval rewrite output must be valid JSON"
+              ? "parse_failed"
+              : "invalid_output",
+        };
+      }
+    },
+  };
+};
 
 export const buildRetrievalRewriteInput = (input: {
   userMessage: string;
@@ -387,6 +549,8 @@ export const mergeRetrievalResults = <Candidate extends MergeableRetrievedCandid
 }): MergedRetrievalResult<Candidate> => {
   const querySourceByText = new Map(input.queryPlan.queries.map((query) => [query.text, query.source] as const));
   const mergedByProductId = new Map<string, MergedRetrievalCandidate<Candidate>>();
+  const primaryRetrieval = input.retrievals.find((retrieval) => retrieval.query === input.queryPlan.primaryQuery)
+    ?? input.retrievals[0];
   let language: ChatLanguage | undefined;
 
   for (const retrieval of input.retrievals) {
@@ -440,7 +604,7 @@ export const mergeRetrievalResults = <Candidate extends MergeableRetrievedCandid
   if (mergedCandidates.length === 0) {
     return {
       outcome: "empty",
-      reason: "no_hits",
+      reason: primaryRetrieval?.reason === "empty_query" ? "empty_query" : "no_hits",
       query: input.queryPlan.primaryQuery,
       language: language ?? "en",
       candidates: [],

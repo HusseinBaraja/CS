@@ -29,7 +29,19 @@ describe("buildGroundedChatPrompt", () => {
     });
 
     expect(prompt.systemPrompt).toContain("Ask a short clarification question instead of guessing");
+    expect(prompt.systemPrompt).toContain("If retrieval mode is rewrite_degraded");
     expect(prompt.systemPrompt).toContain("Use the handoff action only when the customer explicitly asks for a human or you cannot help safely");
+  });
+
+  test("includes retrieval provenance in the user prompt", () => {
+    const prompt = buildGroundedChatPrompt({
+      responseLanguage: "en",
+      customerMessage: "Do you have burger boxes?",
+      retrievalMode: "rewrite_degraded",
+    });
+
+    expect(prompt.userPrompt).toContain("<RETRIEVAL_PROVENANCE>");
+    expect(prompt.userPrompt).toContain("<MODE>rewrite_degraded</MODE>");
   });
 
   test("includes the JSON contract and default allowed actions", () => {

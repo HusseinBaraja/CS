@@ -21,6 +21,8 @@ export interface GroundingContextBlock {
   body: string;
 }
 
+export type PromptRetrievalMode = "primary_rewrite" | "rewrite_degraded";
+
 export interface PromptHistoryTurn {
   role: "user" | "assistant";
   text: string;
@@ -31,6 +33,7 @@ export interface BuildGroundedChatPromptInput {
   customerMessage: string;
   conversationHistory?: PromptHistoryTurn[];
   groundingContext?: GroundingContextBlock[];
+  retrievalMode?: PromptRetrievalMode;
   allowedActions?: readonly AssistantActionType[];
 }
 
