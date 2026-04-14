@@ -1,0 +1,125 @@
+flowchart LR
+    classDef actor fill:#eff6ff,stroke:#1d4ed8,color:#1e3a8a,stroke-width:1px;
+    classDef bot fill:#ecfeff,stroke:#0891b2,color:#164e63,stroke-width:1px;
+    classDef rag fill:#f0fdf4,stroke:#16a34a,color:#14532d,stroke-width:1px;
+    classDef ai fill:#faf5ff,stroke:#9333ea,color:#581c87,stroke-width:1px;
+    classDef api fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-width:1px;
+    classDef worker fill:#fefce8,stroke:#ca8a04,color:#713f12,stroke-width:1px;
+    classDef store fill:#f8fafc,stroke:#475569,color:#0f172a,stroke-width:1px;
+    classDef note fill:#ffffff,stroke:#94a3b8,color:#334155,stroke-dasharray: 4 4;
+
+    U[Customer / Owner]:::actor
+    N0[No single part gets the full lifetime chat by default.<br/>The app mainly works from a recent message window.]:::note
+
+    subgraph BOT[Bot Flow]
+        direction TB
+        B1[Receive WhatsApp message]:::bot
+        B2[Normalize message and identify conversation]:::bot
+        B3[Save inbound message in Convex]:::bot
+        B4[Ask Convex for prompt history for this inbound message]:::bot
+        B5{Is there recent context<br/>within the last 30 minutes?}:::bot
+        B6[Use recent history window]:::bot
+        B7{If not recent:<br/>did the user quote an older message?}:::bot
+        B8[Use a referenced history slice<br/>around the quoted message]:::bot
+        B9[Use empty history]:::bot
+        B10[Send to RAG orchestrator:<br/>current message + selected history]:::bot
+        B11[Receive final answer text]:::bot
+        B12[Save pending assistant reply,<br/>send WhatsApp reply, then commit]:::bot
+        B13[Trim stored conversation back to max window]:::bot
+    end
+
+    subgraph RAGSYS[RAG Flow]
+        direction TB
+        R1[Retrieval step uses only the current user message<br/>as the search query]:::rag
+        R2[Fetch matching catalog facts,<br/>products, variants, and embeddings from Convex]:::rag
+        R3[Build the AI prompt using:<br/>selected history + grounded catalog facts]:::rag
+        R4[Send the finished prompt to AI]:::rag
+    end
+
+    subgraph AISYS[AI Flow]
+        direction TB
+        A1[AI sees the prompt built by RAG]:::ai
+        A2[AI writes the answer and action<br/>for the bot to send]:::ai
+    end
+
+    subgraph CONVEX[Convex]
+        direction TB
+        C1[(Conversation state)]:::store
+        C2[(Conversation messages)]:::store
+        C3[(Catalog, products, variants)]:::store
+        C4[(Embeddings / vector search)]:::store
+        C5[(Analytics and side-effect state)]:::store
+    end
+
+    subgraph API[API Flow]
+        direction TB
+        P1[API receives manual handoff / resume requests]:::api
+        P2[API reads the conversation by phone number]:::api
+        P3[API updates muted / resumed state in Convex]:::api
+        P4[API does not send conversation history to RAG or AI]:::note
+    end
+
+    subgraph WORKERS[Worker Jobs]
+        direction TB
+        W1[Auto-resume job checks muted conversations<br/>whose timer expired]:::worker
+        W2[Auto-resume updates conversation state only]:::worker
+        W3[Pending assistant reconciliation job<br/>checks pending replies after provider ack]:::worker
+        W4[Reconciliation commits pending replies<br/>and completes side effects]:::worker
+        W5[If owner handoff notification must be replayed,<br/>worker loads the last 6 visible messages]:::worker
+        W6[Workers do not call RAG or AI in this history path]:::note
+    end
+
+    N1[Configured bot history window:<br/>`conversationHistoryWindowMessages`<br/>default: 20 messages]:::note
+    N2[Stale-context rule:<br/>if the latest prior message is older than 30 minutes,<br/>normal history becomes empty]:::note
+    N3[Quoted-reply exception:<br/>an older quoted message can reopen a focused history slice]:::note
+    N4[Owner handoff replay history:<br/>6 recent visible messages]:::note
+
+    U --> B1
+    N0 -.-> B4
+
+    B1 --> B2 --> B3
+    B3 --> C2
+    B4 --> C2
+    C2 --> B5
+    B5 -->|Yes| B6
+    B5 -->|No| B7
+    B7 -->|Yes| B8
+    B7 -->|No| B9
+    B6 --> B10
+    B8 --> B10
+    B9 --> B10
+
+    N1 -.-> B6
+    N2 -.-> B5
+    N3 -.-> B8
+
+    B10 --> R1
+    R1 --> C4
+    R1 --> C3
+    C3 --> R2
+    C4 --> R2
+    R2 --> R3 --> R4 --> A1 --> A2 --> B11
+    B11 --> B12 --> C2
+    B12 --> C5
+    B12 --> U
+    B13 --> C2
+    B12 --> B13
+
+    P1 --> P2 --> C1
+    C1 --> P3
+    P3 --> C5
+    P4 -.-> P3
+
+    W1 --> C1
+    C1 --> W2
+    W3 --> C2
+    W3 --> C5
+    W4 --> C2
+    W4 --> C5
+    W5 --> C2
+    N4 -.-> W5
+    W6 -.-> W3
+
+    C1 --> B2
+    C1 --> W1
+    C2 --> W3

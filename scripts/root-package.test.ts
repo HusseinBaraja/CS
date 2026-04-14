@@ -38,6 +38,7 @@ describe("root package scripts", () => {
     expect(scripts["preview:web"]).toBe("bun --cwd apps/web run preview");
     expect(scripts.seed).toBe("bun run --cwd apps/cli seed");
     expect(scripts.backup).toBe("bun run --cwd apps/cli backup");
+    expect(scripts["issue:diagram"]).toBe("bun scripts/generate-agent-mermaid.ts");
   });
 
   test("keeps cli out of the root long-running dev fanout", () => {

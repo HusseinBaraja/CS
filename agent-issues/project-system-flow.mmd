@@ -1,0 +1,40 @@
+flowchart TD
+    A[Customer or Owner on WhatsApp] --> B[Baileys Bot Session Manager]
+    B --> C[Bot Router and Command Handling]
+    C --> D{Message Type}
+
+    D -->|Owner command| E[Owner Command Handlers]
+    E --> F[Convex Queries and Mutations]
+    F --> G[(Convex DB + Vector Index + Storage Metadata)]
+
+    D -->|Customer product inquiry| H[RAG Pipeline]
+    H --> I[Embeddings + Vector Search]
+    I --> G
+    H --> J[Prompt Builder with Grounding Context]
+    J --> K[AI Provider Manager]
+    K --> L[DeepSeek primary]
+    K --> M[Gemini fallback]
+    K --> N[Groq or other fallback]
+    L --> O[Structured AI Response]
+    M --> O
+    N --> O
+
+    O --> P{Action Type}
+    P -->|Respond| Q[Send WhatsApp Reply]
+    P -->|Send catalog/images| R[Product and Media Services]
+    R --> S[Cloudflare R2 Signed URLs]
+    S --> Q
+    P -->|Handoff| T[Mute Bot + Notify Owner]
+    T --> Q
+
+    D -->|REST API request| U[Hono API]
+    U --> V[Auth + Validation + Rate Limit]
+    V --> W[Service Layer]
+    W --> F
+    W --> S
+
+    Q --> X[Conversation and Analytics Events]
+    X --> F
+
+    Y[CLI Seed and Backup] --> F
+    Z[Web App] --> U

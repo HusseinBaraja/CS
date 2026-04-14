@@ -22,6 +22,7 @@
     "test": "bun run test:root && turbo run test",
     "test:root": "bun test ./scripts --pass-with-no-tests",
     "check:ai": "bun scripts/ai-provider-check.ts",
+    "issue:diagram": "bun scripts/generate-agent-mermaid.ts",
     "test:convex": "bun x vitest run --config convex/vitest.config.ts",
     "check": "turbo run check",
     "preview:web": "bun --cwd apps/web run preview",

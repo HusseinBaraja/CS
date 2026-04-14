@@ -1,0 +1,45 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant Bot
+    participant RAG as "RAG (search helper)"
+    participant Convex as "Convex (catalog memory)"
+    participant AI as "AI (answer writer)"
+
+    Note over User,Bot: 6-message chat: greeting -> product list question -> price question
+
+    Note over User,Bot: Messages 1-2 (Hello and welcome)
+    User->>Bot: "Hello"
+    Bot->>Convex: Save the message and read recent chat
+    Bot->>RAG: Find helpful catalog context (if any)
+    RAG->>Convex: Check stored product knowledge
+    Convex-->>RAG: Matching info
+    RAG->>AI: Write a polite reply in the same language
+    AI-->>RAG: Draft reply
+    RAG-->>Bot: Final reply text
+    Bot->>Convex: Save bot reply
+    Bot-->>User: "Welcome, how can I help today?"
+
+    Note over User,Bot: Messages 3-4 (User asks what categories exist)
+    User->>Bot: "What products do you have?"
+    Bot->>Convex: Save message + load recent context
+    Bot->>RAG: Find the best matching catalog items
+    RAG->>Convex: Read product/category data
+    Convex-->>RAG: Product facts
+    RAG->>AI: Turn facts into a clear list
+    AI-->>RAG: List response
+    RAG-->>Bot: Final category answer
+    Bot->>Convex: Save bot reply
+    Bot-->>User: List of available categories + follow-up question
+
+    Note over User,Bot: Messages 5-6 (User asks price for one item)
+    User->>Bot: "How much is the wrapped table set?"
+    Bot->>Convex: Save message + load recent context
+    Bot->>RAG: Find exact product and available options
+    RAG->>Convex: Read variant details and prices
+    Convex-->>RAG: Standard/Premium details and prices
+    RAG->>AI: Write a simple pricing answer
+    AI-->>RAG: Price response
+    RAG-->>Bot: Final pricing text
+    Bot->>Convex: Save bot reply
+    Bot-->>User: Price options (for example: Standard vs Premium)
