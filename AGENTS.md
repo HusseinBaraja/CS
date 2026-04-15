@@ -38,6 +38,8 @@
 ## Commit Message Skill
 
 - Follow the `conventional-commit` skill workflow instead of inventing a commit message ad hoc.
+- If Caveman is installed in this repo, use `skills/caveman-commit/SKILL.md` to draft commit messages, then keep the final message Conventional Commits compliant.
+- For normal responses in this repo, default to `skills/caveman/SKILL.md` in lite mode unless the user explicitly asks for a different tone.
 - Preserve the existing non-destructive git rules in this file when handling commit requests.
 
 ## Project Snapshot
