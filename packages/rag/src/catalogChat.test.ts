@@ -315,7 +315,6 @@ describe("createCatalogChatOrchestrator", () => {
     expect((retrievalCalls[0] as { maxContextBlocks: number }).maxContextBlocks).toBe(1);
     expect((retrievalCalls[0] as { minScore: number }).minScore).toBe(0.8);
     expect(promptInput?.responseLanguage).toBe("ar");
-    expect(promptInput?.retrievalMode).toBe("primary_rewrite");
     expect(promptInput?.retrievalProvenance).toEqual({
       mode: "primary_rewrite",
       primarySource: "resolved_query",
@@ -394,7 +393,6 @@ describe("createCatalogChatOrchestrator", () => {
       "How much is this one?",
       "Burger Box Large\nHow much is this one?",
     ]);
-    expect(promptInput?.retrievalMode).toBe("rewrite_degraded");
     expect(promptInput?.retrievalProvenance).toEqual({
       mode: "rewrite_degraded",
       primarySource: "original_message_fallback",
@@ -417,6 +415,8 @@ describe("createCatalogChatOrchestrator", () => {
 
   test("skips provider invocation and returns a clarification fallback for blank input", async () => {
     const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
+    const rewriteCalls: unknown[] = [];
+    const catalogLanguageHintCalls: Id<"companies">[] = [];
     const { logger, infoCalls } = createLoggerStub();
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService({
@@ -430,7 +430,13 @@ describe("createCatalogChatOrchestrator", () => {
       rewriteService: createRewriteService({
         status: "failure",
         failureReason: "provider_error",
-      }),
+      }, rewriteCalls),
+      catalogLanguageHintsService: {
+        async getHints(companyId) {
+          catalogLanguageHintCalls.push(companyId);
+          return null;
+        },
+      },
       logger,
       chatManager: createChatManagerStub(async () => {
         throw new Error("should not be called");
@@ -477,6 +483,8 @@ describe("createCatalogChatOrchestrator", () => {
       },
     });
     expect(chatCalls).toHaveLength(0);
+    expect(rewriteCalls).toHaveLength(0);
+    expect(catalogLanguageHintCalls).toHaveLength(0);
     expect(infoCalls[0]).toMatchObject({
       message: "catalog retrieval completed",
       payload: {

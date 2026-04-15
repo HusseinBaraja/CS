@@ -768,6 +768,64 @@ export const createCatalogChatOrchestrator = (
         preferredLanguage: input.tenant.preferredLanguage,
         defaultLanguage: input.tenant.defaultLanguage,
       });
+      if (input.userMessage.trim().length === 0) {
+        const rewrite: RetrievalRewriteAttempt = {
+          status: "failure",
+          failureReason: "provider_error",
+        };
+        const retrieval: RetrieveCatalogContextResult = {
+          outcome: "empty",
+          reason: "empty_query",
+          query: "",
+          language: language.responseLanguage,
+          candidates: [],
+          contextBlocks: [],
+          retrievalMode: "rewrite_degraded",
+        };
+
+        safeLogEvent(
+          retrievalLogger,
+          "info",
+          {
+            event: "rag.retrieval.completed",
+            runtime: "rag",
+            surface: "retrieval",
+            outcome: retrieval.outcome,
+            responseLanguage: language.responseLanguage,
+            historySelectionReason: "empty",
+            rewrite: buildRewriteLogContext(rewrite),
+            queryCount: 1,
+            retrieval: buildRetrievalLogContext(retrieval),
+            ...summarizeQueryForLog(input.userMessage),
+            ...summarizePrimaryRetrievalQueryForLog(""),
+          },
+          "catalog retrieval completed",
+        );
+        safeLogEvent(
+          routeLogger,
+          "info",
+          {
+            event: "rag.catalog_chat.completed",
+            runtime: "rag",
+            surface: "orchestrator",
+            outcome: "empty_query_fallback",
+            responseLanguage: language.responseLanguage,
+            finalResponseBranch: "empty_query_fallback",
+            rewrite: buildRewriteLogContext(rewrite),
+            retrieval: buildRetrievalLogContext(retrieval),
+          },
+          "catalog chat response completed",
+        );
+
+        return {
+          outcome: "empty_query_fallback",
+          assistant: buildAssistantFallback(language.responseLanguage, "empty_query"),
+          language,
+          retrieval,
+          retrievalMode: "rewrite_degraded",
+          rewrite,
+        };
+      }
       let catalogLanguageHints: CatalogLanguageHints | null = null;
       try {
         catalogLanguageHints = await catalogLanguageHintsService.getHints(input.tenant.companyId);
