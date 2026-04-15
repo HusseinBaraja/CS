@@ -834,20 +834,28 @@ export const createCatalogChatOrchestrator = (
         responseLanguageHint: language.responseLanguage,
         ...(catalogLanguageHints ? { catalogLanguageHints } : {}),
       });
-      const rewrite = await rewriteService.rewrite(rewriteInput, {
-        signal: input.signal,
-        timeoutMs: input.provider?.timeoutMs,
-        maxRetriesPerProvider: input.provider?.maxRetriesPerProvider,
-        logger: input.logger ?? logger,
-        logContext: {
-          companyId: input.tenant.companyId,
-          ...(input.conversation?.conversationId
-            ? { conversationId: input.conversation.conversationId }
-            : {}),
-          ...(input.requestId ? { requestId: input.requestId } : {}),
-          feature: "catalog_retrieval_rewrite",
-        },
-      });
+      let rewrite: RetrievalRewriteAttempt;
+      try {
+        rewrite = await rewriteService.rewrite(rewriteInput, {
+          signal: input.signal,
+          timeoutMs: input.provider?.timeoutMs,
+          maxRetriesPerProvider: input.provider?.maxRetriesPerProvider,
+          logger: input.logger ?? logger,
+          logContext: {
+            companyId: input.tenant.companyId,
+            ...(input.conversation?.conversationId
+              ? { conversationId: input.conversation.conversationId }
+              : {}),
+            ...(input.requestId ? { requestId: input.requestId } : {}),
+            feature: "catalog_retrieval_rewrite",
+          },
+        });
+      } catch {
+        rewrite = {
+          status: "failure",
+          failureReason: "provider_error",
+        };
+      }
       const queryPlan = buildRetrievalQueryPlan({
         userMessage: input.userMessage,
         quotedMessage: rewriteInput.quotedMessage,
