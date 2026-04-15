@@ -27,7 +27,7 @@ const toCatalogLanguageSample = (
   descriptionEn?: string;
   descriptionAr?: string;
 } => ({
-  nameEn: product.nameEn,
+  ...(product.nameEn ? { nameEn: product.nameEn } : {}),
   ...(product.nameAr ? { nameAr: product.nameAr } : {}),
   ...(product.descriptionEn ? { descriptionEn: product.descriptionEn } : {}),
   ...(product.descriptionAr ? { descriptionAr: product.descriptionAr } : {}),
