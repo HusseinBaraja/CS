@@ -15,6 +15,7 @@ import {
   parseAssistantStructuredOutput,
   type PromptHistoryTurn,
 } from '@cs/ai';
+import type { CatalogLanguageHints } from '@cs/shared';
 import {
   logEvent,
   serializeErrorForLog,
@@ -39,6 +40,10 @@ import {
   type RetrievalRewriteAttempt,
   type RetrievalRewriteService,
 } from './retrievalRewrite';
+import {
+  type CatalogLanguageHintsService,
+  createCatalogLanguageHintsService,
+} from './catalogLanguageHints';
 import { summarizePromptRetrievalProvenance } from './retrievalProvenance';
 export {
   buildQuotedMessageCombinedFallbackQuery,
@@ -69,11 +74,17 @@ export {
   type RetrievalRewriteUnresolvedReason,
 } from './retrievalRewrite';
 export {
+  createCatalogLanguageHintsService,
+} from './catalogLanguageHints';
+export {
   summarizePromptRetrievalProvenance,
 } from './retrievalProvenance';
 export type {
   PromptRetrievalProvenanceCandidate,
 } from './retrievalProvenance';
+export type {
+  CatalogLanguageHintsService,
+} from './catalogLanguageHints';
 
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_MAX_CONTEXT_BLOCKS = 3;
@@ -127,6 +138,7 @@ type HydratedProductRecord = {
 };
 
 export type { ChatLanguage, GroundingContextBlock } from '@cs/ai';
+export type { CatalogLanguageHints } from '@cs/shared';
 export type {
   AssistantActionType,
   AssistantStructuredOutput,
@@ -264,6 +276,7 @@ export type CatalogChatLogger = StructuredLogger;
 export interface CreateCatalogChatOrchestratorOptions {
   retrievalService?: ProductRetrievalService;
   rewriteService?: RetrievalRewriteService;
+  catalogLanguageHintsService?: CatalogLanguageHintsService;
   chatManager?: ChatProviderManager;
   detectLanguage?: typeof detectChatLanguage;
   buildPrompt?: typeof buildGroundedChatPrompt;
@@ -731,6 +744,7 @@ export const createCatalogChatOrchestrator = (
   const rewriteService = options.rewriteService ?? createRetrievalRewriteService({
     chatManager,
   });
+  const catalogLanguageHintsService = options.catalogLanguageHintsService ?? createCatalogLanguageHintsService();
   const detectLanguage = options.detectLanguage ?? detectChatLanguage;
   const buildPrompt = options.buildPrompt ?? buildGroundedChatPrompt;
   const parseStructuredOutput = options.parseStructuredOutput ?? parseAssistantStructuredOutput;
@@ -754,11 +768,18 @@ export const createCatalogChatOrchestrator = (
         preferredLanguage: input.tenant.preferredLanguage,
         defaultLanguage: input.tenant.defaultLanguage,
       });
+      let catalogLanguageHints: CatalogLanguageHints | null = null;
+      try {
+        catalogLanguageHints = await catalogLanguageHintsService.getHints(input.tenant.companyId);
+      } catch {
+        catalogLanguageHints = null;
+      }
       const allowedActions = getAllowedActions(input.conversation?.allowedActions);
       const rewriteInput = buildRetrievalRewriteInput({
         userMessage: input.userMessage,
         conversation: input.conversation,
         responseLanguageHint: language.responseLanguage,
+        ...(catalogLanguageHints ? { catalogLanguageHints } : {}),
       });
       const rewrite = await rewriteService.rewrite(rewriteInput, {
         signal: input.signal,

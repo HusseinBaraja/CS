@@ -292,6 +292,81 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(embeddings.every((embedding) => embedding.embedding.length === 768)).toBe(true);
   });
 
+  it("refreshes company catalog language hints after product create, update, and delete", async () => {
+    installGeminiStub();
+    const t = convexTest(schema, modules);
+
+    const { companyId, categoryId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000621",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+
+      return {
+        companyId,
+        categoryId,
+      };
+    });
+
+    await t.action(internal.products.create, {
+      companyId,
+      categoryId,
+      nameEn: "Burger Box",
+      descriptionEn: "Disposable meal packaging",
+    });
+    const createdProductId = await t.run(async (ctx) =>
+      ctx.db
+        .query("products")
+        .withIndex("by_company", (q) => q.eq("companyId", companyId))
+        .first(),
+    );
+    const englishHints = await t.query(internal.companies.getCatalogLanguageHints, {
+      companyId,
+    });
+
+    expect(englishHints).toEqual({
+      primaryCatalogLanguage: "en",
+      supportedLanguages: ["en"],
+      preferredTermPreservation: "catalog_language",
+    });
+
+    await t.action(internal.products.update, {
+      companyId,
+      productId: createdProductId!._id,
+      nameEn: "Box",
+      nameAr: "علبة برجر",
+      descriptionEn: null,
+      descriptionAr: "علبة عربية طويلة للوصف مع تفاصيل إضافية عن المنتج",
+    });
+    const arabicHints = await t.query(internal.companies.getCatalogLanguageHints, {
+      companyId,
+    });
+
+    expect(arabicHints).toEqual({
+      primaryCatalogLanguage: "ar",
+      supportedLanguages: ["ar", "en"],
+      preferredTermPreservation: "catalog_language",
+    });
+
+    await t.mutation(internal.products.remove, {
+      companyId,
+      productId: createdProductId!._id,
+    });
+    const emptyHints = await t.query(internal.companies.getCatalogLanguageHints, {
+      companyId,
+    });
+
+    expect(emptyHints).toEqual({
+      primaryCatalogLanguage: "unknown",
+      supportedLanguages: [],
+      preferredTermPreservation: "user_language",
+    });
+  });
+
   it("updates a product, replaces embeddings, and rejects category changes outside the company", async () => {
     installGeminiStub();
     const t = convexTest(schema, modules);

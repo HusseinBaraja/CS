@@ -8,6 +8,7 @@ import {
 } from '@cs/ai';
 import type { Id } from '@cs/db';
 import type {
+  CatalogLanguageHintsService,
   CatalogChatLogger,
   ProductRetrievalService,
   RetrieveCatalogContextResult,
@@ -871,5 +872,44 @@ describe("createCatalogChatOrchestrator", () => {
     expect(promptInput?.conversationHistory).toEqual(history);
     expect(promptInput?.allowedActions).toEqual(["none", "clarify"]);
     expect(result.assistant.action.type).toBe("none");
+  });
+
+  test("loads tenant catalog language hints and passes them into retrieval rewrite", async () => {
+    const rewriteCalls: unknown[] = [];
+    const catalogLanguageHintsService: CatalogLanguageHintsService = {
+      async getHints() {
+        return {
+          primaryCatalogLanguage: "mixed",
+          supportedLanguages: ["ar", "en"],
+          preferredTermPreservation: "mixed",
+        };
+      },
+    };
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(groundedRetrievalResult()),
+      rewriteService: createRewriteService(highConfidenceRewriteAttempt(), rewriteCalls),
+      catalogLanguageHintsService,
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        text: '{"schemaVersion":"v1","text":"We have burger boxes.","action":{"type":"none"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      userMessage: "Burger Box",
+    });
+
+    expect(rewriteCalls[0]).toMatchObject({
+      currentUserMessage: "Burger Box",
+      catalogLanguageHints: {
+        primaryCatalogLanguage: "mixed",
+        supportedLanguages: ["ar", "en"],
+        preferredTermPreservation: "mixed",
+      },
+    });
   });
 });

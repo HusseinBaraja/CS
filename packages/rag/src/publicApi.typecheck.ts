@@ -1,5 +1,7 @@
 import type {
   AssistantStructuredOutput,
+  CatalogLanguageHints,
+  CatalogLanguageHintsService,
   CatalogChatInput,
   CatalogChatConversationHistorySelection,
   CatalogChatOrchestrator,
@@ -25,6 +27,7 @@ import {
   buildRetrievalQueryPlan,
   buildRetrievalQueryText,
   buildRetrievalRewriteInput,
+  createCatalogLanguageHintsService,
   createCatalogChatOrchestrator,
   createProductRetrievalService,
   createRetrievalRewriteService,
@@ -71,6 +74,11 @@ const rewriteInput: RetrievalRewriteInput = buildRetrievalRewriteInput({
     historySelection,
   },
   responseLanguageHint: "en",
+  catalogLanguageHints: {
+    primaryCatalogLanguage: "mixed",
+    supportedLanguages: ["ar", "en"],
+    preferredTermPreservation: "mixed",
+  },
 });
 const rewriteResult: RetrievalRewriteResult = parseRetrievalRewriteResult(
   '{"resolvedQuery":"Burger Box","confidence":"high","rewriteStrategy":"standalone","preservedTerms":["Burger Box"]}',
@@ -80,6 +88,12 @@ const rewriteAttempt: RetrievalRewriteAttempt = {
   result: rewriteResult,
 };
 const rewriteService: RetrievalRewriteService = createRetrievalRewriteService();
+const catalogLanguageHints: CatalogLanguageHints = {
+  primaryCatalogLanguage: "mixed",
+  supportedLanguages: ["ar", "en"],
+  preferredTermPreservation: "mixed",
+};
+const catalogLanguageHintsService: CatalogLanguageHintsService = createCatalogLanguageHintsService();
 const queryPlan: RetrievalQueryPlan = buildRetrievalQueryPlan({
   userMessage: "Burger Box",
   rewriteAttempt,
@@ -184,6 +198,8 @@ void rewriteInput;
 void rewriteResult;
 void rewriteAttempt;
 void rewriteService;
+void catalogLanguageHints;
+void catalogLanguageHintsService;
 void queryPlan;
 void promptRetrievalProvenance;
 void queryText;

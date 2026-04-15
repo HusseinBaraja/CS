@@ -8,6 +8,7 @@ import {
   type PromptHistoryTurn,
   createRetrievalRewriteChatProviderManager,
 } from '@cs/ai';
+import type { CatalogLanguageHints } from '@cs/shared';
 import {
   parseRetrievalRewriteResultPayload,
   RETRIEVAL_REWRITE_RESULT_JSON_SCHEMA,
@@ -59,7 +60,7 @@ export interface RetrievalRewriteInput {
   historySelectionReason: RetrievalHistorySelectionReason;
   quotedMessage?: PromptHistoryTurn;
   responseLanguageHint: ChatLanguage;
-  catalogLanguageHints?: ChatLanguage[];
+  catalogLanguageHints?: CatalogLanguageHints;
 }
 
 export type RetrievalRewriteAttempt =
@@ -180,6 +181,9 @@ const buildRetrievalRewritePrompt = (
     "Preserve uncertainty instead of inventing details.",
     "Do not add product facts, categories, attributes, prices, or availability that are not grounded in the conversation.",
     "Preserve the user's language in resolvedQuery.",
+    "Use catalog language hints only to preserve grounded anchor terms and to decide whether bilingual aliases are appropriate.",
+    "If preferredTermPreservation is catalog_language, keep the strongest catalog anchor terms in the catalog-preferred language.",
+    "Generate bilingual searchAliases only when supportedLanguages explicitly includes both Arabic and English.",
     "Return only structured data that matches the supplied response schema.",
   ].join("\n");
 
@@ -205,10 +209,12 @@ const buildRetrievalRewritePrompt = (
     "<RESPONSE_LANGUAGE_HINT>",
     input.responseLanguageHint,
     "</RESPONSE_LANGUAGE_HINT>",
-    ...(input.catalogLanguageHints && input.catalogLanguageHints.length > 0
+    ...(input.catalogLanguageHints
       ? [
         "<CATALOG_LANGUAGE_HINTS>",
-        input.catalogLanguageHints.join(", "),
+        `<PRIMARY_CATALOG_LANGUAGE>${input.catalogLanguageHints.primaryCatalogLanguage}</PRIMARY_CATALOG_LANGUAGE>`,
+        `<SUPPORTED_LANGUAGES>${input.catalogLanguageHints.supportedLanguages.join(", ") || "NONE"}</SUPPORTED_LANGUAGES>`,
+        `<PREFERRED_TERM_PRESERVATION>${input.catalogLanguageHints.preferredTermPreservation}</PREFERRED_TERM_PRESERVATION>`,
         "</CATALOG_LANGUAGE_HINTS>",
       ]
       : []),
@@ -314,7 +320,7 @@ export const buildRetrievalRewriteInput = (input: {
     historySelection?: CatalogChatConversationHistorySelection;
   };
   responseLanguageHint: ChatLanguage;
-  catalogLanguageHints?: ChatLanguage[];
+  catalogLanguageHints?: CatalogLanguageHints;
 }): RetrievalRewriteInput => {
   const selectedHistory = input.conversation?.history ?? [];
   const explicitHistorySelection = input.conversation?.historySelection;

@@ -64,7 +64,11 @@ describe("retrieval rewrite helpers", () => {
         },
       },
       responseLanguageHint: "en",
-      catalogLanguageHints: ["en", "ar"],
+      catalogLanguageHints: {
+        primaryCatalogLanguage: "mixed",
+        supportedLanguages: ["ar", "en"],
+        preferredTermPreservation: "mixed",
+      },
     });
 
     expect(result).toEqual({
@@ -79,7 +83,11 @@ describe("retrieval rewrite helpers", () => {
       historySelectionReason: "quoted_reply_slice",
       quotedMessage,
       responseLanguageHint: "en",
-      catalogLanguageHints: ["en", "ar"],
+      catalogLanguageHints: {
+        primaryCatalogLanguage: "mixed",
+        supportedLanguages: ["ar", "en"],
+        preferredTermPreservation: "mixed",
+      },
     });
   });
 
@@ -152,6 +160,11 @@ describe("retrieval rewrite helpers", () => {
       historySelectionReason: "quoted_reply_slice",
       quotedMessage,
       responseLanguageHint: "en",
+      catalogLanguageHints: {
+        primaryCatalogLanguage: "mixed",
+        supportedLanguages: ["ar", "en"],
+        preferredTermPreservation: "mixed",
+      },
     });
 
     expect(attempt).toEqual({
@@ -165,6 +178,12 @@ describe("retrieval rewrite helpers", () => {
     });
     expect(requests).toEqual([
       expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "user",
+            content: expect.stringContaining("<PRIMARY_CATALOG_LANGUAGE>mixed</PRIMARY_CATALOG_LANGUAGE>"),
+          }),
+        ]),
         responseFormat: {
           type: "json_schema",
           jsonSchema: expect.objectContaining({

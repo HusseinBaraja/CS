@@ -5,6 +5,7 @@ import {
   CONVERSATION_STATE_EVENT_SOURCES,
   CONVERSATION_STATE_EVENT_TYPES,
 } from '@cs/shared';
+import { catalogLanguageHintsValidator } from './catalogLanguageHints';
 
 // ── Reusable field patterns ──────────────────────────────────────────────────
 const flexRecord = v.record(
@@ -76,6 +77,7 @@ export default defineSchema({
     seedKey: v.optional(v.string()),
     config: v.optional(flexRecord),
     timezone: v.optional(v.string()),
+    catalogLanguageHints: v.optional(catalogLanguageHintsValidator),
     botRuntimePairingLeaseExpiresAt: v.optional(v.number()),
     botRuntimePairingLeaseOwner: v.optional(v.string()),
     botRuntimeSessionLeaseExpiresAt: v.optional(v.number()),
