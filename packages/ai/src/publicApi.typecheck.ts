@@ -132,6 +132,13 @@ const promptInput: BuildGroundedChatPromptInput = {
   groundingContext,
   conversationHistory,
   retrievalMode,
+  retrievalProvenance: {
+    mode: retrievalMode,
+    primarySource: "resolved_query",
+    supportingSources: [],
+    usedAliasCount: 0,
+    convergedOnSharedProducts: false,
+  },
 };
 const builtPrompt: BuiltGroundedChatPrompt = buildGroundedChatPrompt(promptInput);
 const structuredOutput: AssistantStructuredOutput = {

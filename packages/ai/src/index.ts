@@ -54,6 +54,8 @@ export type {
   GroundingContextBlock,
   ParseAssistantStructuredOutputOptions,
   PromptRetrievalMode,
+  PromptRetrievalProvenance,
+  PromptRetrievalQuerySource,
   PromptHistoryTurn,
 } from "./chat/promptContracts";
 export type {

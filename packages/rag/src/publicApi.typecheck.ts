@@ -30,6 +30,7 @@ import {
   createRetrievalRewriteService,
   generateRetrievalQueryEmbedding,
   parseRetrievalRewriteResult,
+  summarizePromptRetrievalProvenance,
 } from './index';
 
 const language: ChatLanguage = "en";
@@ -82,6 +83,11 @@ const rewriteService: RetrievalRewriteService = createRetrievalRewriteService();
 const queryPlan: RetrievalQueryPlan = buildRetrievalQueryPlan({
   userMessage: "Burger Box",
   rewriteAttempt,
+});
+const promptRetrievalProvenance = summarizePromptRetrievalProvenance({
+  mode: queryPlan.mode,
+  promptCandidateCount: 0,
+  candidates: [],
 });
 
 const input: RetrieveCatalogContextInput = {
@@ -179,6 +185,7 @@ void rewriteResult;
 void rewriteAttempt;
 void rewriteService;
 void queryPlan;
+void promptRetrievalProvenance;
 void queryText;
 void serviceOptions;
 void service;

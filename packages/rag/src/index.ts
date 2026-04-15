@@ -39,6 +39,7 @@ import {
   type RetrievalRewriteAttempt,
   type RetrievalRewriteService,
 } from './retrievalRewrite';
+import { summarizePromptRetrievalProvenance } from './retrievalProvenance';
 export {
   buildQuotedMessageCombinedFallbackQuery,
   buildRetrievalQueryPlan,
@@ -67,6 +68,12 @@ export {
   type RetrievalRewriteStrategy,
   type RetrievalRewriteUnresolvedReason,
 } from './retrievalRewrite';
+export {
+  summarizePromptRetrievalProvenance,
+} from './retrievalProvenance';
+export type {
+  PromptRetrievalProvenanceCandidate,
+} from './retrievalProvenance';
 
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_MAX_CONTEXT_BLOCKS = 3;
@@ -874,6 +881,11 @@ export const createCatalogChatOrchestrator = (
         conversationHistory: input.conversation?.history,
         groundingContext: retrieval.contextBlocks,
         retrievalMode: queryPlan.mode,
+        retrievalProvenance: summarizePromptRetrievalProvenance({
+          mode: queryPlan.mode,
+          candidates: retrieval.candidates,
+          promptCandidateCount: retrieval.contextBlocks.length,
+        }),
         allowedActions,
       });
 

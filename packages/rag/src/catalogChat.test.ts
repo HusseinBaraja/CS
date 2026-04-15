@@ -62,7 +62,11 @@ const createRetrievalService = (
 ): ProductRetrievalService => ({
   async retrieveCatalogContext(input) {
     calls.push(input);
-    return result;
+    return {
+      ...result,
+      query: input.query,
+      language: input.language,
+    };
   },
 });
 
@@ -311,6 +315,13 @@ describe("createCatalogChatOrchestrator", () => {
     expect((retrievalCalls[0] as { minScore: number }).minScore).toBe(0.8);
     expect(promptInput?.responseLanguage).toBe("ar");
     expect(promptInput?.retrievalMode).toBe("primary_rewrite");
+    expect(promptInput?.retrievalProvenance).toEqual({
+      mode: "primary_rewrite",
+      primarySource: "resolved_query",
+      supportingSources: [],
+      usedAliasCount: 0,
+      convergedOnSharedProducts: false,
+    });
     expect(result.retrievalMode).toBe("primary_rewrite");
     expect(result.language.responseLanguage).toBe("ar");
   });
@@ -383,6 +394,13 @@ describe("createCatalogChatOrchestrator", () => {
       "Burger Box Large\nHow much is this one?",
     ]);
     expect(promptInput?.retrievalMode).toBe("rewrite_degraded");
+    expect(promptInput?.retrievalProvenance).toEqual({
+      mode: "rewrite_degraded",
+      primarySource: "original_message_fallback",
+      supportingSources: ["quoted_message_fallback"],
+      usedAliasCount: 0,
+      convergedOnSharedProducts: true,
+    });
     expect(result.retrievalMode).toBe("rewrite_degraded");
     expect(result.rewrite).toEqual({
       status: "failure",
@@ -446,7 +464,7 @@ describe("createCatalogChatOrchestrator", () => {
         outcome: "empty",
         reason: "empty_query",
         query: "",
-        language: "en",
+        language: "ar",
         candidates: [],
         contextBlocks: [],
         retrievalMode: "rewrite_degraded",
@@ -470,7 +488,7 @@ describe("createCatalogChatOrchestrator", () => {
           reason: "empty_query",
           candidateCount: 0,
           contextBlockCount: 0,
-          language: "en",
+          language: "ar",
         },
       },
     });
