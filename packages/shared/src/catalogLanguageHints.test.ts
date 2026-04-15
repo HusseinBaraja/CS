@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { deriveCatalogLanguageHints } from './catalogLanguageHints';
+import {
+  deriveCatalogLanguageHints,
+  UNKNOWN_CATALOG_LANGUAGE_HINTS,
+} from './catalogLanguageHints';
 
 describe("deriveCatalogLanguageHints", () => {
   test("returns English-only hints when only English catalog text is present", () => {
@@ -54,5 +57,13 @@ describe("deriveCatalogLanguageHints", () => {
       supportedLanguages: [],
       preferredTermPreservation: "user_language",
     });
+  });
+
+  test("returns a fresh unknown hints object for each empty result", () => {
+    const hints = deriveCatalogLanguageHints([]);
+
+    expect(hints).toEqual(UNKNOWN_CATALOG_LANGUAGE_HINTS);
+    expect(hints).not.toBe(UNKNOWN_CATALOG_LANGUAGE_HINTS);
+    expect(hints.supportedLanguages).not.toBe(UNKNOWN_CATALOG_LANGUAGE_HINTS.supportedLanguages);
   });
 });

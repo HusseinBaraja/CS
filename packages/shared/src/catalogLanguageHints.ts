@@ -78,7 +78,10 @@ export const deriveCatalogLanguageHints = (
   const hasEnglish = englishCharCount > 0;
 
   if (!hasArabic && !hasEnglish) {
-    return UNKNOWN_CATALOG_LANGUAGE_HINTS;
+    return {
+      ...UNKNOWN_CATALOG_LANGUAGE_HINTS,
+      supportedLanguages: [...UNKNOWN_CATALOG_LANGUAGE_HINTS.supportedLanguages],
+    };
   }
 
   let primaryCatalogLanguage: CatalogPrimaryLanguage;
