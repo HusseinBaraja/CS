@@ -862,7 +862,7 @@ export const createCatalogChatOrchestrator = (
         input.retrieval?.maxContextBlocks,
         DEFAULT_MAX_CONTEXT_BLOCKS,
       );
-      const retrievalResults = await Promise.all(
+      const settledRetrievalResults = await Promise.allSettled(
         queryPlan.queries.map((queryPlanEntry) =>
           retrievalService.retrieveCatalogContext({
             companyId: input.tenant.companyId,
@@ -874,6 +874,13 @@ export const createCatalogChatOrchestrator = (
           })
         ),
       );
+      const retrievalResults = settledRetrievalResults.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : []
+      );
+      if (retrievalResults.length === 0) {
+        const rejectedResult = settledRetrievalResults.find((result) => result.status === "rejected");
+        throw rejectedResult?.reason ?? new Error("All retrieval queries failed");
+      }
       const mergedRetrieval = mergeRetrievalResults({
         queryPlan,
         retrievals: retrievalResults,

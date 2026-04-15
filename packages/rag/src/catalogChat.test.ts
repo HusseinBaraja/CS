@@ -413,6 +413,46 @@ describe("createCatalogChatOrchestrator", () => {
     });
   });
 
+  test("keeps the response path alive when a secondary retrieval query fails", async () => {
+    const retrievalCalls: string[] = [];
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: {
+        async retrieveCatalogContext(input) {
+          retrievalCalls.push(input.query);
+          if (input.query === "food box") {
+            throw new Error("alias retrieval timed out");
+          }
+
+          return groundedRetrievalResult({
+            query: input.query,
+            language: input.language,
+          });
+        },
+      },
+      rewriteService: createRewriteService(highConfidenceRewriteAttempt({
+        searchAliases: ["food box"],
+      })),
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        text: '{"schemaVersion":"v1","text":"We have burger boxes available.","action":{"type":"none"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    const result = await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      userMessage: "Do you have burger boxes?",
+    });
+
+    expect(retrievalCalls).toEqual(["Burger Box", "food box"]);
+    expect(result.outcome).toBe("provider_response");
+    expect(result.retrieval.outcome).toBe("grounded");
+    expect(result.retrieval.candidates).toHaveLength(1);
+    expect(result.retrieval.contextBlocks).toHaveLength(1);
+  });
+
   test("skips provider invocation and returns a clarification fallback for blank input", async () => {
     const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
     const rewriteCalls: unknown[] = [];
