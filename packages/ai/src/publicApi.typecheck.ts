@@ -131,7 +131,6 @@ const promptInput: BuildGroundedChatPromptInput = {
   customerMessage: "Need burger boxes",
   groundingContext,
   conversationHistory,
-  retrievalMode,
   retrievalProvenance: {
     mode: retrievalMode,
     primarySource: "resolved_query",
@@ -140,6 +139,8 @@ const promptInput: BuildGroundedChatPromptInput = {
     convergedOnSharedProducts: false,
   },
 };
+// @ts-expect-error retrievalMode must not disagree with retrievalProvenance mode.
+const contradictoryPromptInput: BuildGroundedChatPromptInput = { responseLanguage: "en", customerMessage: "Need burger boxes", retrievalMode: "primary_rewrite" as const, retrievalProvenance: { mode: "rewrite_degraded" as const, primarySource: "original_message_fallback" as const, supportingSources: [], usedAliasCount: 0, convergedOnSharedProducts: false } };
 const builtPrompt: BuiltGroundedChatPrompt = buildGroundedChatPrompt(promptInput);
 const structuredOutput: AssistantStructuredOutput = {
   schemaVersion: "v1",
@@ -181,6 +182,7 @@ void groundingContext;
 void conversationHistory;
 void retrievalMode;
 void promptInput;
+void contradictoryPromptInput;
 void builtPrompt;
 void structuredOutput;
 void parseOptions;

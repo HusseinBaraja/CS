@@ -901,7 +901,6 @@ export const createCatalogChatOrchestrator = (
         customerMessage: input.userMessage,
         conversationHistory: input.conversation?.history,
         groundingContext: retrieval.contextBlocks,
-        retrievalMode: queryPlan.mode,
         retrievalProvenance: summarizePromptRetrievalProvenance({
           mode: queryPlan.mode,
           candidates: retrieval.candidates,

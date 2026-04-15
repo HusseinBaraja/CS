@@ -41,15 +41,22 @@ export interface PromptHistoryTurn {
   text: string;
 }
 
-export interface BuildGroundedChatPromptInput {
+export type BuildGroundedChatPromptInput = {
   responseLanguage: ChatLanguage;
   customerMessage: string;
   conversationHistory?: PromptHistoryTurn[];
   groundingContext?: GroundingContextBlock[];
-  retrievalMode?: PromptRetrievalMode;
-  retrievalProvenance?: PromptRetrievalProvenance;
   allowedActions?: readonly AssistantActionType[];
-}
+} & (
+  | {
+    retrievalMode?: PromptRetrievalMode;
+    retrievalProvenance?: undefined;
+  }
+  | {
+    retrievalMode?: never;
+    retrievalProvenance: PromptRetrievalProvenance;
+  }
+);
 
 export interface BuiltGroundedChatPrompt {
   systemPrompt: string;
