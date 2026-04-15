@@ -16,10 +16,14 @@ const DEFAULT_PROMPT_CANDIDATE_COUNT = 1;
 
 const getDefaultPrimarySource = (
   mode: RetrievalMode,
-): PromptRetrievalQuerySource =>
-  mode === "rewrite_degraded"
-    ? "original_message_fallback"
-    : "resolved_query";
+): PromptRetrievalQuerySource => {
+  switch (mode) {
+    case "rewrite_degraded":
+      return "original_message_fallback";
+    case "primary_rewrite":
+      return "resolved_query";
+  }
+};
 
 const toPromptRetrievalQuerySource = (
   source: RetrievalQuerySource,
