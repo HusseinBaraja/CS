@@ -767,10 +767,7 @@ export const createCatalogChatOrchestrator = (
         defaultLanguage: input.tenant.defaultLanguage,
       });
       if (input.userMessage.trim().length === 0) {
-        const rewrite: RetrievalRewriteAttempt = {
-          status: "failure",
-          failureReason: "provider_error",
-        };
+        const rewrite: RetrievalRewriteAttempt | undefined = undefined;
         const retrieval: RetrieveCatalogContextResult = {
           outcome: "empty",
           reason: "empty_query",
@@ -821,7 +818,7 @@ export const createCatalogChatOrchestrator = (
           language,
           retrieval,
           retrievalMode: "rewrite_degraded",
-          rewrite,
+          ...(rewrite ? { rewrite } : {}),
         };
       }
       let catalogLanguageHints: CatalogLanguageHints | null = null;
