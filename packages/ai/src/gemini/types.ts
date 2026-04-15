@@ -39,6 +39,8 @@ export interface GeminiGenerateContentConfig {
   temperature?: number;
   maxOutputTokens?: number;
   stopSequences?: string[];
+  responseMimeType?: string;
+  responseSchema?: Record<string, unknown>;
 }
 
 export interface GeminiGenerateContentResponse {

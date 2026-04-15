@@ -1,4 +1,5 @@
 import {
+  type ChatResponseFormat,
   type ChatLanguage,
   type ChatManagerCallOptions,
   type ChatProviderManager,
@@ -7,24 +8,28 @@ import {
   type PromptHistoryTurn,
   createRetrievalRewriteChatProviderManager,
 } from '@cs/ai';
+import {
+  parseRetrievalRewriteResultPayload,
+  RETRIEVAL_REWRITE_RESULT_JSON_SCHEMA,
+  type RetrievalRewriteConfidence,
+  type RetrievalRewriteResult,
+  type RetrievalRewriteStrategy,
+  type RetrievalRewriteUnresolvedReason,
+} from './retrievalRewriteSchema';
+export {
+  RETRIEVAL_REWRITE_RESULT_JSON_SCHEMA,
+} from './retrievalRewriteSchema';
+export type {
+  RetrievalRewriteConfidence,
+  RetrievalRewriteResult,
+  RetrievalRewriteStrategy,
+  RetrievalRewriteUnresolvedReason,
+} from './retrievalRewriteSchema';
 
 export type RetrievalHistorySelectionReason =
   | "recent_window"
   | "quoted_reply_slice"
   | "empty";
-
-export type RetrievalRewriteConfidence = "high" | "medium" | "low";
-
-export type RetrievalRewriteStrategy =
-  | "standalone"
-  | "recent_history_resolution"
-  | "quoted_reply_resolution";
-
-export type RetrievalRewriteUnresolvedReason =
-  | "missing_referent"
-  | "ambiguous_reference"
-  | "insufficient_history"
-  | "unclear_product_target";
 
 export type RetrievalMode =
   | "primary_rewrite"
@@ -55,16 +60,6 @@ export interface RetrievalRewriteInput {
   quotedMessage?: PromptHistoryTurn;
   responseLanguageHint: ChatLanguage;
   catalogLanguageHints?: ChatLanguage[];
-}
-
-export interface RetrievalRewriteResult {
-  resolvedQuery: string;
-  confidence: RetrievalRewriteConfidence;
-  rewriteStrategy: RetrievalRewriteStrategy;
-  preservedTerms: string[];
-  searchAliases?: string[];
-  unresolvedReason?: RetrievalRewriteUnresolvedReason;
-  notes?: string;
 }
 
 export type RetrievalRewriteAttempt =
@@ -133,79 +128,7 @@ export interface MergedRetrievalResult<Candidate extends MergeableRetrievedCandi
   candidates: Array<MergedRetrievalCandidate<Candidate>>;
 }
 
-const RETRIEVAL_REWRITE_CONFIDENCE_VALUES: RetrievalRewriteConfidence[] = ["high", "medium", "low"];
-const RETRIEVAL_REWRITE_STRATEGY_VALUES: RetrievalRewriteStrategy[] = [
-  "standalone",
-  "recent_history_resolution",
-  "quoted_reply_resolution",
-];
-const RETRIEVAL_REWRITE_UNRESOLVED_REASON_VALUES: RetrievalRewriteUnresolvedReason[] = [
-  "missing_referent",
-  "ambiguous_reference",
-  "insufficient_history",
-  "unclear_product_target",
-];
-
 const SEARCH_ALIAS_LIMIT = 2;
-
-const normalizeStringArray = (
-  value: unknown,
-  fieldName: string,
-): string[] => {
-  if (!Array.isArray(value)) {
-    throw new Error(`Retrieval rewrite ${fieldName} must be an array`);
-  }
-
-  return value.map((entry) => {
-    if (typeof entry !== "string") {
-      throw new Error(`Retrieval rewrite ${fieldName} entries must be strings`);
-    }
-
-    const normalizedEntry = entry.trim();
-    if (normalizedEntry.length === 0) {
-      throw new Error(`Retrieval rewrite ${fieldName} entries must be non-empty strings`);
-    }
-
-    return normalizedEntry;
-  });
-};
-
-const normalizeOptionalStringArray = (
-  value: unknown,
-  fieldName: string,
-): string[] | undefined => {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  return normalizeStringArray(value, fieldName);
-};
-
-const normalizeEnumValue = <Value extends string>(
-  value: unknown,
-  allowedValues: readonly Value[],
-  fieldName: string,
-): Value => {
-  if (typeof value !== "string" || !allowedValues.includes(value as Value)) {
-    throw new Error(
-      `Retrieval rewrite ${fieldName} must be one of: ${allowedValues.join(", ")}`,
-    );
-  }
-
-  return value as Value;
-};
-
-const normalizeOptionalEnumValue = <Value extends string>(
-  value: unknown,
-  allowedValues: readonly Value[],
-  fieldName: string,
-): Value | undefined => {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  return normalizeEnumValue(value, allowedValues, fieldName);
-};
 
 const normalizeUniqueQueries = (
   entries: string[],
@@ -257,8 +180,7 @@ const buildRetrievalRewritePrompt = (
     "Preserve uncertainty instead of inventing details.",
     "Do not add product facts, categories, attributes, prices, or availability that are not grounded in the conversation.",
     "Preserve the user's language in resolvedQuery.",
-    "Return raw JSON only using this exact schema:",
-    '{"resolvedQuery":"<string>","confidence":"high|medium|low","rewriteStrategy":"standalone|recent_history_resolution|quoted_reply_resolution","preservedTerms":["<string>"],"searchAliases":["<string>"],"unresolvedReason":"missing_referent|ambiguous_reference|insufficient_history|unclear_product_target","notes":"<string>"}',
+    "Return only structured data that matches the supplied response schema.",
   ].join("\n");
 
   const userPrompt = [
@@ -295,6 +217,7 @@ const buildRetrievalRewritePrompt = (
   return {
     temperature: 0,
     maxOutputTokens: 250,
+    responseFormat: buildRetrievalRewriteResponseFormat(),
     messages: [
       {
         role: "system",
@@ -307,6 +230,15 @@ const buildRetrievalRewritePrompt = (
     ],
   };
 };
+
+const buildRetrievalRewriteResponseFormat = (): ChatResponseFormat => ({
+  type: "json_schema",
+  jsonSchema: {
+    name: "retrieval_rewrite_result",
+    schema: RETRIEVAL_REWRITE_RESULT_JSON_SCHEMA,
+    strict: true,
+  },
+});
 
 const classifyRetrievalRewriteFailure = (error: unknown): RetrievalRewriteFailureReason => {
   const errorWithCode = error as Error & { code?: string };
@@ -414,50 +346,10 @@ export const parseRetrievalRewriteResult = (
     throw parseError;
   }
 
-  if (!parsedValue || typeof parsedValue !== "object" || Array.isArray(parsedValue)) {
-    throw new Error("Retrieval rewrite output must be a JSON object");
-  }
-
-  const parsedRecord = parsedValue as Record<string, unknown>;
-  const resolvedQuery = parsedRecord.resolvedQuery;
-  if (typeof resolvedQuery !== "string" || resolvedQuery.trim().length === 0) {
-    throw new Error("Retrieval rewrite resolvedQuery must be a non-empty string");
-  }
-
-  const normalizedResolvedQuery = resolvedQuery.trim();
-  const preservedTerms = normalizeStringArray(parsedRecord.preservedTerms, "preservedTerms");
-  const searchAliases = normalizeOptionalStringArray(parsedRecord.searchAliases, "searchAliases");
-  const unresolvedReason = normalizeOptionalEnumValue(
-    parsedRecord.unresolvedReason,
-    RETRIEVAL_REWRITE_UNRESOLVED_REASON_VALUES,
-    "unresolvedReason",
-  );
-
-  if (parsedRecord.notes !== undefined && typeof parsedRecord.notes !== "string") {
-    throw new Error("Retrieval rewrite notes must be a string");
-  }
-
-  return {
-    resolvedQuery: normalizedResolvedQuery,
-    confidence: normalizeEnumValue(
-      parsedRecord.confidence,
-      RETRIEVAL_REWRITE_CONFIDENCE_VALUES,
-      "confidence",
-    ),
-    rewriteStrategy: normalizeEnumValue(
-      parsedRecord.rewriteStrategy,
-      RETRIEVAL_REWRITE_STRATEGY_VALUES,
-      "rewriteStrategy",
-    ),
-    preservedTerms,
-    ...(searchAliases
-      ? { searchAliases: normalizeUniqueQueries(searchAliases, normalizedResolvedQuery, SEARCH_ALIAS_LIMIT) }
-      : {}),
-    ...(unresolvedReason ? { unresolvedReason } : {}),
-    ...(typeof parsedRecord.notes === "string" && parsedRecord.notes.trim().length > 0
-      ? { notes: parsedRecord.notes.trim() }
-      : {}),
-  };
+  return parseRetrievalRewriteResultPayload(parsedValue, {
+    normalizeSearchAliases: (entries, resolvedQuery) =>
+      normalizeUniqueQueries(entries, resolvedQuery, SEARCH_ALIAS_LIMIT),
+  });
 };
 
 export const buildQuotedMessageCombinedFallbackQuery = (

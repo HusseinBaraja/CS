@@ -56,6 +56,14 @@ export interface OpenAICompatibleChatClient {
         temperature?: number;
         max_tokens?: number;
         stop?: string[];
+        response_format?: {
+          type: "json_schema";
+          json_schema: {
+            name: string;
+            schema: Record<string, unknown>;
+            strict?: boolean;
+          };
+        };
         stream?: false;
       }, options?: { signal?: AbortSignal }) => Promise<OpenAICompatibleChatCompletion>;
     };

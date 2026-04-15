@@ -41,6 +41,38 @@ describe("normalizeChatRequest", () => {
     expect(normalized.messages[0]?.content).toEqual(parts);
   });
 
+  test("preserves responseFormat metadata", () => {
+    const normalized = normalizeChatRequest({
+      messages: [
+        {
+          role: "user",
+          content: "Hello",
+        },
+      ],
+      responseFormat: {
+        type: "json_schema",
+        jsonSchema: {
+          name: "rewrite_result",
+          strict: true,
+          schema: {
+            type: "object",
+          },
+        },
+      },
+    });
+
+    expect(normalized.responseFormat).toEqual({
+      type: "json_schema",
+      jsonSchema: {
+        name: "rewrite_result",
+        strict: true,
+        schema: {
+          type: "object",
+        },
+      },
+    });
+  });
+
   test("rejects empty message arrays", () => {
     expect(() => normalizeChatRequest({ messages: [] })).toThrow(
       "Chat requests require at least one message",

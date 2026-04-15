@@ -46,6 +46,7 @@ export {
   createRetrievalRewriteService,
   mergeRetrievalResults,
   parseRetrievalRewriteResult,
+  RETRIEVAL_REWRITE_RESULT_JSON_SCHEMA,
   type CatalogChatConversationHistorySelection,
   type MergedRetrievalCandidate,
   type MergedRetrievalResult,

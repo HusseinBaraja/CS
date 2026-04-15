@@ -9,6 +9,7 @@ import {
   type ChatProviderAdapter,
   type ChatProviderAttemptFailure,
   type ChatProviderProbeOptions,
+  type ChatResponseFormat,
   type CreateRetrievalRewriteChatProviderManagerOptions,
   type ChatRequest,
   type ChatResponse,
@@ -41,6 +42,16 @@ const response: ChatResponse = {
   provider: "deepseek",
   text: "hello",
   finishReason: "stop",
+};
+const responseFormat: ChatResponseFormat = {
+  type: "json_schema",
+  jsonSchema: {
+    name: "rewrite_result",
+    schema: {
+      type: "object",
+    },
+    strict: true,
+  },
 };
 
 const adapter: ChatProviderAdapter = {
@@ -147,6 +158,7 @@ const rewriteManager = createRetrievalRewriteChatProviderManager(rewriteManagerO
 
 void request;
 void response;
+void responseFormat;
 void adapter;
 void callOptions;
 void managerCallOptions;

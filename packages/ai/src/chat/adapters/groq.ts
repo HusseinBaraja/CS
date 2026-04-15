@@ -1,6 +1,8 @@
 import type { ChatCallOptions, ChatProviderAdapter, ChatResponse, NormalizedChatRequest } from '../contracts';
 import type { ResolvedProviderConfig } from './shared';
 import { createGroqClient } from './clients/groqClientFactory';
+import { createChatProviderError } from '../errors';
+import { getChatResponseFormatCapability } from '../structuredOutputCapabilities';
 import {
   assertProviderConfig,
   classifyOpenAICompatibleError,
@@ -26,6 +28,17 @@ const runChatRequest = async (
     apiKey: config.apiKey,
   });
 
+  if (getChatResponseFormatCapability(PROVIDER, request.responseFormat) === "unsupported") {
+    throw createChatProviderError({
+      provider: PROVIDER,
+      kind: "response_format",
+      message: `${PROVIDER} does not support structured responseFormat requests`,
+      disposition: "failover_provider",
+      retryable: false,
+      model: config.model,
+    });
+  }
+
   return runWithRetries(
     PROVIDER,
     config.model,
@@ -41,6 +54,20 @@ const runChatRequest = async (
           ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
           ...(request.maxOutputTokens !== undefined ? { max_tokens: request.maxOutputTokens } : {}),
           ...(request.stopSequences !== undefined ? { stop: request.stopSequences } : {}),
+          ...(request.responseFormat?.type === "json_schema"
+            ? {
+              response_format: {
+                type: "json_schema",
+                json_schema: {
+                  name: request.responseFormat.jsonSchema.name,
+                  schema: request.responseFormat.jsonSchema.schema,
+                  ...(request.responseFormat.jsonSchema.strict !== undefined
+                    ? { strict: request.responseFormat.jsonSchema.strict }
+                    : {}),
+                },
+              },
+            }
+            : {}),
           stream: false,
         },
         { signal },

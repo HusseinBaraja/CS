@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import type { PromptHistoryTurn } from '@cs/ai';
+import type { ChatProviderManager, PromptHistoryTurn } from '@cs/ai';
 import {
   buildQuotedMessageCombinedFallbackQuery,
   buildRetrievalQueryPlan,
   buildRetrievalRewriteInput,
+  createRetrievalRewriteService,
   mergeRetrievalResults,
   parseRetrievalRewriteResult,
 } from './retrievalRewrite';
@@ -120,6 +121,62 @@ describe("retrieval rewrite helpers", () => {
         }),
       )
     ).toThrow("Retrieval rewrite resolvedQuery must be a non-empty string");
+  });
+
+  test("requests provider-enforced structured output for rewrite calls", async () => {
+    const requests: unknown[] = [];
+    const chatManager: ChatProviderManager = {
+      async chat(request) {
+        requests.push(request);
+        return {
+          provider: "gemini",
+          model: "gemini-rewrite",
+          text: JSON.stringify({
+            resolvedQuery: "Burger Box Large",
+            confidence: "high",
+            rewriteStrategy: "quoted_reply_resolution",
+            preservedTerms: ["Burger Box", "Large"],
+          }),
+          finishReason: "stop",
+        };
+      },
+      async probeProviders() {
+        return [];
+      },
+    };
+
+    const service = createRetrievalRewriteService({ chatManager });
+    const attempt = await service.rewrite({
+      currentUserMessage: "How much is this one?",
+      selectedHistory: [quotedMessage],
+      historySelectionReason: "quoted_reply_slice",
+      quotedMessage,
+      responseLanguageHint: "en",
+    });
+
+    expect(attempt).toEqual({
+      status: "success",
+      result: {
+        resolvedQuery: "Burger Box Large",
+        confidence: "high",
+        rewriteStrategy: "quoted_reply_resolution",
+        preservedTerms: ["Burger Box", "Large"],
+      },
+    });
+    expect(requests).toEqual([
+      expect.objectContaining({
+        responseFormat: {
+          type: "json_schema",
+          jsonSchema: expect.objectContaining({
+            name: "retrieval_rewrite_result",
+            strict: true,
+            schema: expect.objectContaining({
+              type: "object",
+            }),
+          }),
+        },
+      }),
+    ]);
   });
 
   test("degrades to deterministic fallback queries when the rewrite is low confidence", () => {

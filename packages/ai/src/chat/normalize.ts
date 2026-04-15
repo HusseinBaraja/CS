@@ -48,5 +48,6 @@ export const normalizeChatRequest = (
     ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
     ...(request.maxOutputTokens !== undefined ? { maxOutputTokens: request.maxOutputTokens } : {}),
     ...(request.stopSequences !== undefined ? { stopSequences: request.stopSequences } : {}),
+    ...(request.responseFormat !== undefined ? { responseFormat: request.responseFormat } : {}),
   };
 };

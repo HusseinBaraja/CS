@@ -271,4 +271,74 @@ describe("geminiChatProviderAdapter", () => {
     expect(attempts).toBe(2);
     expect(response.text).toBe("Recovered");
   });
+
+  test("passes structured output config through when a responseFormat is requested", async () => {
+    const capturedRequests: GenerateContentParams[] = [];
+
+    resetGeminiFactory = setGeminiClientFactoryForTests(() => ({
+      models: {
+        async embedContent() {
+          throw new Error("not used");
+        },
+        async generateContent(params: GenerateContentParams) {
+          capturedRequests.push(params);
+          return {
+            modelVersion: "gemini-2.0-flash",
+            text: '{"value":"ok"}',
+            candidates: [
+              {
+                finishReason: "STOP",
+                content: {
+                  parts: [{ text: '{"value":"ok"}' }],
+                },
+              },
+            ],
+          };
+        },
+      },
+    }));
+
+    await geminiChatProviderAdapter.chat(
+      {
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "text", text: "Rewrite this" }],
+          },
+        ],
+        responseFormat: {
+          type: "json_schema",
+          jsonSchema: {
+            name: "rewrite_result",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                value: {
+                  type: "string",
+                },
+              },
+            },
+          },
+        },
+      },
+      config,
+    );
+
+    expect(capturedRequests).toEqual([
+      expect.objectContaining({
+        config: expect.objectContaining({
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+              },
+            },
+          },
+        }),
+      }),
+    ]);
+  });
 });
