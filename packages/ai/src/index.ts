@@ -7,9 +7,16 @@ export {
 export { setGeminiClientFactoryForTests } from "./testUtils";
 
 export { getChatProviderAdapter, CHAT_PROVIDER_NAMES, } from "./chat/adapters";
-export { createChatRuntimeConfig } from "./chat/runtimeConfig";
+export {
+  createChatRuntimeConfig,
+  createRetrievalRewriteRuntimeConfig,
+} from "./chat/runtimeConfig";
 export { ChatProviderError } from "./chat/errors";
-export { ChatProviderChainError, createChatProviderManager } from "./chat/manager";
+export {
+  ChatProviderChainError,
+  createChatProviderManager,
+  createRetrievalRewriteChatProviderManager,
+} from "./chat/manager";
 export { detectChatLanguage, resolveChatResponseLanguage } from "./chat/language";
 export { buildGroundedChatPrompt } from "./chat/prompt";
 export { DEFAULT_ALLOWED_ACTIONS, getAllowedActions } from "./chat/actions";
@@ -61,8 +68,10 @@ export type {
   ChatProviderManager,
   ChatProviderProbeOptions,
   CreateChatProviderManagerOptions,
+  CreateRetrievalRewriteChatProviderManagerOptions,
 } from "./chat/manager";
 export type {
   ChatProviderRuntimeConfig,
   ChatRuntimeConfig,
+  RetrievalRewriteRuntimeConfig,
 } from "./chat/runtimeConfig";

@@ -9,6 +9,7 @@ import {
   type ChatProviderAdapter,
   type ChatProviderAttemptFailure,
   type ChatProviderProbeOptions,
+  type CreateRetrievalRewriteChatProviderManagerOptions,
   type ChatRequest,
   type ChatResponse,
   type DetectedChatLanguage,
@@ -20,6 +21,8 @@ import {
   type PromptHistoryTurn,
   buildGroundedChatPrompt,
   createChatProviderManager,
+  createRetrievalRewriteChatProviderManager,
+  createRetrievalRewriteRuntimeConfig,
   detectChatLanguage,
   parseAssistantStructuredOutput,
   resolveChatResponseLanguage,
@@ -135,7 +138,12 @@ const parsedStructuredOutput: AssistantStructuredOutput = parseAssistantStructur
   parseOptions,
 );
 
+const rewriteRuntimeConfig = createRetrievalRewriteRuntimeConfig();
+const rewriteManagerOptions: CreateRetrievalRewriteChatProviderManagerOptions = {
+  runtimeConfig: rewriteRuntimeConfig,
+};
 const manager = createChatProviderManager();
+const rewriteManager = createRetrievalRewriteChatProviderManager(rewriteManagerOptions);
 
 void request;
 void response;
@@ -158,4 +166,7 @@ void builtPrompt;
 void structuredOutput;
 void parseOptions;
 void parsedStructuredOutput;
+void rewriteRuntimeConfig;
+void rewriteManagerOptions;
 void manager;
+void rewriteManager;

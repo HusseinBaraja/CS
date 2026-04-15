@@ -8,14 +8,18 @@ type RuntimeEnv = Record<string, string | number | boolean | undefined>;
 const OPTIONAL_EMPTY_ENV_KEYS = new Set([
   "API_KEY",
   "API_CORS_ORIGINS",
+  "AI_RETRIEVAL_REWRITE_PROVIDER_ORDER",
   "CONVEX_ADMIN_KEY",
   "DEEPSEEK_API_KEY",
   "DEEPSEEK_BASE_URL",
   "DEEPSEEK_CHAT_MODEL",
+  "DEEPSEEK_RETRIEVAL_REWRITE_MODEL",
   "GEMINI_API_KEY",
   "GEMINI_CHAT_MODEL",
+  "GEMINI_RETRIEVAL_REWRITE_MODEL",
   "GROQ_API_KEY",
   "GROQ_CHAT_MODEL",
+  "GROQ_RETRIEVAL_REWRITE_MODEL",
   "R2_ACCESS_KEY_ID",
   "R2_BUCKET_NAME",
   "R2_ENDPOINT",
@@ -145,6 +149,11 @@ const envSchema = {
     .string()
     .default("deepseek,gemini,groq")
     .transform(parseCsvEnv),
+  AI_RETRIEVAL_REWRITE_PROVIDER_ORDER: z
+    .string()
+    .optional()
+    .transform((value) => value === undefined ? undefined : parseCsvEnv(value)),
+  AI_RETRIEVAL_REWRITE_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
   AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   AI_HEALTHCHECK_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   AI_MAX_RETRIES_PER_PROVIDER: z.coerce.number().int().nonnegative().default(1),
@@ -154,14 +163,17 @@ const envSchema = {
   DEEPSEEK_API_KEY: trimmedNonEmptyString.optional(),
   DEEPSEEK_BASE_URL: z.string().url().optional(),
   DEEPSEEK_CHAT_MODEL: trimmedNonEmptyString.optional(),
+  DEEPSEEK_RETRIEVAL_REWRITE_MODEL: trimmedNonEmptyString.optional(),
   R2_BUCKET_NAME: trimmedNonEmptyString.optional(),
   R2_ENDPOINT: z.string().url().optional(),
   R2_ACCESS_KEY_ID: trimmedNonEmptyString.optional(),
   R2_SECRET_ACCESS_KEY: trimmedNonEmptyString.optional(),
   SEED_OWNER_PHONE: trimmedNonEmptyString.optional(),
   GEMINI_CHAT_MODEL: trimmedNonEmptyString.optional(),
+  GEMINI_RETRIEVAL_REWRITE_MODEL: trimmedNonEmptyString.optional(),
   GROQ_API_KEY: trimmedNonEmptyString.optional(),
-  GROQ_CHAT_MODEL: trimmedNonEmptyString.optional()
+  GROQ_CHAT_MODEL: trimmedNonEmptyString.optional(),
+  GROQ_RETRIEVAL_REWRITE_MODEL: trimmedNonEmptyString.optional()
 };
 
 type EnvSchemaKey = keyof typeof envSchema;

@@ -3,6 +3,7 @@ import { ERROR_CODES } from '@cs/shared';
 import type { ChatProviderHealth, ChatProviderName, ChatRequest, ChatResponse, ChatRuntimeConfig } from '../index';
 import { createChatProviderError } from './errors';
 import {
+  createRetrievalRewriteChatProviderManager,
   type ChatManagerLogger,
   type ChatProviderAdapterResolver,
   ChatProviderChainError,
@@ -1068,5 +1069,51 @@ describe("createChatProviderManager", () => {
     ).rejects.toThrow(
       'Unknown AI provider "invalid". Expected one of: deepseek, gemini, groq',
     );
+  });
+
+  test("creates a rewrite-specific manager that honors rewrite runtime config", async () => {
+    const calls: ChatProviderName[] = [];
+    const manager = createRetrievalRewriteChatProviderManager({
+      runtimeConfig: {
+        ...runtimeConfig,
+        providerOrder: ["groq", "gemini"],
+        providers: {
+          ...runtimeConfig.providers,
+          gemini: {
+            ...runtimeConfig.providers.gemini,
+            model: "gemini-rewrite",
+          },
+          groq: {
+            ...runtimeConfig.providers.groq,
+            model: "groq-rewrite",
+          },
+        },
+      },
+      resolveAdapter: (provider) => ({
+        provider,
+        async chat(_normalizedRequest, config) {
+          calls.push(provider);
+
+          return {
+            provider,
+            model: config.model,
+            text: "rewritten query",
+            finishReason: "stop",
+          };
+        },
+        async healthCheck() {
+          return {
+            provider,
+            ok: true,
+            model: runtimeConfig.providers[provider].model,
+          };
+        },
+      }),
+    });
+
+    const response = await manager.chat(request);
+
+    expect(calls).toEqual(["groq"]);
+    expect(response.model).toBe("groq-rewrite");
   });
 });

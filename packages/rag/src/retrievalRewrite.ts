@@ -1,11 +1,11 @@
 import {
-  createChatProviderManager,
   type ChatLanguage,
   type ChatManagerCallOptions,
   type ChatProviderManager,
   type ChatRequest,
   type GroundingContextBlock,
   type PromptHistoryTurn,
+  createRetrievalRewriteChatProviderManager,
 } from '@cs/ai';
 
 export type RetrievalHistorySelectionReason =
@@ -320,7 +320,7 @@ const classifyRetrievalRewriteFailure = (error: unknown): RetrievalRewriteFailur
 export const createRetrievalRewriteService = (
   options: CreateRetrievalRewriteServiceOptions = {},
 ): RetrievalRewriteService => {
-  const chatManager = options.chatManager ?? createChatProviderManager();
+  const chatManager = options.chatManager ?? createRetrievalRewriteChatProviderManager();
 
   return {
     async rewrite(

@@ -11,6 +11,7 @@ import type {
   RetrievalRewriteAttempt,
   RetrievalRewriteInput,
   RetrievalRewriteResult,
+  RetrievalRewriteService,
   ProductRetrievalService,
   ProductRetrievalServiceOptions,
   RetrievalOutcome,
@@ -26,6 +27,7 @@ import {
   buildRetrievalRewriteInput,
   createCatalogChatOrchestrator,
   createProductRetrievalService,
+  createRetrievalRewriteService,
   generateRetrievalQueryEmbedding,
   parseRetrievalRewriteResult,
 } from './index';
@@ -76,6 +78,7 @@ const rewriteAttempt: RetrievalRewriteAttempt = {
   status: "success",
   result: rewriteResult,
 };
+const rewriteService: RetrievalRewriteService = createRetrievalRewriteService();
 const queryPlan: RetrievalQueryPlan = buildRetrievalQueryPlan({
   userMessage: "Burger Box",
   rewriteAttempt,
@@ -174,6 +177,7 @@ void historySelection;
 void rewriteInput;
 void rewriteResult;
 void rewriteAttempt;
+void rewriteService;
 void queryPlan;
 void queryText;
 void serviceOptions;
