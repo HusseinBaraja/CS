@@ -1,8 +1,13 @@
 import { v } from 'convex/values';
 import type { CatalogLanguageHints } from '@cs/shared';
-import { deriveCatalogLanguageHints } from '@cs/shared';
+import {
+  buildCatalogLanguageHintsFromCharacterCounts,
+  countCatalogLanguageCharacters,
+} from '@cs/shared';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
+
+const CATALOG_LANGUAGE_HINTS_PAGE_SIZE = 128;
 
 export const catalogLanguageHintsValidator = v.object({
   primaryCatalogLanguage: v.union(
@@ -37,12 +42,33 @@ const deriveCompanyCatalogLanguageHints = async (
   ctx: Pick<QueryCtx | MutationCtx, "db">,
   companyId: Id<"companies">,
 ): Promise<CatalogLanguageHints> => {
-  const products = await ctx.db
-    .query("products")
-    .withIndex("by_company", (q) => q.eq("companyId", companyId))
-    .collect();
+  let cursor: string | null = null;
+  let arabicCharCount = 0;
+  let englishCharCount = 0;
 
-  return deriveCatalogLanguageHints(products.map(toCatalogLanguageSample));
+  while (true) {
+    const page = await ctx.db
+      .query("products")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .paginate({
+        cursor,
+        numItems: CATALOG_LANGUAGE_HINTS_PAGE_SIZE,
+      });
+    const counts = countCatalogLanguageCharacters(page.page.map(toCatalogLanguageSample));
+    arabicCharCount += counts.arabicCharCount;
+    englishCharCount += counts.englishCharCount;
+
+    if (page.isDone || page.page.length === 0 || page.continueCursor === cursor) {
+      break;
+    }
+
+    cursor = page.continueCursor;
+  }
+
+  return buildCatalogLanguageHintsFromCharacterCounts({
+    arabicCharCount,
+    englishCharCount,
+  });
 };
 
 export const getCompanyCatalogLanguageHints = async (

@@ -367,6 +367,53 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     });
   });
 
+  it("refreshes company catalog language hints across multiple product pages", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Paged Tenant",
+        ownerPhone: "966500000699",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+
+      let removableProductId = null;
+      for (let index = 0; index < 130; index += 1) {
+        const nextProductId = await ctx.db.insert("products", {
+          companyId,
+          categoryId,
+          nameEn: `Burger Box ${index}`,
+        });
+        if (removableProductId === null) {
+          removableProductId = nextProductId;
+        }
+      }
+
+      return {
+        companyId,
+        productId: removableProductId!,
+      };
+    });
+
+    await t.mutation(internal.products.remove, {
+      companyId,
+      productId,
+    });
+
+    const hints = await t.query(internal.companies.getCatalogLanguageHints, {
+      companyId,
+    });
+
+    expect(hints).toEqual({
+      primaryCatalogLanguage: "en",
+      supportedLanguages: ["en"],
+      preferredTermPreservation: "catalog_language",
+    });
+  });
+
   it("updates a product, replaces embeddings, and rejects category changes outside the company", async () => {
     installGeminiStub();
     const t = convexTest(schema, modules);

@@ -15,6 +15,11 @@ export interface CatalogLanguageTextSample {
   descriptionAr?: string;
 }
 
+export interface CatalogLanguageCharacterCounts {
+  arabicCharCount: number;
+  englishCharCount: number;
+}
+
 export const UNKNOWN_CATALOG_LANGUAGE_HINTS: CatalogLanguageHints = {
   primaryCatalogLanguage: "unknown",
   supportedLanguages: [],
@@ -51,9 +56,9 @@ const buildSupportedLanguages = (
   ];
 };
 
-export const deriveCatalogLanguageHints = (
-  samples: CatalogLanguageTextSample[],
-): CatalogLanguageHints => {
+export const countCatalogLanguageCharacters = (
+  samples: Iterable<CatalogLanguageTextSample>,
+): CatalogLanguageCharacterCounts => {
   let arabicCharCount = 0;
   let englishCharCount = 0;
 
@@ -74,8 +79,17 @@ export const deriveCatalogLanguageHints = (
     }
   }
 
-  const hasArabic = arabicCharCount > 0;
-  const hasEnglish = englishCharCount > 0;
+  return {
+    arabicCharCount,
+    englishCharCount,
+  };
+};
+
+export const buildCatalogLanguageHintsFromCharacterCounts = (
+  counts: CatalogLanguageCharacterCounts,
+): CatalogLanguageHints => {
+  const hasArabic = counts.arabicCharCount > 0;
+  const hasEnglish = counts.englishCharCount > 0;
 
   if (!hasArabic && !hasEnglish) {
     return {
@@ -86,11 +100,11 @@ export const deriveCatalogLanguageHints = (
 
   let primaryCatalogLanguage: CatalogPrimaryLanguage;
   if (hasArabic && hasEnglish) {
-    const dominanceRatio = Math.min(arabicCharCount, englishCharCount)
-      / Math.max(arabicCharCount, englishCharCount);
+    const dominanceRatio = Math.min(counts.arabicCharCount, counts.englishCharCount)
+      / Math.max(counts.arabicCharCount, counts.englishCharCount);
     primaryCatalogLanguage = dominanceRatio >= MIXED_LANGUAGE_RATIO_THRESHOLD
       ? "mixed"
-      : (arabicCharCount > englishCharCount ? "ar" : "en");
+      : (counts.arabicCharCount > counts.englishCharCount ? "ar" : "en");
   } else {
     primaryCatalogLanguage = hasArabic ? "ar" : "en";
   }
@@ -103,3 +117,8 @@ export const deriveCatalogLanguageHints = (
       : "catalog_language",
   };
 };
+
+export const deriveCatalogLanguageHints = (
+  samples: CatalogLanguageTextSample[],
+): CatalogLanguageHints =>
+  buildCatalogLanguageHintsFromCharacterCounts(countCatalogLanguageCharacters(samples));
