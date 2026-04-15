@@ -4,6 +4,15 @@ import type { ChatProviderRuntimeConfig } from './runtimeConfig';
 export type ChatProviderName = "deepseek" | "gemini" | "groq";
 export type ChatMessageRole = "system" | "user" | "assistant";
 export type ChatTextPart = { type: "text"; text: string };
+export type ChatJsonSchema = {
+  name: string;
+  schema: Record<string, unknown>;
+  strict?: boolean;
+};
+export type ChatResponseFormat = {
+  type: "json_schema";
+  jsonSchema: ChatJsonSchema;
+};
 export type ChatMessageInput = {
   role: ChatMessageRole;
   content: string | ChatTextPart[];
@@ -19,12 +28,14 @@ export type ChatRequest = {
   temperature?: number;
   maxOutputTokens?: number;
   stopSequences?: string[];
+  responseFormat?: ChatResponseFormat;
 };
 export type NormalizedChatRequest = {
   messages: NormalizedChatMessage[];
   temperature?: number;
   maxOutputTokens?: number;
   stopSequences?: string[];
+  responseFormat?: ChatResponseFormat;
 };
 export type ChatFinishReason = "stop" | "max_tokens" | "blocked" | "tool_calls" | "unknown";
 export type ChatTokenUsage = {

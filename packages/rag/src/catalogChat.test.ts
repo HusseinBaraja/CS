@@ -7,7 +7,14 @@ import {
   type ChatRuntimeConfig,
 } from '@cs/ai';
 import type { Id } from '@cs/db';
-import type { CatalogChatLogger, ProductRetrievalService, RetrieveCatalogContextResult } from './index';
+import type {
+  CatalogLanguageHintsService,
+  CatalogChatLogger,
+  ProductRetrievalService,
+  RetrieveCatalogContextResult,
+  RetrievalRewriteAttempt,
+  RetrievalRewriteService,
+} from './index';
 import { createCatalogChatOrchestrator } from './index';
 
 const COMPANY_ID = "company-1" as Id<"companies">;
@@ -55,6 +62,33 @@ const createRetrievalService = (
   calls: Array<unknown> = [],
 ): ProductRetrievalService => ({
   async retrieveCatalogContext(input) {
+    calls.push(input);
+    return {
+      ...result,
+      query: input.query,
+      language: input.language,
+    };
+  },
+});
+
+const highConfidenceRewriteAttempt = (
+  overrides: Partial<Extract<RetrievalRewriteAttempt, { status: "success" }>["result"]> = {},
+): RetrievalRewriteAttempt => ({
+  status: "success",
+  result: {
+    resolvedQuery: "Burger Box",
+    confidence: "high",
+    rewriteStrategy: "standalone",
+    preservedTerms: ["Burger Box"],
+    ...overrides,
+  },
+});
+
+const createRewriteService = (
+  result: RetrievalRewriteAttempt,
+  calls: Array<unknown> = [],
+): RetrievalRewriteService => ({
+  async rewrite(input) {
     calls.push(input);
     return result;
   },
@@ -158,9 +192,11 @@ const createFailoverChatManager = (
 describe("createCatalogChatOrchestrator", () => {
   test("returns a grounded provider response when retrieval is grounded and output parses cleanly", async () => {
     const retrievalCalls: unknown[] = [];
+    const rewriteCalls: unknown[] = [];
     const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult(), retrievalCalls),
+      rewriteService: createRewriteService(highConfidenceRewriteAttempt(), rewriteCalls),
       chatManager: createChatManagerStub(async () => ({
         provider: "gemini",
         model: "gemini-2.0-flash",
@@ -177,7 +213,7 @@ describe("createCatalogChatOrchestrator", () => {
       userMessage: "Do you have burger boxes?",
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       outcome: "provider_response",
       assistant: {
         schemaVersion: "v1",
@@ -189,7 +225,12 @@ describe("createCatalogChatOrchestrator", () => {
       language: expect.objectContaining({
         responseLanguage: "en",
       }),
-      retrieval: groundedRetrievalResult(),
+      retrieval: {
+        ...groundedRetrievalResult(),
+        retrievalMode: "primary_rewrite",
+      },
+      retrievalMode: "primary_rewrite",
+      rewrite: highConfidenceRewriteAttempt(),
       provider: {
         provider: "gemini",
         model: "gemini-2.0-flash",
@@ -198,7 +239,11 @@ describe("createCatalogChatOrchestrator", () => {
         responseId: "resp-1",
       },
     });
+    expect(rewriteCalls).toHaveLength(1);
     expect(retrievalCalls).toHaveLength(1);
+    expect(retrievalCalls[0]).toMatchObject({
+      query: "Burger Box",
+    });
     expect(chatCalls).toHaveLength(1);
   });
 
@@ -219,6 +264,12 @@ describe("createCatalogChatOrchestrator", () => {
           ],
         }),
         retrievalCalls,
+      ),
+      rewriteService: createRewriteService(
+        highConfidenceRewriteAttempt({
+          resolvedQuery: "علبة برجر",
+          preservedTerms: ["علبة برجر"],
+        }),
       ),
       buildPrompt: (input) => {
         promptInput = input as unknown as Record<string, unknown>;
@@ -259,15 +310,153 @@ describe("createCatalogChatOrchestrator", () => {
     });
 
     expect((retrievalCalls[0] as { language: string }).language).toBe("ar");
+    expect((retrievalCalls[0] as { query: string }).query).toBe("علبة برجر");
     expect((retrievalCalls[0] as { maxResults: number }).maxResults).toBe(2);
     expect((retrievalCalls[0] as { maxContextBlocks: number }).maxContextBlocks).toBe(1);
     expect((retrievalCalls[0] as { minScore: number }).minScore).toBe(0.8);
     expect(promptInput?.responseLanguage).toBe("ar");
+    expect(promptInput?.retrievalProvenance).toEqual({
+      mode: "primary_rewrite",
+      primarySource: "resolved_query",
+      supportingSources: [],
+      usedAliasCount: 0,
+      convergedOnSharedProducts: false,
+    });
+    expect(result.retrievalMode).toBe("primary_rewrite");
     expect(result.language.responseLanguage).toBe("ar");
+  });
+
+  test("uses degraded retrieval queries when rewrite confidence is low and passes degraded provenance into the prompt", async () => {
+    const retrievalCalls: Array<Record<string, unknown>> = [];
+    let promptInput: Record<string, unknown> | undefined;
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(groundedRetrievalResult(), retrievalCalls),
+      rewriteService: createRewriteService({
+        status: "failure",
+        failureReason: "low_confidence",
+        result: {
+          resolvedQuery: "Burger Box Large",
+          confidence: "low",
+          rewriteStrategy: "quoted_reply_resolution",
+          preservedTerms: ["Burger Box", "Large"],
+        },
+      }),
+      buildPrompt: (input) => {
+        promptInput = input as unknown as Record<string, unknown>;
+        return {
+          systemPrompt: "system",
+          userPrompt: "user",
+          request: {
+            messages: [
+              {
+                role: "system",
+                content: "system",
+              },
+              {
+                role: "user",
+                content: "user",
+              },
+            ],
+          },
+        };
+      },
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        text: '{"schemaVersion":"v1","text":"Please confirm which burger box you mean.","action":{"type":"clarify"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    const result = await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      conversation: {
+        history: [
+          {
+            role: "assistant",
+            text: "Burger Box Large",
+          },
+        ],
+        historySelection: {
+          reason: "quoted_reply_slice",
+          quotedMessage: {
+            role: "assistant",
+            text: "Burger Box Large",
+          },
+        },
+      },
+      userMessage: "How much is this one?",
+    });
+
+    expect(retrievalCalls.map((call) => call.query)).toEqual([
+      "How much is this one?",
+      "Burger Box Large\nHow much is this one?",
+    ]);
+    expect(promptInput?.retrievalProvenance).toEqual({
+      mode: "rewrite_degraded",
+      primarySource: "original_message_fallback",
+      supportingSources: ["quoted_message_fallback"],
+      usedAliasCount: 0,
+      convergedOnSharedProducts: true,
+    });
+    expect(result.retrievalMode).toBe("rewrite_degraded");
+    expect(result.rewrite).toEqual({
+      status: "failure",
+      failureReason: "low_confidence",
+      result: {
+        resolvedQuery: "Burger Box Large",
+        confidence: "low",
+        rewriteStrategy: "quoted_reply_resolution",
+        preservedTerms: ["Burger Box", "Large"],
+      },
+    });
+  });
+
+  test("keeps the response path alive when a secondary retrieval query fails", async () => {
+    const retrievalCalls: string[] = [];
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: {
+        async retrieveCatalogContext(input) {
+          retrievalCalls.push(input.query);
+          if (input.query === "food box") {
+            throw new Error("alias retrieval timed out");
+          }
+
+          return groundedRetrievalResult({
+            query: input.query,
+            language: input.language,
+          });
+        },
+      },
+      rewriteService: createRewriteService(highConfidenceRewriteAttempt({
+        searchAliases: ["food box"],
+      })),
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        text: '{"schemaVersion":"v1","text":"We have burger boxes available.","action":{"type":"none"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    const result = await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      userMessage: "Do you have burger boxes?",
+    });
+
+    expect(retrievalCalls).toEqual(["Burger Box", "food box"]);
+    expect(result.outcome).toBe("provider_response");
+    expect(result.retrieval.outcome).toBe("grounded");
+    expect(result.retrieval.candidates).toHaveLength(1);
+    expect(result.retrieval.contextBlocks).toHaveLength(1);
   });
 
   test("skips provider invocation and returns a clarification fallback for blank input", async () => {
     const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
+    const rewriteCalls: unknown[] = [];
+    const catalogLanguageHintCalls: Id<"companies">[] = [];
     const { logger, infoCalls } = createLoggerStub();
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService({
@@ -278,6 +467,16 @@ describe("createCatalogChatOrchestrator", () => {
         candidates: [],
         contextBlocks: [],
       }),
+      rewriteService: createRewriteService({
+        status: "failure",
+        failureReason: "provider_error",
+      }, rewriteCalls),
+      catalogLanguageHintsService: {
+        async getHints(companyId) {
+          catalogLanguageHintCalls.push(companyId);
+          return null;
+        },
+      },
       logger,
       chatManager: createChatManagerStub(async () => {
         throw new Error("should not be called");
@@ -312,12 +511,20 @@ describe("createCatalogChatOrchestrator", () => {
         outcome: "empty",
         reason: "empty_query",
         query: "",
-        language: "en",
+        language: "ar",
         candidates: [],
         contextBlocks: [],
+        retrievalMode: "rewrite_degraded",
+      },
+      retrievalMode: "rewrite_degraded",
+      rewrite: {
+        status: "failure",
+        failureReason: "provider_error",
       },
     });
     expect(chatCalls).toHaveLength(0);
+    expect(rewriteCalls).toHaveLength(0);
+    expect(catalogLanguageHintCalls).toHaveLength(0);
     expect(infoCalls[0]).toMatchObject({
       message: "catalog retrieval completed",
       payload: {
@@ -330,7 +537,7 @@ describe("createCatalogChatOrchestrator", () => {
           reason: "empty_query",
           candidateCount: 0,
           contextBlockCount: 0,
-          language: "en",
+          language: "ar",
         },
       },
     });
@@ -348,6 +555,12 @@ describe("createCatalogChatOrchestrator", () => {
         candidates: [],
         contextBlocks: [],
       }),
+      rewriteService: createRewriteService(
+        highConfidenceRewriteAttempt({
+          resolvedQuery: "bottle",
+          preservedTerms: ["bottle"],
+        }),
+      ),
       logger,
       chatManager: createChatManagerStub(async () => {
         throw new Error("should not be called");
@@ -391,9 +604,20 @@ describe("createCatalogChatOrchestrator", () => {
         query: "container",
         language: "en",
         topScore: 0.2,
-        candidates: groundedRetrievalResult().candidates,
+        candidates: [
+          {
+            ...groundedRetrievalResult().candidates[0]!,
+            score: 0.2,
+          },
+        ],
         contextBlocks: [],
       }),
+      rewriteService: createRewriteService(
+        highConfidenceRewriteAttempt({
+          resolvedQuery: "container",
+          preservedTerms: ["container"],
+        }),
+      ),
       logger,
       chatManager: createChatManagerStub(async () => {
         throw new Error("should not be called");
@@ -431,6 +655,7 @@ describe("createCatalogChatOrchestrator", () => {
     const providerCalls: Array<{ provider: ChatProviderName; kind: "chat" | "healthCheck" }> = [];
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
+      rewriteService: createRewriteService(highConfidenceRewriteAttempt()),
       chatManager: createFailoverChatManager(providerCalls),
     });
 
@@ -454,6 +679,7 @@ describe("createCatalogChatOrchestrator", () => {
     const { logger, errorCalls, infoCalls } = createLoggerStub();
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
+      rewriteService: createRewriteService(highConfidenceRewriteAttempt()),
       logger,
       chatManager: createChatManagerStub(async () => {
         throw new Error("all providers failed");
@@ -522,6 +748,7 @@ describe("createCatalogChatOrchestrator", () => {
     const invalidText = "{".repeat(600);
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
+      rewriteService: createRewriteService(highConfidenceRewriteAttempt()),
       logger,
       chatManager: createChatManagerStub(async () => ({
         provider: "gemini",
@@ -600,6 +827,7 @@ describe("createCatalogChatOrchestrator", () => {
     const { logger } = createLoggerStub();
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
+      rewriteService: createRewriteService(highConfidenceRewriteAttempt()),
       logger,
       chatManager: createChatManagerStub(async () => ({
         provider: "gemini",
@@ -651,6 +879,7 @@ describe("createCatalogChatOrchestrator", () => {
     ];
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult()),
+      rewriteService: createRewriteService(highConfidenceRewriteAttempt()),
       buildPrompt: (input) => {
         promptInput = input as unknown as Record<string, unknown>;
         return {
@@ -691,5 +920,44 @@ describe("createCatalogChatOrchestrator", () => {
     expect(promptInput?.conversationHistory).toEqual(history);
     expect(promptInput?.allowedActions).toEqual(["none", "clarify"]);
     expect(result.assistant.action.type).toBe("none");
+  });
+
+  test("loads tenant catalog language hints and passes them into retrieval rewrite", async () => {
+    const rewriteCalls: unknown[] = [];
+    const catalogLanguageHintsService: CatalogLanguageHintsService = {
+      async getHints() {
+        return {
+          primaryCatalogLanguage: "mixed",
+          supportedLanguages: ["ar", "en"],
+          preferredTermPreservation: "mixed",
+        };
+      },
+    };
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(groundedRetrievalResult()),
+      rewriteService: createRewriteService(highConfidenceRewriteAttempt(), rewriteCalls),
+      catalogLanguageHintsService,
+      chatManager: createChatManagerStub(async () => ({
+        provider: "gemini",
+        text: '{"schemaVersion":"v1","text":"We have burger boxes.","action":{"type":"none"}}',
+        finishReason: "stop",
+      })),
+    });
+
+    await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      userMessage: "Burger Box",
+    });
+
+    expect(rewriteCalls[0]).toMatchObject({
+      currentUserMessage: "Burger Box",
+      catalogLanguageHints: {
+        primaryCatalogLanguage: "mixed",
+        supportedLanguages: ["ar", "en"],
+        preferredTermPreservation: "mixed",
+      },
+    });
   });
 });

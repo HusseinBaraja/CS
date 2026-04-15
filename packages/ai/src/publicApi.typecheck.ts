@@ -9,6 +9,8 @@ import {
   type ChatProviderAdapter,
   type ChatProviderAttemptFailure,
   type ChatProviderProbeOptions,
+  type ChatResponseFormat,
+  type CreateRetrievalRewriteChatProviderManagerOptions,
   type ChatRequest,
   type ChatResponse,
   type DetectedChatLanguage,
@@ -16,9 +18,12 @@ import {
   type LanguageDetectionResult,
   type LanguageResolutionOptions,
   type ParseAssistantStructuredOutputOptions,
+  type PromptRetrievalMode,
   type PromptHistoryTurn,
   buildGroundedChatPrompt,
   createChatProviderManager,
+  createRetrievalRewriteChatProviderManager,
+  createRetrievalRewriteRuntimeConfig,
   detectChatLanguage,
   parseAssistantStructuredOutput,
   resolveChatResponseLanguage,
@@ -37,6 +42,16 @@ const response: ChatResponse = {
   provider: "deepseek",
   text: "hello",
   finishReason: "stop",
+};
+const responseFormat: ChatResponseFormat = {
+  type: "json_schema",
+  jsonSchema: {
+    name: "rewrite_result",
+    schema: {
+      type: "object",
+    },
+    strict: true,
+  },
 };
 
 const adapter: ChatProviderAdapter = {
@@ -110,12 +125,22 @@ const conversationHistory: PromptHistoryTurn[] = [
     text: "hello",
   },
 ];
+const retrievalMode: PromptRetrievalMode = "primary_rewrite";
 const promptInput: BuildGroundedChatPromptInput = {
   responseLanguage: "en",
   customerMessage: "Need burger boxes",
   groundingContext,
   conversationHistory,
+  retrievalProvenance: {
+    mode: retrievalMode,
+    primarySource: "resolved_query",
+    supportingSources: [],
+    usedAliasCount: 0,
+    convergedOnSharedProducts: false,
+  },
 };
+// @ts-expect-error retrievalMode must not disagree with retrievalProvenance mode.
+const contradictoryPromptInput: BuildGroundedChatPromptInput = { responseLanguage: "en", customerMessage: "Need burger boxes", retrievalMode: "primary_rewrite" as const, retrievalProvenance: { mode: "rewrite_degraded" as const, primarySource: "original_message_fallback" as const, supportingSources: [], usedAliasCount: 0, convergedOnSharedProducts: false } };
 const builtPrompt: BuiltGroundedChatPrompt = buildGroundedChatPrompt(promptInput);
 const structuredOutput: AssistantStructuredOutput = {
   schemaVersion: "v1",
@@ -132,10 +157,16 @@ const parsedStructuredOutput: AssistantStructuredOutput = parseAssistantStructur
   parseOptions,
 );
 
+const rewriteRuntimeConfig = createRetrievalRewriteRuntimeConfig();
+const rewriteManagerOptions: CreateRetrievalRewriteChatProviderManagerOptions = {
+  runtimeConfig: rewriteRuntimeConfig,
+};
 const manager = createChatProviderManager();
+const rewriteManager = createRetrievalRewriteChatProviderManager(rewriteManagerOptions);
 
 void request;
 void response;
+void responseFormat;
 void adapter;
 void callOptions;
 void managerCallOptions;
@@ -149,9 +180,14 @@ void responseLanguage;
 void actionType;
 void groundingContext;
 void conversationHistory;
+void retrievalMode;
 void promptInput;
+void contradictoryPromptInput;
 void builtPrompt;
 void structuredOutput;
 void parseOptions;
 void parsedStructuredOutput;
+void rewriteRuntimeConfig;
+void rewriteManagerOptions;
 void manager;
+void rewriteManager;

@@ -262,6 +262,14 @@ describe("createConvexConversationStore", () => {
       referencedTransportMessageId: "quoted-3",
       limit: 20,
     });
+    await store.getPromptHistorySelectionForInbound({
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      inboundTimestamp: 2_500,
+      currentTransportMessageId: "inbound-2",
+      referencedTransportMessageId: "quoted-3",
+      limit: 20,
+    });
     await store.getOrCreateConversationForInbound("company-1", "967700000001");
     await store.startHandoff({
       companyId: "company-1",
@@ -295,7 +303,7 @@ describe("createConvexConversationStore", () => {
 
     expect(actionCalls).toHaveLength(3);
     expect(mutationCalls).toHaveLength(12);
-    expect(queryCalls).toHaveLength(4);
+    expect(queryCalls).toHaveLength(5);
   });
 
   test("forwards pending assistant lifecycle mutations to Convex", async () => {

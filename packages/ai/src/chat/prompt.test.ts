@@ -29,7 +29,45 @@ describe("buildGroundedChatPrompt", () => {
     });
 
     expect(prompt.systemPrompt).toContain("Ask a short clarification question instead of guessing");
+    expect(prompt.systemPrompt).toContain("If retrieval mode is rewrite_degraded");
     expect(prompt.systemPrompt).toContain("Use the handoff action only when the customer explicitly asks for a human or you cannot help safely");
+  });
+
+  test("includes retrieval provenance in the user prompt", () => {
+    const prompt = buildGroundedChatPrompt({
+      responseLanguage: "en",
+      customerMessage: "Do you have burger boxes?",
+      retrievalMode: "rewrite_degraded",
+    });
+
+    expect(prompt.userPrompt).toContain("<RETRIEVAL_PROVENANCE>");
+    expect(prompt.userPrompt).toContain("<MODE>rewrite_degraded</MODE>");
+    expect(prompt.userPrompt).toContain("<PRIMARY_SOURCE>original_message_fallback</PRIMARY_SOURCE>");
+    expect(prompt.userPrompt).toContain("<SUPPORTING_SOURCES>NONE</SUPPORTING_SOURCES>");
+    expect(prompt.userPrompt).toContain("<USED_ALIAS_COUNT>0</USED_ALIAS_COUNT>");
+    expect(prompt.userPrompt).toContain("<CONVERGED_ON_SHARED_PRODUCTS>false</CONVERGED_ON_SHARED_PRODUCTS>");
+  });
+
+  test("renders expanded retrieval provenance when provided", () => {
+    const prompt = buildGroundedChatPrompt({
+      responseLanguage: "en",
+      customerMessage: "How much is this one?",
+      retrievalProvenance: {
+        mode: "rewrite_degraded",
+        primarySource: "quoted_message_fallback",
+        supportingSources: ["original_message_fallback"],
+        usedAliasCount: 0,
+        convergedOnSharedProducts: true,
+      },
+    });
+
+    expect(prompt.userPrompt).toContain("<MODE>rewrite_degraded</MODE>");
+    expect(prompt.userPrompt).toContain("<PRIMARY_SOURCE>quoted_message_fallback</PRIMARY_SOURCE>");
+    expect(prompt.userPrompt).toContain(
+      "<SUPPORTING_SOURCES>original_message_fallback</SUPPORTING_SOURCES>",
+    );
+    expect(prompt.userPrompt).toContain("<USED_ALIAS_COUNT>0</USED_ALIAS_COUNT>");
+    expect(prompt.userPrompt).toContain("<CONVERGED_ON_SHARED_PRODUCTS>true</CONVERGED_ON_SHARED_PRODUCTS>");
   });
 
   test("includes the JSON contract and default allowed actions", () => {

@@ -19,6 +19,8 @@ export type ChatRuntimeConfig = {
   };
 };
 
+export type RetrievalRewriteRuntimeConfig = ChatRuntimeConfig;
+
 const CHAT_PROVIDER_NAMES = ["deepseek", "gemini", "groq"] as const;
 const CHAT_PROVIDER_NAME_SET = new Set<ChatProviderName>(CHAT_PROVIDER_NAMES);
 
@@ -90,6 +92,24 @@ const getProviderOverride = (
 ): Partial<ChatProviderRuntimeConfig> =>
   overrides.providers?.[provider] ?? {};
 
+const createEnvProviderConfig = (): ChatRuntimeConfig["providers"] => ({
+  deepseek: {
+    apiKey: env.DEEPSEEK_API_KEY,
+    model: env.DEEPSEEK_CHAT_MODEL,
+    baseUrl: env.DEEPSEEK_BASE_URL,
+  },
+  gemini: {
+    apiKey: env.GEMINI_API_KEY,
+    model: env.GEMINI_CHAT_MODEL,
+    baseUrl: undefined,
+  },
+  groq: {
+    apiKey: env.GROQ_API_KEY,
+    model: env.GROQ_CHAT_MODEL,
+    baseUrl: undefined,
+  },
+});
+
 const resolveProviderConfig = (
   overrides: Partial<ChatRuntimeConfig>,
   provider: ChatProviderName,
@@ -98,26 +118,7 @@ const resolveProviderConfig = (
   const hasApiKeyOverride = hasOwn(providerOverrides, "apiKey");
   const hasModelOverride = hasOwn(providerOverrides, "model");
   const hasBaseUrlOverride = hasOwn(providerOverrides, "baseUrl");
-
-  const envConfig = {
-    deepseek: {
-      apiKey: env.DEEPSEEK_API_KEY,
-      model: env.DEEPSEEK_CHAT_MODEL,
-      baseUrl: env.DEEPSEEK_BASE_URL,
-    },
-    gemini: {
-      apiKey: env.GEMINI_API_KEY,
-      model: env.GEMINI_CHAT_MODEL,
-      baseUrl: undefined,
-    },
-    groq: {
-      apiKey: env.GROQ_API_KEY,
-      model: env.GROQ_CHAT_MODEL,
-      baseUrl: undefined,
-    },
-  } satisfies ChatRuntimeConfig["providers"];
-
-  const providerEnvConfig = envConfig[provider];
+  const providerEnvConfig = createEnvProviderConfig()[provider];
 
   return {
     apiKey: normalizeOptionalSecret(
@@ -155,5 +156,77 @@ export const createChatRuntimeConfig = (
     deepseek: resolveProviderConfig(overrides, "deepseek"),
     gemini: resolveProviderConfig(overrides, "gemini"),
     groq: resolveProviderConfig(overrides, "groq"),
+  },
+});
+
+const getRetrievalRewriteProviderModelOverride = (
+  provider: ChatProviderName,
+): string | undefined => {
+  switch (provider) {
+    case "deepseek":
+      return env.DEEPSEEK_RETRIEVAL_REWRITE_MODEL;
+    case "gemini":
+      return env.GEMINI_RETRIEVAL_REWRITE_MODEL;
+    case "groq":
+      return env.GROQ_RETRIEVAL_REWRITE_MODEL;
+  }
+};
+
+const resolveRetrievalRewriteProviderConfig = (
+  overrides: Partial<RetrievalRewriteRuntimeConfig>,
+  baseConfig: ChatRuntimeConfig,
+  provider: ChatProviderName,
+): ChatProviderRuntimeConfig => {
+  const providerOverrides = getProviderOverride(overrides, provider);
+  const hasApiKeyOverride = hasOwn(providerOverrides, "apiKey");
+  const hasModelOverride = hasOwn(providerOverrides, "model");
+  const hasBaseUrlOverride = hasOwn(providerOverrides, "baseUrl");
+  const baseProviderConfig = baseConfig.providers[provider];
+
+  return {
+    apiKey: normalizeOptionalSecret(
+      hasApiKeyOverride ? providerOverrides.apiKey as string | undefined : baseProviderConfig.apiKey,
+    ),
+    model: normalizeOptionalSecret(
+      hasModelOverride
+        ? providerOverrides.model as string | undefined
+        : getRetrievalRewriteProviderModelOverride(provider) ?? baseProviderConfig.model,
+    ),
+    baseUrl: assertValidBaseUrl(
+      `RetrievalRewriteRuntimeConfig.providers.${provider}.baseUrl`,
+      hasBaseUrlOverride
+        ? providerOverrides.baseUrl as string | undefined
+        : baseProviderConfig.baseUrl,
+    ),
+  };
+};
+
+export const createRetrievalRewriteRuntimeConfig = (
+  overrides: Partial<RetrievalRewriteRuntimeConfig> = {},
+  baseConfig: ChatRuntimeConfig = createChatRuntimeConfig(),
+): RetrievalRewriteRuntimeConfig => ({
+  providerOrder: assertValidProviderOrder(
+    overrides.providerOrder
+      ?? env.AI_RETRIEVAL_REWRITE_PROVIDER_ORDER
+      ?? baseConfig.providerOrder,
+  ),
+  requestTimeoutMs: assertPositiveInteger(
+    "RetrievalRewriteRuntimeConfig.requestTimeoutMs",
+    overrides.requestTimeoutMs
+      ?? env.AI_RETRIEVAL_REWRITE_TIMEOUT_MS
+      ?? baseConfig.requestTimeoutMs,
+  ),
+  healthcheckTimeoutMs: assertPositiveInteger(
+    "RetrievalRewriteRuntimeConfig.healthcheckTimeoutMs",
+    overrides.healthcheckTimeoutMs ?? baseConfig.healthcheckTimeoutMs,
+  ),
+  maxRetriesPerProvider: assertNonNegativeInteger(
+    "RetrievalRewriteRuntimeConfig.maxRetriesPerProvider",
+    overrides.maxRetriesPerProvider ?? baseConfig.maxRetriesPerProvider,
+  ),
+  providers: {
+    deepseek: resolveRetrievalRewriteProviderConfig(overrides, baseConfig, "deepseek"),
+    gemini: resolveRetrievalRewriteProviderConfig(overrides, baseConfig, "gemini"),
+    groq: resolveRetrievalRewriteProviderConfig(overrides, baseConfig, "groq"),
   },
 });

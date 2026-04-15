@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { env } from '@cs/config';
-import { createChatRuntimeConfig } from '@cs/ai';
+import {
+  createChatRuntimeConfig,
+  createRetrievalRewriteRuntimeConfig,
+} from '@cs/ai';
 
 describe("createChatRuntimeConfig", () => {
   test("defaults come from env-backed config", () => {
@@ -101,5 +104,96 @@ describe("createChatRuntimeConfig", () => {
     ).toThrow(
       "Invalid ChatRuntimeConfig.providers.deepseek.baseUrl: expected a valid URL, received not-a-url",
     );
+  });
+});
+
+describe("createRetrievalRewriteRuntimeConfig", () => {
+  test("inherits the general chat runtime config when no rewrite overrides are provided", () => {
+    const baseConfig = createChatRuntimeConfig({
+      providerOrder: ["deepseek", "gemini"],
+      requestTimeoutMs: 12_000,
+      healthcheckTimeoutMs: 3_000,
+      maxRetriesPerProvider: 2,
+      providers: {
+        deepseek: {
+          apiKey: "deepseek-key",
+          model: "deepseek-chat",
+          baseUrl: "https://api.deepseek.example/v1",
+        },
+        gemini: {
+          apiKey: "gemini-key",
+          model: "gemini-2.0-flash",
+        },
+        groq: {
+          apiKey: "groq-key",
+          model: "llama-3.3-70b-versatile",
+        },
+      },
+    });
+
+    expect(createRetrievalRewriteRuntimeConfig({}, baseConfig)).toEqual(baseConfig);
+  });
+
+  test("lets rewrite-specific overrides diverge from the answer-model defaults", () => {
+    const baseConfig = createChatRuntimeConfig({
+      providerOrder: ["deepseek", "gemini", "groq"],
+      requestTimeoutMs: 12_000,
+      healthcheckTimeoutMs: 3_000,
+      maxRetriesPerProvider: 2,
+      providers: {
+        deepseek: {
+          apiKey: "deepseek-key",
+          model: "deepseek-chat",
+          baseUrl: "https://api.deepseek.example/v1",
+        },
+        gemini: {
+          apiKey: "gemini-key",
+          model: "gemini-2.0-flash",
+        },
+        groq: {
+          apiKey: "groq-key",
+          model: "llama-3.3-70b-versatile",
+        },
+      },
+    });
+
+    const config = createRetrievalRewriteRuntimeConfig(
+      {
+        providerOrder: ["gemini", "groq"],
+        requestTimeoutMs: 4_000,
+        providers: {
+          deepseek: {
+            model: "deepseek-rewrite",
+          },
+          gemini: {
+            model: "gemini-rewrite",
+          },
+          groq: {
+            model: "groq-rewrite",
+          },
+        },
+      },
+      baseConfig,
+    );
+
+    expect(config.providerOrder).toEqual(["gemini", "groq"]);
+    expect(config.requestTimeoutMs).toBe(4_000);
+    expect(config.healthcheckTimeoutMs).toBe(baseConfig.healthcheckTimeoutMs);
+    expect(config.maxRetriesPerProvider).toBe(baseConfig.maxRetriesPerProvider);
+    expect(config.providers.deepseek).toEqual({
+      apiKey: "deepseek-key",
+      model: "deepseek-rewrite",
+      baseUrl: "https://api.deepseek.example/v1",
+    });
+    expect(config.providers.gemini).toEqual({
+      apiKey: "gemini-key",
+      model: "gemini-rewrite",
+      baseUrl: undefined,
+    });
+    expect(config.providers.groq).toEqual({
+      apiKey: "groq-key",
+      model: "groq-rewrite",
+      baseUrl: undefined,
+    });
   });
 });

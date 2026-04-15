@@ -21,7 +21,12 @@ import {
   createChatProviderError,
 } from './errors';
 import { normalizeChatRequest } from './normalize';
-import { type ChatRuntimeConfig, createChatRuntimeConfig } from './runtimeConfig';
+import {
+  type ChatRuntimeConfig,
+  createChatRuntimeConfig,
+  createRetrievalRewriteRuntimeConfig,
+  type RetrievalRewriteRuntimeConfig,
+} from './runtimeConfig';
 
 export type ChatManagerLogger = StructuredLogger;
 
@@ -75,6 +80,11 @@ export interface CreateChatProviderManagerOptions {
   runtimeConfig?: ChatRuntimeConfig | (() => ChatRuntimeConfig);
   resolveAdapter?: ChatProviderAdapterResolver;
   logger?: ChatManagerLogger;
+}
+
+export interface CreateRetrievalRewriteChatProviderManagerOptions
+  extends Omit<CreateChatProviderManagerOptions, "runtimeConfig"> {
+  runtimeConfig?: RetrievalRewriteRuntimeConfig | (() => RetrievalRewriteRuntimeConfig);
 }
 
 const getChainErrorCode = (
@@ -519,3 +529,11 @@ export const createChatProviderManager = (
     },
   };
 };
+
+export const createRetrievalRewriteChatProviderManager = (
+  options: CreateRetrievalRewriteChatProviderManagerOptions = {},
+): ChatProviderManager =>
+  createChatProviderManager({
+    ...options,
+    runtimeConfig: options.runtimeConfig ?? createRetrievalRewriteRuntimeConfig,
+  });

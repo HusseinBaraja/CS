@@ -3,6 +3,7 @@ import { enqueueCleanupJobInMutation } from './mediaCleanup';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalAction, internalMutation, internalQuery, type MutationCtx } from './_generated/server';
+import { refreshCompanyCatalogLanguageHintsInMutation } from './catalogLanguageHints';
 import {
   buildProductEmbeddingPayload,
   mapProductDocToEmbeddingState,
@@ -870,6 +871,7 @@ export const insertProductWithEmbeddings = internalMutation({
       englishText: args.englishText,
       arabicText: args.arabicText,
     });
+    await refreshCompanyCatalogLanguageHintsInMutation(ctx, args.companyId);
 
     const product = await ctx.db.get(productId);
     if (!product) {
@@ -924,6 +926,7 @@ export const patchProductWithEmbeddings = internalMutation({
     const embeddingReplacementArgs = getEmbeddingReplacementArgs(args);
     if (embeddingReplacementArgs) {
       await replaceProductEmbeddingsInMutation(ctx, embeddingReplacementArgs);
+      await refreshCompanyCatalogLanguageHintsInMutation(ctx, args.companyId);
     }
 
     const updatedProduct = await ctx.db.get(args.productId);
@@ -1333,6 +1336,7 @@ export const remove = internalMutation({
     }
 
     await ctx.db.delete(args.productId);
+    await refreshCompanyCatalogLanguageHintsInMutation(ctx, args.companyId);
 
     return {
       productId: args.productId,

@@ -1,8 +1,10 @@
 import { v } from 'convex/values';
+import { UNKNOWN_CATALOG_LANGUAGE_HINTS, type CatalogLanguageHints } from '@cs/shared';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalAction, internalMutation, type MutationCtx, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
 import { type CleanupBatchResult, type CleanupCounts, type CleanupCursor, createEmptyCleanupCounts } from './companyCleanup';
+import { getCompanyCatalogLanguageHints } from './catalogLanguageHints';
 
 const configValue = v.union(v.string(), v.number(), v.boolean());
 const companyConfig = v.record(v.string(), configValue);
@@ -91,6 +93,14 @@ export const get = internalQuery({
   },
 });
 
+export const getCatalogLanguageHints = internalQuery({
+  args: {
+    companyId: v.id("companies"),
+  },
+  handler: async (ctx, args): Promise<CatalogLanguageHints | null> =>
+    getCompanyCatalogLanguageHints(ctx, args.companyId),
+});
+
 export const create = internalMutation({
   args: {
     name: v.string(),
@@ -109,6 +119,7 @@ export const create = internalMutation({
       name,
       ownerPhone,
       ...(timezone ? { timezone } : {}),
+      catalogLanguageHints: UNKNOWN_CATALOG_LANGUAGE_HINTS,
       ...(args.config ? { config: args.config } : {}),
     });
 

@@ -21,18 +21,42 @@ export interface GroundingContextBlock {
   body: string;
 }
 
+export type PromptRetrievalMode = "primary_rewrite" | "rewrite_degraded";
+export type PromptRetrievalQuerySource =
+  | "resolved_query"
+  | "search_alias"
+  | "original_message_fallback"
+  | "quoted_message_fallback";
+
+export interface PromptRetrievalProvenance {
+  mode: PromptRetrievalMode;
+  primarySource: PromptRetrievalQuerySource;
+  supportingSources: PromptRetrievalQuerySource[];
+  usedAliasCount: number;
+  convergedOnSharedProducts: boolean;
+}
+
 export interface PromptHistoryTurn {
   role: "user" | "assistant";
   text: string;
 }
 
-export interface BuildGroundedChatPromptInput {
+export type BuildGroundedChatPromptInput = {
   responseLanguage: ChatLanguage;
   customerMessage: string;
   conversationHistory?: PromptHistoryTurn[];
   groundingContext?: GroundingContextBlock[];
   allowedActions?: readonly AssistantActionType[];
-}
+} & (
+  | {
+    retrievalMode?: PromptRetrievalMode;
+    retrievalProvenance?: undefined;
+  }
+  | {
+    retrievalMode?: never;
+    retrievalProvenance: PromptRetrievalProvenance;
+  }
+);
 
 export interface BuiltGroundedChatPrompt {
   systemPrompt: string;

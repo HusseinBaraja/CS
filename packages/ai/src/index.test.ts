@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import {
   buildGroundedChatPrompt,
   createChatProviderManager,
+  createRetrievalRewriteChatProviderManager,
+  createRetrievalRewriteRuntimeConfig,
   detectChatLanguage,
   getAllowedActions,
   getChatProviderAdapter,
@@ -18,6 +20,8 @@ describe("@cs/ai public API", () => {
 
   test("exports createChatProviderManager", () => {
     expect(typeof createChatProviderManager).toBe("function");
+    expect(typeof createRetrievalRewriteChatProviderManager).toBe("function");
+    expect(typeof createRetrievalRewriteRuntimeConfig).toBe("function");
   });
 
   test("exports language policy helpers", () => {

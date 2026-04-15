@@ -1,4 +1,5 @@
 import type { PromptHistoryTurn } from '@cs/ai';
+import type { CatalogChatConversationHistorySelection } from '@cs/rag';
 import type {
   AnalyticsEventType,
   ConversationMessageDto,
@@ -8,6 +9,11 @@ import type {
 import { convexInternal, createConvexAdminClient, type ConvexAdminClient, type Id } from '@cs/db';
 export type ConversationRecord = ConversationStateDto;
 export type ConversationMessageRecord = ConversationMessageDto;
+
+export interface PromptHistorySelectionResult {
+  history: PromptHistoryTurn[];
+  historySelection: CatalogChatConversationHistorySelection;
+}
 
 export interface AppendConversationMessageInput {
   companyId: string;
@@ -118,6 +124,14 @@ export interface ConversationStore {
   }): Promise<ConversationRecord>;
   getConversation(input: { companyId: string; conversationId: string }): Promise<ConversationRecord>;
   getPromptHistory(input: { companyId: string; conversationId: string; limit: number }): Promise<PromptHistoryTurn[]>;
+  getPromptHistorySelectionForInbound(input: {
+    companyId: string;
+    conversationId: string;
+    inboundTimestamp: number;
+    currentTransportMessageId?: string;
+    referencedTransportMessageId?: string;
+    limit: number;
+  }): Promise<PromptHistorySelectionResult>;
   getPromptHistoryForInbound(input: {
     companyId: string;
     conversationId: string;
@@ -380,6 +394,19 @@ export const createConvexConversationStore = (
           companyId: toCompanyId(input.companyId),
           conversationId: toConversationId(input.conversationId),
           limit: input.limit,
+        })
+      ),
+    getPromptHistorySelectionForInbound: (input) =>
+      withClient((client) =>
+        client.query(convexInternal.conversations.getPromptHistorySelectionForInbound, {
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
+          inboundTimestamp: input.inboundTimestamp,
+          limit: input.limit,
+          ...(input.currentTransportMessageId ? { currentTransportMessageId: input.currentTransportMessageId } : {}),
+          ...(input.referencedTransportMessageId
+            ? { referencedTransportMessageId: input.referencedTransportMessageId }
+            : {}),
         })
       ),
     getPromptHistoryForInbound: (input) =>

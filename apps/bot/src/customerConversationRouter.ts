@@ -107,7 +107,7 @@ export const createCustomerConversationRouter = (
 
     const userMessage = serializeInboundMessage(message);
     let conversationId: string;
-    let history: Awaited<ReturnType<ConversationStore["getPromptHistoryForInbound"]>>;
+    let promptHistorySelection: Awaited<ReturnType<ConversationStore["getPromptHistorySelectionForInbound"]>>;
     try {
       const inboundAppend = await options.conversationStore.appendInboundCustomerMessage({
         companyId: message.companyId,
@@ -162,7 +162,7 @@ export const createCustomerConversationRouter = (
         "customer conversation inbound message recorded",
       );
 
-      history = await options.conversationStore.getPromptHistoryForInbound({
+      promptHistorySelection = await options.conversationStore.getPromptHistorySelectionForInbound({
         companyId: message.companyId,
         conversationId,
         inboundTimestamp: message.occurredAtMs,
@@ -201,7 +201,8 @@ export const createCustomerConversationRouter = (
         },
         conversation: {
           conversationId,
-          history,
+          history: promptHistorySelection.history,
+          historySelection: promptHistorySelection.historySelection,
         },
         logger: routeLogger,
         requestId: message.messageId,

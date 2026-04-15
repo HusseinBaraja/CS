@@ -86,4 +86,29 @@ describe("groqChatProviderAdapter", () => {
       },
     });
   });
+
+  test("fails over when structured output is requested on an unsupported provider", async () => {
+    await expect(
+      groqChatProviderAdapter.chat(
+        {
+          ...request,
+          responseFormat: {
+            type: "json_schema",
+            jsonSchema: {
+              name: "rewrite_result",
+              schema: {
+                type: "object",
+              },
+              strict: true,
+            },
+          },
+        },
+        config,
+      ),
+    ).rejects.toMatchObject({
+      kind: "response_format",
+      disposition: "failover_provider",
+      retryable: false,
+    });
+  });
 });

@@ -3,6 +3,7 @@ import { ERROR_CODES } from '@cs/shared';
 import type { ChatProviderHealth, ChatProviderName, ChatRequest, ChatResponse, ChatRuntimeConfig } from '../index';
 import { createChatProviderError } from './errors';
 import {
+  createRetrievalRewriteChatProviderManager,
   type ChatManagerLogger,
   type ChatProviderAdapterResolver,
   ChatProviderChainError,
@@ -433,6 +434,54 @@ describe("createChatProviderManager", () => {
       code: ERROR_CODES.AI_TIMEOUT,
       terminalDisposition: "provider_chain_exhausted",
     });
+  });
+
+  test("fails over when a provider cannot satisfy a structured response format", async () => {
+    const calls: Array<{ provider: ChatProviderName; kind: "chat" | "healthCheck" }> = [];
+    const manager = createChatProviderManager({
+      runtimeConfig,
+      resolveAdapter: createResolver(
+        {
+          deepseek: {
+            async chat() {
+              throw createChatProviderError({
+                provider: "deepseek",
+                kind: "response_format",
+                message: "DeepSeek does not support responseFormat",
+                disposition: "failover_provider",
+                retryable: false,
+              });
+            },
+          },
+          gemini: {
+            async chat() {
+              return createResponse("gemini", "gemini-rewrite", '{"value":"ok"}');
+            },
+          },
+        },
+        calls,
+      ),
+    });
+
+    const response = await manager.chat({
+      ...request,
+      responseFormat: {
+        type: "json_schema",
+        jsonSchema: {
+          name: "rewrite_result",
+          schema: {
+            type: "object",
+          },
+          strict: true,
+        },
+      },
+    });
+
+    expect(response).toEqual(createResponse("gemini", "gemini-rewrite", '{"value":"ok"}'));
+    expect(calls).toEqual([
+      { provider: "deepseek", kind: "chat" },
+      { provider: "gemini", kind: "chat" },
+    ]);
   });
 
   test("preserves failure order and details on the chain error", async () => {
@@ -1068,5 +1117,51 @@ describe("createChatProviderManager", () => {
     ).rejects.toThrow(
       'Unknown AI provider "invalid". Expected one of: deepseek, gemini, groq',
     );
+  });
+
+  test("creates a rewrite-specific manager that honors rewrite runtime config", async () => {
+    const calls: ChatProviderName[] = [];
+    const manager = createRetrievalRewriteChatProviderManager({
+      runtimeConfig: {
+        ...runtimeConfig,
+        providerOrder: ["groq", "gemini"],
+        providers: {
+          ...runtimeConfig.providers,
+          gemini: {
+            ...runtimeConfig.providers.gemini,
+            model: "gemini-rewrite",
+          },
+          groq: {
+            ...runtimeConfig.providers.groq,
+            model: "groq-rewrite",
+          },
+        },
+      },
+      resolveAdapter: (provider) => ({
+        provider,
+        async chat(_normalizedRequest, config) {
+          calls.push(provider);
+
+          return {
+            provider,
+            model: config.model,
+            text: "rewritten query",
+            finishReason: "stop",
+          };
+        },
+        async healthCheck() {
+          return {
+            provider,
+            ok: true,
+            model: runtimeConfig.providers[provider].model,
+          };
+        },
+      }),
+    });
+
+    const response = await manager.chat(request);
+
+    expect(calls).toEqual(["groq"]);
+    expect(response.model).toBe("groq-rewrite");
   });
 });

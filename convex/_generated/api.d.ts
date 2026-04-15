@@ -9,6 +9,7 @@
  */
 
 import type * as analytics from "../analytics.js";
+import type * as catalogLanguageHints from "../catalogLanguageHints.js";
 import type * as categories from "../categories.js";
 import type * as companies from "../companies.js";
 import type * as companyCleanup from "../companyCleanup.js";
@@ -34,6 +35,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
+  catalogLanguageHints: typeof catalogLanguageHints;
   categories: typeof categories;
   companies: typeof companies;
   companyCleanup: typeof companyCleanup;

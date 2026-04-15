@@ -15,6 +15,7 @@ import {
 } from './shared';
 import { createChatProviderError } from '../errors';
 import { createGeminiClient } from '../../gemini/clientFactory';
+import { getChatResponseFormatCapability } from '../structuredOutputCapabilities';
 
 const PROVIDER = "gemini" as const;
 
@@ -71,6 +72,17 @@ const runChatRequest = async (
   const models = client.models;
   const payload = assertGeminiRequest(request);
 
+  if (getChatResponseFormatCapability(PROVIDER, request.responseFormat) === "unsupported") {
+    throw createChatProviderError({
+      provider: PROVIDER,
+      kind: "response_format",
+      message: `${PROVIDER} does not support structured responseFormat requests`,
+      disposition: "failover_provider",
+      retryable: false,
+      model: config.model,
+    });
+  }
+
   if (!models.generateContent) {
     throw createChatProviderError({
       provider: PROVIDER,
@@ -99,6 +111,12 @@ const runChatRequest = async (
           ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
           ...(request.maxOutputTokens !== undefined ? { maxOutputTokens: request.maxOutputTokens } : {}),
           ...(request.stopSequences !== undefined ? { stopSequences: request.stopSequences } : {}),
+          ...(request.responseFormat?.type === "json_schema"
+            ? {
+              responseMimeType: "application/json",
+              responseSchema: request.responseFormat.jsonSchema.schema,
+            }
+            : {}),
         },
         abortSignal: signal,
       });
