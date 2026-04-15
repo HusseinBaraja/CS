@@ -107,4 +107,35 @@ describe("summarizePromptRetrievalProvenance", () => {
       convergedOnSharedProducts: true,
     });
   });
+
+  test("treats a zero prompt candidate count as the default candidate window", () => {
+    const summary = summarizePromptRetrievalProvenance({
+      mode: "primary_rewrite",
+      promptCandidateCount: 0,
+      candidates: [
+        {
+          queryProvenance: [
+            {
+              query: "Burger Box",
+              source: "resolved_query",
+              score: 0.92,
+            },
+            {
+              query: "Burger food container",
+              source: "search_alias",
+              score: 0.9,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(summary).toEqual({
+      mode: "primary_rewrite",
+      primarySource: "resolved_query",
+      supportingSources: ["search_alias"],
+      usedAliasCount: 1,
+      convergedOnSharedProducts: true,
+    });
+  });
 });
