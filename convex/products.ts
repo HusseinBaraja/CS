@@ -926,8 +926,8 @@ export const patchProductWithEmbeddings = internalMutation({
     const embeddingReplacementArgs = getEmbeddingReplacementArgs(args);
     if (embeddingReplacementArgs) {
       await replaceProductEmbeddingsInMutation(ctx, embeddingReplacementArgs);
+      await refreshCompanyCatalogLanguageHintsInMutation(ctx, args.companyId);
     }
-    await refreshCompanyCatalogLanguageHintsInMutation(ctx, args.companyId);
 
     const updatedProduct = await ctx.db.get(args.productId);
     if (!updatedProduct) {

@@ -453,11 +453,17 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
 
   it("updates non-embedding fields without replacing embeddings", async () => {
     const t = convexTest(schema, modules);
+    const originalCatalogLanguageHints = {
+      primaryCatalogLanguage: "unknown" as const,
+      supportedLanguages: [] as Array<"ar" | "en">,
+      preferredTermPreservation: "user_language" as const,
+    };
 
     const { companyId, productId } = await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", {
         name: "Tenant",
         ownerPhone: "966500000610",
+        catalogLanguageHints: originalCatalogLanguageHints,
       });
       const categoryId = await ctx.db.insert("categories", {
         companyId,
@@ -519,6 +525,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(embeddingsAfter.map((embedding) => embedding.textContent)).toEqual(
       embeddingsBefore.map((embedding) => embedding.textContent),
     );
+    expect(storedProduct?.companyId).toBe(companyId);
+    const storedCompany = await t.run(async (ctx) => ctx.db.get(companyId));
+    expect(storedCompany?.catalogLanguageHints).toEqual(originalCatalogLanguageHints);
   });
 
   it("creates a variant, preserves nested attributes, and replaces embeddings with variant content", async () => {
