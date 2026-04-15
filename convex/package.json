@@ -6,7 +6,7 @@
     "test": "vitest run",
     "test:watch": "vitest watch",
     "typecheck": "tsc --noEmit",
-    "lint": "bun x oxlint",
+    "lint": "bun run typecheck",
     "check": "bun run typecheck && bun run lint"
   },
   "dependencies": {
