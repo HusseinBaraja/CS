@@ -741,9 +741,7 @@ export const createCatalogChatOrchestrator = (
 ): CatalogChatOrchestrator => {
   const retrievalService = options.retrievalService ?? createProductRetrievalService();
   const chatManager = options.chatManager ?? createChatProviderManager();
-  const rewriteService = options.rewriteService ?? createRetrievalRewriteService({
-    chatManager,
-  });
+  const rewriteService = options.rewriteService ?? createRetrievalRewriteService();
   const catalogLanguageHintsService = options.catalogLanguageHintsService ?? createCatalogLanguageHintsService();
   const detectLanguage = options.detectLanguage ?? detectChatLanguage;
   const buildPrompt = options.buildPrompt ?? buildGroundedChatPrompt;
