@@ -436,23 +436,12 @@ describe("createChatProviderManager", () => {
     });
   });
 
-  test("fails over when a provider cannot satisfy a structured response format", async () => {
+  test("skips unsupported providers when a structured response format is requested", async () => {
     const calls: Array<{ provider: ChatProviderName; kind: "chat" | "healthCheck" }> = [];
     const manager = createChatProviderManager({
       runtimeConfig,
       resolveAdapter: createResolver(
         {
-          deepseek: {
-            async chat() {
-              throw createChatProviderError({
-                provider: "deepseek",
-                kind: "response_format",
-                message: "DeepSeek does not support responseFormat",
-                disposition: "failover_provider",
-                retryable: false,
-              });
-            },
-          },
           gemini: {
             async chat() {
               return createResponse("gemini", "gemini-rewrite", '{"value":"ok"}');
@@ -479,7 +468,6 @@ describe("createChatProviderManager", () => {
 
     expect(response).toEqual(createResponse("gemini", "gemini-rewrite", '{"value":"ok"}'));
     expect(calls).toEqual([
-      { provider: "deepseek", kind: "chat" },
       { provider: "gemini", kind: "chat" },
     ]);
   });

@@ -7,6 +7,28 @@ import { createPendingAssistantReconciliationProcessor } from './pendingAssistan
 type MediaCleanupProcessor = ReturnType<typeof createMediaCleanupProcessor>;
 type ConversationAutoResumeProcessor = ReturnType<typeof createConversationAutoResumeProcessor>;
 type PendingAssistantReconciliationProcessor = ReturnType<typeof createPendingAssistantReconciliationProcessor>;
+type RetryableErrorLike = Error & { code?: unknown };
+
+const WORKER_STARTUP_RETRY_DELAYS_MS = [250, 500, 1_000] as const;
+const TRANSIENT_STARTUP_ERROR_CODES = new Set(["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN"]);
+
+const isTransientStartupError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const errorWithCode = error as RetryableErrorLike;
+  if (typeof errorWithCode.code === "string" && TRANSIENT_STARTUP_ERROR_CODES.has(errorWithCode.code)) {
+    return true;
+  }
+
+  return error.message.includes("The socket connection was closed unexpectedly");
+};
+
+const sleep = (delayMs: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
 
 interface WorkerProcess {
   exitCode?: number;
@@ -32,9 +54,41 @@ export const startWorker = async (options: StartWorkerOptions = {}): Promise<voi
     (options.createPendingAssistantReconciliationProcessor ?? createPendingAssistantReconciliationProcessor)();
   const mediaCleanup = (options.createMediaCleanupProcessor ?? createMediaCleanupProcessor)();
 
-  await conversationAutoResume.runTick();
-  await pendingAssistantReconciliation.runTick();
-  await mediaCleanup.runTick();
+  const runStartupTickWithRetry = async (tickName: string, runTick: () => Promise<unknown>) => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await runTick();
+        return;
+      } catch (error) {
+        const retryDelayMs = WORKER_STARTUP_RETRY_DELAYS_MS[attempt];
+        if (!isTransientStartupError(error) || retryDelayMs === undefined) {
+          throw error;
+        }
+
+        logEvent(
+          workerLogger,
+          "warn",
+          {
+            event: "worker.startup.retry_scheduled",
+            runtime: "worker",
+            surface: "lifecycle",
+            outcome: "retrying",
+            tickName,
+            attempt: attempt + 1,
+            retryDelayMs,
+            error: serializeErrorForLog(error),
+          },
+          "worker startup tick failed; retrying",
+        );
+
+        await sleep(retryDelayMs);
+      }
+    }
+  };
+
+  await runStartupTickWithRetry("conversationAutoResume", conversationAutoResume.runTick);
+  await runStartupTickWithRetry("pendingAssistantReconciliation", pendingAssistantReconciliation.runTick);
+  await runStartupTickWithRetry("mediaCleanup", mediaCleanup.runTick);
   logEvent(
     workerLogger,
     "info",

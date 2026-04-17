@@ -21,6 +21,7 @@ import {
   createChatProviderError,
 } from './errors';
 import { normalizeChatRequest } from './normalize';
+import { getChatProviderOrderForRequest } from './providerOrder';
 import {
   type ChatRuntimeConfig,
   createChatRuntimeConfig,
@@ -326,6 +327,7 @@ export const createChatProviderManager = (
       throwIfAborted(callOptions.signal);
       const runtimeConfig = resolveRuntimeConfig();
       throwIfAborted(callOptions.signal);
+      const providerOrder = getChatProviderOrderForRequest(runtimeConfig, normalizedRequest);
       const eventLogger = createEventLogger(
         logger,
         callOptions.logger,
@@ -335,10 +337,8 @@ export const createChatProviderManager = (
 
       const startedAt = Date.now();
       const failures: ChatProviderAttemptFailure[] = [];
-
-      for (const [index, provider] of runtimeConfig.providerOrder.entries()) {
+      for (const [index, provider] of providerOrder.entries()) {
         throwIfAborted(callOptions.signal);
-
         const providerConfig = runtimeConfig.providers[provider];
 
         try {
@@ -383,7 +383,7 @@ export const createChatProviderManager = (
           const failure = normalizeAttemptFailure(providerError, providerConfig.model);
           failures.push(failure);
 
-          const nextProvider = runtimeConfig.providerOrder[index + 1];
+          const nextProvider = providerOrder[index + 1];
           const willFailOver =
             providerError.disposition !== "do_not_retry" && nextProvider !== undefined;
 

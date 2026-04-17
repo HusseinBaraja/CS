@@ -59,6 +59,62 @@ const createProcessStub = () => {
 };
 
 describe("startWorker", () => {
+  test("retries transient startup tick failures before succeeding", async () => {
+    const { logger, infoCalls, errorCalls } = createLoggerStub();
+    const { process } = createProcessStub();
+    let autoResumeAttempts = 0;
+
+    await startWorker({
+      logger,
+      workerProcess: process,
+      createConversationAutoResumeProcessor: () => ({
+        runTick: async () => {
+          autoResumeAttempts += 1;
+          if (autoResumeAttempts === 1) {
+            throw new Error("The socket connection was closed unexpectedly");
+          }
+
+          return {
+            resumedCount: 0,
+            skippedCount: 0,
+            failedCount: 0,
+          };
+        },
+        start: () => () => undefined,
+      }),
+      createPendingAssistantReconciliationProcessor: () => ({
+        runTick: async () => ({
+          reconciledCount: 0,
+          skippedCount: 0,
+          failedCount: 0,
+        }),
+        start: () => () => undefined,
+      }),
+      createMediaCleanupProcessor: () => ({
+        runTick: async () => ({
+          expiredUploadCount: 0,
+          completedJobs: 0,
+          retriedJobs: 0,
+          failedJobs: 0,
+          skippedJobs: 0,
+        }),
+        start: () => () => undefined,
+      }),
+    });
+
+    expect(autoResumeAttempts).toBe(2);
+    expect(infoCalls).toContainEqual({
+      payload: expect.objectContaining({
+        event: "worker.startup.completed",
+        runtime: "worker",
+        surface: "lifecycle",
+        outcome: "success",
+      }),
+      message: "worker startup completed",
+    });
+    expect(errorCalls).toEqual([]);
+  });
+
   test("runs initial ticks, logs startup completion, and registers graceful shutdown handlers", async () => {
     const events: string[] = [];
     const { logger, infoCalls, errorCalls } = createLoggerStub();
