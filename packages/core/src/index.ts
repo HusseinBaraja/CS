@@ -1,6 +1,7 @@
 import type { HealthStatus } from '@cs/shared';
 
 export * from "./logging";
+export * from "./convexTransport";
 
 export const coreHealth = (): HealthStatus => ({
   service: "api",

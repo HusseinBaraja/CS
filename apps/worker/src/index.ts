@@ -1,29 +1,14 @@
-import { logEvent, logger, serializeErrorForLog } from '@cs/core';
+import { isTransientConvexTransportError, logEvent, logger, serializeErrorForLog } from '@cs/core';
 import { createConversationAutoResumeProcessor } from './conversationAutoResume';
-import { type WorkerLogger, withWorkerRuntimeLogger } from './logging';
+import { withWorkerRuntimeLogger, type WorkerLogger } from './logging';
 import { createMediaCleanupProcessor } from './mediaCleanup';
 import { createPendingAssistantReconciliationProcessor } from './pendingAssistantReconciliation';
 
 type MediaCleanupProcessor = ReturnType<typeof createMediaCleanupProcessor>;
 type ConversationAutoResumeProcessor = ReturnType<typeof createConversationAutoResumeProcessor>;
 type PendingAssistantReconciliationProcessor = ReturnType<typeof createPendingAssistantReconciliationProcessor>;
-type RetryableErrorLike = Error & { code?: unknown };
 
 const WORKER_STARTUP_RETRY_DELAYS_MS = [250, 500, 1_000] as const;
-const TRANSIENT_STARTUP_ERROR_CODES = new Set(["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN"]);
-
-const isTransientStartupError = (error: unknown): boolean => {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const errorWithCode = error as RetryableErrorLike;
-  if (typeof errorWithCode.code === "string" && TRANSIENT_STARTUP_ERROR_CODES.has(errorWithCode.code)) {
-    return true;
-  }
-
-  return error.message.includes("The socket connection was closed unexpectedly");
-};
 
 const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => {
@@ -61,7 +46,7 @@ export const startWorker = async (options: StartWorkerOptions = {}): Promise<voi
         return;
       } catch (error) {
         const retryDelayMs = WORKER_STARTUP_RETRY_DELAYS_MS[attempt];
-        if (!isTransientStartupError(error) || retryDelayMs === undefined) {
+        if (!isTransientConvexTransportError(error) || retryDelayMs === undefined) {
           throw error;
         }
 

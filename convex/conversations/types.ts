@@ -1,7 +1,5 @@
 import type { PromptHistoryTurn } from '@cs/ai';
-import type {
-  ConversationStateEventSource,
-} from '@cs/shared';
+import type { ConversationStateDto, ConversationStateEventSource } from '@cs/shared';
 import type { Id } from '../_generated/dataModel';
 
 export type LockAcquireResult = {
@@ -15,7 +13,7 @@ export type TrimConversationMessagesResult = {
 };
 
 export type AppendInboundCustomerMessageResult = {
-  conversation: import('@cs/shared').ConversationStateDto;
+  conversation: ConversationStateDto;
   wasMuted: boolean;
   wasDuplicate: boolean;
 };

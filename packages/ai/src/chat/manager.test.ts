@@ -3,11 +3,11 @@ import { ERROR_CODES } from '@cs/shared';
 import type { ChatProviderHealth, ChatProviderName, ChatRequest, ChatResponse, ChatRuntimeConfig } from '../index';
 import { createChatProviderError } from './errors';
 import {
-  createRetrievalRewriteChatProviderManager,
   type ChatManagerLogger,
   type ChatProviderAdapterResolver,
   ChatProviderChainError,
   createChatProviderManager,
+  createRetrievalRewriteChatProviderManager,
 } from './manager';
 
 const runtimeConfig: ChatRuntimeConfig = {
@@ -470,6 +470,52 @@ describe("createChatProviderManager", () => {
     expect(calls).toEqual([
       { provider: "gemini", kind: "chat" },
     ]);
+  });
+
+  test("fails fast when no configured provider supports the requested response format", async () => {
+    const calls: Array<{ provider: ChatProviderName; kind: "chat" | "healthCheck" }> = [];
+    const manager = createChatProviderManager({
+      runtimeConfig: {
+        ...runtimeConfig,
+        providerOrder: ["deepseek", "groq"],
+      },
+      resolveAdapter: createResolver(
+        {
+          deepseek: {
+            async chat() {
+              return createResponse("deepseek", "deepseek-chat");
+            },
+          },
+          groq: {
+            async chat() {
+              return createResponse("groq", "llama-3.3-70b-versatile");
+            },
+          },
+        },
+        calls,
+      ),
+    });
+
+    await expect(manager.chat({
+      ...request,
+      responseFormat: {
+        type: "json_schema",
+        jsonSchema: {
+          name: "rewrite_result",
+          schema: {
+            type: "object",
+          },
+          strict: true,
+        },
+      },
+    })).rejects.toMatchObject({
+      name: "ChatProviderError",
+      kind: "response_format",
+      disposition: "do_not_retry",
+      retryable: false,
+      provider: "deepseek",
+    });
+    expect(calls).toEqual([]);
   });
 
   test("preserves failure order and details on the chain error", async () => {

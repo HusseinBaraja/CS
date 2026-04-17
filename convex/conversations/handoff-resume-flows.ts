@@ -1,8 +1,5 @@
 import { v } from 'convex/values';
-import type {
-  ConversationStateEventSource,
-  ConversationStateEventType,
-} from '@cs/shared';
+import type { ConversationStateEventSource, ConversationStateEventType } from '@cs/shared';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { AUTO_RESUME_IDLE_MS } from './constants';
@@ -196,7 +193,10 @@ export const resumeConversationDefinition = {
     const reason = normalizeOptionalString(args.reason, 'reason');
     const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, 'actorPhoneNumber');
 
-    if (conversation.nextAutoResumeAt === undefined || conversation.nextAutoResumeAt > resumedAt) {
+    if (
+      args.source === 'worker_auto'
+      && (conversation.nextAutoResumeAt === undefined || conversation.nextAutoResumeAt > resumedAt)
+    ) {
       return toConversationDto(conversation);
     }
 

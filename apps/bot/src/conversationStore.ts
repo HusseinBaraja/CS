@@ -6,7 +6,9 @@ import type {
   ConversationStateDto,
   ConversationStateEventSource,
 } from '@cs/shared';
-import { convexInternal, createConvexAdminClient, type ConvexAdminClient, type Id } from '@cs/db';
+import { isTransientConvexTransportError } from '@cs/core';
+import { type ConvexAdminClient, convexInternal, createConvexAdminClient, type Id } from '@cs/db';
+
 export type ConversationRecord = ConversationStateDto;
 export type ConversationMessageRecord = ConversationMessageDto;
 
@@ -160,20 +162,6 @@ export interface ConvexConversationStoreOptions {
 }
 
 const CONVEX_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
-const TRANSIENT_CONVEX_ERROR_CODES = new Set(["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN"]);
-
-const isTransientConvexStoreError = (error: unknown): boolean => {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const errorWithCode = error as Error & { code?: string };
-  if (typeof errorWithCode.code === "string" && TRANSIENT_CONVEX_ERROR_CODES.has(errorWithCode.code)) {
-    return true;
-  }
-
-  return error.message.includes("The socket connection was closed unexpectedly");
-};
 
 const toConvexId = <TableName extends "companies" | "conversations" | "messages">(
   tableName: TableName,
@@ -208,7 +196,7 @@ export const createConvexConversationStore = (
     try {
       return await callback(createClient());
     } catch (error) {
-      if (!isTransientConvexStoreError(error)) {
+      if (!isTransientConvexTransportError(error)) {
         throw error;
       }
 

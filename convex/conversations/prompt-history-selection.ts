@@ -13,6 +13,7 @@ import {
   toPromptHistoryTurn,
 } from './message-helpers';
 import type { PromptHistorySelectionResult } from './types';
+
 export { getPromptHistoryDefinition } from './prompt-history-query';
 const isMessageBeforeInbound = (message: any, input: any): boolean =>
   isVisibleConversationMessage(message)
@@ -68,6 +69,7 @@ const collectReferencedHistorySliceAscending = async (ctx: { db: DatabaseReader 
   const precedingMessages = [];
   const referencedWindow = [];
   let foundReferencedMessage = false;
+  let afterMessagesCount = 0;
 
   for await (const messageDoc of iterateConversationMessagesAscending(ctx, conversationId)) {
     const message = toMessageDto(messageDoc);
@@ -90,7 +92,8 @@ const collectReferencedHistorySliceAscending = async (ctx: { db: DatabaseReader 
     }
 
     referencedWindow.push(message);
-    if (referencedWindow.length >= (REFERENCED_HISTORY_SIDE_MESSAGES * 2) + 1) {
+    afterMessagesCount += 1;
+    if (afterMessagesCount >= REFERENCED_HISTORY_SIDE_MESSAGES) {
       return referencedWindow;
     }
   }

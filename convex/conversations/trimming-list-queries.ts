@@ -2,24 +2,20 @@ import { v } from 'convex/values';
 import type { ConversationMessageDto, ConversationStateDto } from '@cs/shared';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { DatabaseReader, MutationCtx, QueryCtx } from '../_generated/server';
-import {
-  LIST_CONVERSATION_MESSAGES_BATCH_SIZE,
-  TRIM_MESSAGES_BATCH_SIZE,
-} from './constants';
-import {
-  loadConversationByPhone,
-  loadConversationOrThrow,
-} from './conversation-readers';
+import { LIST_CONVERSATION_MESSAGES_BATCH_SIZE, TRIM_MESSAGES_BATCH_SIZE } from './constants';
+import { loadConversationByPhone, loadConversationOrThrow } from './conversation-readers';
 import {
   isVisibleConversationMessage,
   normalizeOptionalLimit,
-  normalizePositiveInteger,
   normalizePhoneNumber,
+  normalizePositiveInteger,
   normalizeTimestamp,
   toConversationDto,
   toMessageDto,
 } from './message-helpers';
 import type { TrimConversationMessagesResult } from './types';
+
+const MAX_TRIM_DELETIONS_PER_INVOCATION = TRIM_MESSAGES_BATCH_SIZE * 3;
 
 const listConversationMessageDocsDescending = async (
   ctx: { db: DatabaseReader },
@@ -191,7 +187,7 @@ export const trimConversationMessagesDefinition = {
         }
       }
 
-      if (page.isDone || page.page.length === 0) {
+      if (page.isDone || page.page.length === 0 || page.continueCursor === cursor) {
         break;
       }
 
@@ -206,8 +202,9 @@ export const trimConversationMessagesDefinition = {
       };
     }
 
+    const deletionsToProcess = Math.min(excessCount, MAX_TRIM_DELETIONS_PER_INVOCATION);
     let deletedCount = 0;
-    while (deletedCount < excessCount) {
+    while (deletedCount < deletionsToProcess) {
       const batchIds = idsToDelete.slice(deletedCount, deletedCount + TRIM_MESSAGES_BATCH_SIZE);
       for (const messageId of batchIds) {
         await ctx.db.delete(messageId);

@@ -1,7 +1,24 @@
 import { v } from 'convex/values';
+import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { loadConversationOrThrow, loadMessageOrThrow } from './conversation-readers';
 import { resolveSideEffectsState, toMessageDto } from './message-helpers';
+
+type CompletePendingAssistantSideEffectsArgs = {
+  companyId: Id<'companies'>;
+  conversationId: Id<'conversations'>;
+  pendingMessageId: Id<'messages'>;
+  analyticsCompleted?: boolean;
+  ownerNotificationCompleted?: boolean;
+};
+
+type RecordPendingAssistantSideEffectProgressArgs = {
+  companyId: Id<'companies'>;
+  conversationId: Id<'conversations'>;
+  pendingMessageId: Id<'messages'>;
+  analyticsRecorded?: boolean;
+  ownerNotificationSent?: boolean;
+};
 
 export const completePendingAssistantSideEffectsDefinition = {
   args: {
@@ -11,7 +28,7 @@ export const completePendingAssistantSideEffectsDefinition = {
     analyticsCompleted: v.optional(v.boolean()),
     ownerNotificationCompleted: v.optional(v.boolean()),
   },
-  handler: async (ctx: MutationCtx, args: any) => {
+  handler: async (ctx: MutationCtx, args: CompletePendingAssistantSideEffectsArgs) => {
     await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
     if (message.conversationId !== args.conversationId || message.role !== 'assistant') {
@@ -54,7 +71,7 @@ export const recordPendingAssistantSideEffectProgressDefinition = {
     analyticsRecorded: v.optional(v.boolean()),
     ownerNotificationSent: v.optional(v.boolean()),
   },
-  handler: async (ctx: MutationCtx, args: any) => {
+  handler: async (ctx: MutationCtx, args: RecordPendingAssistantSideEffectProgressArgs) => {
     await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     const message = await loadMessageOrThrow(ctx, args.pendingMessageId);
     if (message.conversationId !== args.conversationId || message.role !== 'assistant') {

@@ -629,6 +629,60 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(remainingMessages.at(-1)?.content).toBe("message-205");
   });
 
+  it("caps trim work per invocation when a conversation is far above maxMessages", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    for (let index = 1; index <= 520; index += 1) {
+      await t.mutation(internal.conversations.appendConversationMessage, {
+        companyId,
+        conversationId,
+        role: "user",
+        content: `message-${index}`,
+        timestamp: index,
+      });
+    }
+
+    const firstTrim = await t.mutation(internal.conversations.trimConversationMessages, {
+      companyId,
+      conversationId,
+      maxMessages: 20,
+    });
+    const secondTrim = await t.mutation(internal.conversations.trimConversationMessages, {
+      companyId,
+      conversationId,
+      maxMessages: 20,
+    });
+    const remainingMessages = await t.query(internal.conversations.listConversationMessages, {
+      companyId,
+      conversationId,
+    });
+
+    expect(firstTrim).toEqual({
+      deletedCount: 300,
+      remainingCount: 220,
+    });
+    expect(secondTrim).toEqual({
+      deletedCount: 200,
+      remainingCount: 20,
+    });
+    expect(remainingMessages).toHaveLength(20);
+    expect(remainingMessages[0]?.content).toBe("message-501");
+    expect(remainingMessages.at(-1)?.content).toBe("message-520");
+  });
+
   it("rejects trims for the wrong company", async () => {
     const t = convexTest(schema, modules);
     const companyA = await t.run(async (ctx) =>
@@ -1545,6 +1599,85 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(stateEvents[0]?.eventType).toBe("handoff_resumed_auto");
   });
 
+  it("allows manual resume before the auto-resume deadline", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+        nextAutoResumeAt: 8_000,
+      })
+    );
+
+    const resumed = await t.mutation(internal.conversations.resumeConversation, {
+      companyId,
+      conversationId,
+      resumedAt: 2_000,
+      source: "api_manual",
+    });
+
+    expect(resumed).toMatchObject({
+      id: conversationId,
+      muted: false,
+    });
+    expect(resumed.nextAutoResumeAt).toBeUndefined();
+    expect(resumed.mutedAt).toBeUndefined();
+
+    const stateEvents = await t.run(async (ctx) =>
+      ctx.db.query("conversationStateEvents").collect()
+    );
+    expect(stateEvents).toHaveLength(1);
+    expect(stateEvents[0]?.eventType).toBe("handoff_resumed_manual");
+  });
+
+  it("allows manual resume when nextAutoResumeAt is missing", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: true,
+        mutedAt: 1_000,
+        lastCustomerMessageAt: 1_000,
+      })
+    );
+
+    const resumed = await t.mutation(internal.conversations.resumeConversation, {
+      companyId,
+      conversationId,
+      resumedAt: 2_000,
+      source: "api_manual",
+    });
+
+    expect(resumed).toMatchObject({
+      id: conversationId,
+      muted: false,
+    });
+    expect(resumed.nextAutoResumeAt).toBeUndefined();
+    expect(resumed.mutedAt).toBeUndefined();
+
+    const stateEvents = await t.run(async (ctx) =>
+      ctx.db.query("conversationStateEvents").collect()
+    );
+    expect(stateEvents).toHaveLength(1);
+    expect(stateEvents[0]?.eventType).toBe("handoff_resumed_manual");
+  });
+
   it("extends the auto-resume deadline when muted customers send new messages", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
@@ -2212,6 +2345,61 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       { role: "user", text: "message-11" },
       { role: "assistant", text: "message-12" },
       { role: "user", text: "message-13" },
+    ]);
+  });
+
+  it("caps quoted-reply history to 5 messages after the referenced message", async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId,
+        phoneNumber: "967700000001",
+        muted: false,
+      })
+    );
+
+    for (let index = 1; index <= 10; index += 1) {
+      await t.mutation(internal.conversations.appendConversationMessage, {
+        companyId,
+        conversationId,
+        role: index % 2 === 0 ? "assistant" : "user",
+        content: `message-${index}`,
+        timestamp: index * 1_000,
+        transportMessageId: `transport-${index}`,
+      });
+    }
+    await t.mutation(internal.conversations.appendConversationMessage, {
+      companyId,
+      conversationId,
+      role: "user",
+      content: "current inbound",
+      timestamp: STALE_CONTEXT_RESET_MS + 20_000,
+      transportMessageId: "inbound-1",
+    });
+
+    const history = await t.query(internal.conversations.getPromptHistoryForInbound, {
+      companyId,
+      conversationId,
+      inboundTimestamp: STALE_CONTEXT_RESET_MS + 20_000,
+      currentTransportMessageId: "inbound-1",
+      referencedTransportMessageId: "transport-2",
+      limit: 20,
+    });
+
+    expect(history).toEqual([
+      { role: "user", text: "message-1" },
+      { role: "assistant", text: "message-2" },
+      { role: "user", text: "message-3" },
+      { role: "assistant", text: "message-4" },
+      { role: "user", text: "message-5" },
+      { role: "assistant", text: "message-6" },
+      { role: "user", text: "message-7" },
     ]);
   });
 
