@@ -2,6 +2,7 @@ import type { Id } from '@cs/db';
 import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 import { internal } from './_generated/api';
+import * as conversationExports from './conversations';
 import { STALE_CONTEXT_RESET_MS } from './conversations';
 import schema from './schema';
 
@@ -2365,6 +2366,142 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     });
 
     expect(history).toEqual([]);
+  });
+
+  it("extends an existing lock when the same owner token reacquires it", async () => {
+    const t = convexTest(schema, modules);
+    const key = "conversation:company-1:967700000001";
+    const ownerToken = "owner-1";
+    const now = 20_000;
+
+    await t.run(async (ctx) =>
+      ctx.db.insert("jobLocks", {
+        key,
+        ownerToken,
+        acquiredAt: 1_000,
+        expiresAt: 10_000,
+      })
+    );
+
+    const acquisition = await t.mutation(internal.conversations.acquireConversationLock, {
+      key,
+      now,
+      ownerToken,
+    });
+
+    expect(acquisition).toEqual({
+      acquired: true,
+      waitMs: 0,
+    });
+
+    const lock = await t.run(async (ctx) =>
+      ctx.db.query("jobLocks").withIndex("by_key", (q) => q.eq("key", key)).unique()
+    );
+    expect(lock).not.toBeNull();
+    expect(lock?.ownerToken).toBe(ownerToken);
+    expect(lock?.acquiredAt).toBe(now);
+    expect(lock?.expiresAt).toBe(now + 15_000);
+  });
+
+  it("takes over an expired lock with a new owner token", async () => {
+    const t = convexTest(schema, modules);
+    const key = "conversation:company-1:967700000001";
+    const now = 20_000;
+    const nextOwnerToken = "owner-2";
+
+    await t.run(async (ctx) =>
+      ctx.db.insert("jobLocks", {
+        key,
+        ownerToken: "owner-1",
+        acquiredAt: 1_000,
+        expiresAt: now - 1,
+      })
+    );
+
+    const acquisition = await t.mutation(internal.conversations.acquireConversationLock, {
+      key,
+      now,
+      ownerToken: nextOwnerToken,
+    });
+
+    expect(acquisition).toEqual({
+      acquired: true,
+      waitMs: 0,
+    });
+
+    const lock = await t.run(async (ctx) =>
+      ctx.db.query("jobLocks").withIndex("by_key", (q) => q.eq("key", key)).unique()
+    );
+    expect(lock).not.toBeNull();
+    expect(lock?.ownerToken).toBe(nextOwnerToken);
+    expect(lock?.acquiredAt).toBe(now);
+    expect(lock?.expiresAt).toBe(now + 15_000);
+  });
+
+  it("does not release a lock owned by another token", async () => {
+    const t = convexTest(schema, modules);
+    const key = "conversation:company-1:967700000001";
+
+    await t.run(async (ctx) =>
+      ctx.db.insert("jobLocks", {
+        key,
+        ownerToken: "owner-1",
+        acquiredAt: 1_000,
+        expiresAt: 16_000,
+      })
+    );
+
+    await t.mutation(internal.conversations.releaseConversationLock, {
+      key,
+      ownerToken: "owner-2",
+    });
+
+    const lock = await t.run(async (ctx) =>
+      ctx.db.query("jobLocks").withIndex("by_key", (q) => q.eq("key", key)).unique()
+    );
+    expect(lock).not.toBeNull();
+    expect(lock?.ownerToken).toBe("owner-1");
+  });
+
+  it("keeps the expected conversations export surface", () => {
+    const expectedExports = [
+      "AUTO_RESUME_IDLE_MS",
+      "STALE_CONTEXT_RESET_MS",
+      "acquireConversationLock",
+      "releaseConversationLock",
+      "ensureActiveConversation",
+      "getOrCreateActiveConversation",
+      "getOrCreateConversationForInbound",
+      "getConversationByPhone",
+      "getConversation",
+      "appendConversationMessage",
+      "appendMutedCustomerMessage",
+      "appendInboundCustomerMessageToConversation",
+      "appendInboundCustomerMessage",
+      "getConversationMessage",
+      "appendPendingAssistantMessage",
+      "acknowledgePendingAssistantMessage",
+      "listPendingAssistantMessages",
+      "getConversationOwnerNotificationContext",
+      "commitPendingAssistantMessage",
+      "markPendingAssistantMessageFailed",
+      "completePendingAssistantSideEffects",
+      "recordPendingAssistantSideEffectProgress",
+      "appendAssistantMessageAndStartHandoff",
+      "listConversationMessages",
+      "listDueAutoResumeConversations",
+      "getPromptHistory",
+      "getPromptHistoryForInbound",
+      "getPromptHistorySelectionForInbound",
+      "trimConversationMessages",
+      "startHandoff",
+      "resumeConversation",
+      "recordMutedCustomerActivity",
+    ] as const;
+
+    for (const exportName of expectedExports) {
+      expect(exportName in conversationExports).toBe(true);
+    }
   });
 
   it("times out when the conversation lock remains held", async () => {
