@@ -25,12 +25,6 @@
   },
   "entries": [
     {
-      "path": "convex/conversations.ts",
-      "classification": "must_split",
-      "maxLines": 1666,
-      "reason": "Mixes locking, message mapping, prompt history selection, handoff state, and trimming."
-    },
-    {
       "path": "convex/products.ts",
       "classification": "must_split",
       "maxLines": 1345,
