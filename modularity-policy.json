@@ -7,7 +7,8 @@
     "include": [
       "apps/**/*.ts",
       "packages/**/*.ts",
-      "convex/**/*.ts"
+      "convex/**/*.ts",
+      "scripts/**/*.ts"
     ],
     "exclude": [
       "apps/web/**",
@@ -88,6 +89,12 @@
       "classification": "cohesive_exception",
       "maxLines": 722,
       "reason": "Single outbound messaging subsystem with sequencing, pacing, media resolution, and retries."
+    },
+    {
+      "path": "scripts/modularity-policy.ts",
+      "classification": "must_split",
+      "maxLines": 740,
+      "reason": "Intentional exception while splitting checker internals into smaller scope, evaluation, render, and CLI modules."
     },
     {
       "path": "apps/bot/src/runtime.ts",

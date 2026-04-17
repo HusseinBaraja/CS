@@ -3,6 +3,7 @@ import {
   countLinesFromText,
   evaluateModularityPolicy,
   isPathInScope,
+  parsePolicy,
   renderJsonReport,
   renderMarkdownReport,
   type ModularityPolicy,
@@ -187,6 +188,105 @@ describe("policy evaluation", () => {
     });
 
     expect(evaluation.violations.some((violation) => violation.code === "excluded_entry_missing_reason")).toBe(true);
+  });
+
+  test("fails duplicate policy entries for the same path", () => {
+    const evaluation = evaluateModularityPolicy({
+      policy: createPolicy({
+        entries: [
+          {
+            path: "apps/api/src/routes/dupe.ts",
+            classification: "must_split",
+            maxLines: 300,
+            reason: "First entry",
+          },
+          {
+            path: "apps/api/src/routes/dupe.ts",
+            classification: "must_split",
+            maxLines: 310,
+            reason: "Duplicate entry",
+          },
+        ],
+      }),
+      fileLines: {
+        "apps/api/src/routes/dupe.ts": 301,
+      },
+    });
+
+    expect(evaluation.violations.some((violation) => violation.code === "duplicate_policy_entry")).toBe(true);
+  });
+
+  test("fails invalid classification entries", () => {
+    const evaluation = evaluateModularityPolicy({
+      policy: createPolicy({
+        entries: [
+          {
+            path: "apps/api/src/routes/invalid-classification.ts",
+            classification: "not_real_classification",
+            reason: "Invalid",
+          },
+        ],
+      }),
+      fileLines: {
+        "apps/api/src/routes/invalid-classification.ts": 300,
+      },
+    });
+
+    expect(evaluation.violations.some((violation) => violation.code === "invalid_policy_entry")).toBe(true);
+  });
+
+  test("fails allowlisted entries when maxLines is below threshold", () => {
+    const evaluation = evaluateModularityPolicy({
+      policy: createPolicy({
+        entries: [
+          {
+            path: "apps/api/src/routes/products.ts",
+            classification: "must_split",
+            maxLines: 200,
+            reason: "Invalid baseline",
+          },
+        ],
+      }),
+      fileLines: {
+        "apps/api/src/routes/products.ts": 245,
+      },
+    });
+
+    expect(evaluation.violations.some((violation) => violation.code === "invalid_policy_entry")).toBe(true);
+  });
+});
+
+describe("policy parsing", () => {
+  test("throws on non-string classification with entry index and path", () => {
+    expect(() =>
+      parsePolicy({
+        version: 1,
+        thresholds: { coreLogicMaxLines: 240 },
+        scope: { include: ["apps/**/*.ts"], exclude: [] },
+        entries: [
+          {
+            path: "apps/api/src/routes/a.ts",
+            classification: 123,
+          },
+        ],
+      }),
+    ).toThrow('entries[0].classification must be a string for "apps/api/src/routes/a.ts"');
+  });
+
+  test("throws on empty entry path", () => {
+    expect(() =>
+      parsePolicy({
+        version: 1,
+        thresholds: { coreLogicMaxLines: 240 },
+        scope: { include: ["apps/**/*.ts"], exclude: [] },
+        entries: [
+          {
+            path: "",
+            classification: "must_split",
+          },
+        ],
+      }),
+    ).toThrow("entries[0].path must be a non-empty string");
   });
 });
 

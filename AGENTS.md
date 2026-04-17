@@ -19,7 +19,7 @@
   - `bun run check:root`
 
 ## Random
-- When fixing PR issues that were submitted by code rabbit, apply minimal fixes and don't go overboard. The goal is to just fix the issues.
+- When fixing PR issues that were submitted by code rabbit, apply minimal fixes and don't go overboard. The goal is to just fix the issues. Minimal change doesn't mean taking shortcuts, if a fix requires a more complex change, that's fine.
 - Never commit to main. If the project is checked out to main and the user asks for a task, create a new branch and do the work in there.
 - Close all powershell/CMD instances after you are done working and the codebase is clean and commited.
 

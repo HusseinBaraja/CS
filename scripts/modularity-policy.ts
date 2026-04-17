@@ -75,6 +75,17 @@ type ParsedOptions = {
 
 const DEFAULT_POLICY_PATH = "modularity-policy.json";
 const GLOB_CACHE = new Map<string, RegExp>();
+const IGNORED_WALK_DIRECTORIES = new Set([
+  ".git",
+  "node_modules",
+  "dist",
+  "build",
+  ".next",
+  ".turbo",
+  "coverage",
+  "out",
+  ".vercel",
+]);
 
 export const normalizeRepoPath = (value: string): string =>
   value.replaceAll("\\", "/").replace(/^\.\/+/u, "").replace(/\/+/gu, "/");
@@ -250,13 +261,13 @@ export const evaluateModularityPolicy = (input: {
 
     if (
       isAllowlistedClassification(entry.classification) &&
-      (!Number.isInteger(entry.maxLines) || (entry.maxLines ?? 0) <= 0)
+      (!Number.isInteger(entry.maxLines) || (entry.maxLines ?? 0) < threshold)
     ) {
       addViolation(
         violations,
         "invalid_policy_entry",
         entry.path,
-        "Allowlisted entries must include a positive integer maxLines.",
+        `Allowlisted entries must include an integer maxLines >= ${threshold}.`,
       );
     }
 
@@ -477,7 +488,7 @@ export const renderPlainReport = (evaluation: ModularityEvaluation): string => {
 export const renderJsonReport = (evaluation: ModularityEvaluation): string =>
   JSON.stringify(evaluation, null, 2);
 
-const parsePolicy = (raw: unknown): ModularityPolicy => {
+export const parsePolicy = (raw: unknown): ModularityPolicy => {
   if (!raw || typeof raw !== "object") {
     throw new Error("modularity-policy.json must contain an object.");
   }
@@ -513,12 +524,40 @@ const parsePolicy = (raw: unknown): ModularityPolicy => {
       include: scope.include.map((value) => String(value)),
       exclude: scope.exclude.map((value) => String(value)),
     },
-    entries: entries.map((entry) => {
-      const normalizedEntry = (entry ?? {}) as Record<string, unknown>;
+    entries: entries.map((entry, index) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        throw new Error(`modularity-policy.json entries[${index}] must be an object.`);
+      }
+
+      const normalizedEntry = entry as Record<string, unknown>;
+      if (typeof normalizedEntry.path !== "string" || normalizedEntry.path.trim().length === 0) {
+        throw new Error(`modularity-policy.json entries[${index}].path must be a non-empty string.`);
+      }
+
+      if (typeof normalizedEntry.classification !== "string") {
+        throw new Error(
+          `modularity-policy.json entries[${index}].classification must be a string for "${normalizedEntry.path}".`,
+        );
+      }
+
+      if (
+        typeof normalizedEntry.maxLines !== "undefined" &&
+        typeof normalizedEntry.maxLines !== "number"
+      ) {
+        throw new Error(
+          `modularity-policy.json entries[${index}].maxLines must be a number for "${normalizedEntry.path}".`,
+        );
+      }
+
+      if (typeof normalizedEntry.reason !== "undefined" && typeof normalizedEntry.reason !== "string") {
+        throw new Error(
+          `modularity-policy.json entries[${index}].reason must be a string for "${normalizedEntry.path}".`,
+        );
+      }
+
       return {
-        path: typeof normalizedEntry.path === "string" ? normalizedEntry.path : "",
-        classification:
-          typeof normalizedEntry.classification === "string" ? normalizedEntry.classification : "",
+        path: normalizedEntry.path,
+        classification: normalizedEntry.classification,
         maxLines:
           typeof normalizedEntry.maxLines === "number" ? normalizedEntry.maxLines : undefined,
         reason: typeof normalizedEntry.reason === "string" ? normalizedEntry.reason : "",
@@ -556,7 +595,7 @@ const walkTypeScriptFiles = (rootDirectory: string, relativeDirectory: string): 
     );
 
     if (entry.isDirectory()) {
-      if (entry.name === ".git" || entry.name === "node_modules") {
+      if (IGNORED_WALK_DIRECTORIES.has(entry.name)) {
         continue;
       }
 
