@@ -1,12 +1,5 @@
-import type {
-  PromptRetrievalProvenance,
-  PromptRetrievalQuerySource,
-} from '@cs/ai';
-import type {
-  RetrievalMode,
-  RetrievalQueryProvenance,
-  RetrievalQuerySource,
-} from './retrievalRewrite';
+import type { PromptRetrievalProvenance, PromptRetrievalQuerySource } from '@cs/ai';
+import type { RetrievalMode, RetrievalQueryProvenance, RetrievalQuerySource } from './retrievalRewrite';
 
 export interface PromptRetrievalProvenanceCandidate {
   queryProvenance?: RetrievalQueryProvenance[];
@@ -47,7 +40,6 @@ const normalizePromptCandidateCount = (value: number | undefined): number => {
 
   const normalized = Math.trunc(value);
   return normalized >= 0 ? normalized : DEFAULT_PROMPT_CANDIDATE_COUNT;
-};
 };
 
 const getPromptSourcePriority = (source: PromptRetrievalQuerySource): number => {
