@@ -14,9 +14,12 @@
 - Run `bun generate` after any Convex schema change.
 - Run `bun dev` to test if there are no issues with the dev environment unless spesfied otherwise.
 - Run `bun lint`.
+- Commands list:
+  - `bun run check:modularity`
+  - `bun run check:root`
 
 ## Random
-- When fixing PR issues that were submitted by code rabbit, apply minimal fixes and don't go overboard. The goal is to just fix the issues.
+- When fixing PR issues that were submitted by code rabbit, apply minimal fixes and don't go overboard. The goal is to just fix the issues. Minimal change doesn't mean taking shortcuts, if a fix requires a more complex change, that's fine.
 - Never commit to main. If the project is checked out to main and the user asks for a task, create a new branch and do the work in there.
 - Close all powershell/CMD instances after you are done working and the codebase is clean and commited.
 
@@ -54,6 +57,18 @@ CSCB is a Bun-first, strict TypeScript monorepo for multi-tenant WhatsApp suppor
 - Extract shared logic instead of duplicating behavior across apps or packages.
 - Do not hesitate to refactor existing code when that produces a cleaner system.
 - Use the `@cs/*` path aliases from `tsconfig.base.json` for cross-package imports.
+
+## Modularity Guardrails
+
+- For core logic `.ts` files, do not add a new responsibility to an existing file when it should be a sibling module.
+- No new core logic `.ts` file may exceed `240` LOC without an explicit entry in `modularity-policy.json`.
+- If a core logic file already exceeds `240` LOC, it must not grow unless its `modularity-policy.json` entry is intentionally updated with rationale.
+- Files classified as `must_split` in `modularity-policy.json` are debt containers: patches are allowed, but adding unrelated responsibilities is not.
+- Any `modularity-policy.json` exception change requires:
+  1. updated rationale in the policy entry,
+  2. updated checker behavior/tests when applicable,
+  3. explicit acknowledgment in the change description that the exception is intentional.
+- Prefer extracting helper modules before adding new branches to orchestration-heavy files.
 
 ## Required Reading
 

@@ -22,14 +22,16 @@
     "test": "bun run test:root && turbo run test",
     "test:root": "bun test ./scripts --pass-with-no-tests",
     "check:ai": "bun scripts/ai-provider-check.ts",
+    "check:modularity": "bun scripts/modularity-policy.ts",
+    "check:root": "bun run check:modularity",
     "issue:diagram": "bun scripts/generate-agent-mermaid.ts",
     "test:convex": "bun x vitest run --config convex/vitest.config.ts",
-    "check": "turbo run check",
+    "check": "bun run check:root && turbo run check",
     "preview:web": "bun --cwd apps/web run preview",
     "generate": "bunx convex codegen",
     "seed": "bun run --cwd apps/cli seed",
     "backup": "bun run --cwd apps/cli backup",
-    "ci": "turbo run ci"
+    "ci": "bun run check:root && bun run test:root && turbo run ci"
   },
   "dependencies": {
     "convex": "1.32.0"

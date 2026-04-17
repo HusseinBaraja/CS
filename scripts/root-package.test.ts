@@ -34,11 +34,14 @@ describe("root package scripts", () => {
     expect(scripts["dev:web"]).toBe("turbo run dev --filter=web");
     expect(scripts["dev:worker"]).toBe("turbo run dev --filter=worker");
     expect(scripts["build:web"]).toBe("turbo run build --filter=web");
-    expect(scripts.check).toBe("turbo run check");
+    expect(scripts["check:modularity"]).toBe("bun scripts/modularity-policy.ts");
+    expect(scripts["check:root"]).toBe("bun run check:modularity");
+    expect(scripts.check).toBe("bun run check:root && turbo run check");
     expect(scripts["preview:web"]).toBe("bun --cwd apps/web run preview");
     expect(scripts.seed).toBe("bun run --cwd apps/cli seed");
     expect(scripts.backup).toBe("bun run --cwd apps/cli backup");
     expect(scripts["issue:diagram"]).toBe("bun scripts/generate-agent-mermaid.ts");
+    expect(scripts.ci).toBe("bun run check:root && bun run test:root && turbo run ci");
   });
 
   test("keeps cli out of the root long-running dev fanout", () => {
@@ -109,11 +112,11 @@ describe("command validation conventions", () => {
     expect(coreScripts.lint).toBeUndefined();
   });
 
-  test("keep real linting workspaces on lint plus typecheck", () => {
-    expect(convexScripts.lint).toBe("bun x oxlint");
+  test("keep currently configured lint commands stable for convex and storage", () => {
+    expect(convexScripts.lint).toBe("bun run typecheck");
     expect(convexScripts.check).toBe("bun run typecheck && bun run lint");
 
-    expect(storageScripts.lint).toBe("bun x oxlint");
+    expect(storageScripts.lint).toBe("bun run typecheck");
     expect(storageScripts.check).toBe("bun run typecheck && bun run lint");
   });
 

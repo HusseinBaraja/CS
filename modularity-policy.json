@@ -1,0 +1,244 @@
+{
+  "version": 1,
+  "thresholds": {
+    "coreLogicMaxLines": 240
+  },
+  "scope": {
+    "include": [
+      "apps/**/*.ts",
+      "packages/**/*.ts",
+      "convex/**/*.ts",
+      "scripts/**/*.ts"
+    ],
+    "exclude": [
+      "apps/web/**",
+      "**/*.test.ts",
+      "**/*.vitest.ts",
+      "**/*.typecheck.ts",
+      "**/*.d.ts",
+      "convex/_generated/**",
+      "dist/**",
+      "**/dist/**",
+      "node_modules/**",
+      "**/node_modules/**"
+    ]
+  },
+  "entries": [
+    {
+      "path": "convex/conversations.ts",
+      "classification": "must_split",
+      "maxLines": 1666,
+      "reason": "Mixes locking, message mapping, prompt history selection, handoff state, and trimming."
+    },
+    {
+      "path": "convex/products.ts",
+      "classification": "must_split",
+      "maxLines": 1345,
+      "reason": "Combines product CRUD, variant CRUD, normalization, and embedding orchestration."
+    },
+    {
+      "path": "packages/rag/src/index.ts",
+      "classification": "must_split",
+      "maxLines": 1079,
+      "reason": "Combines retrieval service, context building, logging, and chat orchestration."
+    },
+    {
+      "path": "apps/bot/src/sessionManager.ts",
+      "classification": "must_split",
+      "maxLines": 994,
+      "reason": "Combines runtime lifecycle, access control, persistence, and inbound routing."
+    },
+    {
+      "path": "apps/bot/src/customerConversationRouter.ts",
+      "classification": "must_split",
+      "maxLines": 570,
+      "reason": "Couples persistence, orchestration, delivery, analytics, and handoff side effects."
+    },
+    {
+      "path": "apps/bot/src/conversationStore.ts",
+      "classification": "must_split",
+      "maxLines": 452,
+      "reason": "Large interface and adapter implementation grouped in one module."
+    },
+    {
+      "path": "apps/api/src/routes/productSchemas.ts",
+      "classification": "must_split",
+      "maxLines": 512,
+      "reason": "Product, variant, and upload validation concerns are bundled in one file."
+    },
+    {
+      "path": "apps/api/src/app.ts",
+      "classification": "must_split",
+      "maxLines": 454,
+      "reason": "Composition, middleware wiring, readiness, and route mounting are tightly coupled."
+    },
+    {
+      "path": "apps/api/src/routes/botRuntime.ts",
+      "classification": "must_split",
+      "maxLines": 410,
+      "reason": "HTTP route logic and full inline operator shell are in one module."
+    },
+    {
+      "path": "apps/api/src/routes/products.ts",
+      "classification": "must_split",
+      "maxLines": 371,
+      "reason": "Repeated CRUD route plumbing and validation/error mapping are centralized."
+    },
+    {
+      "path": "apps/bot/src/outbound.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 722,
+      "reason": "Single outbound messaging subsystem with sequencing, pacing, media resolution, and retries."
+    },
+    {
+      "path": "scripts/modularity-policy.ts",
+      "classification": "must_split",
+      "maxLines": 740,
+      "reason": "Intentional exception while splitting checker internals into smaller scope, evaluation, render, and CLI modules."
+    },
+    {
+      "path": "apps/bot/src/runtime.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 653,
+      "reason": "Single runtime lifecycle module for socket startup, reconnect, and shutdown."
+    },
+    {
+      "path": "convex/seed.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 586,
+      "reason": "Single seeded data workflow with locking and embedding synchronization."
+    },
+    {
+      "path": "packages/ai/src/chat/manager.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 539,
+      "reason": "Provider orchestration and failover policy are intentionally centralized."
+    },
+    {
+      "path": "packages/rag/src/retrievalRewrite.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 535,
+      "reason": "Single retrieval rewrite flow with planning and merge logic."
+    },
+    {
+      "path": "packages/ai/src/chat/adapters/shared.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 537,
+      "reason": "Shared adapter behavior and normalization logic for chat providers."
+    },
+    {
+      "path": "convex/companyRuntime.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 505,
+      "reason": "Single bot runtime persistence domain for leases, sessions, and pairing artifacts."
+    },
+    {
+      "path": "convex/companyCleanup.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 483,
+      "reason": "Single cursor-driven tenant cleanup flow."
+    },
+    {
+      "path": "convex/analytics.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 473,
+      "reason": "Single analytics summary and event recording domain."
+    },
+    {
+      "path": "packages/core/src/logging/stream.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 451,
+      "reason": "Single rotating log stream implementation."
+    },
+    {
+      "path": "apps/bot/src/inbound.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 340,
+      "reason": "Single inbound normalization boundary from WhatsApp transport events."
+    },
+    {
+      "path": "apps/worker/src/pendingAssistantReconciliation.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 339,
+      "reason": "Single worker reconciliation loop for pending assistant state."
+    },
+    {
+      "path": "packages/shared/src/companyRuntime.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 305,
+      "reason": "Shared runtime state and health helper domain."
+    },
+    {
+      "path": "apps/worker/src/mediaCleanup.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 291,
+      "reason": "Single media cleanup worker loop with retry policy."
+    },
+    {
+      "path": "packages/config/src/index.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 292,
+      "reason": "Single runtime configuration parsing and validation boundary."
+    },
+    {
+      "path": "convex/productMedia.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 287,
+      "reason": "Single product media upload session lifecycle."
+    },
+    {
+      "path": "apps/cli/src/commands/backup.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 284,
+      "reason": "Single CLI backup command implementation."
+    },
+    {
+      "path": "apps/api/src/rateLimit.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 276,
+      "reason": "Single API rate-limiting middleware and client identity extraction flow."
+    },
+    {
+      "path": "apps/api/src/routes/offerSchemas.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 254,
+      "reason": "Single offer request validation module."
+    },
+    {
+      "path": "apps/api/src/services/convexProductMediaService.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 247,
+      "reason": "Single Convex-backed product media service adapter."
+    },
+    {
+      "path": "convex/offers.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 268,
+      "reason": "Single offers domain module for listing and mutation operations."
+    },
+    {
+      "path": "convex/productEmbeddingRuntime.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 250,
+      "reason": "Single product embedding runtime orchestration module."
+    },
+    {
+      "path": "packages/shared/src/accessControl.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 247,
+      "reason": "Single shared access control rules and evaluation helpers module."
+    },
+    {
+      "path": "convex/seedData.ts",
+      "classification": "excluded_non_core",
+      "maxLines": 339,
+      "reason": "Static seed dataset, not core logic."
+    },
+    {
+      "path": "convex/schema.ts",
+      "classification": "excluded_non_core",
+      "maxLines": 307,
+      "reason": "Schema definition module, not core logic."
+    }
+  ]
+}
