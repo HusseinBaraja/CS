@@ -2,8 +2,8 @@ import { v } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { AUTO_RESUME_IDLE_MS } from './constants';
-import { loadConversationOrThrow } from './conversation-readers';
-import { normalizeTimestamp, toConversationDto } from './message-helpers';
+import { loadConversationOrThrow } from './conversation_readers';
+import { normalizeTimestamp, toConversationDto } from './message_helpers';
 
 type RecordMutedCustomerActivityArgs = {
   companyId: Id<'companies'>;

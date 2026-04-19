@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import type { PromptHistoryTurn } from '@cs/ai';
 import type { DatabaseReader, QueryCtx } from '../_generated/server';
 import { REFERENCED_HISTORY_SIDE_MESSAGES, STALE_CONTEXT_RESET_MS } from './constants';
-import { loadConversationOrThrow } from './conversation-readers';
+import { loadConversationOrThrow } from './conversation_readers';
 import {
   isVisibleConversationMessage,
   normalizeOptionalMessageId,
@@ -11,10 +11,10 @@ import {
   resolveMessageByTransportMessageId,
   toMessageDto,
   toPromptHistoryTurn,
-} from './message-helpers';
+} from './message_helpers';
 import type { PromptHistorySelectionResult } from './types';
 
-export { getPromptHistoryDefinition } from './prompt-history-query';
+export { getPromptHistoryDefinition } from './prompt_history_query';
 const isMessageBeforeInbound = (message: any, input: any): boolean =>
   isVisibleConversationMessage(message)
   && (

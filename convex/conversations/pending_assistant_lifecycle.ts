@@ -5,9 +5,9 @@ export {
   getConversationOwnerNotificationContextDefinition,
   commitPendingAssistantMessageDefinition,
   markPendingAssistantMessageFailedDefinition,
-} from './pending-assistant-core';
+} from './pending_assistant_core';
 
 export {
   completePendingAssistantSideEffectsDefinition,
   recordPendingAssistantSideEffectProgressDefinition,
-} from './pending-assistant-side-effects';
+} from './pending_assistant_side_effects';

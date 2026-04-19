@@ -3,7 +3,7 @@ import type { PromptHistoryTurn } from '@cs/ai';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import { normalizePositiveInteger, toPromptHistoryTurn } from './message-helpers';
+import { normalizePositiveInteger, toPromptHistoryTurn } from './message_helpers';
 
 type GetPromptHistoryArgs = {
   companyId: Id<'companies'>;

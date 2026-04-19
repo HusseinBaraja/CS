@@ -4,8 +4,8 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx, MutationCtx } from '../_generated/server';
 import { AUTO_RESUME_IDLE_MS } from './constants';
-import { loadConversationOrThrow } from './conversation-readers';
-import { withConversationLock } from './lock-helpers';
+import { loadConversationOrThrow } from './conversation_readers';
+import { withConversationLock } from './lock_helpers';
 import {
   normalizeMessageContent,
   normalizeOptionalMessageId,
@@ -14,13 +14,13 @@ import {
   resolveExistingMessageInsert,
   toConversationDto,
   toMessageDto,
-} from './message-helpers';
+} from './message_helpers';
 import type { AppendInboundCustomerMessageResult } from './types';
 export {
   ensureActiveConversationDefinition,
   getOrCreateActiveConversationDefinition,
   getOrCreateConversationForInboundDefinition,
-} from './inbound-conversation-entrypoints';
+} from './inbound_conversation_entrypoints';
 
 export const appendConversationMessageDefinition = {
   args: {
