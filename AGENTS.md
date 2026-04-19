@@ -48,7 +48,7 @@ CSCB is a Bun-first, strict TypeScript monorepo for multi-tenant WhatsApp suppor
 
 - Correctness and reliability first.
 - Keep responses grounded in real data; avoid architecture that encourages hallucinated or partial state.
-- Prefer small, focused modular programming techniques over large monolithic systems.
+- Prefer small, focused modular programming techniques over large monolithic systems. (Ultra important)
 - When planning a step in the roadmap, split it to distinct mini-steps, run required bun commands at the end of each mini-step, then commit each one separately
 
 ## Maintainability
