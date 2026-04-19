@@ -425,7 +425,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
             companyId: "company-1",
             conversationId: "conversation-1",
             messageId: "message-1",
-            phoneNumber: "967700000001",
+            phoneNumber: "966500000000",
             timestamp: 1_000,
             analyticsState: "pending",
             ownerNotificationState: "pending",
@@ -527,6 +527,65 @@ describe("createPendingAssistantReconciliationProcessor", () => {
         details: "Owner handoff notification replayed by worker reconciliation",
       },
     ]);
+  });
+
+  test("skips worker session log entries for non-owner conversations", async () => {
+    const { log, entries } = createConversationSessionLog();
+    const { client } = createClientStub({
+      mutation: async (_reference, args) => {
+        const input = args as { key?: string; ownerToken?: string };
+        if (input.key && input.ownerToken) {
+          return { acquired: true, waitMs: 0 };
+        }
+        return undefined;
+      },
+      query: async (_reference, args) => {
+        const input = args as { olderThanOrAt?: number; messageId?: string };
+        if (typeof input.olderThanOrAt === "number") {
+          return [{
+            companyId: "company-1",
+            conversationId: "conversation-1",
+            messageId: "message-1",
+            phoneNumber: "967700000001",
+            timestamp: 1_000,
+            analyticsState: "not_applicable",
+            ownerNotificationState: "not_applicable",
+          }];
+        }
+
+        if (input.messageId === "message-1") {
+          return {
+            id: "message-1",
+            conversationId: "conversation-1",
+            role: "assistant",
+            content: "Assistant reply",
+            timestamp: 1_000,
+            deliveryState: "pending",
+            providerAcknowledgedAt: 1_500,
+            analyticsState: "not_applicable",
+            ownerNotificationState: "not_applicable",
+          };
+        }
+
+        return {
+          companyName: "Tenant A",
+          ownerPhone: "966500000000",
+        };
+      },
+    });
+    const processor = createPendingAssistantReconciliationProcessor({
+      createClient: () => client as never,
+      conversationSessionLog: log,
+      logger: createLoggerStub().logger,
+    });
+
+    await expect(processor.runTick()).resolves.toEqual({
+      reconciledCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+    });
+
+    expect(entries).toEqual([]);
   });
 
   test("completes already-recorded side effects without replaying them", async () => {

@@ -1,24 +1,7 @@
 import type { CatalogChatOrchestrator } from '@cs/rag';
-import {
-  logEvent,
-  redactJidForLog,
-  redactPhoneLikeValue,
-  serializeErrorForLog,
-  type StructuredLogger,
-  withLogBindings,
-} from '@cs/core';
-import {
-  appendConversationSessionLogEntry,
-  getAnalyticsIdempotencyKey,
-  serializeInboundMessage,
-  summarizeAssistantText,
-  summarizeUserText,
-} from './customerConversationLogHelpers';
-import {
-  canonicalizePhoneNumber,
-  formatOwnerNotification,
-  type NormalizedInboundMessage,
-} from '@cs/shared';
+import { logEvent, redactJidForLog, redactPhoneLikeValue, serializeErrorForLog, type StructuredLogger, withLogBindings } from '@cs/core';
+import { appendConversationSessionLogEntry, getAnalyticsIdempotencyKey, getOwnerConversationSessionLog, serializeInboundMessage, summarizeAssistantText, summarizeUserText } from './customerConversationLogHelpers';
+import { canonicalizePhoneNumber, formatOwnerNotification, type NormalizedInboundMessage } from '@cs/shared';
 import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId, type ConversationStore } from './conversationStore';
 
@@ -73,6 +56,11 @@ export const createCustomerConversationRouter = (
     }
 
     const userMessage = serializeInboundMessage(message);
+    const conversationSessionLog = getOwnerConversationSessionLog(
+      options.conversationSessionLog,
+      message.conversationPhoneNumber,
+      context.profile.ownerPhone,
+    );
     let conversationId: string;
     let promptHistorySelection: Awaited<ReturnType<ConversationStore["getPromptHistorySelectionForInbound"]>>;
     try {
@@ -128,7 +116,7 @@ export const createCustomerConversationRouter = (
         },
         "customer conversation inbound message recorded",
       );
-      await appendConversationSessionLogEntry(options.conversationSessionLog, {
+      await appendConversationSessionLogEntry(conversationSessionLog, {
         kind: "cv",
         timestamp: message.occurredAtMs,
         companyId: message.companyId,
@@ -243,7 +231,7 @@ export const createCustomerConversationRouter = (
         },
         "customer conversation assistant reply queued",
       );
-      await appendConversationSessionLogEntry(options.conversationSessionLog, {
+      await appendConversationSessionLogEntry(conversationSessionLog, {
         kind: "bts",
         timestamp: assistantTimestamp,
         companyId: message.companyId,
@@ -408,7 +396,7 @@ export const createCustomerConversationRouter = (
       },
       "customer conversation assistant reply committed",
     );
-    await appendConversationSessionLogEntry(options.conversationSessionLog, {
+    await appendConversationSessionLogEntry(conversationSessionLog, {
       kind: "cv",
       timestamp: assistantTimestamp,
       companyId: message.companyId,
@@ -416,7 +404,7 @@ export const createCustomerConversationRouter = (
       actor: "assistant",
       text: assistantText,
     });
-    await appendConversationSessionLogEntry(options.conversationSessionLog, {
+    await appendConversationSessionLogEntry(conversationSessionLog, {
       kind: "bts",
       timestamp: assistantTimestamp,
       companyId: message.companyId,

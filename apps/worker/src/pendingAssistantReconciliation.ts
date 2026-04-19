@@ -3,7 +3,7 @@ import {
   logger as defaultLogger,
 } from '@cs/core';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
-import { canonicalizePhoneNumber, formatOwnerNotification, type ConversationMessageDto } from '@cs/shared';
+import { isSamePhoneNumber } from '@cs/shared';
 import {
   appendAssistantReconciledSessionLog,
 } from './pendingAssistantSessionLog';
@@ -83,12 +83,23 @@ const reconcilePendingAssistantMessage = async (
       return "skipped";
     }
 
+    const conversationOwnerContext = conversationSessionLog
+      ? await client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
+        companyId: candidate.companyId as never,
+        conversationId: candidate.conversationId as never,
+      })
+      : null;
+    const ownerConversationSessionLog = conversationOwnerContext
+      && isSamePhoneNumber(candidate.phoneNumber, conversationOwnerContext.ownerPhone)
+      ? conversationSessionLog
+      : undefined;
+
     await client.mutation(convexInternal.conversations.commitPendingAssistantMessage, {
       companyId: candidate.companyId as never,
       conversationId: candidate.conversationId as never,
       pendingMessageId: candidate.messageId as never,
     });
-    await appendAssistantReconciledSessionLog(conversationSessionLog, {
+    await appendAssistantReconciledSessionLog(ownerConversationSessionLog, {
       companyId: candidate.companyId,
       conversationId: candidate.conversationId,
       timestamp: message.timestamp,
@@ -97,7 +108,7 @@ const reconcilePendingAssistantMessage = async (
     await replayPendingAssistantAnalyticsIfNeeded(client, {
       companyId: candidate.companyId,
       conversationId: candidate.conversationId,
-      conversationSessionLog,
+      conversationSessionLog: ownerConversationSessionLog,
       handoffSource: message.handoffSource,
       messageId: candidate.messageId,
       phoneNumber: candidate.phoneNumber,
@@ -108,7 +119,7 @@ const reconcilePendingAssistantMessage = async (
     await replayPendingAssistantOwnerNotificationIfNeeded(client, {
       companyId: candidate.companyId,
       conversationId: candidate.conversationId,
-      conversationSessionLog,
+      conversationSessionLog: ownerConversationSessionLog,
       handoffSource: message.handoffSource,
       messageId: candidate.messageId,
       ownerNotificationState: message.ownerNotificationState,

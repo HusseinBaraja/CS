@@ -3,7 +3,10 @@ import {
   type ConversationSessionLogWriter,
   summarizeTextForLog,
 } from "@cs/core";
-import type { NormalizedInboundMessage } from "@cs/shared";
+import {
+  isSamePhoneNumber,
+  type NormalizedInboundMessage,
+} from "@cs/shared";
 
 export const summarizeAssistantText = (value: string) => {
   const summary = summarizeTextForLog(value);
@@ -55,3 +58,10 @@ export const appendConversationSessionLogEntry = async (
 
   await log.append(entry);
 };
+
+export const getOwnerConversationSessionLog = (
+  log: ConversationSessionLogWriter | undefined,
+  conversationPhoneNumber: string,
+  ownerPhoneNumber: string,
+): ConversationSessionLogWriter | undefined =>
+  isSamePhoneNumber(conversationPhoneNumber, ownerPhoneNumber) ? log : undefined;

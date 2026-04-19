@@ -408,7 +408,14 @@ describe("createCustomerConversationRouter", () => {
       now: () => 2_000,
     });
 
-    await router(createMessage(), createContext(outbound));
+    await router(createMessage({
+      conversationPhoneNumber: "966500000000",
+      sender: {
+        phoneNumber: "966500000000",
+        transportId: "966500000000@s.whatsapp.net",
+        role: "owner",
+      },
+    }), createContext(outbound));
 
     expect(entries).toEqual([
       {
@@ -444,6 +451,25 @@ describe("createCustomerConversationRouter", () => {
         details: "Assistant reply",
       },
     ]);
+  });
+
+  test("skips conversation session log entries for non-owner conversations", async () => {
+    const { logger } = createLogger();
+    const { outbound } = createOutbound();
+    const { log, entries } = createConversationSessionLog();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: {
+        respond: async () => createCatalogChatResult("Assistant reply"),
+      },
+      conversationStore: createStore(),
+      conversationSessionLog: log,
+      logger,
+      now: () => 2_000,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(entries).toEqual([]);
   });
 
   test("reuses one active conversation across repeated customer messages", async () => {
