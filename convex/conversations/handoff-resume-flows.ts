@@ -186,6 +186,9 @@ export const resumeConversationDefinition = {
   handler: async (ctx: MutationCtx, args: any) => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (!conversation.muted) {
+  handler: async (ctx: MutationCtx, args: any) => {
+    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
+    if (!conversation.muted) {
       return toConversationDto(conversation);
     }
 
@@ -194,8 +197,8 @@ export const resumeConversationDefinition = {
     const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, 'actorPhoneNumber');
 
     if (
-      args.source === 'worker_auto'
-      && (conversation.nextAutoResumeAt === undefined || conversation.nextAutoResumeAt > resumedAt)
+      args.source === 'worker_auto' &&
+      (conversation.nextAutoResumeAt === undefined || conversation.nextAutoResumeAt > resumedAt)
     ) {
       return toConversationDto(conversation);
     }
