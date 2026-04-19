@@ -1,6 +1,16 @@
-import { logger as defaultLogger } from '@cs/core';
+import {
+  type ConversationSessionLogWriter,
+  logger as defaultLogger,
+} from '@cs/core';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
 import { canonicalizePhoneNumber, formatOwnerNotification, type ConversationMessageDto } from '@cs/shared';
+import {
+  appendAssistantReconciledSessionLog,
+} from './pendingAssistantSessionLog';
+import {
+  replayPendingAssistantAnalyticsIfNeeded,
+  replayPendingAssistantOwnerNotificationIfNeeded,
+} from './pendingAssistantSideEffectsReplay';
 import {
   logWorkerItemFailed,
   logWorkerTickCompleted,
@@ -14,10 +24,10 @@ const DEFAULT_PENDING_ASSISTANT_RECONCILIATION_BATCH_SIZE = 50;
 const DEFAULT_PENDING_ASSISTANT_GRACE_PERIOD_MS = 15_000;
 const JOB_NAME = "pendingAssistantReconciliation";
 type OwnerNotificationSender = (input: { recipientJid: string; text: string }) => Promise<void>;
-type AssistantHandoffSource = "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback";
 
 export interface PendingAssistantReconciliationProcessorOptions {
   batchSize?: number;
+  conversationSessionLog?: ConversationSessionLogWriter;
   createClient?: () => ConvexAdminClient;
   gracePeriodMs?: number;
   intervalMs?: number;
@@ -35,16 +45,6 @@ export interface PendingAssistantReconciliationTickResult {
 const getConversationLockKey = (companyId: string, phoneNumber: string): string =>
   `conversation:${companyId}:${phoneNumber}`;
 
-const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
-  `pendingMessage:${pendingMessageId}:handoff_started`;
-
-const isAssistantHandoffSource = (value: string): value is AssistantHandoffSource =>
-  value === "assistant_action"
-  || value === "provider_failure_fallback"
-  || value === "invalid_model_output_fallback";
-
-const OWNER_HANDOFF_HISTORY_LIMIT = 6;
-
 const reconcilePendingAssistantMessage = async (
   client: ConvexAdminClient,
   candidate: {
@@ -57,6 +57,7 @@ const reconcilePendingAssistantMessage = async (
   },
   logger: WorkerLogger,
   now: number,
+  conversationSessionLog: ConversationSessionLogWriter | undefined,
   sendOwnerNotification?: OwnerNotificationSender,
 ): Promise<"reconciled" | "skipped"> => {
   const ownerToken = crypto.randomUUID();
@@ -87,85 +88,33 @@ const reconcilePendingAssistantMessage = async (
       conversationId: candidate.conversationId as never,
       pendingMessageId: candidate.messageId as never,
     });
+    await appendAssistantReconciledSessionLog(conversationSessionLog, {
+      companyId: candidate.companyId,
+      conversationId: candidate.conversationId,
+      timestamp: message.timestamp,
+    });
 
-    if ((message.analyticsState === "pending" || message.analyticsState === "recorded") && message.handoffSource) {
-      if (message.analyticsState === "pending") {
-        await client.mutation(convexInternal.analytics.recordEvent, {
-          companyId: candidate.companyId as never,
-          eventType: "handoff_started",
-          timestamp: message.timestamp,
-          idempotencyKey: getAnalyticsIdempotencyKey(candidate.messageId),
-          payload: {
-            conversationId: candidate.conversationId,
-            phoneNumber: candidate.phoneNumber,
-            source: message.handoffSource,
-          },
-        });
-        await client.mutation(convexInternal.conversations.recordPendingAssistantSideEffectProgress, {
-          companyId: candidate.companyId as never,
-          conversationId: candidate.conversationId as never,
-          pendingMessageId: candidate.messageId as never,
-          analyticsRecorded: true,
-        });
-      }
+    await replayPendingAssistantAnalyticsIfNeeded(client, {
+      companyId: candidate.companyId,
+      conversationId: candidate.conversationId,
+      conversationSessionLog,
+      handoffSource: message.handoffSource,
+      messageId: candidate.messageId,
+      phoneNumber: candidate.phoneNumber,
+      timestamp: message.timestamp,
+      analyticsState: message.analyticsState,
+    });
 
-      await client.mutation(convexInternal.conversations.completePendingAssistantSideEffects, {
-        companyId: candidate.companyId as never,
-        conversationId: candidate.conversationId as never,
-        pendingMessageId: candidate.messageId as never,
-        analyticsCompleted: true,
-      });
-    }
-
-    if (message.ownerNotificationState === "pending" || message.ownerNotificationState === "sent") {
-      if (!message.handoffSource || !isAssistantHandoffSource(message.handoffSource)) {
-        throw new Error("Pending assistant owner notification replay requires message.handoffSource");
-      }
-
-      if (message.ownerNotificationState === "pending") {
-        if (!sendOwnerNotification) {
-          throw new Error("Pending assistant owner notification sender unavailable");
-        }
-
-        const ownerContext = await client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
-          companyId: candidate.companyId as never,
-          conversationId: candidate.conversationId as never,
-        });
-        const recentMessages = await client.query(convexInternal.conversations.listConversationMessages, {
-          companyId: candidate.companyId as never,
-          conversationId: candidate.conversationId as never,
-          limit: OWNER_HANDOFF_HISTORY_LIMIT,
-        }) as ConversationMessageDto[];
-        const ownerPhoneNumber = ownerContext ? canonicalizePhoneNumber(ownerContext.ownerPhone) : null;
-
-        if (!ownerContext || !ownerPhoneNumber) {
-          throw new Error("Owner notification replay context unavailable");
-        }
-
-        await sendOwnerNotification({
-          recipientJid: `${ownerPhoneNumber}@s.whatsapp.net`,
-          text: formatOwnerNotification({
-            companyName: ownerContext.companyName,
-            customerPhoneNumber: candidate.phoneNumber,
-            history: recentMessages,
-            source: message.handoffSource,
-          }),
-        });
-        await client.mutation(convexInternal.conversations.recordPendingAssistantSideEffectProgress, {
-          companyId: candidate.companyId as never,
-          conversationId: candidate.conversationId as never,
-          pendingMessageId: candidate.messageId as never,
-          ownerNotificationSent: true,
-        });
-      }
-
-      await client.mutation(convexInternal.conversations.completePendingAssistantSideEffects, {
-        companyId: candidate.companyId as never,
-        conversationId: candidate.conversationId as never,
-        pendingMessageId: candidate.messageId as never,
-        ownerNotificationCompleted: true,
-      });
-    }
+    await replayPendingAssistantOwnerNotificationIfNeeded(client, {
+      companyId: candidate.companyId,
+      conversationId: candidate.conversationId,
+      conversationSessionLog,
+      handoffSource: message.handoffSource,
+      messageId: candidate.messageId,
+      ownerNotificationState: message.ownerNotificationState,
+      phoneNumber: candidate.phoneNumber,
+      timestamp: message.timestamp,
+    }, sendOwnerNotification);
 
     return "reconciled";
   } finally {
@@ -200,6 +149,7 @@ export const createPendingAssistantReconciliationProcessor = (
   const intervalMs = options.intervalMs ?? DEFAULT_PENDING_ASSISTANT_RECONCILIATION_INTERVAL_MS;
   const logger = withWorkerJobLogger(options.logger ?? defaultLogger, JOB_NAME);
   const now = options.now ?? Date.now;
+  const conversationSessionLog = options.conversationSessionLog;
   const sendOwnerNotification = options.sendOwnerNotification;
 
   const runTick = async (): Promise<PendingAssistantReconciliationTickResult> => {
@@ -227,7 +177,7 @@ export const createPendingAssistantReconciliationProcessor = (
           phoneNumber: candidate.phoneNumber,
           ...(candidate.analyticsState ? { analyticsState: candidate.analyticsState } : {}),
           ...(candidate.ownerNotificationState ? { ownerNotificationState: candidate.ownerNotificationState } : {}),
-        }, logger, candidateNow, sendOwnerNotification);
+        }, logger, candidateNow, conversationSessionLog, sendOwnerNotification);
         if (outcome === "reconciled") {
           result.reconciledCount += 1;
         } else {

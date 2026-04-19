@@ -5,6 +5,7 @@ import type { OutboundMessenger } from './outbound';
 import { createCustomerConversationRouter } from './customerConversationRouter';
 import type { ConversationStore } from './conversationStore';
 import type { InboundRouteContext } from './sessionManager';
+import type { ConversationSessionLogWriter } from '@cs/core';
 
 const createCatalogChatResult = (text: string, query = "hello") => ({
   outcome: "provider_response" as const,
@@ -286,6 +287,19 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
   ...overrides,
 });
 
+const createConversationSessionLog = () => {
+  const entries: Array<Parameters<ConversationSessionLogWriter["append"]>[0]> = [];
+
+  return {
+    log: {
+      append: async (entry) => {
+        entries.push(entry);
+      },
+    } satisfies ConversationSessionLogWriter,
+    entries,
+  };
+};
+
 describe("createCustomerConversationRouter", () => {
   test("persists customer and assistant messages and sends the assistant reply", async () => {
     const calls: string[] = [];
@@ -369,6 +383,67 @@ describe("createCustomerConversationRouter", () => {
       text: "Assistant reply",
     }]);
     expect(errorCalls).toEqual([]);
+  });
+
+  test("appends customer-view and background entries to the conversation session log", async () => {
+    const { logger } = createLogger();
+    const { outbound } = createOutbound();
+    const { log, entries } = createConversationSessionLog();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: {
+        respond: async () => createCatalogChatResult("Assistant reply"),
+      },
+      conversationStore: createStore({
+        appendPendingAssistantMessage: async (input) => ({
+          id: "pending-1",
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: input.content,
+          timestamp: input.timestamp,
+          deliveryState: "pending",
+        }),
+      }),
+      conversationSessionLog: log,
+      logger,
+      now: () => 2_000,
+    });
+
+    await router(createMessage(), createContext(outbound));
+
+    expect(entries).toEqual([
+      {
+        kind: "cv",
+        timestamp: 1_700_000_000_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        actor: "customer",
+        text: "hello",
+      },
+      {
+        kind: "bts",
+        timestamp: 2_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        event: "assistant.pending_created",
+        details: "Assistant reply",
+      },
+      {
+        kind: "cv",
+        timestamp: 2_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        actor: "assistant",
+        text: "Assistant reply",
+      },
+      {
+        kind: "bts",
+        timestamp: 2_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        event: "assistant.committed",
+        details: "Assistant reply",
+      },
+    ]);
   });
 
   test("reuses one active conversation across repeated customer messages", async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import type { ConversationSessionLogWriter } from '@cs/core';
 import { createPendingAssistantReconciliationProcessor } from './pendingAssistantReconciliation';
 
 type StubCall = {
@@ -84,6 +85,19 @@ const createLoggerStub = () => {
     infoCalls,
     warnCalls,
     errorCalls,
+  };
+};
+
+const createConversationSessionLog = () => {
+  const entries: Array<Parameters<ConversationSessionLogWriter["append"]>[0]> = [];
+
+  return {
+    log: {
+      append: async (entry) => {
+        entries.push(entry);
+      },
+    } satisfies ConversationSessionLogWriter,
+    entries,
   };
 };
 
@@ -371,6 +385,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
 
   test("replays analytics and owner notification side effects when a sender is provided", async () => {
     const sentNotifications: Array<{ recipientJid: string; text: string }> = [];
+    const { log, entries } = createConversationSessionLog();
     const { client, calls } = createClientStub({
       mutation: async (_reference, args) => {
         const input = args as {
@@ -449,6 +464,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
 
     const processor = createPendingAssistantReconciliationProcessor({
       createClient: () => client as never,
+      conversationSessionLog: log,
       logger: createLoggerStub().logger,
       sendOwnerNotification: async (input) => {
         sentNotifications.push(input);
@@ -485,6 +501,32 @@ describe("createPendingAssistantReconciliationProcessor", () => {
         }),
       }),
     ]));
+    expect(entries).toEqual([
+      {
+        kind: "bts",
+        timestamp: 1_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        event: "assistant.reconciled",
+        details: "Pending assistant message committed by worker reconciliation",
+      },
+      {
+        kind: "bts",
+        timestamp: 1_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        event: "assistant.analytics_replayed",
+        details: "Handoff analytics recorded by worker reconciliation",
+      },
+      {
+        kind: "bts",
+        timestamp: 1_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        event: "assistant.owner_notification_replayed",
+        details: "Owner handoff notification replayed by worker reconciliation",
+      },
+    ]);
   });
 
   test("completes already-recorded side effects without replaying them", async () => {

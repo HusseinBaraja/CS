@@ -16,6 +16,7 @@ type PackageScripts = Record<string, string>;
 
 const scripts = packageJson.scripts as PackageScripts;
 const turboTasks = turboJson.tasks as Record<string, { dependsOn?: string[] }>;
+const turboGlobalPassThroughEnv = turboJson.globalPassThroughEnv as string[];
 const apiScripts = apiPackageJson.scripts as PackageScripts;
 const botScripts = botPackageJson.scripts as PackageScripts;
 const cliScripts = cliPackageJson.scripts as PackageScripts;
@@ -27,12 +28,12 @@ const storageScripts = storagePackageJson.scripts as PackageScripts;
 
 describe("root package scripts", () => {
   test("exposes app-runtime commands from the repository root", () => {
-    expect(scripts.dev).toBe("turbo run dev --filter=api --filter=bot --filter=web --filter=worker");
+    expect(scripts.dev).toBe("bun scripts/dev-session-log.ts");
     expect(scripts.web).toBe("bun run dev:web");
-    expect(scripts["dev:api"]).toBe("turbo run dev --filter=api");
-    expect(scripts["dev:bot"]).toBe("turbo run dev --filter=api --filter=bot");
+    expect(scripts["dev:api"]).toBe("bun scripts/dev-session-log.ts --filter=api");
+    expect(scripts["dev:bot"]).toBe("bun scripts/dev-session-log.ts --filter=api --filter=bot");
     expect(scripts["dev:web"]).toBe("turbo run dev --filter=web");
-    expect(scripts["dev:worker"]).toBe("turbo run dev --filter=worker");
+    expect(scripts["dev:worker"]).toBe("bun scripts/dev-session-log.ts --filter=worker");
     expect(scripts["build:web"]).toBe("turbo run build --filter=web");
     expect(scripts["check:modularity"]).toBe("bun scripts/modularity-policy.ts");
     expect(scripts["check:root"]).toBe("bun run check:modularity");
@@ -120,8 +121,21 @@ describe("command validation conventions", () => {
     expect(storageScripts.check).toBe("bun run typecheck && bun run lint");
   });
 
+  test("generates a shared markdown conversation session file for root bot and worker dev runs", () => {
+    expect(scripts.dev).toContain("dev-session-log.ts");
+    expect(scripts["dev:bot"]).toContain("dev-session-log.ts");
+    expect(scripts["dev:worker"]).toContain("dev-session-log.ts");
+  });
+
   test("make turbo check depend on workspace check tasks only", () => {
     expect(turboTasks.check?.dependsOn).toEqual(["^check"]);
+  });
+
+  test("passes conversation session log env vars through turbo dev tasks", () => {
+    expect(turboGlobalPassThroughEnv).toEqual(expect.arrayContaining([
+      "CONVERSATION_LOG_SESSION_ID",
+      "CONVERSATION_LOG_SESSION_PATH",
+    ]));
   });
 });
 

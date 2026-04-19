@@ -1,4 +1,10 @@
-import { isTransientConvexTransportError, logEvent, logger, serializeErrorForLog } from '@cs/core';
+import {
+  createConversationSessionLog,
+  isTransientConvexTransportError,
+  logEvent,
+  logger,
+  serializeErrorForLog,
+} from '@cs/core';
 import { createConversationAutoResumeProcessor } from './conversationAutoResume';
 import { withWorkerRuntimeLogger, type WorkerLogger } from './logging';
 import { createMediaCleanupProcessor } from './mediaCleanup';
@@ -35,8 +41,15 @@ export const startWorker = async (options: StartWorkerOptions = {}): Promise<voi
   const workerLogger = withWorkerRuntimeLogger(options.logger ?? logger, "lifecycle");
   const workerProcess = options.workerProcess ?? process;
   const conversationAutoResume = (options.createConversationAutoResumeProcessor ?? createConversationAutoResumeProcessor)();
+  const conversationSessionLog = process.env.CONVERSATION_LOG_SESSION_ID && process.env.CONVERSATION_LOG_SESSION_PATH
+    ? createConversationSessionLog({
+      filePath: process.env.CONVERSATION_LOG_SESSION_PATH,
+      sessionId: process.env.CONVERSATION_LOG_SESSION_ID,
+    })
+    : undefined;
   const pendingAssistantReconciliation =
-    (options.createPendingAssistantReconciliationProcessor ?? createPendingAssistantReconciliationProcessor)();
+    (options.createPendingAssistantReconciliationProcessor ??
+      (() => createPendingAssistantReconciliationProcessor({ conversationSessionLog })))();
   const mediaCleanup = (options.createMediaCleanupProcessor ?? createMediaCleanupProcessor)();
 
   const runStartupTickWithRetry = async (tickName: string, runTick: () => Promise<unknown>) => {

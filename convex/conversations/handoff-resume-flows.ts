@@ -186,9 +186,6 @@ export const resumeConversationDefinition = {
   handler: async (ctx: MutationCtx, args: any) => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (!conversation.muted) {
-  handler: async (ctx: MutationCtx, args: any) => {
-    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
-    if (!conversation.muted) {
       return toConversationDto(conversation);
     }
 

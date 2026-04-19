@@ -4,10 +4,16 @@ import {
   redactJidForLog,
   redactPhoneLikeValue,
   serializeErrorForLog,
-  summarizeTextForLog,
   type StructuredLogger,
   withLogBindings,
 } from '@cs/core';
+import {
+  appendConversationSessionLogEntry,
+  getAnalyticsIdempotencyKey,
+  serializeInboundMessage,
+  summarizeAssistantText,
+  summarizeUserText,
+} from './customerConversationLogHelpers';
 import {
   canonicalizePhoneNumber,
   formatOwnerNotification,
@@ -21,6 +27,7 @@ export type CustomerConversationLogger = StructuredLogger;
 export interface CustomerConversationRouterOptions {
   catalogChatOrchestrator: CatalogChatOrchestrator;
   conversationHistoryWindowMessages?: number;
+  conversationSessionLog?: import("@cs/core").ConversationSessionLogWriter;
   conversationStore: ConversationStore;
   logger: CustomerConversationLogger;
   now?: () => number;
@@ -28,46 +35,6 @@ export interface CustomerConversationRouterOptions {
 
 const DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES = 20;
 const OWNER_HANDOFF_HISTORY_LIMIT = 6;
-
-const summarizeAssistantText = (value: string) => {
-  const summary = summarizeTextForLog(value);
-
-  return {
-    assistantTextLength: summary.textLength,
-    assistantTextLineCount: summary.textLineCount,
-  };
-};
-
-const summarizeUserText = (value: string) => {
-  const summary = summarizeTextForLog(value);
-
-  return {
-    userTextLength: summary.textLength,
-    userTextLineCount: summary.textLineCount,
-  };
-};
-
-const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
-  `pendingMessage:${pendingMessageId}:handoff_started`;
-
-const serializeInboundMessage = (message: NormalizedInboundMessage): string => {
-  const text = message.content.text.trim();
-
-  switch (message.content.kind) {
-    case "text":
-      return text;
-    case "image":
-      return text.length > 0 ? `[image] ${text}` : "[image]";
-    case "video":
-      return text.length > 0 ? `[video] ${text}` : "[video]";
-    case "document":
-      return text.length > 0 ? `[document] ${text}` : "[document]";
-    case "audio":
-      return "[audio]";
-    case "sticker":
-      return "[sticker]";
-  }
-};
 
 export const createCustomerConversationRouter = (
   options: CustomerConversationRouterOptions,
@@ -161,6 +128,14 @@ export const createCustomerConversationRouter = (
         },
         "customer conversation inbound message recorded",
       );
+      await appendConversationSessionLogEntry(options.conversationSessionLog, {
+        kind: "cv",
+        timestamp: message.occurredAtMs,
+        companyId: message.companyId,
+        conversationId,
+        actor: "customer",
+        text: userMessage,
+      });
 
       promptHistorySelection = await options.conversationStore.getPromptHistorySelectionForInbound({
         companyId: message.companyId,
@@ -268,6 +243,14 @@ export const createCustomerConversationRouter = (
         },
         "customer conversation assistant reply queued",
       );
+      await appendConversationSessionLogEntry(options.conversationSessionLog, {
+        kind: "bts",
+        timestamp: assistantTimestamp,
+        companyId: message.companyId,
+        conversationId,
+        event: "assistant.pending_created",
+        details: assistantText,
+      });
     } catch (error) {
       logEvent(
         routeLogger,
@@ -425,6 +408,22 @@ export const createCustomerConversationRouter = (
       },
       "customer conversation assistant reply committed",
     );
+    await appendConversationSessionLogEntry(options.conversationSessionLog, {
+      kind: "cv",
+      timestamp: assistantTimestamp,
+      companyId: message.companyId,
+      conversationId,
+      actor: "assistant",
+      text: assistantText,
+    });
+    await appendConversationSessionLogEntry(options.conversationSessionLog, {
+      kind: "bts",
+      timestamp: assistantTimestamp,
+      companyId: message.companyId,
+      conversationId,
+      event: "assistant.committed",
+      details: assistantText,
+    });
 
     if (handoffSource) {
       try {
