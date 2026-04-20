@@ -91,11 +91,11 @@ export const replayPendingAssistantOwnerNotificationIfNeeded = async (
     return;
   }
 
-  if (!input.handoffSource || !isAssistantHandoffSource(input.handoffSource)) {
-    throw new Error("Pending assistant owner notification replay requires message.handoffSource");
-  }
-
   if (input.ownerNotificationState === "pending") {
+    if (!input.handoffSource || !isAssistantHandoffSource(input.handoffSource)) {
+      throw new Error("Pending assistant owner notification replay requires message.handoffSource");
+    }
+
     if (!sendOwnerNotification) {
       throw new Error("Pending assistant owner notification sender unavailable");
     }

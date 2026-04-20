@@ -668,4 +668,76 @@ describe("createPendingAssistantReconciliationProcessor", () => {
       }),
     ]));
   });
+
+  test("completes sent owner notifications even when handoff source is missing", async () => {
+    const { client, calls } = createClientStub({
+      mutation: async (_reference, args) => {
+        const input = args as {
+          key?: string;
+          ownerToken?: string;
+          pendingMessageId?: string;
+          ownerNotificationCompleted?: boolean;
+        };
+        if (input.key && input.ownerToken) {
+          return { acquired: true, waitMs: 0 };
+        }
+        if (input.pendingMessageId && input.ownerNotificationCompleted) {
+          return undefined;
+        }
+        return undefined;
+      },
+      query: async (_reference, args) => {
+        const input = args as { olderThanOrAt?: number; messageId?: string };
+        if (typeof input.olderThanOrAt === "number") {
+          return [{
+            companyId: "company-1",
+            conversationId: "conversation-1",
+            messageId: "message-1",
+            phoneNumber: "967700000001",
+            timestamp: 1_000,
+            analyticsState: "not_applicable",
+            ownerNotificationState: "sent",
+          }];
+        }
+        if (input.messageId === "message-1") {
+          return {
+            id: "message-1",
+            conversationId: "conversation-1",
+            role: "assistant",
+            content: "Assistant reply",
+            timestamp: 1_000,
+            deliveryState: "pending",
+            providerAcknowledgedAt: 1_500,
+            analyticsState: "not_applicable",
+            ownerNotificationState: "sent",
+          };
+        }
+        throw new Error("should not load owner replay context");
+      },
+    });
+    const sentNotifications: Array<{ recipientJid: string; text: string }> = [];
+    const processor = createPendingAssistantReconciliationProcessor({
+      createClient: () => client as never,
+      logger: createLoggerStub().logger,
+      sendOwnerNotification: async (input) => {
+        sentNotifications.push(input);
+      },
+    });
+
+    await expect(processor.runTick()).resolves.toEqual({
+      reconciledCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+    });
+
+    expect(sentNotifications).toEqual([]);
+    expect(calls.mutations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        args: expect.objectContaining({
+          pendingMessageId: "message-1",
+          ownerNotificationCompleted: true,
+        }),
+      }),
+    ]));
+  });
 });
