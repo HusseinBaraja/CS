@@ -75,6 +75,10 @@ export const replayPendingAssistantOwnerNotificationIfNeeded = async (
     conversationSessionLog?: ConversationSessionLogWriter;
     handoffSource?: string;
     messageId: string;
+    ownerContext?: {
+      companyName: string;
+      ownerPhone: string;
+    } | null;
     ownerNotificationState?: "pending" | "sent" | "completed" | "not_applicable";
     phoneNumber: string;
     timestamp: number;
@@ -95,10 +99,12 @@ export const replayPendingAssistantOwnerNotificationIfNeeded = async (
     }
 
     const [ownerContext, recentMessages] = await Promise.all([
-      client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
-        companyId: input.companyId as never,
-        conversationId: input.conversationId as never,
-      }),
+      input.ownerContext !== undefined
+        ? Promise.resolve(input.ownerContext)
+        : client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
+          companyId: input.companyId as never,
+          conversationId: input.conversationId as never,
+        }),
       client.query(convexInternal.conversations.listConversationMessages, {
         companyId: input.companyId as never,
         conversationId: input.conversationId as never,

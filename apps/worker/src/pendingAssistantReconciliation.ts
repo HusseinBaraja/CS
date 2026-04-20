@@ -122,6 +122,7 @@ const reconcilePendingAssistantMessage = async (
       conversationSessionLog: ownerConversationSessionLog,
       handoffSource: message.handoffSource,
       messageId: candidate.messageId,
+      ownerContext: conversationOwnerContext,
       ownerNotificationState: message.ownerNotificationState,
       phoneNumber: candidate.phoneNumber,
       timestamp: message.timestamp,
