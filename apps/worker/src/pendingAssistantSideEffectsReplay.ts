@@ -94,15 +94,17 @@ export const replayPendingAssistantOwnerNotificationIfNeeded = async (
       throw new Error("Pending assistant owner notification sender unavailable");
     }
 
-    const ownerContext = await client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
-      companyId: input.companyId as never,
-      conversationId: input.conversationId as never,
-    });
-    const recentMessages = await client.query(convexInternal.conversations.listConversationMessages, {
-      companyId: input.companyId as never,
-      conversationId: input.conversationId as never,
-      limit: OWNER_HANDOFF_HISTORY_LIMIT,
-    }) as ConversationMessageDto[];
+    const [ownerContext, recentMessages] = await Promise.all([
+      client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
+        companyId: input.companyId as never,
+        conversationId: input.conversationId as never,
+      }),
+      client.query(convexInternal.conversations.listConversationMessages, {
+        companyId: input.companyId as never,
+        conversationId: input.conversationId as never,
+        limit: OWNER_HANDOFF_HISTORY_LIMIT,
+      }) as Promise<ConversationMessageDto[]>,
+    ]);
     const ownerPhoneNumber = ownerContext ? canonicalizePhoneNumber(ownerContext.ownerPhone) : null;
 
     if (!ownerContext || !ownerPhoneNumber) {
