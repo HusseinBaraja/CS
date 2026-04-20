@@ -15,6 +15,7 @@ import {
 import type { PromptHistorySelectionResult } from './types';
 
 export { getPromptHistoryDefinition } from './prompt_history_query';
+
 const isMessageBeforeInbound = (message: any, input: any): boolean =>
   isVisibleConversationMessage(message)
   && (
