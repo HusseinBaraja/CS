@@ -11,10 +11,10 @@ export const createDevSessionLogEnvironment = (input: {
 }): Record<string, string> => {
   const sessionId = createConversationSessionLogSessionId(input.now);
   const logDirectory = resolve(input.repoRoot, "logs", "conversations");
-  const logPath = resolve(createConversationSessionLogSessionPath({
+  const logPath = createConversationSessionLogSessionPath({
     logDirectory,
     sessionId,
-  }));
+  });
 
   return {
     CONVERSATION_LOG_SESSION_ID: sessionId,
