@@ -66,14 +66,20 @@ const isAlreadyExistsError = (error: unknown): boolean =>
   "code" in error &&
   (error as { code?: unknown }).code === "EEXIST";
 
+const toIndentedMarkdownBlock = (value: string): string =>
+  value
+    .split(/\r\n|\n|\r/)
+    .map((line) => `    ${line}`)
+    .join("\n");
+
 const formatEntryLine = (entry: ConversationSessionLogEntry): string => {
   const timestamp = new Date(entry.timestamp).toISOString();
 
   if (entry.kind === "cv") {
-    return `- [CV] ${timestamp} company=${entry.companyId} conversation=${entry.conversationId} actor=${entry.actor}\n\n${entry.text}\n`;
+    return `- [CV] ${timestamp} company=${entry.companyId} conversation=${entry.conversationId} actor=${entry.actor}\n\n${toIndentedMarkdownBlock(entry.text)}\n`;
   }
 
-  return `- [BTS] ${timestamp} company=${entry.companyId} conversation=${entry.conversationId} event=${entry.event}\n\n${entry.details}\n`;
+  return `- [BTS] ${timestamp} company=${entry.companyId} conversation=${entry.conversationId} event=${entry.event}\n\n${toIndentedMarkdownBlock(entry.details)}\n`;
 };
 
 export const createConversationSessionLog = (
