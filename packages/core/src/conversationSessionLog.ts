@@ -1,4 +1,4 @@
-import { mkdir, appendFile, access } from "node:fs/promises";
+import { mkdir, appendFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { dirname } from "node:path";
 
@@ -54,6 +54,12 @@ const toMarkdownHeader = (sessionId: string, startedAt: Date): string => [
   "",
 ].join("\n");
 
+const isAlreadyExistsError = (error: unknown): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  (error as { code?: unknown }).code === "EEXIST";
+
 const formatEntryLine = (entry: ConversationSessionLogEntry): string => {
   const timestamp = new Date(entry.timestamp).toISOString();
 
@@ -79,9 +85,11 @@ export const createConversationSessionLog = (
     await mkdir(dirname(options.filePath), { recursive: true });
 
     try {
-      await access(options.filePath);
-    } catch {
-      await appendFile(options.filePath, toMarkdownHeader(options.sessionId, startedAt));
+      await writeFile(options.filePath, toMarkdownHeader(options.sessionId, startedAt), { flag: "wx" });
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) {
+        throw error;
+      }
     }
 
     initialized = true;

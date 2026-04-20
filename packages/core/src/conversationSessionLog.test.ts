@@ -85,4 +85,47 @@ describe("createConversationSessionLog", () => {
       await rm(directory, { force: true, recursive: true });
     }
   });
+
+  test("writes header once when two writers share the same file", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
+    const filePath = join(directory, "session.md");
+    const first = createConversationSessionLog({
+      filePath,
+      sessionId: "session-1",
+      startedAt: new Date("2026-04-19T10:11:12.345Z"),
+    });
+    const second = createConversationSessionLog({
+      filePath,
+      sessionId: "session-1",
+      startedAt: new Date("2026-04-19T10:11:12.345Z"),
+    });
+
+    try {
+      await Promise.all([
+        first.append({
+          kind: "cv",
+          timestamp: 1_710_000_000_000,
+          companyId: "company-1",
+          conversationId: "conversation-1",
+          actor: "customer",
+          text: "first writer",
+        }),
+        second.append({
+          kind: "cv",
+          timestamp: 1_710_000_000_001,
+          companyId: "company-1",
+          conversationId: "conversation-1",
+          actor: "assistant",
+          text: "second writer",
+        }),
+      ]);
+
+      const content = await readFile(filePath, "utf8");
+      expect(content.match(/# Conversation Session Log/g)?.length ?? 0).toBe(1);
+      expect(content).toContain("first writer");
+      expect(content).toContain("second writer");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
 });
