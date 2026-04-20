@@ -13,6 +13,9 @@ import { createPendingAssistantReconciliationProcessor } from './pendingAssistan
 type MediaCleanupProcessor = ReturnType<typeof createMediaCleanupProcessor>;
 type ConversationAutoResumeProcessor = ReturnType<typeof createConversationAutoResumeProcessor>;
 type PendingAssistantReconciliationProcessor = ReturnType<typeof createPendingAssistantReconciliationProcessor>;
+type PendingAssistantReconciliationFactoryInput = {
+  conversationSessionLog: ReturnType<typeof createConversationSessionLog> | undefined;
+};
 
 const WORKER_STARTUP_RETRY_DELAYS_MS = [250, 500, 1_000] as const;
 
@@ -31,7 +34,9 @@ interface WorkerProcess {
 
 export interface StartWorkerOptions {
   createConversationAutoResumeProcessor?: () => ConversationAutoResumeProcessor;
-  createPendingAssistantReconciliationProcessor?: () => PendingAssistantReconciliationProcessor;
+  createPendingAssistantReconciliationProcessor?: (
+    input?: PendingAssistantReconciliationFactoryInput,
+  ) => PendingAssistantReconciliationProcessor;
   logger?: WorkerLogger;
   createMediaCleanupProcessor?: () => MediaCleanupProcessor;
   workerProcess?: WorkerProcess;
@@ -47,9 +52,15 @@ export const startWorker = async (options: StartWorkerOptions = {}): Promise<voi
       sessionId: process.env.CONVERSATION_LOG_SESSION_ID,
     })
     : undefined;
-  const pendingAssistantReconciliation =
-    (options.createPendingAssistantReconciliationProcessor ??
-      (() => createPendingAssistantReconciliationProcessor({ conversationSessionLog })))();
+  const pendingAssistantReconciliationFactory =
+    options.createPendingAssistantReconciliationProcessor
+    ?? ((input?: PendingAssistantReconciliationFactoryInput) =>
+      createPendingAssistantReconciliationProcessor({
+        conversationSessionLog: input?.conversationSessionLog,
+      }));
+  const pendingAssistantReconciliation = pendingAssistantReconciliationFactory({
+    conversationSessionLog,
+  });
   const mediaCleanup = (options.createMediaCleanupProcessor ?? createMediaCleanupProcessor)();
 
   const runStartupTickWithRetry = async (tickName: string, runTick: () => Promise<unknown>) => {
