@@ -453,6 +453,47 @@ describe("createCustomerConversationRouter", () => {
     ]);
   });
 
+  test("continues routing when session-log append fails", async () => {
+    const { logger, errorCalls, warnCalls } = createLogger();
+    const { outbound, sent } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: {
+        respond: async () => createCatalogChatResult("Assistant reply"),
+      },
+      conversationStore: createStore(),
+      conversationSessionLog: {
+        append: async () => {
+          throw new Error("session log write failed");
+        },
+      },
+      logger,
+      now: () => 2_000,
+    });
+
+    await router(createMessage({
+      conversationPhoneNumber: "966500000000",
+      sender: {
+        phoneNumber: "966500000000",
+        transportId: "966500000000@s.whatsapp.net",
+        role: "owner",
+      },
+    }), createContext(outbound));
+
+    expect(sent).toEqual([{
+      recipientJid: "966500000000@s.whatsapp.net",
+      text: "Assistant reply",
+    }]);
+    expect(warnCalls).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        message: "customer conversation session log append failed",
+        payload: expect.objectContaining({
+          event: "bot.router.session_log_append_failed",
+        }),
+      }),
+    ]));
+    expect(errorCalls).toEqual([]);
+  });
+
   test("skips conversation session log entries for non-owner conversations", async () => {
     const { logger } = createLogger();
     const { outbound } = createOutbound();
