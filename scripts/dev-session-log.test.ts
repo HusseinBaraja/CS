@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { EventEmitter } from "node:events";
 import { join } from "node:path";
-import { createDevSessionLogEnvironment } from "./dev-session-log";
+import { createDevSessionLogEnvironment, waitForChildExit } from "./dev-session-log";
 
 describe("createDevSessionLogEnvironment", () => {
   test("creates one shared session id and markdown path for a dev run", () => {
@@ -16,5 +17,54 @@ describe("createDevSessionLogEnvironment", () => {
       "conversations",
       `${env.CONVERSATION_LOG_SESSION_ID}.md`,
     ));
+  });
+});
+
+describe("waitForChildExit", () => {
+  class FakeProcess extends EventEmitter {
+    exitCode: number | undefined;
+  }
+
+  class FakeChild extends EventEmitter {
+    killed = false;
+    public killedSignals: string[] = [];
+
+    kill(signal?: NodeJS.Signals) {
+      if (signal) {
+        this.killedSignals.push(signal);
+      }
+      this.killed = true;
+    }
+  }
+
+  test("sets non-zero exit code and resolves on child error", async () => {
+    const fakeProcess = new FakeProcess();
+    const fakeChild = new FakeChild();
+    const waitPromise = waitForChildExit({
+      child: fakeChild,
+      processRef: fakeProcess,
+    });
+
+    fakeChild.emit("error", new Error("spawn failed"));
+    await waitPromise;
+
+    expect(fakeProcess.exitCode).toBe(1);
+  });
+
+  test("forwards SIGINT to child and cleans handlers on exit", async () => {
+    const fakeProcess = new FakeProcess();
+    const fakeChild = new FakeChild();
+    const waitPromise = waitForChildExit({
+      child: fakeChild,
+      processRef: fakeProcess,
+    });
+
+    fakeProcess.emit("SIGINT", "SIGINT");
+    fakeChild.emit("exit", 0);
+    await waitPromise;
+
+    expect(fakeChild.killedSignals).toEqual(["SIGINT"]);
+    fakeProcess.emit("SIGINT", "SIGINT");
+    expect(fakeChild.killedSignals).toEqual(["SIGINT"]);
   });
 });
