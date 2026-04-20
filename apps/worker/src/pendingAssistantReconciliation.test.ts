@@ -385,6 +385,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
 
   test("replays analytics and owner notification side effects when a sender is provided", async () => {
     const sentNotifications: Array<{ recipientJid: string; text: string }> = [];
+    let mutationCountBeforeSend = 0;
     const { log, entries } = createConversationSessionLog();
     const { client, calls } = createClientStub({
       mutation: async (_reference, args) => {
@@ -467,6 +468,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
       conversationSessionLog: log,
       logger: createLoggerStub().logger,
       sendOwnerNotification: async (input) => {
+        mutationCountBeforeSend = calls.mutations.length;
         sentNotifications.push(input);
       },
     });
@@ -501,6 +503,10 @@ describe("createPendingAssistantReconciliationProcessor", () => {
         }),
       }),
     ]));
+    const ownerNotificationSentMutationIndex = calls.mutations.findIndex((call) =>
+      (call.args as { ownerNotificationSent?: boolean }).ownerNotificationSent === true);
+    expect(ownerNotificationSentMutationIndex).toBeGreaterThanOrEqual(0);
+    expect(ownerNotificationSentMutationIndex).toBeLessThan(mutationCountBeforeSend);
     expect(entries).toEqual([
       {
         kind: "bts",

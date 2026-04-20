@@ -119,6 +119,12 @@ export const replayPendingAssistantOwnerNotificationIfNeeded = async (
       throw new Error("Owner notification replay context unavailable");
     }
 
+    await client.mutation(convexInternal.conversations.recordPendingAssistantSideEffectProgress, {
+      companyId: input.companyId as never,
+      conversationId: input.conversationId as never,
+      pendingMessageId: input.messageId as never,
+      ownerNotificationSent: true,
+    });
     await sendOwnerNotification({
       recipientJid: `${ownerPhoneNumber}@s.whatsapp.net`,
       text: formatOwnerNotification({
@@ -127,12 +133,6 @@ export const replayPendingAssistantOwnerNotificationIfNeeded = async (
         history: recentMessages,
         source: input.handoffSource,
       }),
-    });
-    await client.mutation(convexInternal.conversations.recordPendingAssistantSideEffectProgress, {
-      companyId: input.companyId as never,
-      conversationId: input.conversationId as never,
-      pendingMessageId: input.messageId as never,
-      ownerNotificationSent: true,
     });
     await appendAssistantOwnerNotificationReplayedSessionLog(input.conversationSessionLog, {
       companyId: input.companyId,
