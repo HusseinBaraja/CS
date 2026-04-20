@@ -4,7 +4,7 @@
 
 - Every instruction in this file is mandatory.
 - Use `skills/caveman/SKILL.md` in lite mode
-- Commit as you go on a checkpoint that you are done with.
+- Commit incrementally when you complete a checkpoint.
 
 ## Task Completion Requirements
 
