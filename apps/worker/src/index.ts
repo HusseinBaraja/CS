@@ -14,7 +14,7 @@ type MediaCleanupProcessor = ReturnType<typeof createMediaCleanupProcessor>;
 type ConversationAutoResumeProcessor = ReturnType<typeof createConversationAutoResumeProcessor>;
 type PendingAssistantReconciliationProcessor = ReturnType<typeof createPendingAssistantReconciliationProcessor>;
 type PendingAssistantReconciliationFactoryInput = {
-  conversationSessionLog: ReturnType<typeof createConversationSessionLog> | undefined;
+  conversationSessionLog: ReturnType<typeof createConversationSessionLogFromEnv>;
 };
 
 const WORKER_STARTUP_RETRY_DELAYS_MS = [250, 500, 1_000] as const;

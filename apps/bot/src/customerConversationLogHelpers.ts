@@ -59,6 +59,18 @@ export const appendConversationSessionLogEntry = async (
   await log.append(entry);
 };
 
+export const appendConversationSessionLogEntrySafely = async (
+  log: ConversationSessionLogWriter | undefined,
+  entry: ConversationSessionLogEntry,
+  onError: (error: unknown) => void,
+): Promise<void> => {
+  try {
+    await appendConversationSessionLogEntry(log, entry);
+  } catch (error) {
+    onError(error);
+  }
+};
+
 export const getOwnerConversationSessionLog = (
   log: ConversationSessionLogWriter | undefined,
   conversationPhoneNumber: string,

@@ -1,12 +1,10 @@
 import type { CatalogChatOrchestrator } from '@cs/rag';
 import { logEvent, redactJidForLog, redactPhoneLikeValue, serializeErrorForLog, type StructuredLogger, withLogBindings } from '@cs/core';
-import { appendConversationSessionLogEntry, getAnalyticsIdempotencyKey, getOwnerConversationSessionLog, serializeInboundMessage, summarizeAssistantText, summarizeUserText } from './customerConversationLogHelpers';
+import { appendConversationSessionLogEntrySafely, getAnalyticsIdempotencyKey, getOwnerConversationSessionLog, serializeInboundMessage, summarizeAssistantText, summarizeUserText } from './customerConversationLogHelpers';
 import { canonicalizePhoneNumber, formatOwnerNotification, type NormalizedInboundMessage } from '@cs/shared';
 import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId, type ConversationStore } from './conversationStore';
-
 export type CustomerConversationLogger = StructuredLogger;
-
 export interface CustomerConversationRouterOptions {
   catalogChatOrchestrator: CatalogChatOrchestrator;
   conversationHistoryWindowMessages?: number;
@@ -15,17 +13,14 @@ export interface CustomerConversationRouterOptions {
   logger: CustomerConversationLogger;
   now?: () => number;
 }
-
 const DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES = 20;
 const OWNER_HANDOFF_HISTORY_LIMIT = 6;
-
 export const createCustomerConversationRouter = (
   options: CustomerConversationRouterOptions,
 ): ((message: NormalizedInboundMessage, context: InboundRouteContext) => Promise<void>) => {
   const now = options.now ?? Date.now;
   const conversationHistoryWindowMessages =
     options.conversationHistoryWindowMessages ?? DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES;
-
   return async (message, context): Promise<void> => {
     let routeLogger = withLogBindings(options.logger, {
       companyId: message.companyId,
@@ -34,7 +29,6 @@ export const createCustomerConversationRouter = (
       sessionKey: message.sessionKey,
       surface: "router",
     });
-
     if (!context.outbound) {
       logEvent(
         routeLogger,
@@ -62,31 +56,23 @@ export const createCustomerConversationRouter = (
       context.profile.ownerPhone,
     );
     let conversationId: string;
-    const appendConversationSessionLogEntrySafely = async (
-      entry: Parameters<typeof appendConversationSessionLogEntry>[1],
-      stage: string,
-    ): Promise<void> => {
-      try {
-        await appendConversationSessionLogEntry(conversationSessionLog, entry);
-      } catch (error) {
-        logEvent(
-          routeLogger,
-          "warn",
-          {
-            companyId: message.companyId,
-            ...(conversationId ? { conversationId } : {}),
-            error: serializeErrorForLog(error),
-            event: "bot.router.session_log_append_failed",
-            messageId: message.messageId,
-            outcome: "error",
-            runtime: "bot",
-            sessionKey: message.sessionKey,
-            stage,
-            surface: "router",
-          },
-          "customer conversation session log append failed",
-        );
-      }
+    const onSessionLogAppendFailed = (error: unknown): void => {
+      logEvent(
+        routeLogger,
+        "warn",
+        {
+          companyId: message.companyId,
+          ...(conversationId ? { conversationId } : {}),
+          error: serializeErrorForLog(error),
+          event: "bot.router.session_log_append_failed",
+          messageId: message.messageId,
+          outcome: "error",
+          runtime: "bot",
+          sessionKey: message.sessionKey,
+          surface: "router",
+        },
+        "customer conversation session log append failed",
+      );
     };
     let promptHistorySelection: Awaited<ReturnType<ConversationStore["getPromptHistorySelectionForInbound"]>>;
     try {
@@ -142,14 +128,14 @@ export const createCustomerConversationRouter = (
         },
         "customer conversation inbound message recorded",
       );
-      await appendConversationSessionLogEntrySafely({
+      await appendConversationSessionLogEntrySafely(conversationSessionLog, {
         kind: "cv",
         timestamp: message.occurredAtMs,
         companyId: message.companyId,
         conversationId,
         actor: "customer",
         text: userMessage,
-      }, "customer_message");
+      }, onSessionLogAppendFailed);
 
       promptHistorySelection = await options.conversationStore.getPromptHistorySelectionForInbound({
         companyId: message.companyId,
@@ -257,14 +243,14 @@ export const createCustomerConversationRouter = (
         },
         "customer conversation assistant reply queued",
       );
-      await appendConversationSessionLogEntrySafely({
+      await appendConversationSessionLogEntrySafely(conversationSessionLog, {
         kind: "bts",
         timestamp: assistantTimestamp,
         companyId: message.companyId,
         conversationId,
         event: "assistant.pending_created",
         details: assistantText,
-      }, "assistant_pending_created");
+      }, onSessionLogAppendFailed);
     } catch (error) {
       logEvent(
         routeLogger,
@@ -422,22 +408,22 @@ export const createCustomerConversationRouter = (
       },
       "customer conversation assistant reply committed",
     );
-    await appendConversationSessionLogEntrySafely({
+    await appendConversationSessionLogEntrySafely(conversationSessionLog, {
       kind: "cv",
       timestamp: assistantTimestamp,
       companyId: message.companyId,
       conversationId,
       actor: "assistant",
       text: assistantText,
-    }, "assistant_message");
-    await appendConversationSessionLogEntrySafely({
+    }, onSessionLogAppendFailed);
+    await appendConversationSessionLogEntrySafely(conversationSessionLog, {
       kind: "bts",
       timestamp: assistantTimestamp,
       companyId: message.companyId,
       conversationId,
       event: "assistant.committed",
       details: assistantText,
-    }, "assistant_committed");
+    }, onSessionLogAppendFailed);
 
     if (handoffSource) {
       try {
