@@ -28,5 +28,6 @@ describe("isSamePhoneNumber", () => {
   test("rejects mismatched or invalid phone inputs", () => {
     expect(isSamePhoneNumber("966500000001", "966500000002")).toBe(false);
     expect(isSamePhoneNumber("owner", "966500000002")).toBe(false);
+    expect(isSamePhoneNumber("966500000002", "owner")).toBe(false);
   });
 });
