@@ -2,6 +2,9 @@ export const ANALYTICS_PERIODS = ["today", "week", "month"] as const;
 
 export type AnalyticsPeriod = (typeof ANALYTICS_PERIODS)[number];
 
+export const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
+  `pendingMessage:${pendingMessageId}:handoff_started`;
+
 export const ANALYTICS_EVENT_TYPES = [
   "customer_message_received",
   "assistant_message_sent",

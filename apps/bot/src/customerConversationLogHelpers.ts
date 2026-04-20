@@ -4,9 +4,12 @@ import {
   summarizeTextForLog,
 } from "@cs/core";
 import {
+  getAnalyticsIdempotencyKey,
   isSamePhoneNumber,
   type NormalizedInboundMessage,
 } from "@cs/shared";
+
+export { getAnalyticsIdempotencyKey };
 
 export const summarizeAssistantText = (value: string) => {
   const summary = summarizeTextForLog(value);
@@ -25,9 +28,6 @@ export const summarizeUserText = (value: string) => {
     userTextLineCount: summary.textLineCount,
   };
 };
-
-export const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
-  `pendingMessage:${pendingMessageId}:handoff_started`;
 
 export const serializeInboundMessage = (message: NormalizedInboundMessage): string => {
   const text = message.content.text.trim();

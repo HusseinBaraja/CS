@@ -1,6 +1,11 @@
 import type { ConversationSessionLogWriter } from "@cs/core";
 import { type ConvexAdminClient, convexInternal } from "@cs/db";
-import { canonicalizePhoneNumber, formatOwnerNotification, type ConversationMessageDto } from "@cs/shared";
+import {
+  canonicalizePhoneNumber,
+  formatOwnerNotification,
+  getAnalyticsIdempotencyKey,
+  type ConversationMessageDto,
+} from "@cs/shared";
 import {
   appendAssistantAnalyticsReplayedSessionLog,
   appendAssistantOwnerNotificationReplayedSessionLog,
@@ -10,9 +15,6 @@ import {
 type OwnerNotificationSender = (input: { recipientJid: string; text: string }) => Promise<void>;
 
 const OWNER_HANDOFF_HISTORY_LIMIT = 6;
-
-const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
-  `pendingMessage:${pendingMessageId}:handoff_started`;
 
 export const replayPendingAssistantAnalyticsIfNeeded = async (
   client: ConvexAdminClient,
