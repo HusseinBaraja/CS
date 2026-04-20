@@ -181,6 +181,41 @@ describe("createConversationSessionLog", () => {
       await rm(directory, { force: true, recursive: true });
     }
   });
+
+  test("recovers queue after a failed append", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
+    const filePath = join(directory, "session.md");
+    const log = createConversationSessionLog({
+      filePath,
+      sessionId: "session-1",
+      startedAt: new Date("2026-04-19T10:11:12.345Z"),
+    });
+
+    try {
+      await expect(log.append({
+        kind: "cv",
+        timestamp: Number.NaN,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        actor: "customer",
+        text: "invalid timestamp",
+      })).rejects.toThrow();
+
+      await expect(log.append({
+        kind: "cv",
+        timestamp: 1_710_000_000_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        actor: "assistant",
+        text: "valid append after failure",
+      })).resolves.toBeUndefined();
+
+      const content = await readFile(filePath, "utf8");
+      expect(content).toContain("valid append after failure");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
 });
 
 describe("createConversationSessionLogFromEnv", () => {

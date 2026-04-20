@@ -111,12 +111,13 @@ export const createConversationSessionLog = (
 
   return {
     append(entry) {
-      writeQueue = writeQueue.then(async () => {
+      const nextWrite = writeQueue.then(async () => {
         await ensureHeader();
         await appendFile(options.filePath, `${formatEntryLine(entry)}\n`);
       });
 
-      return writeQueue;
+      writeQueue = nextWrite.catch(() => undefined);
+      return nextWrite;
     },
   };
 };
