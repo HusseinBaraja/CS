@@ -29,18 +29,32 @@ describe("conversation session log helpers", () => {
 });
 
 describe("createConversationSessionLog", () => {
+  const waitForFileContent = async (filePath: string, timeoutMs = 500): Promise<string> => {
+    const start = Date.now();
+
+    while (Date.now() - start < timeoutMs) {
+      try {
+        return await readFile(filePath, "utf8");
+      } catch {
+        await Bun.sleep(10);
+      }
+    }
+
+    return await readFile(filePath, "utf8");
+  };
+
   test("creates the markdown file header eagerly for a new session", async () => {
     const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
 
     try {
+      const filePath = join(directory, "session.md");
       createConversationSessionLog({
-        filePath: join(directory, "session.md"),
+        filePath,
         sessionId: "session-1",
         startedAt: new Date("2026-04-19T10:11:12.345Z"),
       });
-      await Bun.sleep(25);
 
-      const content = await readFile(join(directory, "session.md"), "utf8");
+      const content = await waitForFileContent(filePath);
       expect(content).toContain("# Conversation Session Log");
       expect(content).toContain("- Session ID: `session-1`");
     } finally {
