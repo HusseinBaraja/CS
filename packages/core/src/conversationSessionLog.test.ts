@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   createConversationSessionLog,
+  createConversationSessionLogFromEnv,
   createConversationSessionLogSessionId,
   createConversationSessionLogSessionPath,
 } from "./conversationSessionLog";
@@ -138,6 +139,45 @@ describe("createConversationSessionLog", () => {
       expect(content.match(/# Conversation Session Log/g)?.length ?? 0).toBe(1);
       expect(content).toContain("first writer");
       expect(content).toContain("second writer");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+});
+
+describe("createConversationSessionLogFromEnv", () => {
+  test("returns undefined when env vars are incomplete", () => {
+    expect(createConversationSessionLogFromEnv({
+      CONVERSATION_LOG_SESSION_ID: "session-1",
+    })).toBeUndefined();
+    expect(createConversationSessionLogFromEnv({
+      CONVERSATION_LOG_SESSION_PATH: "logs/session-1.md",
+    })).toBeUndefined();
+  });
+
+  test("creates a writer when env vars are present", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
+
+    try {
+      const filePath = join(directory, "session.md");
+      const log = createConversationSessionLogFromEnv({
+        CONVERSATION_LOG_SESSION_ID: "session-1",
+        CONVERSATION_LOG_SESSION_PATH: filePath,
+      });
+
+      expect(log).toBeDefined();
+      await log?.append({
+        kind: "cv",
+        timestamp: 1_710_000_000_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        actor: "customer",
+        text: "hello",
+      });
+
+      const content = await readFile(filePath, "utf8");
+      expect(content).toContain("- Session ID: `session-1`");
+      expect(content).toContain("hello");
     } finally {
       await rm(directory, { force: true, recursive: true });
     }

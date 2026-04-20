@@ -1,5 +1,5 @@
 import {
-  createConversationSessionLog,
+  createConversationSessionLogFromEnv,
   isTransientConvexTransportError,
   logEvent,
   logger,
@@ -46,12 +46,7 @@ export const startWorker = async (options: StartWorkerOptions = {}): Promise<voi
   const workerLogger = withWorkerRuntimeLogger(options.logger ?? logger, "lifecycle");
   const workerProcess = options.workerProcess ?? process;
   const conversationAutoResume = (options.createConversationAutoResumeProcessor ?? createConversationAutoResumeProcessor)();
-  const conversationSessionLog = process.env.CONVERSATION_LOG_SESSION_ID && process.env.CONVERSATION_LOG_SESSION_PATH
-    ? createConversationSessionLog({
-      filePath: process.env.CONVERSATION_LOG_SESSION_PATH,
-      sessionId: process.env.CONVERSATION_LOG_SESSION_ID,
-    })
-    : undefined;
+  const conversationSessionLog = createConversationSessionLogFromEnv();
   const pendingAssistantReconciliationFactory =
     options.createPendingAssistantReconciliationProcessor
     ?? ((input?: PendingAssistantReconciliationFactoryInput) =>

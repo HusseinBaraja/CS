@@ -1,5 +1,5 @@
 import {
-  createConversationSessionLog,
+  createConversationSessionLogFromEnv,
   logError,
   logger,
 } from '@cs/core';
@@ -10,12 +10,7 @@ import { createBotRuntimeConfig } from './runtimeConfig';
 import { startTenantSessionManager } from './sessionManager';
 
 const runtimeConfig = createBotRuntimeConfig();
-const conversationSessionLog = process.env.CONVERSATION_LOG_SESSION_ID && process.env.CONVERSATION_LOG_SESSION_PATH
-  ? createConversationSessionLog({
-    filePath: process.env.CONVERSATION_LOG_SESSION_PATH,
-    sessionId: process.env.CONVERSATION_LOG_SESSION_ID,
-  })
-  : undefined;
+const conversationSessionLog = createConversationSessionLogFromEnv();
 
 const inboundRouter = {
   handleCustomerConversation: createCustomerConversationRouter({

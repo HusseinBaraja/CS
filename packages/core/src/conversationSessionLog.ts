@@ -108,3 +108,17 @@ export const createConversationSessionLog = (
     },
   };
 };
+
+export const createConversationSessionLogFromEnv = (
+  env: NodeJS.ProcessEnv = process.env,
+): ConversationSessionLogWriter | undefined => {
+  const sessionId = env.CONVERSATION_LOG_SESSION_ID;
+  const filePath = env.CONVERSATION_LOG_SESSION_PATH;
+
+  return sessionId && filePath
+    ? createConversationSessionLog({
+      filePath,
+      sessionId,
+    })
+    : undefined;
+};
