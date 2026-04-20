@@ -27,6 +27,17 @@ describe("conversation session log helpers", () => {
       sessionId: "20260419T101112345Z-session",
     })).toBe(join("logs/conversations", "20260419T101112345Z-session.md"));
   });
+
+  test("rejects unsafe session ids when building session path", () => {
+    expect(() => createConversationSessionLogSessionPath({
+      logDirectory: "logs/conversations",
+      sessionId: "../outside",
+    })).toThrow("Conversation session log sessionId must be path-safe");
+    expect(() => createConversationSessionLogSessionPath({
+      logDirectory: "logs/conversations",
+      sessionId: "",
+    })).toThrow("Conversation session log sessionId must be path-safe");
+  });
 });
 
 describe("createConversationSessionLog", () => {

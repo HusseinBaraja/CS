@@ -44,7 +44,13 @@ export const createConversationSessionLogSessionId = (now = () => new Date()): s
 export const createConversationSessionLogSessionPath = (input: {
   logDirectory: string;
   sessionId: string;
-}): string => join(input.logDirectory, `${input.sessionId}.md`);
+}): string => {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(input.sessionId)) {
+    throw new Error("Conversation session log sessionId must be path-safe");
+  }
+
+  return join(input.logDirectory, `${input.sessionId}.md`);
+};
 
 const toMarkdownHeader = (sessionId: string, startedAt: Date): string => [
   "# Conversation Session Log",
