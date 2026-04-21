@@ -870,6 +870,69 @@ describe("createPendingAssistantReconciliationProcessor", () => {
     ]));
   });
 
+  test("fails reconciliation when pending analytics lacks handoff source", async () => {
+    const { client, calls } = createClientStub({
+      mutation: async (_reference, args) => {
+        const input = args as {
+          key?: string;
+          ownerToken?: string;
+          pendingMessageId?: string;
+          analyticsCompleted?: boolean;
+        };
+        if (input.key && input.ownerToken) {
+          return { acquired: true, waitMs: 0 };
+        }
+        if (input.pendingMessageId && input.analyticsCompleted) {
+          return undefined;
+        }
+        return undefined;
+      },
+      query: async (_reference, args) => {
+        const input = args as { olderThanOrAt?: number; messageId?: string };
+        if (typeof input.olderThanOrAt === "number") {
+          return [{
+            companyId: "company-1",
+            conversationId: "conversation-1",
+            messageId: "message-1",
+            phoneNumber: "967700000001",
+            timestamp: 1_000,
+            analyticsState: "pending",
+            ownerNotificationState: "not_applicable",
+          }];
+        }
+        if (input.messageId === "message-1") {
+          return {
+            id: "message-1",
+            conversationId: "conversation-1",
+            role: "assistant",
+            content: "Assistant reply",
+            timestamp: 1_000,
+            deliveryState: "pending",
+            providerAcknowledgedAt: 1_500,
+            analyticsState: "pending",
+            ownerNotificationState: "not_applicable",
+          };
+        }
+        throw new Error("should not query owner replay context");
+      },
+    });
+
+    const processor = createPendingAssistantReconciliationProcessor({
+      createClient: () => client as never,
+      logger: createLoggerStub().logger,
+    });
+
+    await expect(processor.runTick()).resolves.toEqual({
+      reconciledCount: 0,
+      skippedCount: 0,
+      failedCount: 1,
+    });
+
+    expect(calls.mutations.some((call) =>
+      (call.args as { pendingMessageId?: string; analyticsCompleted?: boolean }).pendingMessageId === "message-1"
+      && (call.args as { analyticsCompleted?: boolean }).analyticsCompleted === true)).toBe(false);
+  });
+
   test("completes sent owner notifications even when handoff source is missing", async () => {
     const { client, calls } = createClientStub({
       mutation: async (_reference, args) => {

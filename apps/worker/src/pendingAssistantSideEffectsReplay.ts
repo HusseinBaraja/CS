@@ -35,7 +35,7 @@ export const replayPendingAssistantAnalyticsIfNeeded = async (
 
   if (input.analyticsState === "pending") {
     if (!input.handoffSource) {
-      return;
+      throw new Error("Pending assistant analytics replay requires message.handoffSource");
     }
 
     await client.mutation(convexInternal.analytics.recordEvent, {
