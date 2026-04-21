@@ -16,7 +16,7 @@ export const toCatalogChatAiTrace = (
   event: "ai.retrieval_rewrite",
   systemPrompt: trace.systemPrompt,
   provider: trace.provider,
-  usage: trace.usage,
+  ...(trace.usage !== undefined ? { usage: trace.usage } : {}),
   apiResult: trace.apiResult,
 });
 
@@ -33,7 +33,7 @@ export const toAnswerGenerationAiTrace = (input: {
     ? { groundingContext: input.groundingContext }
     : {}),
   provider: input.provider,
-  usage: input.usage,
+  ...(input.usage !== undefined ? { usage: input.usage } : {}),
   apiResult: input.apiResult,
 });
 
