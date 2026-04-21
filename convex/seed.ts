@@ -3,10 +3,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { internalAction, internalMutation, internalQuery, type MutationCtx } from './_generated/server';
 import { v } from 'convex/values';
 import type { CleanupBatchResult, CleanupCursor } from './companyCleanup';
-import {
-  buildProductEmbeddingPayload,
-  type ProductEmbeddingVariantAttributes,
-} from './productEmbeddingRuntime';
+import { buildProductEmbeddingPayload, type ProductEmbeddingVariantAttributes } from './productEmbeddingRuntime';
 import {
   buildSeedCompany,
   seedCategories,
@@ -97,7 +94,7 @@ export const runWithSeedLockHeartbeat = async <T>({
     stopHeartbeat = resolve;
   });
 
-  const heartbeat = (async (): Promise<void> => {
+  const heartbeat = (async(): Promise<void> => {
     while (!stopped) {
       await Promise.race([sleep(heartbeatMs), heartbeatStopSignal]);
       if (stopped) {
