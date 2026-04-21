@@ -12,15 +12,13 @@ const repoRoot = resolve("repo");
 describe("createDevSessionLogEnvironment", () => {
   test("creates one shared session id and markdown path for a dev run", () => {
     const env = createDevSessionLogEnvironment({
-      now: () => new Date("2026-04-19T10:11:12.345Z"),
+      now: () => new Date(2026, 3, 19, 10, 11, 12, 345),
       repoRoot,
     });
 
-    expect(env.CONVERSATION_LOG_SESSION_ID).toMatch(/^20260419T101112345Z-[0-9a-f-]+$/);
+    expect(env.CONVERSATION_LOG_SESSION_ID).toBe("19-04-10-11");
     expect(env.CONVERSATION_LOG_SESSION_PATH).toBe(join(
       repoRoot,
-      "logs",
-      "conversations",
       `${env.CONVERSATION_LOG_SESSION_ID}.md`,
     ));
   });
@@ -31,7 +29,7 @@ describe("createDevSessionLogSpawnConfig", () => {
     const config = createDevSessionLogSpawnConfig({
       repoRoot,
       extraArgs: ["--filter=@cs/web app"],
-      now: () => new Date("2026-04-19T10:11:12.345Z"),
+      now: () => new Date(2026, 3, 19, 10, 11, 12, 345),
     });
 
     expect(config.command).toBe(process.execPath);
