@@ -265,7 +265,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
           runtime: "api",
           surface: "http",
           outcome: "invalid",
-          error: { name: "SyntaxError", message: "Malformed JSON body" },
+          error: serializeErrorForLog(error),
           method: c.req.method,
           path: c.req.path,
           requestId,

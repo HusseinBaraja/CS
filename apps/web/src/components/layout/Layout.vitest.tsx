@@ -71,7 +71,7 @@ describe('Layout', () => {
 
     const watermarkImage = container.querySelector('footer img.h-150.md\\:h-225');
 
-    expect(watermarkImage).toBeDefined();
+    expect(watermarkImage).not.toBeNull();
     expect(watermarkImage?.getAttribute('class')).toContain('h-150');
     expect(watermarkImage?.getAttribute('class')).toContain('md:h-225');
   });
