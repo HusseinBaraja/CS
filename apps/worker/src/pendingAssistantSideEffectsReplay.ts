@@ -29,14 +29,15 @@ export const replayPendingAssistantAnalyticsIfNeeded = async (
     analyticsState?: "pending" | "recorded" | "completed" | "not_applicable";
   },
 ): Promise<void> => {
-  if (
-    (input.analyticsState !== "pending" && input.analyticsState !== "recorded")
-    || !input.handoffSource
-  ) {
+  if (input.analyticsState !== "pending" && input.analyticsState !== "recorded") {
     return;
   }
 
   if (input.analyticsState === "pending") {
+    if (!input.handoffSource) {
+      return;
+    }
+
     await client.mutation(convexInternal.analytics.recordEvent, {
       companyId: input.companyId as never,
       eventType: "handoff_started",

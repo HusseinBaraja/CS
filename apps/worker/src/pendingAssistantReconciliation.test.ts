@@ -594,7 +594,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
     expect(entries).toEqual([]);
   });
 
-  test("completes already-recorded side effects without replaying them", async () => {
+  test("completes already-recorded side effects without handoff source", async () => {
     const sentNotifications: Array<{ recipientJid: string; text: string }> = [];
     const { client, calls } = createClientStub({
       mutation: async (_reference, args) => {
@@ -635,7 +635,6 @@ describe("createPendingAssistantReconciliationProcessor", () => {
             timestamp: 1_000,
             deliveryState: "pending",
             providerAcknowledgedAt: 1_500,
-            handoffSource: "assistant_action",
             analyticsState: "recorded",
             ownerNotificationState: "sent",
           };
