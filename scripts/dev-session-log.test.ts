@@ -68,13 +68,19 @@ describe("waitForChildExit", () => {
   test("sets non-zero exit code and resolves on child error", async () => {
     const fakeProcess = new FakeProcess();
     const fakeChild = new FakeChild();
-    const waitPromise = waitForChildExit({
-      child: fakeChild,
-      processRef: fakeProcess,
-    });
+    const originalConsoleError = console.error;
+    console.error = () => undefined;
+    try {
+      const waitPromise = waitForChildExit({
+        child: fakeChild,
+        processRef: fakeProcess,
+      });
 
-    fakeChild.emit("error", new Error("spawn failed"));
-    await waitPromise;
+      fakeChild.emit("error", new Error("spawn failed"));
+      await waitPromise;
+    } finally {
+      console.error = originalConsoleError;
+    }
 
     expect(fakeProcess.exitCode).toBe(1);
   });
@@ -99,14 +105,20 @@ describe("waitForChildExit", () => {
   test("keeps first terminal event exit code when error and exit both fire", async () => {
     const fakeProcess = new FakeProcess();
     const fakeChild = new FakeChild();
-    const waitPromise = waitForChildExit({
-      child: fakeChild,
-      processRef: fakeProcess,
-    });
+    const originalConsoleError = console.error;
+    console.error = () => undefined;
+    try {
+      const waitPromise = waitForChildExit({
+        child: fakeChild,
+        processRef: fakeProcess,
+      });
 
-    fakeChild.emit("error", new Error("spawn failed"));
-    fakeChild.emit("exit", 0);
-    await waitPromise;
+      fakeChild.emit("error", new Error("spawn failed"));
+      fakeChild.emit("exit", 0);
+      await waitPromise;
+    } finally {
+      console.error = originalConsoleError;
+    }
 
     expect(fakeProcess.exitCode).toBe(1);
   });
