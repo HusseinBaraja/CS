@@ -73,22 +73,33 @@ export const waitForChildExit = (input: {
   });
 };
 
+export const createDevSessionLogSpawnConfig = (input: {
+  extraArgs: string[];
+  now?: () => Date;
+  repoRoot: string;
+}) => ({
+  command: process.execPath,
+  args: ["x", "turbo", "run", "dev", "--concurrency=20", ...input.extraArgs],
+  options: {
+    cwd: input.repoRoot,
+    env: {
+      ...process.env,
+      ...createDevSessionLogEnvironment({
+        repoRoot: input.repoRoot,
+        ...(input.now ? { now: input.now } : {}),
+      }),
+    },
+    stdio: "inherit" as const,
+  },
+});
+
 const run = async () => {
   const repoRoot = resolve(import.meta.dir, "..");
-  const extraArgs = process.argv.slice(2);
-  const child = spawn(
-    "bun",
-    ["x", "turbo", "run", "dev", "--concurrency=20", ...extraArgs],
-    {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        ...createDevSessionLogEnvironment({ repoRoot }),
-      },
-      shell: true,
-      stdio: "inherit",
-    },
-  );
+  const config = createDevSessionLogSpawnConfig({
+    repoRoot,
+    extraArgs: process.argv.slice(2),
+  });
+  const child = spawn(config.command, config.args, config.options);
 
   await waitForChildExit({ child });
 };

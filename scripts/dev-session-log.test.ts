@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { EventEmitter } from "node:events";
 import { join } from "node:path";
-import { createDevSessionLogEnvironment, waitForChildExit } from "./dev-session-log";
+import {
+  createDevSessionLogEnvironment,
+  createDevSessionLogSpawnConfig,
+  waitForChildExit,
+} from "./dev-session-log";
 
 describe("createDevSessionLogEnvironment", () => {
   test("creates one shared session id and markdown path for a dev run", () => {
@@ -17,6 +21,28 @@ describe("createDevSessionLogEnvironment", () => {
       "conversations",
       `${env.CONVERSATION_LOG_SESSION_ID}.md`,
     ));
+  });
+});
+
+describe("createDevSessionLogSpawnConfig", () => {
+  test("builds direct spawn config without shell parsing", () => {
+    const config = createDevSessionLogSpawnConfig({
+      repoRoot: "C:/repo",
+      extraArgs: ["--filter=@cs/web app"],
+      now: () => new Date("2026-04-19T10:11:12.345Z"),
+    });
+
+    expect(config.command).toBe(process.execPath);
+    expect(config.args).toEqual([
+      "x",
+      "turbo",
+      "run",
+      "dev",
+      "--concurrency=20",
+      "--filter=@cs/web app",
+    ]);
+    expect(config.options.stdio).toBe("inherit");
+    expect(config.options).not.toHaveProperty("shell");
   });
 });
 
