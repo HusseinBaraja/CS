@@ -423,7 +423,7 @@ describe("createCustomerConversationRouter", () => {
         timestamp: 1_700_000_000_000,
         companyId: "company-1",
         conversationId: "conversation-1",
-        actor: "customer",
+        actor: "owner",
         text: "hello",
       },
       {

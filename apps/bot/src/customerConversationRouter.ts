@@ -133,7 +133,7 @@ export const createCustomerConversationRouter = (
         timestamp: message.occurredAtMs,
         companyId: message.companyId,
         conversationId,
-        actor: "customer",
+        actor: message.sender.role,
         text: userMessage,
       }, onSessionLogAppendFailed);
 
