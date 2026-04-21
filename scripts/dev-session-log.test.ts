@@ -67,4 +67,19 @@ describe("waitForChildExit", () => {
     fakeProcess.emit("SIGINT", "SIGINT");
     expect(fakeChild.killedSignals).toEqual(["SIGINT"]);
   });
+
+  test("keeps first terminal event exit code when error and exit both fire", async () => {
+    const fakeProcess = new FakeProcess();
+    const fakeChild = new FakeChild();
+    const waitPromise = waitForChildExit({
+      child: fakeChild,
+      processRef: fakeProcess,
+    });
+
+    fakeChild.emit("error", new Error("spawn failed"));
+    fakeChild.emit("exit", 0);
+    await waitPromise;
+
+    expect(fakeProcess.exitCode).toBe(1);
+  });
 });

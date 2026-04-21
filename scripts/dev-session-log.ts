@@ -52,16 +52,23 @@ export const waitForChildExit = (input: {
   processRef.on("SIGTERM", forwardSignal);
 
   return new Promise<void>((resolvePromise) => {
-    input.child.once("exit", (code) => {
+    let settled = false;
+    const finish = (code: number) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
       cleanupSignalHandlers();
-      processRef.exitCode = code ?? 1;
+      processRef.exitCode = code;
       resolvePromise();
+    };
+    input.child.once("exit", (code) => {
+      finish(code ?? 1);
     });
     input.child.once("error", (error) => {
-      cleanupSignalHandlers();
       console.error("[dev-session-log] failed to spawn turbo:", error);
-      processRef.exitCode = 1;
-      resolvePromise();
+      finish(1);
     });
   });
 };
