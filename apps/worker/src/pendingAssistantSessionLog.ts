@@ -24,14 +24,18 @@ const appendPendingAssistantSessionLog = async (
     return;
   }
 
-  await log.append({
-    kind: "bts",
-    timestamp: input.timestamp,
-    companyId: input.companyId,
-    conversationId: input.conversationId,
-    event: input.event,
-    details: input.details,
-  });
+  try {
+    await log.append({
+      kind: "bts",
+      timestamp: input.timestamp,
+      companyId: input.companyId,
+      conversationId: input.conversationId,
+      event: input.event,
+      details: input.details,
+    });
+  } catch {
+    // Session log is best-effort debugging telemetry; never block reconciliation side effects.
+  }
 };
 
 export const appendAssistantReconciledSessionLog = (
