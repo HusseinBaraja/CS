@@ -7,7 +7,7 @@ import {
   CONVERSATION_LOCK_POLL_MS,
   MAX_CONVERSATION_LOCK_WAIT_MS,
 } from './constants';
-import { normalizePhoneNumber, normalizeTimestamp } from './message-helpers';
+import { normalizePhoneNumber, normalizeTimestamp } from './message_helpers';
 import type { LockAcquireResult } from './types';
 
 const sleep = (delayMs: number): Promise<void> =>

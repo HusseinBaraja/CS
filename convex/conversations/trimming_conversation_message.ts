@@ -2,8 +2,8 @@ import { v } from 'convex/values';
 import type { ConversationMessageDto } from '@cs/shared';
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import { loadConversationOrThrow } from './conversation-readers';
-import { toMessageDto } from './message-helpers';
+import { loadConversationOrThrow } from './conversation_readers';
+import { toMessageDto } from './message_helpers';
 
 export const getConversationMessageDefinition = {
   args: {

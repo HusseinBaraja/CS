@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
-import { loadConversationOrThrow, loadMessageOrThrow } from './conversation-readers';
-import { applyAssistantHandoffIfNeeded } from './handoff-resume-flows';
+import { loadConversationOrThrow, loadMessageOrThrow } from './conversation_readers';
+import { applyAssistantHandoffIfNeeded } from './handoff_resume_flows';
 import {
   normalizeMessageContent,
   normalizeOptionalHandoffSource,
@@ -11,7 +11,7 @@ import {
   normalizeTimestamp,
   toConversationDto,
   toMessageDto,
-} from './message-helpers';
+} from './message_helpers';
 
 export const appendPendingAssistantMessageDefinition = {
   args: {

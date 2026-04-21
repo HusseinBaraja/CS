@@ -39,7 +39,7 @@ const normalizePromptCandidateCount = (value: number | undefined): number => {
   }
 
   const normalized = Math.trunc(value);
-  return normalized >= 0 ? normalized : DEFAULT_PROMPT_CANDIDATE_COUNT;
+  return normalized > 0 ? normalized : DEFAULT_PROMPT_CANDIDATE_COUNT;
 };
 
 const getPromptSourcePriority = (source: PromptRetrievalQuerySource): number => {

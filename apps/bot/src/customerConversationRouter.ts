@@ -1,81 +1,26 @@
 import type { CatalogChatOrchestrator } from '@cs/rag';
-import {
-  logEvent,
-  redactJidForLog,
-  redactPhoneLikeValue,
-  serializeErrorForLog,
-  summarizeTextForLog,
-  type StructuredLogger,
-  withLogBindings,
-} from '@cs/core';
-import {
-  canonicalizePhoneNumber,
-  formatOwnerNotification,
-  type NormalizedInboundMessage,
-} from '@cs/shared';
+import { logEvent, redactJidForLog, redactPhoneLikeValue, serializeErrorForLog, type StructuredLogger, withLogBindings } from '@cs/core';
+import { appendConversationSessionLogEntrySafely, getAnalyticsIdempotencyKey, getOwnerConversationSessionLog, serializeInboundMessage, summarizeAssistantText, summarizeUserText } from './customerConversationLogHelpers';
+import { canonicalizePhoneNumber, formatOwnerNotification, type NormalizedInboundMessage } from '@cs/shared';
 import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId, type ConversationStore } from './conversationStore';
-
 export type CustomerConversationLogger = StructuredLogger;
-
 export interface CustomerConversationRouterOptions {
   catalogChatOrchestrator: CatalogChatOrchestrator;
   conversationHistoryWindowMessages?: number;
+  conversationSessionLog?: import("@cs/core").ConversationSessionLogWriter;
   conversationStore: ConversationStore;
   logger: CustomerConversationLogger;
   now?: () => number;
 }
-
 const DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES = 20;
 const OWNER_HANDOFF_HISTORY_LIMIT = 6;
-
-const summarizeAssistantText = (value: string) => {
-  const summary = summarizeTextForLog(value);
-
-  return {
-    assistantTextLength: summary.textLength,
-    assistantTextLineCount: summary.textLineCount,
-  };
-};
-
-const summarizeUserText = (value: string) => {
-  const summary = summarizeTextForLog(value);
-
-  return {
-    userTextLength: summary.textLength,
-    userTextLineCount: summary.textLineCount,
-  };
-};
-
-const getAnalyticsIdempotencyKey = (pendingMessageId: string): string =>
-  `pendingMessage:${pendingMessageId}:handoff_started`;
-
-const serializeInboundMessage = (message: NormalizedInboundMessage): string => {
-  const text = message.content.text.trim();
-
-  switch (message.content.kind) {
-    case "text":
-      return text;
-    case "image":
-      return text.length > 0 ? `[image] ${text}` : "[image]";
-    case "video":
-      return text.length > 0 ? `[video] ${text}` : "[video]";
-    case "document":
-      return text.length > 0 ? `[document] ${text}` : "[document]";
-    case "audio":
-      return "[audio]";
-    case "sticker":
-      return "[sticker]";
-  }
-};
-
 export const createCustomerConversationRouter = (
   options: CustomerConversationRouterOptions,
 ): ((message: NormalizedInboundMessage, context: InboundRouteContext) => Promise<void>) => {
   const now = options.now ?? Date.now;
   const conversationHistoryWindowMessages =
     options.conversationHistoryWindowMessages ?? DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES;
-
   return async (message, context): Promise<void> => {
     let routeLogger = withLogBindings(options.logger, {
       companyId: message.companyId,
@@ -84,7 +29,6 @@ export const createCustomerConversationRouter = (
       sessionKey: message.sessionKey,
       surface: "router",
     });
-
     if (!context.outbound) {
       logEvent(
         routeLogger,
@@ -106,7 +50,30 @@ export const createCustomerConversationRouter = (
     }
 
     const userMessage = serializeInboundMessage(message);
+    const conversationSessionLog = getOwnerConversationSessionLog(
+      options.conversationSessionLog,
+      message.conversationPhoneNumber,
+      context.profile.ownerPhone,
+    );
     let conversationId: string;
+    const onSessionLogAppendFailed = (error: unknown): void => {
+      logEvent(
+        routeLogger,
+        "warn",
+        {
+          companyId: message.companyId,
+          ...(conversationId ? { conversationId } : {}),
+          error: serializeErrorForLog(error),
+          event: "bot.router.session_log_append_failed",
+          messageId: message.messageId,
+          outcome: "error",
+          runtime: "bot",
+          sessionKey: message.sessionKey,
+          surface: "router",
+        },
+        "customer conversation session log append failed",
+      );
+    };
     let promptHistorySelection: Awaited<ReturnType<ConversationStore["getPromptHistorySelectionForInbound"]>>;
     try {
       const inboundAppend = await options.conversationStore.appendInboundCustomerMessage({
@@ -161,6 +128,14 @@ export const createCustomerConversationRouter = (
         },
         "customer conversation inbound message recorded",
       );
+      await appendConversationSessionLogEntrySafely(conversationSessionLog, {
+        kind: "cv",
+        timestamp: message.occurredAtMs,
+        companyId: message.companyId,
+        conversationId,
+        actor: message.sender.role,
+        text: userMessage,
+      }, onSessionLogAppendFailed);
 
       promptHistorySelection = await options.conversationStore.getPromptHistorySelectionForInbound({
         companyId: message.companyId,
@@ -268,6 +243,14 @@ export const createCustomerConversationRouter = (
         },
         "customer conversation assistant reply queued",
       );
+      await appendConversationSessionLogEntrySafely(conversationSessionLog, {
+        kind: "bts",
+        timestamp: assistantTimestamp,
+        companyId: message.companyId,
+        conversationId,
+        event: "assistant.pending_created",
+        details: assistantText,
+      }, onSessionLogAppendFailed);
     } catch (error) {
       logEvent(
         routeLogger,
@@ -425,6 +408,22 @@ export const createCustomerConversationRouter = (
       },
       "customer conversation assistant reply committed",
     );
+    await appendConversationSessionLogEntrySafely(conversationSessionLog, {
+      kind: "cv",
+      timestamp: assistantTimestamp,
+      companyId: message.companyId,
+      conversationId,
+      actor: "assistant",
+      text: assistantText,
+    }, onSessionLogAppendFailed);
+    await appendConversationSessionLogEntrySafely(conversationSessionLog, {
+      kind: "bts",
+      timestamp: assistantTimestamp,
+      companyId: message.companyId,
+      conversationId,
+      event: "assistant.committed",
+      details: assistantText,
+    }, onSessionLogAppendFailed);
 
     if (handoffSource) {
       try {

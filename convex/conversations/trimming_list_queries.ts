@@ -3,7 +3,7 @@ import type { ConversationMessageDto, ConversationStateDto } from '@cs/shared';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { DatabaseReader, MutationCtx, QueryCtx } from '../_generated/server';
 import { LIST_CONVERSATION_MESSAGES_BATCH_SIZE, TRIM_MESSAGES_BATCH_SIZE } from './constants';
-import { loadConversationByPhone, loadConversationOrThrow } from './conversation-readers';
+import { loadConversationByPhone, loadConversationOrThrow } from './conversation_readers';
 import {
   isVisibleConversationMessage,
   normalizeOptionalLimit,
@@ -12,7 +12,7 @@ import {
   normalizeTimestamp,
   toConversationDto,
   toMessageDto,
-} from './message-helpers';
+} from './message_helpers';
 import type { TrimConversationMessagesResult } from './types';
 
 const MAX_TRIM_DELETIONS_PER_INVOCATION = TRIM_MESSAGES_BATCH_SIZE * 3;
@@ -104,7 +104,7 @@ export const getConversationDefinition = {
   },
 };
 
-export { getConversationMessageDefinition } from './trimming-conversation-message';
+export { getConversationMessageDefinition } from './trimming_conversation_message';
 
 export const listConversationMessagesDefinition = {
   args: {

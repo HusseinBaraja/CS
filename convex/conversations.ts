@@ -7,7 +7,7 @@ import { AUTO_RESUME_IDLE_MS, STALE_CONTEXT_RESET_MS } from './conversations/con
 import {
   acquireConversationLockDefinition,
   releaseConversationLockDefinition,
-} from './conversations/lock-helpers';
+} from './conversations/lock_helpers';
 import {
   ensureActiveConversationDefinition,
   getOrCreateActiveConversationDefinition,
@@ -16,7 +16,7 @@ import {
   appendMutedCustomerMessageDefinition,
   appendInboundCustomerMessageToConversationDefinition,
   appendInboundCustomerMessageDefinition,
-} from './conversations/inbound-append-flows';
+} from './conversations/inbound_append_flows';
 import {
   getConversationByPhoneDefinition,
   getConversationDefinition,
@@ -24,12 +24,12 @@ import {
   listConversationMessagesDefinition,
   listDueAutoResumeConversationsDefinition,
   trimConversationMessagesDefinition,
-} from './conversations/trimming-list-queries';
+} from './conversations/trimming_list_queries';
 import {
   getPromptHistoryDefinition,
   getPromptHistoryForInboundDefinition,
   getPromptHistorySelectionForInboundDefinition,
-} from './conversations/prompt-history-selection';
+} from './conversations/prompt_history_selection';
 import {
   appendPendingAssistantMessageDefinition,
   acknowledgePendingAssistantMessageDefinition,
@@ -39,13 +39,13 @@ import {
   markPendingAssistantMessageFailedDefinition,
   completePendingAssistantSideEffectsDefinition,
   recordPendingAssistantSideEffectProgressDefinition,
-} from './conversations/pending-assistant-lifecycle';
+} from './conversations/pending_assistant_lifecycle';
 import {
   appendAssistantMessageAndStartHandoffDefinition,
   startHandoffDefinition,
   resumeConversationDefinition,
   recordMutedCustomerActivityDefinition,
-} from './conversations/handoff-resume-flows';
+} from './conversations/handoff_resume_flows';
 
 export { AUTO_RESUME_IDLE_MS, STALE_CONTEXT_RESET_MS };
 

@@ -3,9 +3,9 @@ import type { ConversationStateDto } from '@cs/shared';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx, MutationCtx } from '../_generated/server';
-import { listActiveConversations } from './conversation-readers';
-import { withConversationLock } from './lock-helpers';
-import { normalizePhoneNumber, toConversationDto } from './message-helpers';
+import { listActiveConversations } from './conversation_readers';
+import { withConversationLock } from './lock_helpers';
+import { normalizePhoneNumber, toConversationDto } from './message_helpers';
 
 export const ensureActiveConversationDefinition = {
   args: {

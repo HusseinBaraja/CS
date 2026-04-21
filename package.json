@@ -9,12 +9,12 @@
     "convex"
   ],
   "scripts": {
-    "dev": "turbo run dev --filter=api --filter=bot --filter=web --filter=worker",
+    "dev": "bun scripts/dev-session-log.ts",
     "web": "bun run dev:web",
-    "dev:api": "turbo run dev --filter=api",
-    "dev:bot": "turbo run dev --filter=api --filter=bot",
+    "dev:api": "bun scripts/dev-session-log.ts --filter=api",
+    "dev:bot": "bun scripts/dev-session-log.ts --filter=api --filter=bot",
     "dev:web": "turbo run dev --filter=web",
-    "dev:worker": "turbo run dev --filter=worker",
+    "dev:worker": "bun scripts/dev-session-log.ts --filter=worker",
     "build": "turbo run build",
     "build:web": "turbo run build --filter=web",
     "typecheck": "turbo run typecheck",

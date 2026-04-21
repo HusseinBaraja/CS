@@ -3,14 +3,14 @@ import type { ConversationStateEventSource, ConversationStateEventType } from '@
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { AUTO_RESUME_IDLE_MS } from './constants';
-import { loadConversationOrThrow, loadMessageOrThrow } from './conversation-readers';
+import { loadConversationOrThrow, loadMessageOrThrow } from './conversation_readers';
 import {
   normalizeMessageContent,
   normalizeOptionalMessageId,
   normalizeOptionalString,
   normalizeTimestamp,
   toConversationDto,
-} from './message-helpers';
+} from './message_helpers';
 
 const insertConversationStateEvent = async (
   ctx: MutationCtx,
@@ -186,9 +186,6 @@ export const resumeConversationDefinition = {
   handler: async (ctx: MutationCtx, args: any) => {
     const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
     if (!conversation.muted) {
-  handler: async (ctx: MutationCtx, args: any) => {
-    const conversation = await loadConversationOrThrow(ctx, args.companyId, args.conversationId);
-    if (!conversation.muted) {
       return toConversationDto(conversation);
     }
 
@@ -227,4 +224,4 @@ export const resumeConversationDefinition = {
   },
 };
 
-export { recordMutedCustomerActivityDefinition } from './handoff-resume-activity';
+export { recordMutedCustomerActivityDefinition } from './handoff_resume_activity';

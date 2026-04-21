@@ -97,3 +97,10 @@ export const canonicalizePhoneNumber = (value: string): string | null => {
   const normalized = trimmed.replace(/[^\d]/g, "");
   return normalized.length > 0 ? normalized : null;
 };
+
+export const isSamePhoneNumber = (left: string, right: string): boolean => {
+  const normalizedLeft = canonicalizePhoneNumber(left);
+  const normalizedRight = canonicalizePhoneNumber(right);
+
+  return normalizedLeft !== null && normalizedLeft === normalizedRight;
+};

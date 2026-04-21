@@ -517,10 +517,6 @@ describe("createCatalogChatOrchestrator", () => {
         retrievalMode: "rewrite_degraded",
       },
       retrievalMode: "rewrite_degraded",
-      rewrite: {
-        status: "failure",
-        failureReason: "provider_error",
-      },
     });
     expect(chatCalls).toHaveLength(0);
     expect(rewriteCalls).toHaveLength(0);

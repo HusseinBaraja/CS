@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { canonicalizePhoneNumber } from './inbound';
+import { canonicalizePhoneNumber, isSamePhoneNumber } from './inbound';
 
 describe("canonicalizePhoneNumber", () => {
   test("normalizes plain digits and leading plus", () => {
@@ -17,5 +17,17 @@ describe("canonicalizePhoneNumber", () => {
     expect(canonicalizePhoneNumber("   ")).toBeNull();
     expect(canonicalizePhoneNumber("+")).toBeNull();
     expect(canonicalizePhoneNumber("owner")).toBeNull();
+  });
+});
+
+describe("isSamePhoneNumber", () => {
+  test("matches equivalent phone formats", () => {
+    expect(isSamePhoneNumber("+966 500-000-001", "966500000001")).toBe(true);
+  });
+
+  test("rejects mismatched or invalid phone inputs", () => {
+    expect(isSamePhoneNumber("966500000001", "966500000002")).toBe(false);
+    expect(isSamePhoneNumber("owner", "966500000002")).toBe(false);
+    expect(isSamePhoneNumber("966500000002", "owner")).toBe(false);
   });
 });

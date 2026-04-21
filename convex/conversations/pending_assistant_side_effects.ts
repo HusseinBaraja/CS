@@ -1,8 +1,8 @@
 import { v } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import { loadConversationOrThrow, loadMessageOrThrow } from './conversation-readers';
-import { resolveSideEffectsState, toMessageDto } from './message-helpers';
+import { loadConversationOrThrow, loadMessageOrThrow } from './conversation_readers';
+import { resolveSideEffectsState, toMessageDto } from './message_helpers';
 
 type CompletePendingAssistantSideEffectsArgs = {
   companyId: Id<'companies'>;
