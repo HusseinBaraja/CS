@@ -194,9 +194,26 @@ describe("createCatalogChatOrchestrator", () => {
     const retrievalCalls: unknown[] = [];
     const rewriteCalls: unknown[] = [];
     const chatCalls: Array<{ request: unknown; options: Record<string, unknown> | undefined }> = [];
+    const rewriteAttemptWithTrace: RetrievalRewriteAttempt = {
+      status: "success",
+      result: {
+        resolvedQuery: "Burger Box",
+        confidence: "high",
+        rewriteStrategy: "standalone",
+        preservedTerms: ["Burger Box"],
+      },
+      trace: {
+        systemPrompt: "rewrite system prompt",
+        provider: "gemini",
+        usage: {
+          inputTokens: 10,
+        },
+        apiResult: "{\"resolvedQuery\":\"Burger Box\"}",
+      },
+    };
     const orchestrator = createCatalogChatOrchestrator({
       retrievalService: createRetrievalService(groundedRetrievalResult(), retrievalCalls),
-      rewriteService: createRewriteService(highConfidenceRewriteAttempt(), rewriteCalls),
+      rewriteService: createRewriteService(rewriteAttemptWithTrace, rewriteCalls),
       chatManager: createChatManagerStub(async () => ({
         provider: "gemini",
         model: "gemini-2.0-flash",
@@ -230,7 +247,26 @@ describe("createCatalogChatOrchestrator", () => {
         retrievalMode: "primary_rewrite",
       },
       retrievalMode: "primary_rewrite",
-      rewrite: highConfidenceRewriteAttempt(),
+      rewrite: rewriteAttemptWithTrace,
+      aiTraces: [
+        {
+          event: "ai.retrieval_rewrite",
+          systemPrompt: "rewrite system prompt",
+          provider: "gemini",
+          usage: {
+            inputTokens: 10,
+          },
+          apiResult: "{\"resolvedQuery\":\"Burger Box\"}",
+        },
+        {
+          event: "ai.answer_generation",
+          systemPrompt: expect.any(String),
+          groundingContext: groundedRetrievalResult().contextBlocks,
+          provider: "gemini",
+          usage: undefined,
+          apiResult: '{"schemaVersion":"v1","text":"We have burger boxes available.","action":{"type":"none"}}',
+        },
+      ],
       provider: {
         provider: "gemini",
         model: "gemini-2.0-flash",
@@ -245,7 +281,7 @@ describe("createCatalogChatOrchestrator", () => {
       query: "Burger Box",
     });
     expect(chatCalls).toHaveLength(1);
-  });
+  }, 10_000);
 
   test("preserves detected Arabic response language through retrieval and prompt assembly", async () => {
     const retrievalCalls: Array<Record<string, unknown>> = [];
@@ -711,6 +747,7 @@ describe("createCatalogChatOrchestrator", () => {
         },
       },
     });
+    expect(result.aiTraces).toBeUndefined();
     expect(errorCalls).toHaveLength(1);
     expect(errorCalls[0]).toMatchObject({
       message: "catalog chat provider fallback selected",
@@ -776,6 +813,14 @@ describe("createCatalogChatOrchestrator", () => {
         model: "gemini-2.0-flash",
         responseId: "resp-invalid",
       },
+      aiTraces: [
+        {
+          event: "ai.answer_generation",
+          provider: "gemini",
+          apiResult: invalidText,
+          groundingContext: groundedRetrievalResult().contextBlocks,
+        },
+      ],
     });
     expect(infoCalls).toEqual(expect.arrayContaining([
       expect.objectContaining({

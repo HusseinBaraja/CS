@@ -432,7 +432,10 @@ describe("createCustomerConversationRouter", () => {
         companyId: "company-1",
         conversationId: "conversation-1",
         event: "assistant.pending_created",
-        details: "Assistant reply",
+        payload: {
+          kind: "note",
+          text: "Assistant reply",
+        },
       },
       {
         kind: "cv",
@@ -448,9 +451,122 @@ describe("createCustomerConversationRouter", () => {
         companyId: "company-1",
         conversationId: "conversation-1",
         event: "assistant.committed",
-        details: "Assistant reply",
+        payload: {
+          kind: "note",
+          text: "Assistant reply",
+        },
       },
     ]);
+  });
+
+  test("appends ai background traces in sequence when orchestrator provides them", async () => {
+    const { logger } = createLogger();
+    const { outbound } = createOutbound();
+    const { log, entries } = createConversationSessionLog();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: {
+        respond: async () => ({
+          ...createCatalogChatResult("Assistant reply"),
+          aiTraces: [
+            {
+              event: "ai.retrieval_rewrite",
+              systemPrompt: "rewrite system prompt",
+              provider: "gemini",
+              usage: {
+                inputTokens: 5,
+              },
+              apiResult: "{\"resolvedQuery\":\"Burger Box\"}",
+            },
+            {
+              event: "ai.answer_generation",
+              systemPrompt: "answer system prompt",
+              groundingContext: [
+                {
+                  id: "product-1",
+                  heading: "Burger Box",
+                  body: "Name (EN): Burger Box",
+                },
+              ],
+              provider: "deepseek",
+              usage: {
+                outputTokens: 10,
+              },
+              apiResult: "{\"schemaVersion\":\"v1\"}",
+            },
+          ],
+        }),
+      },
+      conversationStore: createStore({
+        appendPendingAssistantMessage: async (input) => ({
+          id: "pending-1",
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: input.content,
+          timestamp: input.timestamp,
+          deliveryState: "pending",
+        }),
+      }),
+      conversationSessionLog: log,
+      logger,
+      now: () => 2_000,
+    });
+
+    await router(createMessage({
+      conversationPhoneNumber: "966500000000",
+      sender: {
+        phoneNumber: "966500000000",
+        transportId: "966500000000@s.whatsapp.net",
+        role: "owner",
+      },
+    }), createContext(outbound));
+
+    expect(entries.map((entry) => entry.kind === "bts" ? entry.event : `cv:${entry.actor}`)).toEqual([
+      "cv:owner",
+      "ai.retrieval_rewrite",
+      "ai.answer_generation",
+      "assistant.pending_created",
+      "cv:assistant",
+      "assistant.committed",
+    ]);
+    expect(entries[1]).toEqual({
+      kind: "bts",
+      timestamp: 2_000,
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      event: "ai.retrieval_rewrite",
+      payload: {
+        kind: "ai",
+        systemPrompt: "rewrite system prompt",
+        provider: "gemini",
+        usage: {
+          inputTokens: 5,
+        },
+        apiResult: "{\"resolvedQuery\":\"Burger Box\"}",
+      },
+    });
+    expect(entries[2]).toEqual({
+      kind: "bts",
+      timestamp: 2_000,
+      companyId: "company-1",
+      conversationId: "conversation-1",
+      event: "ai.answer_generation",
+      payload: {
+        kind: "ai",
+        systemPrompt: "answer system prompt",
+        groundingContext: [
+          {
+            id: "product-1",
+            heading: "Burger Box",
+            body: "Name (EN): Burger Box",
+          },
+        ],
+        provider: "deepseek",
+        usage: {
+          outputTokens: 10,
+        },
+        apiResult: "{\"schemaVersion\":\"v1\"}",
+      },
+    });
   });
 
   test("continues routing when session-log append fails", async () => {

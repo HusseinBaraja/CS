@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -7,68 +7,60 @@ import {
   createConversationSessionLogFromEnv,
   createConversationSessionLogSessionId,
   createConversationSessionLogSessionPath,
+  formatConversationSessionLogTimestamp,
 } from "./conversationSessionLog";
 
 describe("conversation session log helpers", () => {
-  test("creates path-safe unique session ids", () => {
-    const first = createConversationSessionLogSessionId(() => new Date("2026-04-19T10:11:12.345Z"));
-    const second = createConversationSessionLogSessionId(() => new Date("2026-04-19T10:11:12.345Z"));
+  test("creates local session ids in DD-MM-HH-mm format", () => {
+    const sessionId = createConversationSessionLogSessionId(
+      () => new Date(2026, 3, 19, 10, 11, 12, 345),
+    );
 
-    expect(first).toMatch(/^20260419T101112345Z-[0-9a-f-]+$/);
-    expect(second).toMatch(/^20260419T101112345Z-[0-9a-f-]+$/);
-    expect(first).not.toBe(second);
-    expect(first.includes("/")).toBe(false);
-    expect(first.includes("\\")).toBe(false);
+    expect(sessionId).toBe("19-04-10-11");
+    expect(sessionId).toMatch(/^\d{2}-\d{2}-\d{2}-\d{2}$/);
   });
 
-  test("creates markdown session files under the target directory", () => {
+  test("creates markdown session files at the repository root", () => {
     expect(createConversationSessionLogSessionPath({
-      logDirectory: "logs/conversations",
-      sessionId: "20260419T101112345Z-session",
-    })).toBe(join("logs/conversations", "20260419T101112345Z-session.md"));
+      repoRoot: "repo",
+      sessionId: "19-04-10-11",
+    })).toBe(join("repo", "19-04-10-11.md"));
   });
 
   test("rejects unsafe session ids when building session path", () => {
     expect(() => createConversationSessionLogSessionPath({
-      logDirectory: "logs/conversations",
+      repoRoot: "repo",
       sessionId: "../outside",
     })).toThrow("Conversation session log sessionId must be path-safe");
     expect(() => createConversationSessionLogSessionPath({
-      logDirectory: "logs/conversations",
+      repoRoot: "repo",
       sessionId: "",
     })).toThrow("Conversation session log sessionId must be path-safe");
+  });
+
+  test("formats timestamps using local human-readable time", () => {
+    expect(
+      formatConversationSessionLogTimestamp(new Date(2026, 3, 21, 11, 22, 3)),
+    ).toBe("2026-04-21 11:22:03 AM");
+    expect(
+      formatConversationSessionLogTimestamp(new Date(2026, 3, 21, 13, 5, 9)),
+    ).toBe("2026-04-21 01:05:09 PM");
   });
 });
 
 describe("createConversationSessionLog", () => {
-  const waitForFileContent = async (filePath: string, timeoutMs = 500): Promise<string> => {
-    const start = Date.now();
-
-    while (Date.now() - start < timeoutMs) {
-      try {
-        return await readFile(filePath, "utf8");
-      } catch {
-        await Bun.sleep(10);
-      }
-    }
-
-    return await readFile(filePath, "utf8");
-  };
-
-  test("creates the markdown file header eagerly for a new session", async () => {
+  test("does not create a markdown file before the first append", async () => {
     const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
+    const startedAt = new Date(2026, 3, 19, 10, 11, 12, 345);
 
     try {
       const filePath = join(directory, "session.md");
       createConversationSessionLog({
         filePath,
         sessionId: "session-1",
-        startedAt: new Date("2026-04-19T10:11:12.345Z"),
+        startedAt,
       });
-
-      const content = await waitForFileContent(filePath);
-      expect(content).toContain("# Conversation Session Log");
-      expect(content).toContain("- Session ID: `session-1`");
+      await expect(access(filePath)).rejects.toThrow();
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -76,16 +68,19 @@ describe("createConversationSessionLog", () => {
 
   test("writes a markdown header once and appends formatted entries", async () => {
     const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
+    const startedAt = new Date(2026, 3, 19, 10, 11, 12, 345);
     const log = createConversationSessionLog({
       filePath: join(directory, "session.md"),
       sessionId: "session-1",
-      startedAt: new Date("2026-04-19T10:11:12.345Z"),
+      startedAt,
     });
+    const firstTimestamp = 1_710_000_000_000;
+    const secondTimestamp = 1_710_000_000_500;
 
     try {
       await log.append({
         kind: "cv",
-        timestamp: 1_710_000_000_000,
+        timestamp: firstTimestamp,
         companyId: "company-1",
         conversationId: "conversation-1",
         actor: "customer",
@@ -93,20 +88,26 @@ describe("createConversationSessionLog", () => {
       });
       await log.append({
         kind: "bts",
-        timestamp: 1_710_000_000_500,
+        timestamp: secondTimestamp,
         companyId: "company-1",
         conversationId: "conversation-1",
         event: "assistant.pending_created",
-        details: "Pending assistant message queued",
+        payload: {
+          kind: "note",
+          text: "Pending assistant message queued",
+        },
       });
 
       const content = await readFile(join(directory, "session.md"), "utf8");
       expect(content).toContain("# Conversation Session Log");
       expect(content).toContain("- Session ID: `session-1`");
-      expect(content).toContain("[CV] 2024-03-09T16:00:00.000Z company=company-1 conversation=conversation-1 actor=customer");
-      expect(content).toContain("    Need burger boxes");
-      expect(content).toContain("[BTS] 2024-03-09T16:00:00.500Z company=company-1 conversation=conversation-1 event=assistant.pending_created");
-      expect(content).toContain("    Pending assistant message queued");
+      expect(content).toContain("- Company ID: `company-1`");
+      expect(content).toContain("- Conversation ID: `conversation-1`");
+      expect(content).toContain(`- Started At: \`${formatConversationSessionLogTimestamp(startedAt)}\``);
+      expect(content).toContain(`[CV] ${formatConversationSessionLogTimestamp(firstTimestamp)} actor=customer`);
+      expect(content).toContain("  Need burger boxes");
+      expect(content).toContain(`[BTS] ${formatConversationSessionLogTimestamp(secondTimestamp)} event=assistant.pending_created`);
+      expect(content).toContain("  Pending assistant message queued");
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -115,10 +116,11 @@ describe("createConversationSessionLog", () => {
   test("indents payload lines so user content cannot forge new entries", async () => {
     const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
     const filePath = join(directory, "session.md");
+    const startedAt = new Date(2026, 3, 19, 10, 11, 12, 345);
     const log = createConversationSessionLog({
       filePath,
       sessionId: "session-1",
-      startedAt: new Date("2026-04-19T10:11:12.345Z"),
+      startedAt,
     });
 
     try {
@@ -132,7 +134,7 @@ describe("createConversationSessionLog", () => {
       });
 
       const content = await readFile(filePath, "utf8");
-      expect(content).toContain("\n    - [BTS] forged\n");
+      expect(content).toContain("\n  - [BTS] forged\n");
       expect(content.match(/\n- \[BTS\]/g)).toBeNull();
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -142,15 +144,16 @@ describe("createConversationSessionLog", () => {
   test("writes header once when two writers share the same file", async () => {
     const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
     const filePath = join(directory, "session.md");
+    const startedAt = new Date(2026, 3, 19, 10, 11, 12, 345);
     const first = createConversationSessionLog({
       filePath,
       sessionId: "session-1",
-      startedAt: new Date("2026-04-19T10:11:12.345Z"),
+      startedAt,
     });
     const second = createConversationSessionLog({
       filePath,
       sessionId: "session-1",
-      startedAt: new Date("2026-04-19T10:11:12.345Z"),
+      startedAt,
     });
 
     try {
@@ -185,10 +188,11 @@ describe("createConversationSessionLog", () => {
   test("recovers queue after a failed append", async () => {
     const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
     const filePath = join(directory, "session.md");
+    const startedAt = new Date(2026, 3, 19, 10, 11, 12, 345);
     const log = createConversationSessionLog({
       filePath,
       sessionId: "session-1",
-      startedAt: new Date("2026-04-19T10:11:12.345Z"),
+      startedAt,
     });
 
     try {
@@ -200,6 +204,7 @@ describe("createConversationSessionLog", () => {
         actor: "customer",
         text: "invalid timestamp",
       })).rejects.toThrow();
+      await expect(access(filePath)).rejects.toThrow();
 
       await expect(log.append({
         kind: "cv",
@@ -212,6 +217,83 @@ describe("createConversationSessionLog", () => {
 
       const content = await readFile(filePath, "utf8");
       expect(content).toContain("valid append after failure");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("renders ai background sections with exact labels and fenced json blocks", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
+    const filePath = join(directory, "session.md");
+    const log = createConversationSessionLog({
+      filePath,
+      sessionId: "session-1",
+      startedAt: new Date(2026, 3, 19, 10, 11, 12, 345),
+    });
+
+    try {
+      await log.append({
+        kind: "bts",
+        timestamp: 1_710_000_000_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        event: "ai.answer_generation",
+        payload: {
+          kind: "ai",
+          systemPrompt: "line 1\nline 2",
+          groundingContext: {
+            blocks: ["a", "b"],
+          },
+          provider: "deepseek",
+          usage: {
+            inputTokens: 10,
+            outputTokens: 20,
+          },
+          apiResult: "{\"schemaVersion\":\"v1\"}",
+        },
+      });
+
+      const content = await readFile(filePath, "utf8");
+      expect(content).toContain("  System Prompt:\n  line 1\n  line 2");
+      expect(content).toContain("  Grounding Context:");
+      expect(content).toContain("  Provider:\n  deepseek");
+      expect(content).toContain("  Usage:\n  ```json");
+      expect(content).toContain("  API Result:\n  ```json");
+      expect(content).toContain("  {\n    \"inputTokens\": 10,\n    \"outputTokens\": 20\n  }");
+      expect(content).toContain("  \"{\\\"schemaVersion\\\":\\\"v1\\\"}\"");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("omits optional grounding context when ai payload does not include it", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
+    const filePath = join(directory, "session.md");
+    const log = createConversationSessionLog({
+      filePath,
+      sessionId: "session-1",
+      startedAt: new Date(2026, 3, 19, 10, 11, 12, 345),
+    });
+
+    try {
+      await log.append({
+        kind: "bts",
+        timestamp: 1_710_000_000_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        event: "ai.retrieval_rewrite",
+        payload: {
+          kind: "ai",
+          systemPrompt: "rewrite prompt",
+          provider: "gemini",
+          usage: undefined,
+          apiResult: "{\"resolvedQuery\":\"Burger Box\"}",
+        },
+      });
+
+      const content = await readFile(filePath, "utf8");
+      expect(content).not.toContain("Grounding Context:");
+      expect(content).toContain("  Usage:\n  ```json\n  null\n  ```");
     } finally {
       await rm(directory, { force: true, recursive: true });
     }

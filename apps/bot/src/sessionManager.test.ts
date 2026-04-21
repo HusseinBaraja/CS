@@ -964,6 +964,72 @@ describe("startTenantSessionManager", () => {
     expect(manager.listSessions().map((session) => session.profile.companyId)).toEqual(["company-1"]);
   });
 
+  test("retries transient initial reconcile failures before heartbeat fallback", async () => {
+    const profile = createProfile("company-1");
+    const store = createStoreStub([]);
+    const { logger, errorCalls, warnCalls } = createLoggerStub();
+    const { timer, intervals } = createIntervalTimerStub();
+    const startCalls: string[] = [];
+    let listCalls = 0;
+
+    store.listEnabledCompanies = async () => {
+      listCalls += 1;
+      if (listCalls === 1) {
+        throw new Error(
+          "fetch failed",
+          {
+            cause: new Error(
+              "Connect Timeout Error (attempted address: glad-barracuda-955.convex.cloud:443, timeout: 10000ms)",
+            ),
+          },
+        );
+      }
+
+      return [profile];
+    };
+
+    const manager = await startTenantSessionManager({
+      logger,
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      startBot: async (options) => {
+        startCalls.push(options.runtimeConfig?.sessionKey ?? "missing");
+        return createRuntimeHandle(() => ({
+          sessionKey: options.runtimeConfig?.sessionKey ?? "missing",
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
+      },
+    });
+
+    expect(startCalls).toEqual([profile.sessionKey]);
+    expect(manager.listSessions().map((session) => session.profile.companyId)).toEqual(["company-1"]);
+    expect(intervals).toHaveLength(1);
+    expect(warnCalls).toContainEqual({
+      payload: {
+        attempt: 1,
+        error: expect.objectContaining({
+          message: "fetch failed",
+          name: "Error",
+        }),
+        event: "bot.session.initial_reconcile_retry_scheduled",
+        outcome: "retrying",
+        retryDelayMs: 250,
+        runtime: "bot",
+        runtimeOwnerId: "runtime-owner-1",
+        surface: "session_manager",
+      },
+      message: "initial tenant session reconcile failed; retrying",
+    });
+    expect(errorCalls).not.toContainEqual(expect.objectContaining({
+      payload: expect.objectContaining({
+        event: "bot.session.initial_reconcile_failed",
+      }),
+    }));
+  });
+
   test("persists ready QR artifacts and clears them when pairing is removed", async () => {
     const profile = createProfile("company-1");
     const store = createStoreStub([profile]);

@@ -514,7 +514,10 @@ describe("createPendingAssistantReconciliationProcessor", () => {
         companyId: "company-1",
         conversationId: "conversation-1",
         event: "assistant.reconciled",
-        details: "Pending assistant message committed by worker reconciliation",
+        payload: {
+          kind: "note",
+          text: "Pending assistant message committed by worker reconciliation",
+        },
       },
       {
         kind: "bts",
@@ -522,7 +525,10 @@ describe("createPendingAssistantReconciliationProcessor", () => {
         companyId: "company-1",
         conversationId: "conversation-1",
         event: "assistant.analytics_replayed",
-        details: "Handoff analytics recorded by worker reconciliation",
+        payload: {
+          kind: "note",
+          text: "Handoff analytics recorded by worker reconciliation",
+        },
       },
       {
         kind: "bts",
@@ -530,7 +536,10 @@ describe("createPendingAssistantReconciliationProcessor", () => {
         companyId: "company-1",
         conversationId: "conversation-1",
         event: "assistant.owner_notification_replayed",
-        details: "Owner handoff notification replayed by worker reconciliation",
+        payload: {
+          kind: "note",
+          text: "Owner handoff notification replayed by worker reconciliation",
+        },
       },
     ]);
   });

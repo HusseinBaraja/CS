@@ -17,37 +17,20 @@ import {
   type RetrievalRewriteStrategy,
   type RetrievalRewriteUnresolvedReason,
 } from './retrievalRewriteSchema';
-export {
-  RETRIEVAL_REWRITE_RESULT_JSON_SCHEMA,
-} from './retrievalRewriteSchema';
+import { buildRetrievalRewriteTrace, type RetrievalRewriteTrace } from "./retrievalRewriteTrace";
+export { RETRIEVAL_REWRITE_RESULT_JSON_SCHEMA } from './retrievalRewriteSchema';
 export type {
   RetrievalRewriteConfidence,
   RetrievalRewriteResult,
   RetrievalRewriteStrategy,
   RetrievalRewriteUnresolvedReason,
 } from './retrievalRewriteSchema';
+export type { RetrievalRewriteTrace } from "./retrievalRewriteTrace";
 
-export type RetrievalHistorySelectionReason =
-  | "recent_window"
-  | "quoted_reply_slice"
-  | "empty";
-
-export type RetrievalMode =
-  | "primary_rewrite"
-  | "rewrite_degraded";
-
-export type RetrievalQuerySource =
-  | "resolved_query"
-  | "search_alias"
-  | "fallback_original_user_message"
-  | "fallback_quoted_message_plus_current_message";
-
-export type RetrievalRewriteFailureReason =
-  | "invalid_output"
-  | "parse_failed"
-  | "provider_error"
-  | "timeout"
-  | "low_confidence";
+export type RetrievalHistorySelectionReason = "recent_window" | "quoted_reply_slice" | "empty";
+export type RetrievalMode = "primary_rewrite" | "rewrite_degraded";
+export type RetrievalQuerySource = "resolved_query" | "search_alias" | "fallback_original_user_message" | "fallback_quoted_message_plus_current_message";
+export type RetrievalRewriteFailureReason = "invalid_output" | "parse_failed" | "provider_error" | "timeout" | "low_confidence";
 
 export interface CatalogChatConversationHistorySelection {
   reason: RetrievalHistorySelectionReason;
@@ -67,11 +50,13 @@ export type RetrievalRewriteAttempt =
   | {
     status: "success";
     result: RetrievalRewriteResult;
+    trace?: RetrievalRewriteTrace;
   }
   | {
     status: "failure";
     failureReason: RetrievalRewriteFailureReason;
     result?: RetrievalRewriteResult;
+    trace?: RetrievalRewriteTrace;
   };
 
 export interface RetrievalRewriteService {
@@ -265,10 +250,12 @@ export const createRetrievalRewriteService = (
       input: RetrievalRewriteInput,
       chatOptions: ChatManagerCallOptions = {},
     ): Promise<RetrievalRewriteAttempt> {
+      const request = buildRetrievalRewritePrompt(input);
       let responseText: string;
+      let rewriteTrace: RetrievalRewriteTrace | undefined;
       try {
         const response = await chatManager.chat(
-          buildRetrievalRewritePrompt(input),
+          request,
           {
             ...chatOptions,
             logContext: {
@@ -278,6 +265,7 @@ export const createRetrievalRewriteService = (
           },
         );
         responseText = response.text;
+        rewriteTrace = buildRetrievalRewriteTrace(request, response);
       } catch (error) {
         return {
           status: "failure",
@@ -292,12 +280,14 @@ export const createRetrievalRewriteService = (
             status: "failure",
             failureReason: "low_confidence",
             result: parsedResult,
+            ...(rewriteTrace ? { trace: rewriteTrace } : {}),
           };
         }
 
         return {
           status: "success",
           result: parsedResult,
+          ...(rewriteTrace ? { trace: rewriteTrace } : {}),
         };
       } catch (error) {
         return {
@@ -307,6 +297,7 @@ export const createRetrievalRewriteService = (
               && error.message === "Retrieval rewrite output must be valid JSON"
               ? "parse_failed"
               : "invalid_output",
+          ...(rewriteTrace ? { trace: rewriteTrace } : {}),
         };
       }
     },

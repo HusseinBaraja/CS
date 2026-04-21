@@ -71,6 +71,44 @@ export const appendConversationSessionLogEntrySafely = async (
   }
 };
 
+export interface ConversationSessionLogAiTraceInput {
+  event: string;
+  systemPrompt: string;
+  groundingContext?: unknown;
+  provider: string;
+  usage?: unknown;
+  apiResult: unknown;
+}
+
+export const appendConversationSessionLogAiTracesSafely = async (input: {
+  companyId: string;
+  conversationId: string;
+  log: ConversationSessionLogWriter | undefined;
+  onError: (error: unknown) => void;
+  timestamp: number;
+  traces?: ConversationSessionLogAiTraceInput[];
+}): Promise<void> => {
+  for (const trace of input.traces ?? []) {
+    await appendConversationSessionLogEntrySafely(input.log, {
+      kind: "bts",
+      timestamp: input.timestamp,
+      companyId: input.companyId,
+      conversationId: input.conversationId,
+      event: trace.event,
+      payload: {
+        kind: "ai",
+        systemPrompt: trace.systemPrompt,
+        ...(trace.groundingContext !== undefined
+          ? { groundingContext: trace.groundingContext }
+          : {}),
+        provider: trace.provider,
+        usage: trace.usage,
+        apiResult: trace.apiResult,
+      },
+    }, input.onError);
+  }
+};
+
 export const getOwnerConversationSessionLog = (
   log: ConversationSessionLogWriter | undefined,
   conversationPhoneNumber: string,

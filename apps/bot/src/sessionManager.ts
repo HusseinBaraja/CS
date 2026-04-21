@@ -42,6 +42,7 @@ import {
   createConvexCompanyRuntimeStore,
   type CompanyRuntimeStore,
 } from './companyRuntimeStore';
+import { retryInitialSessionReconcile } from './sessionManagerStartupRetry';
 
 const HEARTBEAT_INTERVAL_MS = 20_000;
 const SESSION_LEASE_MS = 60_000;
@@ -273,6 +274,7 @@ export const startTenantSessionManager = async (
   const createRuntimeConfig = options.createRuntimeConfig ?? createBotRuntimeConfig;
   const createOutboundMessenger = options.createOutboundMessenger ?? defaultCreateOutboundMessenger;
   const sessions = new Map<string, ManagedTenantSessionInternal>();
+  const sessionManagerLogger = withLogBindings(botLogger, { runtimeOwnerId, surface: "session_manager" });
   let heartbeatId: unknown;
   let heartbeatInFlight: Promise<void> | null = null;
   let reconcileInFlight: Promise<void> | null = null;
@@ -887,10 +889,7 @@ export const startTenantSessionManager = async (
         await reconcileManagedSessions();
       } catch (error) {
         logEvent(
-          withLogBindings(botLogger, {
-            runtimeOwnerId,
-            surface: "session_manager",
-          }),
+          sessionManagerLogger,
           "error",
           {
             runtimeOwnerId,
@@ -937,28 +936,29 @@ export const startTenantSessionManager = async (
       store.releasePairingArtifactsByOwner(runtimeOwnerId),
     ]);
   };
-
   try {
-    await reconcileManagedSessions();
-  } catch (error) {
-    logEvent(
-      withLogBindings(botLogger, {
+    await retryInitialSessionReconcile(reconcileManagedSessions, ({ attempt, retryDelayMs, error }) => {
+      logEvent(sessionManagerLogger, "warn", {
         runtimeOwnerId,
-        surface: "session_manager",
-      }),
-      "error",
-      {
-        runtimeOwnerId,
-        event: "bot.session.initial_reconcile_failed",
+        event: "bot.session.initial_reconcile_retry_scheduled",
         runtime: "bot",
         surface: "session_manager",
-        outcome: "error",
+        outcome: "retrying",
+        attempt,
+        retryDelayMs,
         error: serializeErrorForLog(error),
-      },
-      "initial tenant session reconcile failed; continuing and letting heartbeat retry",
-    );
+      }, "initial tenant session reconcile failed; retrying");
+    });
+  } catch (error) {
+    logEvent(sessionManagerLogger, "error", {
+      runtimeOwnerId,
+      event: "bot.session.initial_reconcile_failed",
+      runtime: "bot",
+      surface: "session_manager",
+      outcome: "error",
+      error: serializeErrorForLog(error),
+    }, "initial tenant session reconcile failed; continuing and letting heartbeat retry");
   }
-
   heartbeatId = timer.setInterval(async () => {
     await runHeartbeat();
     triggerReconcileManagedSessions();
