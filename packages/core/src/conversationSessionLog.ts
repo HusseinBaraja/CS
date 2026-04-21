@@ -27,8 +27,7 @@ export interface CustomerViewConversationSessionLogEntry extends ConversationSes
 export interface BackgroundTraceConversationSessionLogEntry extends ConversationSessionLogEntryBase {
   kind: "bts";
   event: string;
-  payload?: ConversationSessionLogBackgroundPayload;
-  details?: string;
+  payload: ConversationSessionLogBackgroundPayload;
 }
 
 export type ConversationSessionLogEntry =
@@ -118,19 +117,6 @@ const toIndentedMarkdownBlock = (value: string): string =>
     .map((line) => `  ${line}`)
     .join("\n");
 
-const resolveBackgroundPayload = (
-  entry: BackgroundTraceConversationSessionLogEntry,
-): ConversationSessionLogBackgroundPayload => {
-  if (entry.payload) {
-    return entry.payload;
-  }
-
-  return {
-    kind: "note",
-    text: entry.details ?? "",
-  };
-};
-
 const formatEntryLine = (entry: ConversationSessionLogEntry): string => {
   const timestamp = formatConversationSessionLogTimestamp(entry.timestamp);
 
@@ -138,8 +124,7 @@ const formatEntryLine = (entry: ConversationSessionLogEntry): string => {
     return `- [CV] ${timestamp} actor=${entry.actor}\n\n${toIndentedMarkdownBlock(entry.text)}\n`;
   }
 
-  const payload = resolveBackgroundPayload(entry);
-  const renderedPayload = renderConversationSessionLogBackgroundPayload(payload);
+  const renderedPayload = renderConversationSessionLogBackgroundPayload(entry.payload);
 
   return `- [BTS] ${timestamp} event=${entry.event}\n\n${toIndentedMarkdownBlock(renderedPayload)}\n`;
 };

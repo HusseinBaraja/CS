@@ -432,7 +432,10 @@ describe("createCustomerConversationRouter", () => {
         companyId: "company-1",
         conversationId: "conversation-1",
         event: "assistant.pending_created",
-        details: "Assistant reply",
+        payload: {
+          kind: "note",
+          text: "Assistant reply",
+        },
       },
       {
         kind: "cv",
@@ -448,7 +451,10 @@ describe("createCustomerConversationRouter", () => {
         companyId: "company-1",
         conversationId: "conversation-1",
         event: "assistant.committed",
-        details: "Assistant reply",
+        payload: {
+          kind: "note",
+          text: "Assistant reply",
+        },
       },
     ]);
   });

@@ -15,12 +15,9 @@ export interface CustomerConversationRouterOptions {
 }
 const DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES = 20;
 const OWNER_HANDOFF_HISTORY_LIMIT = 6;
-export const createCustomerConversationRouter = (
-  options: CustomerConversationRouterOptions,
-): ((message: NormalizedInboundMessage, context: InboundRouteContext) => Promise<void>) => {
+export const createCustomerConversationRouter = (options: CustomerConversationRouterOptions): ((message: NormalizedInboundMessage, context: InboundRouteContext) => Promise<void>) => {
   const now = options.now ?? Date.now;
-  const conversationHistoryWindowMessages =
-    options.conversationHistoryWindowMessages ?? DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES;
+  const conversationHistoryWindowMessages = options.conversationHistoryWindowMessages ?? DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES;
   return async (message, context): Promise<void> => {
     let routeLogger = withLogBindings(options.logger, {
       companyId: message.companyId,
@@ -48,7 +45,6 @@ export const createCustomerConversationRouter = (
       );
       return;
     }
-
     const userMessage = serializeInboundMessage(message);
     const conversationSessionLog = getOwnerConversationSessionLog(
       options.conversationSessionLog,
@@ -90,7 +86,6 @@ export const createCustomerConversationRouter = (
       routeLogger = withLogBindings(routeLogger, {
         conversationId,
       });
-
       if (inboundAppend.wasDuplicate || inboundAppend.wasMuted) {
         logEvent(
           routeLogger,
@@ -111,7 +106,6 @@ export const createCustomerConversationRouter = (
         );
         return;
       }
-
       logEvent(
         routeLogger,
         "info",
@@ -250,7 +244,10 @@ export const createCustomerConversationRouter = (
         companyId: message.companyId,
         conversationId,
         event: "assistant.pending_created",
-        details: assistantText,
+        payload: {
+          kind: "note",
+          text: assistantText,
+        },
       }, onSessionLogAppendFailed);
     } catch (error) {
       logEvent(
@@ -423,7 +420,10 @@ export const createCustomerConversationRouter = (
       companyId: message.companyId,
       conversationId,
       event: "assistant.committed",
-      details: assistantText,
+      payload: {
+        kind: "note",
+        text: assistantText,
+      },
     }, onSessionLogAppendFailed);
 
     if (handoffSource) {

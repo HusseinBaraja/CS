@@ -15,8 +15,8 @@ const appendPendingAssistantSessionLog = async (
   input: {
     companyId: string;
     conversationId: string;
-    details: string;
     event: string;
+    note: string;
     timestamp: number;
   },
 ): Promise<void> => {
@@ -31,7 +31,10 @@ const appendPendingAssistantSessionLog = async (
       companyId: input.companyId,
       conversationId: input.conversationId,
       event: input.event,
-      details: input.details,
+      payload: {
+        kind: "note",
+        text: input.note,
+      },
     });
   } catch {
     // Session log is best-effort debugging telemetry; never block reconciliation side effects.
@@ -49,7 +52,7 @@ export const appendAssistantReconciledSessionLog = (
   appendPendingAssistantSessionLog(log, {
     ...input,
     event: "assistant.reconciled",
-    details: "Pending assistant message committed by worker reconciliation",
+    note: "Pending assistant message committed by worker reconciliation",
   });
 
 export const appendAssistantAnalyticsReplayedSessionLog = (
@@ -63,7 +66,7 @@ export const appendAssistantAnalyticsReplayedSessionLog = (
   appendPendingAssistantSessionLog(log, {
     ...input,
     event: "assistant.analytics_replayed",
-    details: "Handoff analytics recorded by worker reconciliation",
+    note: "Handoff analytics recorded by worker reconciliation",
   });
 
 export const appendAssistantOwnerNotificationReplayedSessionLog = (
@@ -77,5 +80,5 @@ export const appendAssistantOwnerNotificationReplayedSessionLog = (
   appendPendingAssistantSessionLog(log, {
     ...input,
     event: "assistant.owner_notification_replayed",
-    details: "Owner handoff notification replayed by worker reconciliation",
+    note: "Owner handoff notification replayed by worker reconciliation",
   });
