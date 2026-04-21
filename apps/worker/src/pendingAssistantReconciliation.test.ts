@@ -723,6 +723,73 @@ describe("createPendingAssistantReconciliationProcessor", () => {
     expect(entries).toEqual([]);
   });
 
+  test("skips eager owner context query in production session-log mode", async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const { log } = createConversationSessionLog();
+      const { client, calls } = createClientStub({
+        mutation: async (_reference, args) => {
+          const input = args as { key?: string; ownerToken?: string };
+          if (input.key && input.ownerToken) {
+            return { acquired: true, waitMs: 0 };
+          }
+          return undefined;
+        },
+        query: async (_reference, args) => {
+          const input = args as { olderThanOrAt?: number; messageId?: string };
+          if (typeof input.olderThanOrAt === "number") {
+            return [{
+              companyId: "company-1",
+              conversationId: "conversation-1",
+              messageId: "message-1",
+              phoneNumber: "967700000001",
+              timestamp: 1_000,
+              analyticsState: "not_applicable",
+              ownerNotificationState: "not_applicable",
+            }];
+          }
+          if (input.messageId === "message-1") {
+            return {
+              id: "message-1",
+              conversationId: "conversation-1",
+              role: "assistant",
+              content: "Assistant reply",
+              timestamp: 1_000,
+              deliveryState: "pending",
+              providerAcknowledgedAt: 1_500,
+              analyticsState: "not_applicable",
+              ownerNotificationState: "not_applicable",
+            };
+          }
+
+          throw new Error("unexpected owner context query");
+        },
+      });
+      const processor = createPendingAssistantReconciliationProcessor({
+        createClient: () => client as never,
+        conversationSessionLog: log,
+        logger: createLoggerStub().logger,
+      });
+
+      await expect(processor.runTick()).resolves.toEqual({
+        reconciledCount: 1,
+        skippedCount: 0,
+        failedCount: 0,
+      });
+
+      const ownerContextQueryCount = calls.queries.filter((call) => {
+        const args = call.args as { olderThanOrAt?: number; messageId?: string; limit?: number };
+        return typeof args.olderThanOrAt !== "number"
+          && args.messageId === undefined
+          && args.limit === undefined;
+      }).length;
+      expect(ownerContextQueryCount).toBe(0);
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
+  });
+
   test("completes already-recorded side effects without handoff source", async () => {
     const sentNotifications: Array<{ recipientJid: string; text: string }> = [];
     const { client, calls } = createClientStub({

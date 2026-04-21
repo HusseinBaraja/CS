@@ -83,12 +83,12 @@ const reconcilePendingAssistantMessage = async (
       return "skipped";
     }
 
-    const conversationOwnerContext = conversationSessionLog
+    const conversationOwnerContext = conversationSessionLog && process.env.NODE_ENV !== "production"
       ? await client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
         companyId: candidate.companyId as never,
         conversationId: candidate.conversationId as never,
       })
-      : null;
+      : undefined;
     const ownerConversationSessionLog = conversationOwnerContext
       && isSamePhoneNumber(candidate.phoneNumber, conversationOwnerContext.ownerPhone)
       ? conversationSessionLog
