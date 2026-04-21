@@ -256,7 +256,6 @@ export const createApp = (options: ApiAppOptions = {}) => {
   app.onError((error, c) => {
     const requestLogger = getRequestLogger(c, withLogBindings(appLogger, { surface: "http" }));
     const requestId = c.get("requestId");
-
     if (error instanceof SyntaxError) {
       logEvent(
         requestLogger,
@@ -266,7 +265,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
           runtime: "api",
           surface: "http",
           outcome: "invalid",
-          error: serializeErrorForLog(error),
+          error: { name: "SyntaxError", message: "Malformed JSON body" },
           method: c.req.method,
           path: c.req.path,
           requestId,
