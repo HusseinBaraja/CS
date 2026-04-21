@@ -1,4 +1,4 @@
-import { createEvent, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Link, RouterProvider } from './HonoRouter';
 
@@ -6,6 +6,7 @@ describe('HonoRouter Link', () => {
   afterEach(() => {
     window.history.replaceState({}, '', '/');
     vi.restoreAllMocks();
+    cleanup();
   });
 
   it('forwards anchor props to the rendered element', () => {

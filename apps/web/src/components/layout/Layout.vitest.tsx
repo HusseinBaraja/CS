@@ -9,9 +9,12 @@ vi.mock('gsap', () => ({
   default: {
     set: vi.fn(),
     to: vi.fn(),
-    context: vi.fn(() => ({
-      revert: contextRevertMock,
-    })),
+    context: vi.fn((callback?: () => void) => {
+      callback?.();
+      return {
+        revert: contextRevertMock,
+      };
+    }),
   },
 }));
 
@@ -21,8 +24,8 @@ let mockPath = '/';
 
 vi.mock('../router/HonoRouter', () => ({
   useLocation: () => ({ path: mockPath, navigate: mockNavigate }),
-  Link: ({ href, children, className, onClick }: any) => (
-    <a href={href} className={className} onClick={onClick}>
+  Link: ({ href, children, className, onClick, ...props }: any) => (
+    <a href={href} className={className} onClick={onClick} {...props}>
       {children}
     </a>
   ),
@@ -60,18 +63,17 @@ describe('Layout', () => {
   });
 
   it('keeps the custom watermark height utilities on the footer logo artwork', () => {
-    render(
+    const { container } = render(
       <Layout>
         <div>content</div>
       </Layout>,
     );
 
-    const decorativeImages = screen.getAllByRole('img', { hidden: true });
-    const watermarkImage = decorativeImages.find((image) => image.className.includes('h-150'));
+    const watermarkImage = container.querySelector('footer img.h-150.md\\:h-225');
 
     expect(watermarkImage).toBeDefined();
-    expect(watermarkImage?.className).toContain('h-150');
-    expect(watermarkImage?.className).toContain('md:h-225');
+    expect(watermarkImage?.getAttribute('class')).toContain('h-150');
+    expect(watermarkImage?.getAttribute('class')).toContain('md:h-225');
   });
 
   it('uses the logo link with href="/" and scrolls to top when on landing page', () => {
