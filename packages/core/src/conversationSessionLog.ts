@@ -1,9 +1,10 @@
-import { mkdir, appendFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import {
-  renderConversationSessionLogBackgroundPayload,
   type ConversationSessionLogBackgroundPayload,
-} from "./conversationSessionLogBackgroundPayload";
+  renderConversationSessionLogBackgroundPayload,
+} from './conversationSessionLogBackgroundPayload';
+
 export type {
   ConversationSessionLogAiPayload,
   ConversationSessionLogBackgroundPayload,
@@ -169,6 +170,16 @@ export const createConversationSessionLog = (
         throw error;
       }
     }
+
+        const existing = await readFile(options.filePath, "utf8");
+        const header = existing.split(/\n- \[(?:CV|BTS)\]/, 1)[0] ?? existing;
+
+          if (!header.includes(`- Session ID: \`${options.sessionId}\``) ||
+            !header.includes(`- Company ID: \`${entry.companyId}\``) ||
+            !header.includes(`- Conversation ID: \`${entry.conversationId}\``)
+           ) {
+             throw new Error("Conversation session log file already exists for a different session identity");
+           }
 
     initialized = true;
   };
