@@ -1,6 +1,6 @@
 import type { CatalogChatOrchestrator } from '@cs/rag';
 import { logEvent, redactJidForLog, redactPhoneLikeValue, serializeErrorForLog, type StructuredLogger, withLogBindings } from '@cs/core';
-import { appendConversationSessionLogEntrySafely, getAnalyticsIdempotencyKey, getOwnerConversationSessionLog, serializeInboundMessage, summarizeAssistantText, summarizeUserText } from './customerConversationLogHelpers';
+import { appendConversationSessionLogAiTracesSafely, appendConversationSessionLogEntrySafely, getAnalyticsIdempotencyKey, getOwnerConversationSessionLog, serializeInboundMessage, summarizeAssistantText, summarizeUserText } from './customerConversationLogHelpers';
 import { canonicalizePhoneNumber, formatOwnerNotification, type NormalizedInboundMessage } from '@cs/shared';
 import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId, type ConversationStore } from './conversationStore';
@@ -184,6 +184,7 @@ export const createCustomerConversationRouter = (
         userMessage,
       });
       assistantText = response.assistant.text;
+      await appendConversationSessionLogAiTracesSafely({ companyId: message.companyId, conversationId, log: conversationSessionLog, onError: onSessionLogAppendFailed, timestamp: now(), traces: response.aiTraces });
       if (response.assistant.action.type === "handoff") {
         handoffSource = "assistant_action";
       } else if (

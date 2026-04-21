@@ -175,6 +175,17 @@ describe("retrieval rewrite helpers", () => {
         rewriteStrategy: "quoted_reply_resolution",
         preservedTerms: ["Burger Box", "Large"],
       },
+      trace: {
+        systemPrompt: expect.stringContaining("You improve internal catalog retrieval queries for CSCB."),
+        provider: "gemini",
+        usage: undefined,
+        apiResult: JSON.stringify({
+          resolvedQuery: "Burger Box Large",
+          confidence: "high",
+          rewriteStrategy: "quoted_reply_resolution",
+          preservedTerms: ["Burger Box", "Large"],
+        }),
+      },
     });
     expect(requests).toEqual([
       expect.objectContaining({

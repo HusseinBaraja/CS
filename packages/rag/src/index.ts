@@ -19,7 +19,6 @@ import type { CatalogLanguageHints } from '@cs/shared';
 import {
   logEvent,
   serializeErrorForLog,
-  summarizeTextForLog,
   type StructuredLogger,
   withLogBindings,
 } from '@cs/core';
@@ -45,6 +44,19 @@ import {
   createCatalogLanguageHintsService,
 } from './catalogLanguageHints';
 import { summarizePromptRetrievalProvenance } from './retrievalProvenance';
+import {
+  buildRetrievalLogContext,
+  buildRewriteLogContext,
+  summarizePrimaryRetrievalQueryForLog,
+  summarizeProviderTextForLog,
+  summarizeQueryForLog,
+} from "./catalogChatLogging";
+import {
+  toAnswerGenerationAiTrace,
+  toCatalogChatAiTrace,
+  withCatalogChatAiTraces,
+  type CatalogChatAiTrace,
+} from "./catalogChatAiTrace";
 export {
   buildQuotedMessageCombinedFallbackQuery,
   buildRetrievalQueryPlan,
@@ -71,6 +83,7 @@ export {
   type RetrievalRewriteResult,
   type RetrievalRewriteService,
   type RetrievalRewriteStrategy,
+  type RetrievalRewriteTrace,
   type RetrievalRewriteUnresolvedReason,
 } from './retrievalRewrite';
 export {
@@ -79,6 +92,9 @@ export {
 export {
   summarizePromptRetrievalProvenance,
 } from './retrievalProvenance';
+export type {
+  CatalogChatAiTrace,
+} from "./catalogChatAiTrace";
 export type {
   PromptRetrievalProvenanceCandidate,
 } from './retrievalProvenance';
@@ -264,6 +280,7 @@ export interface CatalogChatResult {
   retrieval: RetrieveCatalogContextResult;
   retrievalMode: RetrievalMode;
   rewrite?: RetrievalRewriteAttempt;
+  aiTraces?: CatalogChatAiTrace[];
   provider?: Pick<ChatResponse, "provider" | "model" | "finishReason" | "usage" | "responseId">;
 }
 
@@ -565,78 +582,6 @@ export const createProductRetrievalService = (
   };
 };
 
-const summarizeQueryForLog = (text: string) => {
-  const summary = summarizeTextForLog(text);
-
-  return {
-    queryTextLength: summary.textLength,
-    queryTextLineCount: summary.textLineCount,
-  };
-};
-
-const summarizePrimaryRetrievalQueryForLog = (text: string) => {
-  const summary = summarizeTextForLog(text);
-
-  return {
-    primaryQueryTextLength: summary.textLength,
-    primaryQueryTextLineCount: summary.textLineCount,
-  };
-};
-
-const summarizeProviderTextForLog = (text: string) => {
-  const summary = summarizeTextForLog(text);
-
-  return {
-    providerTextLength: summary.textLength,
-    providerTextLineCount: summary.textLineCount,
-  };
-};
-
-const buildRetrievalLogContext = (
-  retrieval: RetrieveCatalogContextResult,
-): Record<string, unknown> => ({
-  outcome: retrieval.outcome,
-  ...(retrieval.reason ? { reason: retrieval.reason } : {}),
-  ...(retrieval.topScore !== undefined ? { topScore: retrieval.topScore } : {}),
-  candidateCount: retrieval.candidates.length,
-  contextBlockCount: retrieval.contextBlocks.length,
-  language: retrieval.language,
-  ...(retrieval.retrievalMode ? { retrievalMode: retrieval.retrievalMode } : {}),
-});
-
-const buildRewriteLogContext = (
-  rewrite: RetrievalRewriteAttempt | undefined,
-): Record<string, unknown> => {
-  if (!rewrite) {
-    return {
-      outcome: "not_attempted",
-    };
-  }
-
-  if (rewrite.status === "success") {
-    return {
-      outcome: "success",
-      confidence: rewrite.result.confidence,
-      strategy: rewrite.result.rewriteStrategy,
-      aliasCount: rewrite.result.searchAliases?.length ?? 0,
-      ...(rewrite.result.unresolvedReason ? { unresolvedReason: rewrite.result.unresolvedReason } : {}),
-    };
-  }
-
-  return {
-    outcome: "failure",
-    failureReason: rewrite.failureReason,
-    ...(rewrite.result
-      ? {
-        confidence: rewrite.result.confidence,
-        strategy: rewrite.result.rewriteStrategy,
-        aliasCount: rewrite.result.searchAliases?.length ?? 0,
-        ...(rewrite.result.unresolvedReason ? { unresolvedReason: rewrite.result.unresolvedReason } : {}),
-      }
-      : {}),
-  };
-};
-
 const pickProviderMetadata = (
   response: ChatResponse,
 ): Pick<ChatResponse, "provider" | "model" | "finishReason" | "usage" | "responseId"> => ({
@@ -759,6 +704,7 @@ export const createCatalogChatOrchestrator = (
           : {}),
         ...(input.requestId ? { requestId: input.requestId } : {}),
       });
+      const aiTraces: CatalogChatAiTrace[] = [];
       const retrievalLogger = withLogBindings(routeLogger, {
         surface: "retrieval",
       });
@@ -818,6 +764,7 @@ export const createCatalogChatOrchestrator = (
           language,
           retrieval,
           retrievalMode: "rewrite_degraded",
+          ...withCatalogChatAiTraces(aiTraces),
           ...(rewrite ? { rewrite } : {}),
         };
       }
@@ -855,6 +802,9 @@ export const createCatalogChatOrchestrator = (
           status: "failure",
           failureReason: "provider_error",
         };
+      }
+      if (rewrite.trace) {
+        aiTraces.push(toCatalogChatAiTrace(rewrite.trace));
       }
       const queryPlan = buildRetrievalQueryPlan({
         userMessage: input.userMessage,
@@ -948,6 +898,7 @@ export const createCatalogChatOrchestrator = (
           language,
           retrieval,
           retrievalMode: queryPlan.mode,
+          ...withCatalogChatAiTraces(aiTraces),
           rewrite,
         };
       }
@@ -960,6 +911,7 @@ export const createCatalogChatOrchestrator = (
           language,
           retrieval,
           retrievalMode: queryPlan.mode,
+          ...withCatalogChatAiTraces(aiTraces),
           rewrite,
         };
       }
@@ -1021,9 +973,17 @@ export const createCatalogChatOrchestrator = (
           language,
           retrieval,
           retrievalMode: queryPlan.mode,
+          ...withCatalogChatAiTraces(aiTraces),
           rewrite,
         };
       }
+      aiTraces.push(toAnswerGenerationAiTrace({
+        systemPrompt: prompt.systemPrompt,
+        groundingContext: retrieval.contextBlocks,
+        provider: providerResponse.provider,
+        usage: providerResponse.usage,
+        apiResult: providerResponse.text,
+      }));
 
       try {
         const assistant = parseStructuredOutput(providerResponse.text, {
@@ -1037,6 +997,7 @@ export const createCatalogChatOrchestrator = (
           language,
           retrieval,
           retrievalMode: queryPlan.mode,
+          ...withCatalogChatAiTraces(aiTraces),
           rewrite,
           provider: pickProviderMetadata(providerResponse),
         };
@@ -1070,6 +1031,7 @@ export const createCatalogChatOrchestrator = (
           language,
           retrieval,
           retrievalMode: queryPlan.mode,
+          ...withCatalogChatAiTraces(aiTraces),
           rewrite,
           provider: pickProviderMetadata(providerResponse),
         };
