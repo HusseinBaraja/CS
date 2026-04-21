@@ -506,7 +506,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
     const ownerNotificationSentMutationIndex = calls.mutations.findIndex((call) =>
       (call.args as { ownerNotificationSent?: boolean }).ownerNotificationSent === true);
     expect(ownerNotificationSentMutationIndex).toBeGreaterThanOrEqual(0);
-    expect(ownerNotificationSentMutationIndex).toBeLessThan(mutationCountBeforeSend);
+    expect(ownerNotificationSentMutationIndex).toBeGreaterThanOrEqual(mutationCountBeforeSend);
     expect(entries).toEqual([
       {
         kind: "bts",
