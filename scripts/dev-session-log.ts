@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import {
   createConversationSessionLogSessionId,
   createConversationSessionLogSessionPath,
-} from "../packages/core/src/conversationSessionLog";
+} from "@cs/core";
 
 export const createDevSessionLogEnvironment = (input: {
   now?: () => Date;
