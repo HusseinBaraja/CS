@@ -16,8 +16,8 @@
     "@cs/db": "*",
     "@cs/shared": "*",
     "@cs/storage": "*",
-    "@hono/node-server": "1.19.9",
-    "hono": "4.12.4",
+    "@hono/node-server": "1.19.13",
+    "hono": "4.12.14",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {

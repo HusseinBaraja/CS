@@ -274,10 +274,12 @@ describe("startBot", () => {
     const { logger, infoCalls } = createLoggerStub();
     const runtimeConfig = createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" });
     const socketStub = createSocketStub();
+    const version = [2, 3001, 999999999] as [number, number, number];
 
     const handle = await startBot({
       logger,
       runtimeConfig,
+      resolveSocketVersion: async () => version,
       loadAuthState: async () => ({
         state: createAuthenticationState(),
         saveCreds: async () => undefined,

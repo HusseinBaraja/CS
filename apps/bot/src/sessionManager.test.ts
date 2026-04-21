@@ -874,9 +874,11 @@ describe("startTenantSessionManager", () => {
     const profile = createProfile("company-1");
     const store = createStoreStub([profile]);
     const { timer, intervals } = createIntervalTimerStub();
+    const { logger } = createLoggerStub();
     const startCalls: string[] = [];
 
     await startTenantSessionManager({
+      logger,
       runtimeOwnerId: "runtime-owner-1",
       store,
       timer,
@@ -2121,7 +2123,9 @@ describe("startTenantSessionManager", () => {
   test("keeps tenant outbound lookup isolated when one tenant sender fails", async () => {
     const profiles = [createProfile("company-1"), createProfile("company-2")];
     const store = createStoreStub(profiles);
+    const { logger } = createLoggerStub();
     const manager = await startTenantSessionManager({
+      logger,
       runtimeOwnerId: "runtime-owner-1",
       store,
       startBot: async (options) => {

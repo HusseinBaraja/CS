@@ -256,7 +256,6 @@ export const createApp = (options: ApiAppOptions = {}) => {
   app.onError((error, c) => {
     const requestLogger = getRequestLogger(c, withLogBindings(appLogger, { surface: "http" }));
     const requestId = c.get("requestId");
-
     if (error instanceof SyntaxError) {
       logEvent(
         requestLogger,

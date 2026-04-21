@@ -10,7 +10,7 @@
     "./embeddings": "./src/embeddings/index.ts"
   },
   "scripts": {
-    "dev": "bun --watch src/index.ts",
+    "dev": "bun ../../scripts/watch-from-root.ts src/index.ts",
     "build": "bun build src/index.ts --outdir dist",
     "typecheck": "tsc --noEmit",
     "check": "bun run typecheck",

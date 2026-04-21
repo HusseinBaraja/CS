@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setupGsapMocks } from '../test/setupGsapMocks';
 
@@ -15,6 +15,7 @@ describe('ContactPage', () => {
     vi.unstubAllEnvs();
     vi.resetModules();
     vi.clearAllMocks();
+    cleanup();
   });
 
   it('renders env-backed contact details and resets the form after submit', async () => {
@@ -27,7 +28,7 @@ describe('ContactPage', () => {
     render(<ContactPage />);
 
     expect(screen.getByRole('heading', { name: 'جاهزين نسمع منك ونرتب معك البداية' })).toBeDefined();
-    expect(screen.getByText('مخصص للأعمال في اليمن التي تريد خدمة عملاء أسرع على واتساب بدون تعقيد.')).toBeDefined();
+    expect(screen.getByText('مخصص للشركات في اليمن التي تحتاج خدمة عملاء أسرع على واتساب بدون تعقيد.')).toBeDefined();
     expect(screen.getByText('+967 784 338 919')).toBeDefined();
     expect(screen.getByText('hello@reda.chat')).toBeDefined();
     expect(screen.getByText('المقر الرئيسي')).toBeDefined();
@@ -55,6 +56,8 @@ describe('ContactPage', () => {
 
   it('hides phone and email rows when contact env vars are missing', async () => {
     setupGsapMocks();
+    vi.stubEnv('SITE_CONTACT_PHONE_NUMBER', '');
+    vi.stubEnv('SITE_CONTACT_EMAIL_ADDRESS', '');
 
     const { ContactPage } = await import('./ContactPage');
     render(<ContactPage />);
