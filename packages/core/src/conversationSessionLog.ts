@@ -1,5 +1,14 @@
 import { mkdir, appendFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import {
+  renderConversationSessionLogBackgroundPayload,
+  type ConversationSessionLogBackgroundPayload,
+} from "./conversationSessionLogBackgroundPayload";
+export type {
+  ConversationSessionLogAiPayload,
+  ConversationSessionLogBackgroundPayload,
+  ConversationSessionLogNotePayload,
+} from "./conversationSessionLogBackgroundPayload";
 
 export type ConversationSessionLogKind = "cv" | "bts";
 
@@ -17,8 +26,9 @@ export interface CustomerViewConversationSessionLogEntry extends ConversationSes
 
 export interface BackgroundTraceConversationSessionLogEntry extends ConversationSessionLogEntryBase {
   kind: "bts";
-  details: string;
   event: string;
+  payload?: ConversationSessionLogBackgroundPayload;
+  details?: string;
 }
 
 export type ConversationSessionLogEntry =
@@ -105,8 +115,21 @@ const isAlreadyExistsError = (error: unknown): boolean =>
 const toIndentedMarkdownBlock = (value: string): string =>
   value
     .split(/\r\n|\n|\r/)
-    .map((line) => `    ${line}`)
+    .map((line) => `  ${line}`)
     .join("\n");
+
+const resolveBackgroundPayload = (
+  entry: BackgroundTraceConversationSessionLogEntry,
+): ConversationSessionLogBackgroundPayload => {
+  if (entry.payload) {
+    return entry.payload;
+  }
+
+  return {
+    kind: "note",
+    text: entry.details ?? "",
+  };
+};
 
 const formatEntryLine = (entry: ConversationSessionLogEntry): string => {
   const timestamp = formatConversationSessionLogTimestamp(entry.timestamp);
@@ -115,7 +138,10 @@ const formatEntryLine = (entry: ConversationSessionLogEntry): string => {
     return `- [CV] ${timestamp} actor=${entry.actor}\n\n${toIndentedMarkdownBlock(entry.text)}\n`;
   }
 
-  return `- [BTS] ${timestamp} event=${entry.event}\n\n${toIndentedMarkdownBlock(entry.details)}\n`;
+  const payload = resolveBackgroundPayload(entry);
+  const renderedPayload = renderConversationSessionLogBackgroundPayload(payload);
+
+  return `- [BTS] ${timestamp} event=${entry.event}\n\n${toIndentedMarkdownBlock(renderedPayload)}\n`;
 };
 
 export const createConversationSessionLog = (

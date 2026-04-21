@@ -92,7 +92,10 @@ describe("createConversationSessionLog", () => {
         companyId: "company-1",
         conversationId: "conversation-1",
         event: "assistant.pending_created",
-        details: "Pending assistant message queued",
+        payload: {
+          kind: "note",
+          text: "Pending assistant message queued",
+        },
       });
 
       const content = await readFile(join(directory, "session.md"), "utf8");
@@ -102,9 +105,9 @@ describe("createConversationSessionLog", () => {
       expect(content).toContain("- Conversation ID: `conversation-1`");
       expect(content).toContain(`- Started At: \`${formatConversationSessionLogTimestamp(startedAt)}\``);
       expect(content).toContain(`[CV] ${formatConversationSessionLogTimestamp(firstTimestamp)} actor=customer`);
-      expect(content).toContain("    Need burger boxes");
+      expect(content).toContain("  Need burger boxes");
       expect(content).toContain(`[BTS] ${formatConversationSessionLogTimestamp(secondTimestamp)} event=assistant.pending_created`);
-      expect(content).toContain("    Pending assistant message queued");
+      expect(content).toContain("  Pending assistant message queued");
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -131,7 +134,7 @@ describe("createConversationSessionLog", () => {
       });
 
       const content = await readFile(filePath, "utf8");
-      expect(content).toContain("\n    - [BTS] forged\n");
+      expect(content).toContain("\n  - [BTS] forged\n");
       expect(content.match(/\n- \[BTS\]/g)).toBeNull();
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -214,6 +217,83 @@ describe("createConversationSessionLog", () => {
 
       const content = await readFile(filePath, "utf8");
       expect(content).toContain("valid append after failure");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("renders ai background sections with exact labels and fenced json blocks", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
+    const filePath = join(directory, "session.md");
+    const log = createConversationSessionLog({
+      filePath,
+      sessionId: "session-1",
+      startedAt: new Date(2026, 3, 19, 10, 11, 12, 345),
+    });
+
+    try {
+      await log.append({
+        kind: "bts",
+        timestamp: 1_710_000_000_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        event: "ai.answer_generation",
+        payload: {
+          kind: "ai",
+          systemPrompt: "line 1\nline 2",
+          groundingContext: {
+            blocks: ["a", "b"],
+          },
+          provider: "deepseek",
+          usage: {
+            inputTokens: 10,
+            outputTokens: 20,
+          },
+          apiResult: "{\"schemaVersion\":\"v1\"}",
+        },
+      });
+
+      const content = await readFile(filePath, "utf8");
+      expect(content).toContain("  System Prompt:\n  line 1\n  line 2");
+      expect(content).toContain("  Grounding Context:");
+      expect(content).toContain("  Provider:\n  deepseek");
+      expect(content).toContain("  Usage:\n  ```json");
+      expect(content).toContain("  API Result:\n  ```json");
+      expect(content).toContain("  {\n    \"inputTokens\": 10,\n    \"outputTokens\": 20\n  }");
+      expect(content).toContain("  \"{\\\"schemaVersion\\\":\\\"v1\\\"}\"");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("omits optional grounding context when ai payload does not include it", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "cs-conversation-log-"));
+    const filePath = join(directory, "session.md");
+    const log = createConversationSessionLog({
+      filePath,
+      sessionId: "session-1",
+      startedAt: new Date(2026, 3, 19, 10, 11, 12, 345),
+    });
+
+    try {
+      await log.append({
+        kind: "bts",
+        timestamp: 1_710_000_000_000,
+        companyId: "company-1",
+        conversationId: "conversation-1",
+        event: "ai.retrieval_rewrite",
+        payload: {
+          kind: "ai",
+          systemPrompt: "rewrite prompt",
+          provider: "gemini",
+          usage: undefined,
+          apiResult: "{\"resolvedQuery\":\"Burger Box\"}",
+        },
+      });
+
+      const content = await readFile(filePath, "utf8");
+      expect(content).not.toContain("Grounding Context:");
+      expect(content).toContain("  Usage:\n  ```json\n  null\n  ```");
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
