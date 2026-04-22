@@ -176,7 +176,7 @@ export function TrustSection() {
           <h2 className="trust-text-element text-4xl md:text-5xl lg:text-5xl xl:text-6xl font-black text-primary mb-6 leading-[1.15] tracking-tight">
             مصمم لطبيعة الاستفسارات
             <br />
-            <span className="text-transparent bg-clip-text bg-linear-to-r from-secondary via-amber-600 to-amber-700">في اليمن.</span>
+            <span className="text-secondary">في اليمن.</span>
           </h2>
           
           <p className="trust-text-element text-[1.15rem] text-primary/75 mb-6 leading-relaxed font-semibold">
@@ -252,8 +252,7 @@ export function TrustSection() {
                       <div className="text-primary/60 text-xs font-semibold mb-1.5">السعر</div>
                       <div className="text-emerald-600 text-xs xl:text-[13px] font-black" style={{ fontFeatureSettings: '"tnum"' }}>18,000 ريال</div>
                     </div>
-                    <div className="data-card-item col-span-2 bg-linear-to-r from-emerald-500/5 to-transparent border border-emerald-500/15 rounded-xl p-3.5 flex justify-between items-center relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-1 h-full bg-emerald-500/40" />
+                    <div className="data-card-item col-span-2 bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3.5 flex justify-between items-center relative overflow-hidden">
 
                       <div className="flex items-center gap-2.5">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
