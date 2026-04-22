@@ -47,7 +47,7 @@ import { retryInitialSessionReconcile } from './sessionManagerStartupRetry';
 const HEARTBEAT_INTERVAL_MS = 20_000;
 const SESSION_LEASE_MS = 60_000;
 
-export interface ManagedTenantSession {
+interface ManagedTenantSession {
   profile: CompanyRuntimeProfile;
   status: BotSessionStatus;
 }
@@ -64,12 +64,12 @@ interface ManagedTenantSessionInternal {
 
 export interface SessionManagerStore extends CompanyRuntimeStore {}
 
-export interface SessionManagerTimer {
+interface SessionManagerTimer {
   setInterval(handler: () => void | Promise<void>, delayMs: number): unknown;
   clearInterval(intervalId: unknown): void;
 }
 
-export interface TenantSessionManagerHandle {
+interface TenantSessionManagerHandle {
   getRuntimeOwnerId(): string;
   getSession(companyId: string): ManagedTenantSession | undefined;
   getOutbound(companyId: string): OutboundMessenger | undefined;
@@ -77,7 +77,7 @@ export interface TenantSessionManagerHandle {
   stop(): Promise<void>;
 }
 
-export interface StartTenantSessionManagerOptions {
+interface StartTenantSessionManagerOptions {
   botProcess?: BotProcess;
   inboundRouter?: InboundMessageRouter;
   logger?: BotLogger;

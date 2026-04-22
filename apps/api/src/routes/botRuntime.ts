@@ -13,7 +13,7 @@ import { createErrorResponse } from '../responses';
 import type { BotRuntimeService } from '../services/botRuntime';
 import { BotRuntimeServiceError } from '../services/botRuntime';
 
-export interface BotRuntimeRoutesOptions {
+interface BotRuntimeRoutesOptions {
   botRuntimeService: BotRuntimeService;
   now?: () => number;
 }

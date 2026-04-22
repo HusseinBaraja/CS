@@ -200,7 +200,7 @@ export const toOpenAICompatibleMessages = (
     ...(message.name !== undefined ? { name: message.name } : {}),
   }));
 
-export const normalizeOpenAICompatibleFinishReason = (
+const normalizeOpenAICompatibleFinishReason = (
   finishReason: string | null | undefined,
 ): ChatFinishReason => {
   switch (finishReason) {
@@ -218,7 +218,7 @@ export const normalizeOpenAICompatibleFinishReason = (
   }
 };
 
-export const normalizeGeminiFinishReason = (
+const normalizeGeminiFinishReason = (
   finishReason: string | undefined,
 ): ChatFinishReason => {
   switch (finishReason) {

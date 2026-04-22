@@ -17,7 +17,7 @@ export interface CompanyRuntimeStore {
   releasePairingArtifactsByOwner(runtimeOwnerId: string): Promise<void>;
 }
 
-export interface ConvexCompanyRuntimeStoreOptions {
+interface ConvexCompanyRuntimeStoreOptions {
   createClient?: () => ConvexAdminClient;
 }
 

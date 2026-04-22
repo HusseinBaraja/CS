@@ -20,7 +20,7 @@ interface ConvexOfferDto {
   isCurrentlyActive: boolean;
 }
 
-export interface ConvexOffersServiceOptions {
+interface ConvexOffersServiceOptions {
   createClient?: () => ConvexAdminClient;
   now?: () => number;
 }

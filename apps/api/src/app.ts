@@ -35,7 +35,7 @@ import { createConvexProductsService } from './services/convexProductsService';
 import type { ProductMediaService } from './services/productMedia';
 import { createConvexProductMediaService } from './services/convexProductMediaService';
 
-export interface ApiAppOptions {
+interface ApiAppOptions {
   createDbConnection?: () => DbConnection;
   checkDbReady?: (connection: DbConnection) => Promise<void> | void;
   analyticsService?: AnalyticsService;

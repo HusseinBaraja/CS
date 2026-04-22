@@ -263,7 +263,6 @@ describe("createCatalogChatOrchestrator", () => {
           systemPrompt: expect.any(String),
           groundingContext: groundedRetrievalResult().contextBlocks,
           provider: "gemini",
-          usage: undefined,
           apiResult: '{"schemaVersion":"v1","text":"We have burger boxes available.","action":{"type":"none"}}',
         },
       ],

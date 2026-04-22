@@ -81,7 +81,4 @@ export interface GeminiClient {
   };
 }
 
-export type GeminiEmbeddingClient = Pick<GeminiClient, "models">;
-export type GeminiChatClient = Pick<GeminiClient, "models">;
-
 export type GeminiClientFactory = (apiKey: string) => GeminiClient;

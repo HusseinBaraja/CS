@@ -16,7 +16,7 @@ export type ChatProviderErrorDisposition =
   | "failover_provider"
   | "do_not_retry";
 
-export interface ChatProviderErrorOptions extends AppErrorOptions {
+interface ChatProviderErrorOptions extends AppErrorOptions {
   provider: ChatProviderName;
   kind: ChatProviderErrorKind;
   disposition: ChatProviderErrorDisposition;
@@ -87,7 +87,7 @@ export class ChatProviderError extends AIError {
   }
 }
 
-export interface CreateChatProviderErrorOptions extends AppErrorOptions {
+interface CreateChatProviderErrorOptions extends AppErrorOptions {
   provider: ChatProviderName;
   kind: ChatProviderErrorKind;
   message: string;

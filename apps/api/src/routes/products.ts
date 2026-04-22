@@ -16,7 +16,7 @@ import { ProductsServiceError } from '../services/products';
 import { parseJsonBody } from './parserUtils';
 import { requireRouteParam } from './routeParams';
 
-export interface ProductsRoutesOptions {
+interface ProductsRoutesOptions {
   productsService: ProductsService;
   productMediaService: ProductMediaService;
 }

@@ -6,7 +6,7 @@ import { CategoriesServiceError } from '../services/categories';
 import { parseCreateCategoryBody, parseUpdateCategoryBody } from './categorySchemas';
 import { requireRouteParam } from './routeParams';
 
-export interface CategoriesRoutesOptions {
+interface CategoriesRoutesOptions {
   categoriesService: CategoriesService;
 }
 

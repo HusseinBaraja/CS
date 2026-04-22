@@ -11,14 +11,13 @@ type StubConvexAdminClient = {
   action: (reference: unknown, args: unknown) => Promise<unknown>;
 };
 
-const createService = (client: StubConvexAdminClient, now: () => number = () => 1_000) =>
+const createService = (client: StubConvexAdminClient) =>
   createConvexBotRuntimeService({
     createClient: () => client as never,
-    now,
   });
 
 describe("createConvexBotRuntimeService", () => {
-  test("uses the internal bot runtime operator snapshot query with the current time", async () => {
+  test("uses the internal bot runtime operator snapshot query", async () => {
     let receivedReference: unknown;
     let receivedArgs: unknown;
     const service = createService({
@@ -33,7 +32,7 @@ describe("createConvexBotRuntimeService", () => {
       action: async () => {
         throw new Error("action should not be called");
       },
-    }, () => 42_000);
+    });
 
     await expect(service.listOperatorSnapshots()).resolves.toEqual([]);
     expect(getFunctionName(receivedReference as never)).toBe(

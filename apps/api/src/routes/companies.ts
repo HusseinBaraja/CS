@@ -5,7 +5,7 @@ import type { CompaniesService } from '../services/companies';
 import { CompaniesServiceError } from '../services/companies';
 import { parseCreateCompanyBody, parseUpdateCompanyBody } from './companySchemas';
 
-export interface CompaniesRoutesOptions {
+interface CompaniesRoutesOptions {
   companiesService: CompaniesService;
 }
 

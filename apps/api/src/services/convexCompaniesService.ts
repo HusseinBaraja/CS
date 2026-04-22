@@ -8,7 +8,7 @@ import {
   createValidationServiceError,
 } from './companies';
 
-export interface ConvexCompaniesServiceOptions {
+interface ConvexCompaniesServiceOptions {
   createClient?: () => ConvexAdminClient;
 }
 

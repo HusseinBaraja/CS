@@ -1,6 +1,6 @@
 import type { ConversationSessionLogWriter } from "@cs/core";
 
-export type AssistantHandoffSource =
+type AssistantHandoffSource =
   | "assistant_action"
   | "provider_failure_fallback"
   | "invalid_model_output_fallback";

@@ -8,7 +8,7 @@ import { createErrorResponse } from './responses';
 const DEFAULT_EXEMPT_PATHS = ["/api/health", "/api/ready"];
 const SAFE_EQUAL_HMAC_KEY = "cs-api-safe-equal-v1";
 
-export interface ApiKeyAuthOptions {
+interface ApiKeyAuthOptions {
   apiKey?: string;
   exemptPaths?: string[];
   headerName?: string;

@@ -9,7 +9,7 @@ import {
   type UpsertCurrencyRateResult,
 } from './currencyRates';
 
-export interface ConvexCurrencyRatesServiceOptions {
+interface ConvexCurrencyRatesServiceOptions {
   createClient?: () => ConvexAdminClient;
 }
 

@@ -2,13 +2,13 @@ import { readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isManagedBackupFile, parseBackupTimestamp } from './backup-paths';
 
-export interface ManagedBackupRecord {
+interface ManagedBackupRecord {
   name: string;
   path: string;
   timestamp: number;
 }
 
-export const listManagedBackups = async (directory: string): Promise<ManagedBackupRecord[]> => {
+const listManagedBackups = async (directory: string): Promise<ManagedBackupRecord[]> => {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = entries.filter((entry) => entry.isFile() && isManagedBackupFile(entry.name));
 
@@ -29,7 +29,7 @@ export const listManagedBackups = async (directory: string): Promise<ManagedBack
   );
 };
 
-export const sortManagedBackups = (backups: ManagedBackupRecord[]): ManagedBackupRecord[] =>
+const sortManagedBackups = (backups: ManagedBackupRecord[]): ManagedBackupRecord[] =>
   [...backups].sort((left, right) => right.timestamp - left.timestamp || right.name.localeCompare(left.name));
 
 export const pruneManagedBackups = async (

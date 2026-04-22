@@ -5,7 +5,7 @@ import type { ConversationsService } from '../services/conversations';
 import { ConversationsServiceError } from '../services/conversations';
 import { requireRouteParam } from './routeParams';
 
-export interface ConversationsRoutesOptions {
+interface ConversationsRoutesOptions {
   conversationsService: ConversationsService;
 }
 

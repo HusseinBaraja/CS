@@ -19,7 +19,7 @@ interface RateLimitPruneResult {
   nextPruneAt: number;
 }
 
-export interface RateLimitOptions {
+interface RateLimitOptions {
   max: number;
   maxEntries?: number;
   windowMs: number;
@@ -135,7 +135,7 @@ export const scheduleRateLimitEntryCleanup = (
   }, Math.max(0, delayMs));
 };
 
-export const setRateLimitEntry = (
+const setRateLimitEntry = (
   requests: Map<string, RateLimitRecord>,
   key: string,
   record: RateLimitRecord
