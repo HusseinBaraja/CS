@@ -158,7 +158,7 @@ export function HeroSection() {
 
                 <div className="hero-chat-message self-start bg-white text-primary p-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] text-[15px] font-medium leading-normal border border-black/5">
                   مرحباً، هل عندكم علب برجر ورق مقاس وسط؟
-                  <div className="text-[10px] text-gray-400 mt-1 text-left">
+                  <div className="text-[10px] text-primary/35 mt-1 text-left">
                     10:41
                   </div>
                 </div>
@@ -176,7 +176,7 @@ export function HeroSection() {
 
                 <div className="hero-chat-message self-start bg-white text-primary p-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] text-[15px] font-medium leading-normal border border-black/5 mt-2">
                   ممكن صورة لها؟
-                  <div className="text-[10px] text-gray-400 mt-1 text-left">
+                  <div className="text-[10px] text-primary/35 mt-1 text-left">
                     10:42
                   </div>
                 </div>
@@ -197,7 +197,7 @@ export function HeroSection() {
 
                 <div className="hero-chat-message self-start bg-white text-primary p-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] text-[15px] font-medium leading-normal border border-black/5 mt-2">
                   ممتاز، أحتاج 5 كراتين. هل يوجد توصيل؟
-                  <div className="text-[10px] text-gray-400 mt-1 text-left">
+                  <div className="text-[10px] text-primary/35 mt-1 text-left">
                     10:43
                   </div>
                 </div>
@@ -212,7 +212,7 @@ export function HeroSection() {
 
                 <div className="hero-chat-message self-start bg-white text-primary p-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] text-[15px] font-medium leading-normal border border-black/5 mt-2">
                   التوصيل للحي التجاري؟
-                  <div className="text-[10px] text-gray-400 mt-1 text-left">
+                  <div className="text-[10px] text-primary/35 mt-1 text-left">
                     10:45
                   </div>
                 </div>

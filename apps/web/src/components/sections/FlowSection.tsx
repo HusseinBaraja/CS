@@ -219,7 +219,7 @@ export function FlowSection() {
           <h2 className="text-4xl md:text-5xl font-black text-primary mb-6 tracking-tight">
             كيف يعمل <span className="text-primary">رضا؟</span>
           </h2>
-          <p className="text-lg text-gray-500 font-medium">
+          <p className="text-lg text-primary/50 font-medium">
             خريطة كنز لتبسيط أتمتة مبيعاتك وتجربة عملائك
           </p>
         </div>
