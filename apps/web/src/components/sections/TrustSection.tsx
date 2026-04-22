@@ -48,20 +48,24 @@ export function TrustSection() {
         return;
       }
 
-      // Ambient slow rotation for background glow
-      gsap.to(ambientGlow, {
-        rotate: 360,
-        duration: 25,
-        repeat: -1,
-        ease: "linear",
-      });
+      const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
 
-      gsap.to(ambientGlowReverse, {
-        rotate: -360,
-        duration: 30,
-        repeat: -1,
-        ease: "linear",
-      });
+      // Ambient slow rotation for background glow (skip for reduced motion)
+      if (!prefersReducedMotion) {
+        gsap.to(ambientGlow, {
+          rotate: 360,
+          duration: 25,
+          repeat: -1,
+          ease: "linear",
+        });
+
+        gsap.to(ambientGlowReverse, {
+          rotate: -360,
+          duration: 30,
+          repeat: -1,
+          ease: "linear",
+        });
+      }
 
       // Text section reveals
       gsap.from(textElements, {

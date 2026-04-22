@@ -106,7 +106,7 @@ export function ProblemSection() {
             الأمر.
           </p>
 
-          <div className="pain-cards-container hidden sm:grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="pain-cards-container grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="pain-card bg-white p-6 rounded-2xl border border-primary/5 shadow-sm">
               <Clock className="w-8 h-8 text-red-500 mb-4" />
               <h3 className="text-lg font-bold text-primary mb-2">
