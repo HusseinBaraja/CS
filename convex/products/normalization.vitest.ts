@@ -87,7 +87,7 @@ describe('products embedding payload helper', () => {
         productId: PRODUCT_ID,
         englishText: 'partial',
       }),
-    ).toThrowError('VALIDATION_FAILED: Embedding replacement payload must be all-or-none');
+    ).toThrowError('All embedding fields must be provided together');
   });
 
   it('returns null for no replacement and structured args for complete replacement', () => {
@@ -96,7 +96,7 @@ describe('products embedding payload helper', () => {
         companyId: COMPANY_ID,
         productId: PRODUCT_ID,
       }),
-    ).toBeNull();
+    ).toBeUndefined();
 
     expect(
       getEmbeddingReplacementArgs({
