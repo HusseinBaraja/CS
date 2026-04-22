@@ -98,6 +98,12 @@ export const buildSearchText = (product: ProductListItemDto): string =>
     .join('\n')
     .toLocaleLowerCase();
 
+const canonicalizeSpecs = (specs: ProductSpecifications | undefined): string => {
+  if (!specs) return '{}';
+  const sortedKeys = Object.keys(specs).sort();
+  return JSON.stringify(sortedKeys.map((key) => [key, specs[key]]));
+};
+
 export const hasEmbeddingRelevantChanges = (
   previous: ProductWriteState,
   next: ProductWriteState,
@@ -106,4 +112,4 @@ export const hasEmbeddingRelevantChanges = (
   || previous.nameAr !== next.nameAr
   || previous.descriptionEn !== next.descriptionEn
   || previous.descriptionAr !== next.descriptionAr
-  || JSON.stringify(previous.specifications ?? {}) !== JSON.stringify(next.specifications ?? {});
+  || canonicalizeSpecs(previous.specifications) !== canonicalizeSpecs(next.specifications);
