@@ -4,6 +4,7 @@ import type {
   ProductDetailDto,
   ProductImageDto,
   ProductListItemDto,
+  ProductSpecifications,
   ProductVariantDoc,
   ProductVariantDto,
   ProductVariantWriteState,
