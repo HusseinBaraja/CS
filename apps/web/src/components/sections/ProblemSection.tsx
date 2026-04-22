@@ -68,7 +68,7 @@ export function ProblemSection() {
         y: () => gsap.utils.random(-30, 30),
         duration: 0.6,
         stagger: 0.1,
-        ease: "back.out(1.7)",
+        ease: "power4.out",
       });
 
       // Cards stagger in

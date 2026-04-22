@@ -50,7 +50,7 @@ export function Layout({ children }: LayoutProps) {
           scale: 1,
           duration: 0.45,
           stagger: 0.08,
-          ease: 'back.out(2)',
+          ease: 'power3.out',
           delay: 0.1,
         });
       } else {
