@@ -25,12 +25,6 @@
   },
   "entries": [
     {
-      "path": "convex/products.ts",
-      "classification": "must_split",
-      "maxLines": 1345,
-      "reason": "Combines product CRUD, variant CRUD, normalization, and embedding orchestration."
-    },
-    {
       "path": "packages/rag/src/index.ts",
       "classification": "must_split",
       "maxLines": 1079,

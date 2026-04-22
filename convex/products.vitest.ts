@@ -292,6 +292,41 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(embeddings.every((embedding) => embedding.embedding.length === 768)).toBe(true);
   });
 
+  it("rejects specifications keys that collide after trimming", async () => {
+    installGeminiStub();
+    const t = convexTest(schema, modules);
+
+    const { companyId, categoryId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000700",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+
+      return {
+        companyId,
+        categoryId,
+      };
+    });
+
+    await expect(
+      t.action(internal.products.create, {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+        specifications: {
+          size: "Large",
+          " size ": "Medium",
+        },
+      }),
+    ).rejects.toThrow(
+      "VALIDATION_FAILED: specifications keys must be non-empty strings and unique after trimming",
+    );
+  });
+
   it("refreshes company catalog language hints after product create, update, and delete", async () => {
     installGeminiStub();
     const t = convexTest(schema, modules);
