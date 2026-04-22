@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
+import { refreshCompanyCatalogLanguageHintsInMutation } from '../../catalogLanguageHints';
 import { replaceProductEmbeddingsInMutation } from '../../productEmbeddingRuntime';
 import { CONFLICT_PREFIX, NOT_FOUND_PREFIX, createTaggedError } from '../errors';
 import { mapVariant } from '../mapping';
@@ -75,6 +76,7 @@ export const insertVariantWithEmbeddingsDefinition = {
       englishText: args.englishText,
       arabicText: args.arabicText,
     });
+    await refreshCompanyCatalogLanguageHintsInMutation(ctx, args.companyId);
 
     const variant = await ctx.db.get(variantId);
     if (!variant) {
@@ -147,6 +149,7 @@ export const patchVariantWithEmbeddingsDefinition = {
       englishText: args.englishText,
       arabicText: args.arabicText,
     });
+    await refreshCompanyCatalogLanguageHintsInMutation(ctx, args.companyId);
 
     const updatedVariant = await ctx.db.get(args.variantId);
     if (!updatedVariant) {
@@ -208,6 +211,7 @@ export const removeVariantWithEmbeddingsDefinition = {
       englishText: args.englishText,
       arabicText: args.arabicText,
     });
+    await refreshCompanyCatalogLanguageHintsInMutation(ctx, args.companyId);
 
     return {
       productId: args.productId,
