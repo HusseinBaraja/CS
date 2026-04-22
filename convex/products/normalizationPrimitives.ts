@@ -45,12 +45,21 @@ export const normalizeSpecifications = (
     return undefined;
   }
 
+  const seenNormalizedKeys = new Set<string>();
   const normalizedEntries = Object.entries(value).map(([key, entryValue]) => {
     const normalizedKey = key.trim();
     if (normalizedKey.length === 0) {
       throw createTaggedError(VALIDATION_PREFIX, 'specifications keys must be non-empty strings');
     }
 
+    if (seenNormalizedKeys.has(normalizedKey)) {
+      throw createTaggedError(
+        VALIDATION_PREFIX,
+        'specifications keys must be non-empty strings and unique after trimming',
+      );
+    }
+
+    seenNormalizedKeys.add(normalizedKey);
     return [normalizedKey, entryValue] as const;
   });
 
