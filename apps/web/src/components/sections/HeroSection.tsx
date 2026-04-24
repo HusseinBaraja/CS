@@ -49,7 +49,7 @@ export function HeroSection() {
           opacity: 0,
           duration: 0.6,
           stagger: 0.2,
-          ease: "back.out(1.5)",
+          ease: "power3.out",
         },
         "-=0.4",
       );
@@ -158,7 +158,7 @@ export function HeroSection() {
 
                 <div className="hero-chat-message self-start bg-white text-primary p-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] text-[15px] font-medium leading-normal border border-black/5">
                   مرحباً، هل عندكم علب برجر ورق مقاس وسط؟
-                  <div className="text-[10px] text-gray-400 mt-1 text-left">
+                  <div className="text-[10px] text-primary/35 mt-1 text-left">
                     10:41
                   </div>
                 </div>
@@ -176,7 +176,7 @@ export function HeroSection() {
 
                 <div className="hero-chat-message self-start bg-white text-primary p-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] text-[15px] font-medium leading-normal border border-black/5 mt-2">
                   ممكن صورة لها؟
-                  <div className="text-[10px] text-gray-400 mt-1 text-left">
+                  <div className="text-[10px] text-primary/35 mt-1 text-left">
                     10:42
                   </div>
                 </div>
@@ -197,7 +197,7 @@ export function HeroSection() {
 
                 <div className="hero-chat-message self-start bg-white text-primary p-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] text-[15px] font-medium leading-normal border border-black/5 mt-2">
                   ممتاز، أحتاج 5 كراتين. هل يوجد توصيل؟
-                  <div className="text-[10px] text-gray-400 mt-1 text-left">
+                  <div className="text-[10px] text-primary/35 mt-1 text-left">
                     10:43
                   </div>
                 </div>
@@ -212,7 +212,7 @@ export function HeroSection() {
 
                 <div className="hero-chat-message self-start bg-white text-primary p-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] text-[15px] font-medium leading-normal border border-black/5 mt-2">
                   التوصيل للحي التجاري؟
-                  <div className="text-[10px] text-gray-400 mt-1 text-left">
+                  <div className="text-[10px] text-primary/35 mt-1 text-left">
                     10:45
                   </div>
                 </div>
@@ -230,7 +230,7 @@ export function HeroSection() {
               <div
                 className={`absolute bottom-0 left-0 w-full h-20 bg-linear-to-t from-[#EFEAE2] to-transparent pointer-events-none flex items-end justify-center pb-2 z-20 transition-opacity duration-500 ${hasScrolled ? "opacity-0" : "opacity-100"}`}
               >
-                <div className="bg-black/15 backdrop-blur-md text-primary text-[11px] font-bold px-4 py-1.5 rounded-full flex gap-1.5 items-center animate-bounce shadow-sm border border-black/5">
+                <div className="bg-black/15 backdrop-blur-md text-primary text-[11px] font-bold px-4 py-1.5 rounded-full flex gap-1.5 items-center float-subtle shadow-sm border border-black/5">
                   <ArrowLeft className="w-3 h-3 -rotate-90" />
                   اسحب للمزيد
                 </div>

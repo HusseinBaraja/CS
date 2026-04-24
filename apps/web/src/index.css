@@ -21,7 +21,12 @@
     @apply bg-[var(--color-bg-light)] text-[var(--color-primary)] font-arabic antialiased;
     direction: rtl;
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-color: oklch(0.78 0.01 160) transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 2px;
   }
 }
 
@@ -49,11 +54,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: oklch(0.78 0.01 160);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: oklch(0.64 0.015 160);
 }
 
 /* Trust section chat flow animations */
