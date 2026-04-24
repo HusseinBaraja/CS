@@ -50,6 +50,19 @@ export function TrustSection() {
 
       const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
 
+      if (prefersReducedMotion) {
+        const continuousAnimationElements = visualEl.querySelectorAll<HTMLElement>(
+          '.trust-flow-packet, .trust-pipeline-ping, .trust-zap-pulse, .trust-availability-pulse',
+        );
+
+        continuousAnimationElements.forEach((element) => {
+          const animationClasses = [...element.classList].filter((className) => className.startsWith('animate-'));
+          if (animationClasses.length > 0) {
+            element.classList.remove(...animationClasses);
+          }
+        });
+      }
+
       // Ambient slow rotation for background glow (skip for reduced motion)
       if (!prefersReducedMotion) {
         gsap.to(ambientGlow, {
@@ -218,12 +231,12 @@ export function TrustSection() {
 
               <div className="flex flex-col items-center h-10 xl:h-12 w-full">
                 <div className="pipeline-line-1 w-px h-full bg-linear-to-b from-primary/10 via-secondary/70 to-secondary/30 relative">
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-5 bg-secondary rounded-full filter blur-[1px] shadow-[0_0_8px_rgba(227,178,60,0.6)] animate-[flowPacket_1.6s_infinite_linear]" />
+                  <div className="trust-flow-packet absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-5 bg-secondary rounded-full filter blur-[1px] shadow-[0_0_8px_rgba(227,178,60,0.6)] animate-[flowPacket_1.6s_infinite_linear]" />
                 </div>
               </div>
               <div className="pipeline-node-1 relative z-10 flex items-center justify-center">
                 <div className="w-2.5 h-2.5 rounded-full bg-secondary shadow-[0_0_12px_rgba(227,178,60,0.6)]" />
-                <div className="absolute w-6 h-6 rounded-full border border-secondary/40 animate-ping opacity-60" style={{ animationDuration: '2s' }} />
+                <div className="trust-pipeline-ping absolute w-6 h-6 rounded-full border border-secondary/40 animate-ping opacity-60" style={{ animationDuration: '2s' }} />
               </div>
 
               <div className="data-card relative w-full p-px rounded-3xl bg-linear-to-b from-white/60 to-white/20 mt-2.5 mb-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.06)]">
@@ -242,7 +255,7 @@ export function TrustSection() {
                     </div>
 
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/8 border border-secondary/25 shadow-sm shrink-0 mt-0.5">
-                      <Zap className="w-3.5 h-3.5 text-secondary animate-[pulse_2s_infinite]" />
+                      <Zap className="trust-zap-pulse w-3.5 h-3.5 text-secondary animate-[pulse_2s_infinite]" />
                       <span className="text-xs font-mono font-bold text-secondary tracking-tight">98%</span>
                     </div>
                   </div>
@@ -259,7 +272,7 @@ export function TrustSection() {
                     <div className="data-card-item col-span-2 bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3.5 flex justify-between items-center relative overflow-hidden">
 
                       <div className="flex items-center gap-2.5">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
+                        <div className="trust-availability-pulse w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
                         <span className="text-primary/60 text-xs font-medium uppercase tracking-wide">المخزون</span>
                       </div>
                       <span className="text-emerald-600 text-xs font-bold uppercase tracking-wide">متوفر ✓</span>
@@ -270,11 +283,11 @@ export function TrustSection() {
 
               <div className="pipeline-node-2 relative z-10 flex items-center justify-center">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
-                <div className="absolute w-6 h-6 rounded-full border border-emerald-500/40 animate-ping opacity-60" style={{ animationDuration: '2s', animationDelay: '0.5s' }} />
+                <div className="trust-pipeline-ping absolute w-6 h-6 rounded-full border border-emerald-500/40 animate-ping opacity-60" style={{ animationDuration: '2s', animationDelay: '0.5s' }} />
               </div>
               <div className="flex flex-col items-center h-10 xl:h-12 w-full">
                 <div className="pipeline-line-2 w-px h-full bg-linear-to-b from-emerald-500/50 to-emerald-500/10 relative">
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-5 bg-emerald-500 rounded-full filter blur-[1px] shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-[flowPacket_1.6s_infinite_linear_0.8s]" />
+                  <div className="trust-flow-packet absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-5 bg-emerald-500 rounded-full filter blur-[1px] shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-[flowPacket_1.6s_infinite_linear_0.8s]" />
                 </div>
               </div>
 
