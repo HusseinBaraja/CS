@@ -13,14 +13,27 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     files: ["**/*.{js,jsx,ts,tsx}"],
+    ignores: ["vite.config.ts", "eslint.config.mjs"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
       globals: {
         ...globals.browser,
+        ...globals.es2024,
+      },
+    },
+  },
+  {
+    files: ["vite.config.ts", "eslint.config.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
         ...globals.node,
         ...globals.es2024,
       },
+    },
+  },
     },
     settings: {
       react: {
