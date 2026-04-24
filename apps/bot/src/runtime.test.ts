@@ -115,6 +115,7 @@ const createSocketStub = () => {
   const credsHandlers: Array<(update: unknown) => void> = [];
   const messagesUpsertHandlers: Array<(update: BaileysEventMap["messages.upsert"]) => void> = [];
   const endCalls: unknown[] = [];
+  const readMessageCalls: Array<Array<{ id: string; remoteJid: string }>> = [];
   const sendCalls: Array<{ recipientJid: string; message: unknown }> = [];
   const presenceSubscribeCalls: string[] = [];
   const presenceUpdateCalls: Array<{ state: "composing" | "paused"; recipientJid: string }> = [];
@@ -137,6 +138,9 @@ const createSocketStub = () => {
     },
     end: (error) => {
       endCalls.push(error);
+    },
+    readMessages: async (messages) => {
+      readMessageCalls.push(messages);
     },
     presenceSubscribe: async (recipientJid) => {
       presenceSubscribeCalls.push(recipientJid);
@@ -174,6 +178,7 @@ const createSocketStub = () => {
     endCalls,
     presenceSubscribeCalls,
     presenceUpdateCalls,
+    readMessageCalls,
     sendCalls,
   };
 };
@@ -559,6 +564,10 @@ describe("startBot", () => {
 
     await handle.presenceSubscribe("967700000001@s.whatsapp.net");
     await handle.sendPresenceUpdate("composing", "967700000001@s.whatsapp.net");
+    await handle.markRead({
+      id: "message-1",
+      remoteJid: "967700000001@s.whatsapp.net",
+    });
     const result = await handle.sendMessage("967700000001@s.whatsapp.net", {
       text: "Hello",
     });
@@ -570,6 +579,12 @@ describe("startBot", () => {
         recipientJid: "967700000001@s.whatsapp.net",
       },
     ]);
+    expect(socketStub.readMessageCalls).toEqual([[
+      {
+        id: "message-1",
+        remoteJid: "967700000001@s.whatsapp.net",
+      },
+    ]]);
     expect(socketStub.sendCalls).toEqual([
       {
         recipientJid: "967700000001@s.whatsapp.net",
@@ -605,6 +620,12 @@ describe("startBot", () => {
     );
     await expect(handle.presenceSubscribe("967700000001@s.whatsapp.net")).rejects.toThrow(
       "Bot socket is unavailable for presence subscription",
+    );
+    await expect(handle.markRead({
+      id: "message-1",
+      remoteJid: "967700000001@s.whatsapp.net",
+    })).rejects.toThrow(
+      "Bot socket is unavailable for read receipts",
     );
     await expect(handle.sendPresenceUpdate("paused", "967700000001@s.whatsapp.net")).rejects.toThrow(
       "Bot socket is unavailable for presence updates",
@@ -742,7 +763,7 @@ describe("startBot", () => {
       attempt: 0,
       hasQr: false,
     });
-  });
+  }, 10_000);
 
   test("ignores late events from a superseded socket after reconnecting", async () => {
     const { logger } = createLoggerStub();

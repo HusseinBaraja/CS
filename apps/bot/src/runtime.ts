@@ -27,6 +27,7 @@ import {
   type BotRuntimeConfig,
   createBotRuntimeConfig,
 } from './runtimeConfig';
+import { createBaileysLogger } from './runtimeLogger';
 
 export type BotLifecycleState = BotRuntimeSessionState;
 
@@ -48,6 +49,7 @@ export interface BotPairingStatus {
 }
 
 export interface BotRuntimeHandle extends OutboundTransport {
+  markRead(message: { id: string; remoteJid: string }): Promise<void>;
   getStatus(): BotSessionStatus;
   stop(): Promise<void>;
 }
@@ -75,6 +77,7 @@ interface BotEventEmitter {
 export interface BotSocket {
   ev: BotEventEmitter;
   end(error?: Error): void;
+  readMessages(messages: Array<{ id: string; remoteJid: string }>): Promise<void>;
   sendMessage(recipientJid: string, message: unknown): Promise<unknown>;
   presenceSubscribe(recipientJid: string): Promise<void>;
   sendPresenceUpdate(state: "composing" | "paused", recipientJid: string): Promise<void>;
@@ -111,30 +114,6 @@ export interface StartBotOptions {
   now?: () => number;
 }
 
-const createBaileysLogger = (botLogger: BotLogger) => {
-  const activeLogger = typeof botLogger.child === "function"
-    ? botLogger.child({ runtime: "baileys" })
-    : botLogger;
-  const info = activeLogger.info.bind(activeLogger);
-  const error = activeLogger.error.bind(activeLogger);
-  const warn = activeLogger.warn?.bind(activeLogger) ?? info;
-  const debug = activeLogger.debug?.bind(activeLogger) ?? info;
-  const toLogRecord = (payload: unknown): Record<string, unknown> =>
-    typeof payload === "object" && payload !== null
-      ? payload as Record<string, unknown>
-      : { value: payload };
-
-  return {
-    level: "info",
-    child: () => createBaileysLogger(activeLogger),
-    trace: (payload: unknown, message?: string) => debug(toLogRecord(payload), message ?? "baileys trace"),
-    debug: (payload: unknown, message?: string) => debug(toLogRecord(payload), message ?? "baileys debug"),
-    info: (payload: unknown, message?: string) => info(toLogRecord(payload), message ?? "baileys info"),
-    warn: (payload: unknown, message?: string) => warn(toLogRecord(payload), message ?? "baileys warning"),
-    error: (payload: unknown, message?: string) => error(toLogRecord(payload), message ?? "baileys error"),
-  };
-};
-
 const defaultCreateSocket = (config: UserFacingSocketConfig): BotSocket =>
   makeWASocket(config) as unknown as BotSocket;
 
@@ -163,6 +142,18 @@ const pairingEquals = (left: BotPairingStatus, right: BotPairingStatus): boolean
   left.updatedAt === right.updatedAt &&
   left.expiresAt === right.expiresAt &&
   left.qrText === right.qrText;
+
+const getOpenSocketOrThrow = (
+  socket: BotSocket | undefined,
+  state: BotSessionStatus["state"],
+  message: string,
+): BotSocket => {
+  if (!socket || state !== "open") {
+    throw new OutboundTransportUnavailableError(message);
+  }
+
+  return socket;
+};
 
 const toStatusLogPayload = (status: BotSessionStatus) => ({
   sessionKey: status.sessionKey,
@@ -619,33 +610,35 @@ export const startBot = async (
   return {
     getStatus: () => status ?? initialStatus,
     async presenceSubscribe(recipientJid) {
-      const activeSocket = currentSocket;
-      if (!activeSocket || (status ?? initialStatus).state !== "open") {
-        throw new OutboundTransportUnavailableError(
-          "Bot socket is unavailable for presence subscription",
-        );
-      }
-
+      const activeSocket = getOpenSocketOrThrow(
+        currentSocket,
+        (status ?? initialStatus).state,
+        "Bot socket is unavailable for presence subscription",
+      );
       await activeSocket.presenceSubscribe(recipientJid);
     },
     async sendMessage(recipientJid, message) {
-      const activeSocket = currentSocket;
-      if (!activeSocket || (status ?? initialStatus).state !== "open") {
-        throw new OutboundTransportUnavailableError(
-          "Bot socket is unavailable for outbound sends",
-        );
-      }
-
+      const activeSocket = getOpenSocketOrThrow(
+        currentSocket,
+        (status ?? initialStatus).state,
+        "Bot socket is unavailable for outbound sends",
+      );
       return activeSocket.sendMessage(recipientJid, message);
     },
+    async markRead(message) {
+      const activeSocket = getOpenSocketOrThrow(
+        currentSocket,
+        (status ?? initialStatus).state,
+        "Bot socket is unavailable for read receipts",
+      );
+      await activeSocket.readMessages([message]);
+    },
     async sendPresenceUpdate(state, recipientJid) {
-      const activeSocket = currentSocket;
-      if (!activeSocket || (status ?? initialStatus).state !== "open") {
-        throw new OutboundTransportUnavailableError(
-          "Bot socket is unavailable for presence updates",
-        );
-      }
-
+      const activeSocket = getOpenSocketOrThrow(
+        currentSocket,
+        (status ?? initialStatus).state,
+        "Bot socket is unavailable for presence updates",
+      );
       await activeSocket.sendPresenceUpdate(state, recipientJid);
     },
     stop,

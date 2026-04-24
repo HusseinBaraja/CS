@@ -11,6 +11,8 @@ const DEFAULT_KEEP_ALIVE_INTERVAL_MS = 30_000;
 const DEFAULT_QR_TIMEOUT_MS = 60_000;
 const DEFAULT_RECONNECT_INITIAL_DELAY_MS = 1_000;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 30_000;
+const DEFAULT_INBOUND_READ_RECEIPT_MIN_DELAY_MS = 2_000;
+const DEFAULT_INBOUND_READ_RECEIPT_MAX_DELAY_MS = 4_000;
 
 export interface BotRuntimeConfig {
   sessionKey: string;
@@ -22,6 +24,10 @@ export interface BotRuntimeConfig {
   qrTimeoutMs: number;
   markOnlineOnConnect: boolean;
   syncFullHistory: boolean;
+  inboundReadReceiptDelayMs: {
+    min: number;
+    max: number;
+  };
   reconnectBackoff: {
     initialDelayMs: number;
     maxDelayMs: number;
@@ -36,6 +42,8 @@ interface CreateBotRuntimeConfigOverrides {
   connectTimeoutMs?: number;
   keepAliveIntervalMs?: number;
   qrTimeoutMs?: number;
+  inboundReadReceiptMinDelayMs?: number;
+  inboundReadReceiptMaxDelayMs?: number;
   reconnectInitialDelayMs?: number;
   reconnectMaxDelayMs?: number;
 }
@@ -86,6 +94,21 @@ export const createBotRuntimeConfig = (
     );
   }
 
+  const inboundReadReceiptMinDelayMs = assertPositiveInteger(
+    "BotRuntimeConfig.inboundReadReceiptDelayMs.min",
+    overrides.inboundReadReceiptMinDelayMs ?? DEFAULT_INBOUND_READ_RECEIPT_MIN_DELAY_MS,
+  );
+  const inboundReadReceiptMaxDelayMs = assertPositiveInteger(
+    "BotRuntimeConfig.inboundReadReceiptDelayMs.max",
+    overrides.inboundReadReceiptMaxDelayMs ?? DEFAULT_INBOUND_READ_RECEIPT_MAX_DELAY_MS,
+  );
+
+  if (inboundReadReceiptMaxDelayMs < inboundReadReceiptMinDelayMs) {
+    throw new Error(
+      "Invalid BotRuntimeConfig.inboundReadReceiptDelayMs.max: expected a value greater than or equal to the minimum delay",
+    );
+  }
+
   const sessionKey = overrides.sessionKey === undefined
     ? BOT_SESSION_KEY
     : normalizeSessionKey(overrides.sessionKey, "BotRuntimeConfig.sessionKey");
@@ -112,6 +135,10 @@ export const createBotRuntimeConfig = (
     ),
     markOnlineOnConnect: false,
     syncFullHistory: false,
+    inboundReadReceiptDelayMs: {
+      min: inboundReadReceiptMinDelayMs,
+      max: inboundReadReceiptMaxDelayMs,
+    },
     reconnectBackoff: {
       initialDelayMs: reconnectInitialDelayMs,
       maxDelayMs: reconnectMaxDelayMs,

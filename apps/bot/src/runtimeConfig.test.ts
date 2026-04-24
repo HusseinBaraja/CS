@@ -19,6 +19,10 @@ describe("createBotRuntimeConfig", () => {
     expect(config.markOnlineOnConnect).toBe(false);
     expect(config.syncFullHistory).toBe(false);
     expect(config.conversationHistoryWindowMessages).toBe(20);
+    expect(config.inboundReadReceiptDelayMs).toEqual({
+      min: 2_000,
+      max: 4_000,
+    });
   });
 
   test("preserves absolute auth dirs", () => {
@@ -65,6 +69,14 @@ describe("createBotRuntimeConfig", () => {
         moduleDirectory: "/repo/apps/bot/src",
       })
     ).toThrow("BotRuntimeConfig.reconnectBackoff.maxDelayMs");
+
+    expect(() =>
+      createBotRuntimeConfig({
+        inboundReadReceiptMinDelayMs: 4_000,
+        inboundReadReceiptMaxDelayMs: 2_000,
+        moduleDirectory: "/repo/apps/bot/src",
+      })
+    ).toThrow("BotRuntimeConfig.inboundReadReceiptDelayMs.max");
   });
 
   test("allows overriding the conversation history window size", () => {
