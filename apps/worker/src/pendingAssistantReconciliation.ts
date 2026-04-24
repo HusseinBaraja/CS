@@ -25,7 +25,7 @@ const DEFAULT_PENDING_ASSISTANT_GRACE_PERIOD_MS = 15_000;
 const JOB_NAME = "pendingAssistantReconciliation";
 type OwnerNotificationSender = (input: { recipientJid: string; text: string }) => Promise<void>;
 
-export interface PendingAssistantReconciliationProcessorOptions {
+interface PendingAssistantReconciliationProcessorOptions {
   batchSize?: number;
   conversationSessionLog?: ConversationSessionLogWriter;
   createClient?: () => ConvexAdminClient;
@@ -36,7 +36,7 @@ export interface PendingAssistantReconciliationProcessorOptions {
   sendOwnerNotification?: OwnerNotificationSender;
 }
 
-export interface PendingAssistantReconciliationTickResult {
+interface PendingAssistantReconciliationTickResult {
   reconciledCount: number;
   skippedCount: number;
   failedCount: number;

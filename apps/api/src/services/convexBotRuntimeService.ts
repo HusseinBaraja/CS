@@ -6,9 +6,8 @@ import {
   createDatabaseServiceError,
 } from './botRuntime';
 
-export interface ConvexBotRuntimeServiceOptions {
+interface ConvexBotRuntimeServiceOptions {
   createClient?: () => ConvexAdminClient;
-  now?: () => number;
 }
 
 const isBotRuntimeServiceError = (error: unknown): error is BotRuntimeServiceError =>
@@ -26,7 +25,6 @@ export const createConvexBotRuntimeService = (
   options: ConvexBotRuntimeServiceOptions = {},
 ): BotRuntimeService => {
   const createClient = options.createClient ?? createConvexAdminClient;
-  const now = options.now ?? Date.now;
 
   const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> => {
     try {

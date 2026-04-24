@@ -24,7 +24,7 @@ import {
 
 type ProductMediaLogger = StructuredLogger;
 
-export interface ConvexProductMediaServiceOptions {
+interface ConvexProductMediaServiceOptions {
   createClient?: () => ConvexAdminClient;
   createStorage?: () => ObjectStorage;
   logger?: ProductMediaLogger;

@@ -3,7 +3,7 @@ import type {
   ChatResponseFormat,
 } from './contracts';
 
-export type ChatResponseFormatCapability =
+type ChatResponseFormatCapability =
   | "native_json_schema"
   | "unsupported";
 

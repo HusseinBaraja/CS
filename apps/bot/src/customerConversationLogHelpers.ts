@@ -48,7 +48,7 @@ export const serializeInboundMessage = (message: NormalizedInboundMessage): stri
   }
 };
 
-export const appendConversationSessionLogEntry = async (
+const appendConversationSessionLogEntry = async (
   log: ConversationSessionLogWriter | undefined,
   entry: ConversationSessionLogEntry,
 ): Promise<void> => {
@@ -71,7 +71,7 @@ export const appendConversationSessionLogEntrySafely = async (
   }
 };
 
-export interface ConversationSessionLogAiTraceInput {
+interface ConversationSessionLogAiTraceInput {
   event: string;
   systemPrompt: string;
   groundingContext?: unknown;

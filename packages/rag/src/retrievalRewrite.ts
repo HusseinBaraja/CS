@@ -12,10 +12,7 @@ import type { CatalogLanguageHints } from '@cs/shared';
 import {
   parseRetrievalRewriteResultPayload,
   RETRIEVAL_REWRITE_RESULT_JSON_SCHEMA,
-  type RetrievalRewriteConfidence,
   type RetrievalRewriteResult,
-  type RetrievalRewriteStrategy,
-  type RetrievalRewriteUnresolvedReason,
 } from './retrievalRewriteSchema';
 import { buildRetrievalRewriteTrace, type RetrievalRewriteTrace } from "./retrievalRewriteTrace";
 export { RETRIEVAL_REWRITE_RESULT_JSON_SCHEMA } from './retrievalRewriteSchema';
@@ -66,7 +63,7 @@ export interface RetrievalRewriteService {
   ): Promise<RetrievalRewriteAttempt>;
 }
 
-export interface CreateRetrievalRewriteServiceOptions {
+interface CreateRetrievalRewriteServiceOptions {
   chatManager?: ChatProviderManager;
 }
 

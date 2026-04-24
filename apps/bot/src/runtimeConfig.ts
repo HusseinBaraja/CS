@@ -28,7 +28,7 @@ export interface BotRuntimeConfig {
   };
 }
 
-export interface CreateBotRuntimeConfigOverrides {
+interface CreateBotRuntimeConfigOverrides {
   sessionKey?: string;
   authDir?: string;
   moduleDirectory?: string;

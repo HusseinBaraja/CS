@@ -15,7 +15,7 @@ import {
   ProductsServiceError,
 } from './products';
 
-export interface ConvexProductsServiceOptions {
+interface ConvexProductsServiceOptions {
   createClient?: () => ConvexAdminClient;
   createStorage?: () => ObjectStorage;
 }

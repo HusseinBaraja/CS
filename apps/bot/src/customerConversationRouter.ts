@@ -4,8 +4,8 @@ import { appendConversationSessionLogAiTracesSafely, appendConversationSessionLo
 import { canonicalizePhoneNumber, formatOwnerNotification, type NormalizedInboundMessage } from '@cs/shared';
 import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId, type ConversationStore } from './conversationStore';
-export type CustomerConversationLogger = StructuredLogger;
-export interface CustomerConversationRouterOptions {
+type CustomerConversationLogger = StructuredLogger;
+interface CustomerConversationRouterOptions {
   catalogChatOrchestrator: CatalogChatOrchestrator;
   conversationHistoryWindowMessages?: number;
   conversationSessionLog?: import("@cs/core").ConversationSessionLogWriter;

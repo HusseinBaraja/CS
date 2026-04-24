@@ -17,8 +17,6 @@
   },
   "dependencies": {
     "@cs/config": "*",
-    "@cs/core": "*",
-    "@cs/db": "*"
+    "@cs/core": "*"
   }
 }
-

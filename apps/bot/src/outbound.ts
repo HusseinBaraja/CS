@@ -17,7 +17,7 @@ import {
 
 export type OutboundTextValue = string | RenderOutboundTextInput;
 export type OutboundTypingPolicy = "off" | "auto" | number;
-export type OutboundFailureClassification =
+type OutboundFailureClassification =
   | "validation"
   | "media_resolution"
   | "retryable_transport"
@@ -45,7 +45,7 @@ export interface OutboundSendReceipt {
   stepIndex: number;
 }
 
-export interface OutboundSequenceErrorDetails {
+interface OutboundSequenceErrorDetails {
   attempts: number;
   cause?: unknown;
   classification: OutboundFailureClassification;

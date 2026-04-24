@@ -157,7 +157,7 @@ export interface ConversationStore {
   }): Promise<{ deletedCount: number; remainingCount: number }>;
 }
 
-export interface ConvexConversationStoreOptions {
+interface ConvexConversationStoreOptions {
   createClient?: () => ConvexAdminClient;
 }
 

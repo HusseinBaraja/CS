@@ -12,7 +12,7 @@ export interface CatalogLanguageHintsService {
   ): Promise<CatalogLanguageHints | null>;
 }
 
-export interface CatalogLanguageHintsServiceOptions {
+interface CatalogLanguageHintsServiceOptions {
   createClient?: () => ConvexAdminClient;
 }
 

@@ -7,7 +7,7 @@ import { parseCreateOfferBody, parseListOffersQuery, parseUpdateOfferBody } from
 import { parseJsonBody } from './parserUtils';
 import { requireRouteParam } from './routeParams';
 
-export interface OffersRoutesOptions {
+interface OffersRoutesOptions {
   offersService: OffersService;
 }
 

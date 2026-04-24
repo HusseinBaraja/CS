@@ -22,7 +22,7 @@ const DEFAULT_MEDIA_CLEANUP_INTERVAL_MS = 15_000;
 const DEFAULT_MEDIA_CLEANUP_BATCH_SIZE = 32;
 const JOB_NAME = "mediaCleanup";
 
-export interface MediaCleanupProcessorOptions {
+interface MediaCleanupProcessorOptions {
   createClient?: () => ConvexAdminClient;
   createStorage?: () => ObjectStorage;
   now?: () => number;
@@ -124,7 +124,7 @@ const processCleanupJob = async (
   }
 };
 
-export interface MediaCleanupTickResult {
+interface MediaCleanupTickResult {
   expiredUploadCount: number;
   completedJobs: number;
   retriedJobs: number;

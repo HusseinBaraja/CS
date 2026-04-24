@@ -9,7 +9,7 @@ import {
   createValidationServiceError,
 } from './categories';
 
-export interface ConvexCategoriesServiceOptions {
+interface ConvexCategoriesServiceOptions {
   createClient?: () => ConvexAdminClient;
 }
 

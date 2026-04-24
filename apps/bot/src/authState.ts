@@ -10,7 +10,7 @@ export interface LocalAuthState {
   sessionPath: string;
 }
 
-export interface CreateLocalAuthStateOptions {
+interface CreateLocalAuthStateOptions {
   authDir: string;
   sessionKey?: string;
   loadAuthState?: (sessionPath: string) => Promise<{

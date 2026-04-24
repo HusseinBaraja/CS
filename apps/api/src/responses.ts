@@ -1,6 +1,6 @@
 import type { ErrorCode } from '@cs/shared';
 
-export interface ApiErrorResponse {
+interface ApiErrorResponse {
   ok: false;
   error: {
     code: ErrorCode | string;

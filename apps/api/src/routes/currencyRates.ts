@@ -7,7 +7,7 @@ import { parseCurrencyRatePath, parseUpsertCurrencyRateBody } from './currencyRa
 import { parseJsonBody } from './parserUtils';
 import { requireRouteParam } from './routeParams';
 
-export interface CurrencyRatesRoutesOptions {
+interface CurrencyRatesRoutesOptions {
   currencyRatesService: CurrencyRatesService;
 }
 

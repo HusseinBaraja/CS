@@ -11,7 +11,7 @@ import {
   createValidationServiceError,
 } from './conversations';
 
-export interface ConvexConversationsServiceOptions {
+interface ConvexConversationsServiceOptions {
   createClient?: () => ConvexAdminClient;
   now?: () => number;
 }

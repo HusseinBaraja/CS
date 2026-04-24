@@ -12,7 +12,7 @@ const DEFAULT_AUTO_RESUME_INTERVAL_MS = 60_000;
 const DEFAULT_AUTO_RESUME_BATCH_SIZE = 50;
 const JOB_NAME = "conversationAutoResume";
 
-export interface ConversationAutoResumeProcessorOptions {
+interface ConversationAutoResumeProcessorOptions {
   batchSize?: number;
   createClient?: () => ConvexAdminClient;
   intervalMs?: number;
@@ -20,7 +20,7 @@ export interface ConversationAutoResumeProcessorOptions {
   now?: () => number;
 }
 
-export interface ConversationAutoResumeTickResult {
+interface ConversationAutoResumeTickResult {
   resumedCount: number;
   skippedCount: number;
   failedCount: number;

@@ -6,7 +6,7 @@ import { AnalyticsServiceError } from '../services/analytics';
 import { parseAnalyticsPeriodQuery } from './analyticsSchemas';
 import { requireRouteParam } from './routeParams';
 
-export interface AnalyticsRoutesOptions {
+interface AnalyticsRoutesOptions {
   analyticsService: AnalyticsService;
 }
 
