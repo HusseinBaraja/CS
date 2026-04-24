@@ -6,7 +6,7 @@
     "test": "vitest run",
     "test:watch": "vitest watch",
     "typecheck": "tsc --noEmit",
-    "lint": "bun run typecheck",
+    "lint": "oxlint --config ../.oxlintrc.json --ignore-path ../.oxlintignore .",
     "check": "bun run typecheck && bun run lint"
   },
   "dependencies": {

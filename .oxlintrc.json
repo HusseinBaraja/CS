@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "plugins": [
+    "typescript",
+    "unicorn",
+    "oxc",
+    "import"
+  ],
+  "rules": {
+    "no-const-assign": "error",
+    "no-constant-condition": "error",
+    "no-dupe-class-members": "error",
+    "no-dupe-keys": "error",
+    "no-duplicate-case": "error",
+    "no-import-assign": "error",
+    "no-sparse-arrays": "error",
+    "no-unsafe-finally": "error",
+    "use-isnan": "error",
+    "valid-typeof": "error",
+    "import/default": "error",
+    "import/named": "error",
+    "import/namespace": "error",
+    "import/no-self-import": "error"
+  }
+}

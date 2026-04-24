@@ -9,7 +9,13 @@ import webViteConfig from '../apps/web/vite.config';
 import webTsconfig from '../apps/web/tsconfig.json';
 import webPackageJson from '../apps/web/package.json';
 import convexPackageJson from '../convex/package.json';
+import aiPackageJson from '../packages/ai/package.json';
+import configPackageJson from '../packages/config/package.json';
+import convexApiPackageJson from '../packages/convex-api/package.json';
 import corePackageJson from '../packages/core/package.json';
+import dbPackageJson from '../packages/db/package.json';
+import ragPackageJson from '../packages/rag/package.json';
+import sharedPackageJson from '../packages/shared/package.json';
 import storagePackageJson from '../packages/storage/package.json';
 
 type PackageScripts = Record<string, string>;
@@ -23,8 +29,19 @@ const cliScripts = cliPackageJson.scripts as PackageScripts;
 const workerScripts = workerPackageJson.scripts as PackageScripts;
 const webScripts = webPackageJson.scripts as PackageScripts;
 const convexScripts = convexPackageJson.scripts as PackageScripts;
+const aiScripts = aiPackageJson.scripts as PackageScripts;
+const configScripts = configPackageJson.scripts as PackageScripts;
+const convexApiScripts = convexApiPackageJson.scripts as PackageScripts;
 const coreScripts = corePackageJson.scripts as PackageScripts;
+const dbScripts = dbPackageJson.scripts as PackageScripts;
+const ragScripts = ragPackageJson.scripts as PackageScripts;
+const sharedScripts = sharedPackageJson.scripts as PackageScripts;
 const storageScripts = storagePackageJson.scripts as PackageScripts;
+
+const OXLINT_TWO_LEVEL_WORKSPACE =
+  "oxlint --config ../../.oxlintrc.json --ignore-path ../../.oxlintignore .";
+const OXLINT_ONE_LEVEL_WORKSPACE =
+  "oxlint --config ../.oxlintrc.json --ignore-path ../.oxlintignore .";
 
 describe("root package scripts", () => {
   test("exposes app-runtime commands from the repository root", () => {
@@ -37,6 +54,10 @@ describe("root package scripts", () => {
     expect(scripts["build:web"]).toBe("turbo run build --filter=web");
     expect(scripts["check:modularity"]).toBe("bun scripts/modularity-policy.ts");
     expect(scripts["check:root"]).toBe("bun run check:modularity");
+    expect(scripts["lint:root"]).toBe(
+      "oxlint --config .oxlintrc.json --ignore-path .oxlintignore scripts",
+    );
+    expect(scripts.lint).toBe("bun run lint:root && turbo run lint");
     expect(scripts.check).toBe("bun run check:root && turbo run check");
     expect(scripts["preview:web"]).toBe("bun --cwd apps/web run preview");
     expect(scripts.seed).toBe("bun run --cwd apps/cli seed");
@@ -53,6 +74,19 @@ describe("root package scripts", () => {
   test("does not expose the removed static analysis wrapper", () => {
     expect(scripts.opengrep).toBeUndefined();
   });
+
+  test("keeps lint as fast static analysis only", () => {
+    expect(scripts.lint).toContain("turbo run lint");
+    expect(scripts.lint).not.toContain("typecheck");
+    expect(scripts.lint).not.toContain("check:modularity");
+    expect(scripts.lint).not.toContain("test");
+    expect(scripts.lint).not.toContain("generate");
+  });
+
+  test("keeps check as the broader validation gate", () => {
+    expect(scripts.check).toContain("check:root");
+    expect(scripts.check).toContain("turbo run check");
+  });
 });
 
 describe("bot package scripts", () => {
@@ -61,16 +95,18 @@ describe("bot package scripts", () => {
     expect(botScripts.start).toBe("node --env-file-if-exists=../../.env --import tsx src/main.ts");
     expect(botScripts["dev:bun-experimental"]).toBe("bun --env-file=../../.env --watch src/main.ts");
     expect(botScripts.build).toBe("bun --env-file=../../.env build src/main.ts --outdir dist");
-    expect(botScripts.check).toBe("bun run typecheck");
-    expect(botScripts.lint).toBeUndefined();
+    expect(botScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
+    expect(botScripts.check).toBe("bun run typecheck && bun run lint");
   });
 });
 
 describe("web package scripts", () => {
-  test("collapse validation onto typecheck without a duplicate lint alias", () => {
+  test("run oxlint plus a web-only eslint layer", () => {
     expect(webScripts.typecheck).toBe("tsc --noEmit");
-    expect(webScripts.check).toBe("bun run typecheck");
-    expect(webScripts.lint).toBeUndefined();
+    expect(webScripts["lint:ox"]).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
+    expect(webScripts["lint:eslint"]).toBe("eslint . --max-warnings=0");
+    expect(webScripts.lint).toBe("bun run lint:ox && bun run lint:eslint");
+    expect(webScripts.check).toBe("bun run typecheck && bun run lint");
   });
 });
 
@@ -95,29 +131,52 @@ describe("command validation conventions", () => {
     expect(testPathIndex).toBeLessThan(resolvePathIndex);
   });
 
-  test("keep non-linting workspaces on typecheck-only check scripts", () => {
+  test("enforce lint script coverage and broad check scripts across workspaces", () => {
     expect(apiScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
-    expect(apiScripts.check).toBe("bun run typecheck");
-    expect(apiScripts.lint).toBeUndefined();
+    expect(apiScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
+    expect(apiScripts.check).toBe("bun run typecheck && bun run lint");
 
     expect(cliScripts.seed).toBe("bun --env-file=../../.env src/index.ts seed");
     expect(cliScripts.backup).toBe("bun --env-file=../../.env src/index.ts backup");
-    expect(cliScripts.check).toBe("bun run typecheck");
-    expect(cliScripts.lint).toBeUndefined();
+    expect(cliScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
+    expect(cliScripts.check).toBe("bun run typecheck && bun run lint");
 
     expect(workerScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
-    expect(workerScripts.check).toBe("bun run typecheck");
-    expect(workerScripts.lint).toBeUndefined();
+    expect(workerScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
+    expect(workerScripts.check).toBe("bun run typecheck && bun run lint");
 
-    expect(coreScripts.check).toBe("bun run typecheck");
-    expect(coreScripts.lint).toBeUndefined();
-  });
+    expect(aiScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(aiScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
+    expect(aiScripts.check).toBe("bun run typecheck && bun run lint");
 
-  test("keep currently configured lint commands stable for convex and storage", () => {
-    expect(convexScripts.lint).toBe("bun run typecheck");
+    expect(configScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(configScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
+    expect(configScripts.check).toBe("bun run typecheck && bun run lint");
+
+    expect(convexApiScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(convexApiScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
+    expect(convexApiScripts.check).toBe("bun run typecheck && bun run lint");
+
+    expect(coreScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(coreScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
+    expect(coreScripts.check).toBe("bun run typecheck && bun run lint");
+
+    expect(dbScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(dbScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
+    expect(dbScripts.check).toBe("bun run typecheck && bun run lint");
+
+    expect(ragScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(ragScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
+    expect(ragScripts.check).toBe("bun run typecheck && bun run lint");
+
+    expect(sharedScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(sharedScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
+    expect(sharedScripts.check).toBe("bun run typecheck && bun run lint");
+
+    expect(convexScripts.lint).toBe(OXLINT_ONE_LEVEL_WORKSPACE);
     expect(convexScripts.check).toBe("bun run typecheck && bun run lint");
 
-    expect(storageScripts.lint).toBe("bun run typecheck");
+    expect(storageScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
     expect(storageScripts.check).toBe("bun run typecheck && bun run lint");
   });
 
@@ -129,6 +188,10 @@ describe("command validation conventions", () => {
 
   test("make turbo check depend on workspace check tasks only", () => {
     expect(turboTasks.check?.dependsOn).toEqual(["^check"]);
+  });
+
+  test("make turbo lint depend on workspace lint tasks only", () => {
+    expect(turboTasks.lint?.dependsOn).toEqual(["^lint"]);
   });
 
   test("passes conversation session log env vars through turbo dev tasks", () => {

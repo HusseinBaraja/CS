@@ -13,8 +13,9 @@
     "dev": "bun ../../scripts/watch-from-root.ts src/index.ts",
     "build": "bun build src/index.ts --outdir dist",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck",
-    "test": "bun test --pass-with-no-tests"
+    "check": "bun run typecheck && bun run lint",
+    "test": "bun test --pass-with-no-tests",
+    "lint": "oxlint --config ../../.oxlintrc.json --ignore-path ../../.oxlintignore ."
   },
   "dependencies": {
     "@cs/config": "*",
@@ -24,4 +25,3 @@
     "openai": "6.25.0"
   }
 }
-
