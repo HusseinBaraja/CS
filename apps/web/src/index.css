@@ -30,13 +30,13 @@
   }
 }
 
-`@media` (prefers-reduced-motion: no-preference) {
+@media (prefers-reduced-motion: no-preference) {
   html, body {
     scroll-behavior: smooth;
   }
 }
 
-`@media` (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) {
   html, body {
     scroll-behavior: auto;
   }
