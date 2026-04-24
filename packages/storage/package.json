@@ -9,7 +9,7 @@
     "dev": "bun ../../scripts/watch-from-root.ts src/index.ts",
     "build": "bun build src/index.ts --outdir dist",
     "typecheck": "tsc --noEmit",
-    "lint": "bun run typecheck",
+    "lint": "oxlint --config ../../.oxlintrc.json --ignore-path ../../.oxlintignore .",
     "check": "bun run typecheck && bun run lint",
     "test": "bun test --pass-with-no-tests"
   },

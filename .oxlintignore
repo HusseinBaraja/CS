@@ -1,0 +1,10 @@
+# Dependencies
+**/node_modules/**
+
+# Build and coverage outputs
+**/dist/**
+**/coverage/**
+**/.turbo/**
+
+# Generated code
+convex/_generated/**

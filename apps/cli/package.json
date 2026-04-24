@@ -12,8 +12,9 @@
     "seed": "bun --env-file=../../.env src/index.ts seed",
     "backup": "bun --env-file=../../.env src/index.ts backup",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck",
-    "test": "bun --env-file=../../.env test --pass-with-no-tests"
+    "check": "bun run typecheck && bun run lint",
+    "test": "bun --env-file=../../.env test --pass-with-no-tests",
+    "lint": "oxlint --config ../../.oxlintrc.json --ignore-path ../../.oxlintignore ."
   },
   "dependencies": {
     "@cs/config": "*",
