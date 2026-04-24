@@ -43,7 +43,7 @@
 
 ## Project Snapshot
 
-CSCB is a Bun-first, strict TypeScript monorepo for multi-tenant WhatsApp support. It ships a Hono REST API, a Node/Baileys bot, a Convex backend for catalogs, conversations, analytics, and vector search, AI orchestration with DeepSeek/Gemini/Groq plus Gemini embeddings, R2-backed media storage, a Bun CLI for seed/backup, a worker for auto-resume/handoff/media cleanup, and a React/Vite marketing site. Tenants isolate catalogs, products, variants, offers, currency rates, runtime state, and bilingual Arabic/English replies.
+Reda (رضا) is a multi-tenant WhatsApp customer service platform for small and mid-size businesses. It helps each business answer customer questions in Arabic and English, share product catalogs and images, hand off conversations to a human when needed, and keep customer data, conversation history, analytics, and business settings isolated per tenant. The product is built to reduce repetitive support work while keeping answers grounded in real catalog data.
 
 ## Core Priorities
 
