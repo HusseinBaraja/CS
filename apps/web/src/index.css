@@ -30,27 +30,15 @@
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
+`@media` (prefers-reduced-motion: no-preference) {
   html, body {
     scroll-behavior: smooth;
   }
-
-  :focus-visible {
-    outline: 2px solid var(--color-secondary);
-    outline-offset: 2px;
-    border-radius: 4px;
-  }
 }
 
-@media (prefers-reduced-motion: reduce) {
+`@media` (prefers-reduced-motion: reduce) {
   html, body {
     scroll-behavior: auto;
-  }
-
-  :focus-visible {
-    outline: 2px solid var(--color-secondary);
-    outline-offset: 2px;
-    border-radius: 4px;
   }
 }
 
