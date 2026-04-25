@@ -110,11 +110,16 @@ const createTimerStub = () => {
 const createAuthenticationState = (): AuthenticationState =>
   ({}) as AuthenticationState;
 
-const createSocketStub = () => {
+interface SocketStubOptions {
+  readMessages?: (messages: Array<{ id: string; remoteJid: string }>) => Promise<void>;
+}
+
+const createSocketStub = (options: SocketStubOptions = {}) => {
   const connectionHandlers: Array<(update: BotConnectionUpdate) => void> = [];
   const credsHandlers: Array<(update: unknown) => void> = [];
   const messagesUpsertHandlers: Array<(update: BaileysEventMap["messages.upsert"]) => void> = [];
   const endCalls: unknown[] = [];
+  const readMessageCalls: Array<Array<{ id: string; remoteJid: string }>> = [];
   const sendCalls: Array<{ recipientJid: string; message: unknown }> = [];
   const presenceSubscribeCalls: string[] = [];
   const presenceUpdateCalls: Array<{ state: "composing" | "paused"; recipientJid: string }> = [];
@@ -137,6 +142,12 @@ const createSocketStub = () => {
     },
     end: (error) => {
       endCalls.push(error);
+    },
+    readMessages: async (messages) => {
+      readMessageCalls.push(messages);
+      if (options.readMessages) {
+        await options.readMessages(messages);
+      }
     },
     presenceSubscribe: async (recipientJid) => {
       presenceSubscribeCalls.push(recipientJid);
@@ -174,6 +185,7 @@ const createSocketStub = () => {
     endCalls,
     presenceSubscribeCalls,
     presenceUpdateCalls,
+    readMessageCalls,
     sendCalls,
   };
 };
@@ -559,6 +571,10 @@ describe("startBot", () => {
 
     await handle.presenceSubscribe("967700000001@s.whatsapp.net");
     await handle.sendPresenceUpdate("composing", "967700000001@s.whatsapp.net");
+    await handle.markRead({
+      id: "message-1",
+      remoteJid: "967700000001@s.whatsapp.net",
+    });
     const result = await handle.sendMessage("967700000001@s.whatsapp.net", {
       text: "Hello",
     });
@@ -570,6 +586,12 @@ describe("startBot", () => {
         recipientJid: "967700000001@s.whatsapp.net",
       },
     ]);
+    expect(socketStub.readMessageCalls).toEqual([[
+      {
+        id: "message-1",
+        remoteJid: "967700000001@s.whatsapp.net",
+      },
+    ]]);
     expect(socketStub.sendCalls).toEqual([
       {
         recipientJid: "967700000001@s.whatsapp.net",
@@ -583,6 +605,74 @@ describe("startBot", () => {
         id: "sent-1",
       },
     });
+  });
+
+  test("deduplicates concurrent markRead calls for the same message key", async () => {
+    const { logger } = createLoggerStub();
+    const socketStub = createSocketStub();
+
+    const handle = await startBot({
+      logger,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => socketStub.socket,
+    });
+
+    socketStub.emitConnectionUpdate({ connection: "open" });
+    const message = {
+      id: "message-1",
+      remoteJid: "967700000001@s.whatsapp.net",
+    };
+
+    await Promise.all([
+      handle.markRead(message),
+      handle.markRead(message),
+    ]);
+    expect(socketStub.readMessageCalls).toEqual([[message]]);
+
+    await handle.markRead(message);
+    expect(socketStub.readMessageCalls).toEqual([[message], [message]]);
+  });
+
+  test("clears markRead in-flight dedupe entries after read failures", async () => {
+    const { logger } = createLoggerStub();
+    let readAttempts = 0;
+    const socketStub = createSocketStub({
+      readMessages: async () => {
+        readAttempts += 1;
+        throw new Error("read failed");
+      },
+    });
+
+    const handle = await startBot({
+      logger,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => socketStub.socket,
+    });
+
+    socketStub.emitConnectionUpdate({ connection: "open" });
+    const message = {
+      id: "message-1",
+      remoteJid: "967700000001@s.whatsapp.net",
+    };
+
+    await expect(Promise.all([
+      handle.markRead(message),
+      handle.markRead(message),
+    ])).rejects.toThrow("read failed");
+    expect(readAttempts).toBe(1);
+
+    await expect(handle.markRead(message)).rejects.toThrow("read failed");
+    expect(readAttempts).toBe(2);
   });
 
   test("rejects outbound transport calls when the socket is not open", async () => {
@@ -605,6 +695,12 @@ describe("startBot", () => {
     );
     await expect(handle.presenceSubscribe("967700000001@s.whatsapp.net")).rejects.toThrow(
       "Bot socket is unavailable for presence subscription",
+    );
+    await expect(handle.markRead({
+      id: "message-1",
+      remoteJid: "967700000001@s.whatsapp.net",
+    })).rejects.toThrow(
+      "Bot socket is unavailable for read receipts",
     );
     await expect(handle.sendPresenceUpdate("paused", "967700000001@s.whatsapp.net")).rejects.toThrow(
       "Bot socket is unavailable for presence updates",
@@ -742,7 +838,7 @@ describe("startBot", () => {
       attempt: 0,
       hasQr: false,
     });
-  });
+  }, 10_000);
 
   test("ignores late events from a superseded socket after reconnecting", async () => {
     const { logger } = createLoggerStub();

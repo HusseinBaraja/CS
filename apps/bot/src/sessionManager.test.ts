@@ -78,6 +78,12 @@ const createLoggerStub = () => {
 };
 
 const createIntervalTimerStub = () => {
+  const timeouts: Array<{
+    callback: () => void | Promise<void>;
+    delayMs: number;
+    id: number;
+    cleared: boolean;
+  }> = [];
   const intervals: Array<{
     callback: () => void | Promise<void>;
     delayMs: number;
@@ -88,6 +94,23 @@ const createIntervalTimerStub = () => {
 
   return {
     timer: {
+      setTimeout: (callback: () => void | Promise<void>, delayMs: number) => {
+        const timeout = {
+          callback,
+          delayMs,
+          id: nextId,
+          cleared: false,
+        };
+        nextId += 1;
+        timeouts.push(timeout);
+        return timeout.id;
+      },
+      clearTimeout: (timeoutId: unknown) => {
+        const timeout = timeouts.find((entry) => entry.id === timeoutId);
+        if (timeout) {
+          timeout.cleared = true;
+        }
+      },
       setInterval: (callback: () => void | Promise<void>, delayMs: number) => {
         const interval = {
           callback,
@@ -107,6 +130,7 @@ const createIntervalTimerStub = () => {
       },
     },
     intervals,
+    timeouts,
   };
 };
 
@@ -1500,6 +1524,141 @@ describe("startTenantSessionManager", () => {
         },
       },
     ]);
+  });
+
+  test("schedules a delayed read receipt only for accepted customer messages", async () => {
+    const profile = createProfile("company-1", {
+      config: {
+        accessControlMode: "ALL",
+      },
+      ownerPhone: "+966 500 000 001",
+    });
+    const store = createStoreStub([profile]);
+    const { timer, timeouts } = createIntervalTimerStub();
+    const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+    const readReceipts: Array<{ id: string; remoteJid: string }> = [];
+
+    await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      inboundRouter: {
+        handleCustomerConversation: async () => undefined,
+        handleIgnored: async () => undefined,
+        handleOwnerCommand: async () => undefined,
+      },
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }), {
+          markRead: async (message) => {
+            readReceipts.push(message);
+          },
+        });
+      },
+    });
+
+    await messageCallbacks.get(profile.sessionKey)?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "owner-command",
+            remoteJid: "966500000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_000,
+          message: {
+            conversation: "!status",
+          },
+        },
+        {
+          key: {
+            id: "customer-text",
+            remoteJid: "967700000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_001,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+
+    const readReceiptTimeout = timeouts.find((entry) => entry.delayMs >= 2_000 && entry.delayMs <= 4_000);
+    expect(readReceiptTimeout).toBeDefined();
+    expect(readReceipts).toEqual([]);
+
+    await readReceiptTimeout?.callback();
+
+    expect(readReceipts).toEqual([{
+      id: "customer-text",
+      remoteJid: "967700000001@s.whatsapp.net",
+    }]);
+  });
+
+  test("clears pending read receipt timers during shutdown", async () => {
+    const profile = createProfile("company-1", {
+      config: {
+        accessControlMode: "ALL",
+      },
+    });
+    const store = createStoreStub([profile]);
+    const { timer, timeouts } = createIntervalTimerStub();
+    const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+
+    const manager = await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      inboundRouter: {
+        handleCustomerConversation: async () => undefined,
+        handleIgnored: async () => undefined,
+        handleOwnerCommand: async () => undefined,
+      },
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }));
+      },
+    });
+
+    await messageCallbacks.get(profile.sessionKey)?.({
+      type: "notify",
+      messages: [
+        {
+          key: {
+            id: "customer-text",
+            remoteJid: "967700000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_001,
+          message: {
+            conversation: "hello",
+          },
+        },
+      ],
+    });
+
+    expect(timeouts).toHaveLength(1);
+    expect(timeouts[0]?.cleared).toBe(false);
+
+    await manager.stop();
+
+    expect(timeouts[0]?.cleared).toBe(true);
   });
 
   test("continues processing tenant inbound events after router failures", async () => {

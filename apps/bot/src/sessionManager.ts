@@ -2,7 +2,6 @@ import { env } from '@cs/config';
 import {
   logEvent,
   logger as defaultLogger,
-  redactJidForLog,
   serializeErrorForLog,
   withLogBindings,
 } from '@cs/core';
@@ -11,7 +10,6 @@ import {
   resolveAccessControlPolicy,
   type AccessControlMode,
   type IgnoredInboundEvent,
-  type IgnoredInboundEventReason,
   getBotRuntimeReconnectDelayMs,
   getBotRuntimeNextActionHint,
   getBotRuntimeOperatorState,
@@ -42,6 +40,8 @@ import {
   createConvexCompanyRuntimeStore,
   type CompanyRuntimeStore,
 } from './companyRuntimeStore';
+import { logIgnoredInboundEvent } from './ignoredInbound';
+import { createInboundReadReceiptScheduler } from './readReceipts';
 import { retryInitialSessionReconcile } from './sessionManagerStartupRetry';
 
 const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -65,6 +65,8 @@ interface ManagedTenantSessionInternal {
 export interface SessionManagerStore extends CompanyRuntimeStore {}
 
 interface SessionManagerTimer {
+  setTimeout(handler: () => void | Promise<void>, delayMs: number): unknown;
+  clearTimeout(timeoutId: unknown): void;
   setInterval(handler: () => void | Promise<void>, delayMs: number): unknown;
   clearInterval(intervalId: unknown): void;
 }
@@ -104,6 +106,8 @@ export interface InboundRouteContext {
 }
 
 const defaultTimer: SessionManagerTimer = {
+  setTimeout: (handler, delayMs) => globalThis.setTimeout(handler, delayMs),
+  clearTimeout: (timeoutId) => globalThis.clearTimeout(timeoutId as ReturnType<typeof setTimeout>),
   setInterval: (handler, delayMs) => globalThis.setInterval(handler, delayMs),
   clearInterval: (intervalId) => globalThis.clearInterval(intervalId as ReturnType<typeof setInterval>),
 };
@@ -115,15 +119,6 @@ const defaultInboundRouter: InboundMessageRouter = {
   handleIgnored: async () => undefined,
   handleOwnerCommand: async () => undefined,
 };
-
-const malformedIgnoredReasons = new Set<IgnoredInboundEventReason>([
-  "missing_message_id",
-  "missing_remote_jid",
-  "missing_sender_phone",
-  "missing_timestamp",
-  "unsupported_message_type",
-  "empty_payload",
-]);
 
 const createAccessControlBlockedEvent = (
   profile: CompanyRuntimeProfile,
@@ -291,6 +286,15 @@ export const startTenantSessionManager = async (
 
   const isSessionStopping = (companyId: string): boolean => sessions.get(companyId)?.stopping === true;
 
+  const inboundReadReceiptScheduler = createInboundReadReceiptScheduler({
+    createRuntimeConfig: (overrides) => createRuntimeConfig(overrides),
+    createSessionLogger,
+    getSession: (companyId) => sessions.get(companyId),
+    isSessionStopping: (companyId) => stopping || isSessionStopping(companyId),
+    logger: botLogger,
+    timer,
+  });
+
   const updateSessionProfile = (profile: CompanyRuntimeProfile): void => {
     const existing = sessions.get(profile.companyId);
     if (!existing) {
@@ -325,44 +329,6 @@ export const startTenantSessionManager = async (
         "tenant session pairing artifact cleanup failed",
       );
     }
-  };
-
-  const logIgnoredInboundEvent = (profile: CompanyRuntimeProfile, event: IgnoredInboundEvent): void => {
-    const payload = {
-      event: "bot.router.inbound_ignored",
-      runtime: "bot",
-      surface: "router",
-      outcome: "ignored",
-      companyId: profile.companyId,
-      reason: event.reason,
-      sessionKey: profile.sessionKey,
-      ...(event.source.rawMessageId !== undefined ? { requestId: event.source.rawMessageId } : {}),
-      ...(event.source.rawMessageId !== undefined ? { messageId: event.source.rawMessageId } : {}),
-      ...(event.source.remoteJid !== undefined ? { remoteJid: redactJidForLog(event.source.remoteJid) } : {}),
-      ...(event.source.accessMode !== undefined ? { accessMode: event.source.accessMode } : {}),
-      ...(event.source.accessReason !== undefined ? { accessReason: event.source.accessReason } : {}),
-    };
-
-    if (malformedIgnoredReasons.has(event.reason)) {
-      const warn = botLogger.warn?.bind(botLogger) ?? botLogger.info.bind(botLogger);
-      warn(payload, "tenant inbound event ignored");
-      return;
-    }
-
-    if (
-      event.reason === "access_control_blocked" &&
-      event.source.accessReason !== undefined &&
-      event.source.accessReason !== "access_mode_owner_only" &&
-      event.source.accessReason !== "access_mode_single_number_no_match" &&
-      event.source.accessReason !== "access_mode_list_no_match"
-    ) {
-      const warn = botLogger.warn?.bind(botLogger) ?? botLogger.info.bind(botLogger);
-      warn(payload, "tenant inbound event ignored");
-      return;
-    }
-
-    const debug = botLogger.debug?.bind(botLogger) ?? botLogger.info.bind(botLogger);
-    debug(payload, "tenant inbound event ignored");
   };
 
   const routeInboundEvent = async (
@@ -401,7 +367,7 @@ export const startTenantSessionManager = async (
         return;
       }
 
-      logIgnoredInboundEvent(currentProfile, event as IgnoredInboundEvent);
+      logIgnoredInboundEvent(botLogger, currentProfile, event as IgnoredInboundEvent);
       await inboundRouter.handleIgnored(event as IgnoredInboundEvent, context);
     } catch (error) {
       logEvent(
@@ -453,6 +419,9 @@ export const startTenantSessionManager = async (
         continue;
       }
 
+      if (dispatch.route === "customer_conversation") {
+        inboundReadReceiptScheduler.schedule(currentProfile, dispatch.message);
+      }
       await routeInboundEvent(currentProfile, dispatch.message, dispatch.route);
     }
   };
@@ -918,6 +887,8 @@ export const startTenantSessionManager = async (
       timer.clearInterval(heartbeatId);
       heartbeatId = undefined;
     }
+
+    inboundReadReceiptScheduler.clearAll();
 
     if (heartbeatInFlight) {
       await Promise.allSettled([heartbeatInFlight]);
