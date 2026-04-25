@@ -1,6 +1,5 @@
 import type { ChatCallOptions, ChatProviderAdapter, ChatResponse, NormalizedChatRequest } from '../contracts';
 import type { ResolvedProviderConfig } from './shared';
-import type { ChatProviderRuntimeConfig } from '../runtimeConfig';
 import { createDeepSeekClient } from './clients/deepseekClientFactory';
 import { createChatProviderError } from '../errors';
 import { getChatResponseFormatCapability } from '../structuredOutputCapabilities';

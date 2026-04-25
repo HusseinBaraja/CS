@@ -173,7 +173,7 @@ export const formatError = (
     return {
       ...payload,
       context: {
-        ...(payload.context ?? {}),
+        ...payload.context,
         ...extraContext
       }
     };

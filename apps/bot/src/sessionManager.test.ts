@@ -196,15 +196,15 @@ const createRuntimeHandle = (
   overrides: Partial<BotRuntimeHandle> = {},
 ): BotRuntimeHandle => ({
   getStatus,
-  presenceSubscribe: async () => undefined,
-  sendMessage: async () => ({
+  markRead: overrides.markRead ?? (async () => undefined),
+  presenceSubscribe: overrides.presenceSubscribe ?? (async () => undefined),
+  sendMessage: overrides.sendMessage ?? (async () => ({
     key: {
       id: "sent",
     },
-  }),
-  sendPresenceUpdate: async () => undefined,
-  stop: async () => undefined,
-  ...overrides,
+  })),
+  sendPresenceUpdate: overrides.sendPresenceUpdate ?? (async () => undefined),
+  stop: overrides.stop ?? (async () => undefined),
 });
 
 const createDeferred = <T>() => {
@@ -1301,6 +1301,10 @@ describe("startTenantSessionManager", () => {
           qrTimeoutMs: 60_000,
           markOnlineOnConnect: false,
           syncFullHistory: false,
+          inboundReadReceiptDelayMs: {
+            min: 2_000,
+            max: 4_000,
+          },
           reconnectBackoff: {
             initialDelayMs: 1_000,
             maxDelayMs: 30_000,

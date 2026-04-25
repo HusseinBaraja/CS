@@ -1,4 +1,4 @@
-import { logEvent, redactJidForLog, type StructuredLogger } from '@cs/core';
+import { redactJidForLog, type StructuredLogger } from '@cs/core';
 import type { CompanyRuntimeProfile, IgnoredInboundEvent, IgnoredInboundEventReason } from '@cs/shared';
 
 const malformedIgnoredReasons = new Set<IgnoredInboundEventReason>([

@@ -61,7 +61,7 @@ export class ChatProviderError extends AIError {
     super(message, {
       cause: options.cause,
       context: {
-        ...(options.context ?? {}),
+        ...options.context,
         provider: options.provider,
         kind: options.kind,
         disposition: options.disposition,
