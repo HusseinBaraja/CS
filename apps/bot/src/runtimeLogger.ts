@@ -9,7 +9,7 @@ export const createBaileysLogger = (botLogger: BotLogger) => {
   const warn = activeLogger.warn?.bind(activeLogger) ?? info;
   const debug = activeLogger.debug?.bind(activeLogger) ?? info;
   const toLogRecord = (payload: unknown): Record<string, unknown> =>
-    typeof payload === "object" && payload !== null
+    typeof payload === "object" && payload !== null && !Array.isArray(payload)
       ? payload as Record<string, unknown>
       : { value: payload };
 
