@@ -15,7 +15,12 @@ export const createBaileysLogger = (botLogger: BotLogger) => {
 
   return {
     level: "info",
-    child: () => createBaileysLogger(botLogger),
+    child: (bindings?: Record<string, unknown>) => {
+     const scoped = typeof botLogger.child === "function" && bindings
+       ? botLogger.child(bindings)
+         : botLogger;
+     return createBaileysLogger(scoped);
+    },
     trace: (payload: unknown, message?: string) => debug(toLogRecord(payload), message ?? "baileys trace"),
     debug: (payload: unknown, message?: string) => debug(toLogRecord(payload), message ?? "baileys debug"),
     info: (payload: unknown, message?: string) => info(toLogRecord(payload), message ?? "baileys info"),
