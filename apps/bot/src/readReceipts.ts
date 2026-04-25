@@ -37,9 +37,11 @@ export const createInboundReadReceiptScheduler = (
     profile: CompanyRuntimeProfile,
     message: NormalizedInboundMessage,
   ): void => {
-    const runtimeConfig = options.getSession(profile.companyId)?.runtimeConfig ?? options.createRuntimeConfig({
-      sessionKey: profile.sessionKey,
-    });
+    const session = options.getSession(profile.companyId);
+    if (!session) {
+      return;
+    }
+    const runtimeConfig = session.runtimeConfig;
     const timeoutId = options.timer.setTimeout(async () => {
       pendingTimeouts.delete(timeoutId);
 
