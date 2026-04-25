@@ -110,7 +110,11 @@ const createTimerStub = () => {
 const createAuthenticationState = (): AuthenticationState =>
   ({}) as AuthenticationState;
 
-const createSocketStub = () => {
+interface SocketStubOptions {
+  readMessages?: (messages: Array<{ id: string; remoteJid: string }>) => Promise<void>;
+}
+
+const createSocketStub = (options: SocketStubOptions = {}) => {
   const connectionHandlers: Array<(update: BotConnectionUpdate) => void> = [];
   const credsHandlers: Array<(update: unknown) => void> = [];
   const messagesUpsertHandlers: Array<(update: BaileysEventMap["messages.upsert"]) => void> = [];
@@ -141,6 +145,9 @@ const createSocketStub = () => {
     },
     readMessages: async (messages) => {
       readMessageCalls.push(messages);
+      if (options.readMessages) {
+        await options.readMessages(messages);
+      }
     },
     presenceSubscribe: async (recipientJid) => {
       presenceSubscribeCalls.push(recipientJid);
@@ -598,6 +605,74 @@ describe("startBot", () => {
         id: "sent-1",
       },
     });
+  });
+
+  test("deduplicates concurrent markRead calls for the same message key", async () => {
+    const { logger } = createLoggerStub();
+    const socketStub = createSocketStub();
+
+    const handle = await startBot({
+      logger,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => socketStub.socket,
+    });
+
+    socketStub.emitConnectionUpdate({ connection: "open" });
+    const message = {
+      id: "message-1",
+      remoteJid: "967700000001@s.whatsapp.net",
+    };
+
+    await Promise.all([
+      handle.markRead(message),
+      handle.markRead(message),
+    ]);
+    expect(socketStub.readMessageCalls).toEqual([[message]]);
+
+    await handle.markRead(message);
+    expect(socketStub.readMessageCalls).toEqual([[message], [message]]);
+  });
+
+  test("clears markRead in-flight dedupe entries after read failures", async () => {
+    const { logger } = createLoggerStub();
+    let readAttempts = 0;
+    const socketStub = createSocketStub({
+      readMessages: async () => {
+        readAttempts += 1;
+        throw new Error("read failed");
+      },
+    });
+
+    const handle = await startBot({
+      logger,
+      runtimeConfig: createBotRuntimeConfig({ moduleDirectory: "/repo/apps/bot/src" }),
+      loadAuthState: async () => ({
+        state: createAuthenticationState(),
+        saveCreds: async () => undefined,
+        sessionPath: "/repo/data/bot/auth/default",
+      }),
+      createSocket: () => socketStub.socket,
+    });
+
+    socketStub.emitConnectionUpdate({ connection: "open" });
+    const message = {
+      id: "message-1",
+      remoteJid: "967700000001@s.whatsapp.net",
+    };
+
+    await expect(Promise.all([
+      handle.markRead(message),
+      handle.markRead(message),
+    ])).rejects.toThrow("read failed");
+    expect(readAttempts).toBe(1);
+
+    await expect(handle.markRead(message)).rejects.toThrow("read failed");
+    expect(readAttempts).toBe(2);
   });
 
   test("rejects outbound transport calls when the socket is not open", async () => {

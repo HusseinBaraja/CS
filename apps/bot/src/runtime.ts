@@ -28,6 +28,7 @@ import {
   createBotRuntimeConfig,
 } from './runtimeConfig';
 import { createBaileysLogger } from './runtimeLogger';
+import { createReadReceiptDeduper, type ReadReceiptMessage } from './readReceiptDedupe';
 
 export type BotLifecycleState = BotRuntimeSessionState;
 
@@ -49,7 +50,7 @@ export interface BotPairingStatus {
 }
 
 export interface BotRuntimeHandle extends OutboundTransport {
-  markRead(message: { id: string; remoteJid: string }): Promise<void>;
+  markRead(message: ReadReceiptMessage): Promise<void>;
   getStatus(): BotSessionStatus;
   stop(): Promise<void>;
 }
@@ -77,7 +78,7 @@ interface BotEventEmitter {
 export interface BotSocket {
   ev: BotEventEmitter;
   end(error?: Error): void;
-  readMessages(messages: Array<{ id: string; remoteJid: string }>): Promise<void>;
+  readMessages(messages: Array<ReadReceiptMessage>): Promise<void>;
   sendMessage(recipientJid: string, message: unknown): Promise<unknown>;
   presenceSubscribe(recipientJid: string): Promise<void>;
   sendPresenceUpdate(state: "composing" | "paused", recipientJid: string): Promise<void>;
@@ -210,6 +211,7 @@ export const startBot = async (
   let reconnectAttempt = 0;
   let shuttingDown = false;
   let pairing: BotPairingStatus | undefined;
+  const markReadDeduper = createReadReceiptDeduper();
 
   const setStatus = (nextStatus: BotSessionStatus): void => {
     if (status && statusEquals(status, nextStatus)) {
@@ -626,12 +628,14 @@ export const startBot = async (
       return activeSocket.sendMessage(recipientJid, message);
     },
     async markRead(message) {
-      const activeSocket = getOpenSocketOrThrow(
-        currentSocket,
-        (status ?? initialStatus).state,
-        "Bot socket is unavailable for read receipts",
-      );
-      await activeSocket.readMessages([message]);
+      await markReadDeduper(message, async () => {
+        const activeSocket = getOpenSocketOrThrow(
+          currentSocket,
+          (status ?? initialStatus).state,
+          "Bot socket is unavailable for read receipts",
+        );
+        await activeSocket.readMessages([message]);
+      });
     },
     async sendPresenceUpdate(state, recipientJid) {
       const activeSocket = getOpenSocketOrThrow(
