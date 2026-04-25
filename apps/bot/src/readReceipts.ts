@@ -26,13 +26,7 @@ interface CreateInboundReadReceiptSchedulerOptions {
 const computeDelayMs = (
   minDelayMs: number,
   maxDelayMs: number,
-): number => {
-  if (minDelayMs === maxDelayMs) {
-    return minDelayMs;
-  }
-
-  return Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
-};
+): number => Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
 
 export const createInboundReadReceiptScheduler = (
   options: CreateInboundReadReceiptSchedulerOptions,
