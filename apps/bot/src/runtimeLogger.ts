@@ -15,7 +15,7 @@ export const createBaileysLogger = (botLogger: BotLogger) => {
 
   return {
     level: "info",
-    child: () => createBaileysLogger(activeLogger),
+    child: () => createBaileysLogger(botLogger),
     trace: (payload: unknown, message?: string) => debug(toLogRecord(payload), message ?? "baileys trace"),
     debug: (payload: unknown, message?: string) => debug(toLogRecord(payload), message ?? "baileys debug"),
     info: (payload: unknown, message?: string) => info(toLogRecord(payload), message ?? "baileys info"),
