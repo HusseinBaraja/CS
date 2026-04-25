@@ -419,10 +419,10 @@ export const startTenantSessionManager = async (
         continue;
       }
 
-      await routeInboundEvent(currentProfile, dispatch.message, dispatch.route);
       if (dispatch.route === "customer_conversation") {
         inboundReadReceiptScheduler.schedule(currentProfile, dispatch.message);
       }
+      await routeInboundEvent(currentProfile, dispatch.message, dispatch.route);
     }
   };
 
