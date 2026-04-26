@@ -10,6 +10,10 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "types": ["react", "react-dom", "vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
 
     /* Linting */
     "noUnusedLocals": true,

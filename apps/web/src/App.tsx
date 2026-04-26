@@ -5,6 +5,7 @@ import { TrieRouter } from 'hono/router/trie-router';
 
 import { Layout } from './components/layout/Layout';
 import { RouterProvider, RouteView, useLocation } from './components/router/HonoRouter';
+import { TooltipProvider } from './components/ui/tooltip';
 import { LandingPage } from './pages/LandingPage';
 import { ContactPage } from './pages/ContactPage';
 import { TrialPage } from './pages/TrialPage';
@@ -25,9 +26,11 @@ router.add('GET', '/dashboard', DashboardPage);
  */
 function App() {
   return (
-    <RouterProvider>
-      <AppShell />
-    </RouterProvider>
+    <TooltipProvider>
+      <RouterProvider>
+        <AppShell />
+      </RouterProvider>
+    </TooltipProvider>
   );
 }
 
