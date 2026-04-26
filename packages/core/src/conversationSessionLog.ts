@@ -89,7 +89,7 @@ export const createConversationSessionLogSessionPath = (input: {
     throw new Error("Conversation session log sessionId must be path-safe");
   }
 
-  return join(input.repoRoot, `${input.sessionId}.md`);
+  return join(input.repoRoot, "logs", "conversations", `${input.sessionId}.md`);
 };
 
 const toMarkdownHeader = (

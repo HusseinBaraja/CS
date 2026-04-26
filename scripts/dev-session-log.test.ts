@@ -19,6 +19,8 @@ describe("createDevSessionLogEnvironment", () => {
     expect(env.CONVERSATION_LOG_SESSION_ID).toBe("19-04-10-11");
     expect(env.CONVERSATION_LOG_SESSION_PATH).toBe(join(
       repoRoot,
+      "logs",
+      "conversations",
       `${env.CONVERSATION_LOG_SESSION_ID}.md`,
     ));
   });
