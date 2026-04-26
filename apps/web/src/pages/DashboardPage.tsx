@@ -169,9 +169,9 @@ function DashboardSidebar() {
                       tooltip={{ children: label, side: 'left' }}
                       className="min-h-[66px] rounded-lg px-4 text-base font-semibold text-[#2d3331] data-active:bg-gradient-to-l data-active:from-[#e8f3ee] data-active:to-[#f4faf7] data-active:text-[#087a43] hover:bg-[#f5f8f6] group-data-[collapsible=icon]:min-h-8 group-data-[collapsible=icon]:px-0"
                     >
-                      <a href="/dashboard">
-                        <Icon className="stroke-[1.9]" />
-                        <span className="min-w-0 text-right leading-6 break-words">{label}</span>
+                      <a href="/dashboard" className="grid grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-3">
+                        <span className="min-w-0 overflow-hidden text-right leading-6 break-words hyphens-auto group-data-[collapsible=icon]:hidden">{label}</span>
+                        <Icon className="justify-self-end stroke-[1.9]" />
                       </a>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

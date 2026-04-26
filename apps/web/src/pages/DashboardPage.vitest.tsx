@@ -43,4 +43,16 @@ describe('DashboardPage', () => {
     expect(logo?.getAttribute('src')).toBe(logoUrl);
     expect(logo?.getAttribute('class')).toContain('object-contain');
   });
+
+  it('keeps dashboard navigation icons on the right with constrained labels', () => {
+    render(<DashboardPage />);
+
+    const aiLabel = screen.getAllByText('تخصيص الذكاء الاصطناعي')[0];
+    const navLink = aiLabel.closest('a');
+
+    expect(navLink?.getAttribute('class')).toContain('grid-cols-[minmax(0,1fr)_1.25rem]');
+    expect(aiLabel.getAttribute('class')).toContain('overflow-hidden');
+    expect(aiLabel.getAttribute('class')).toContain('break-words');
+    expect(aiLabel.getAttribute('class')).toContain('group-data-[collapsible=icon]:hidden');
+  });
 });
