@@ -173,8 +173,8 @@ export function DashboardPage() {
                     : 'text-[#2d3331] hover:bg-[#f5f8f6]'
                 }`}
               >
-                <span>{label}</span>
                 <Icon className="h-6 w-6 stroke-[1.9]" />
+                <span>{label}</span>
               </a>
             ))}
           </nav>
