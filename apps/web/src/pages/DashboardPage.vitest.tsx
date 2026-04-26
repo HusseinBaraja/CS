@@ -51,7 +51,9 @@ describe('DashboardPage', () => {
     const navLink = aiLabel.closest('a');
     const scrollArea = container.querySelector('[data-slot="scroll-area"]');
 
-    expect(scrollArea?.getAttribute('class')).toContain('[&_[data-slot=scroll-area-viewport]]:pr-3');
+    expect(scrollArea?.getAttribute('class')).toContain('[&_[data-slot=scroll-area-scrollbar]]:left-0');
+    expect(scrollArea?.getAttribute('class')).toContain('[&_[data-slot=scroll-area-scrollbar]]:right-auto');
+    expect(scrollArea?.getAttribute('class')).toContain('[&_[data-slot=scroll-area-viewport]]:pl-3');
     expect(navLink?.getAttribute('class')).toContain('grid-cols-[minmax(0,1fr)_1.25rem]');
     expect(aiLabel.getAttribute('class')).toContain('overflow-hidden');
     expect(aiLabel.getAttribute('class')).toContain('break-words');

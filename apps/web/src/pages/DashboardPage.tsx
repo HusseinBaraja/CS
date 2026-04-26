@@ -156,7 +156,7 @@ function DashboardSidebar() {
   return (
     <Sidebar side="right" collapsible="icon" className="top-[82px] h-[calc(100svh-82px)] border-l border-[#dde4e0] shadow-[-2px_0_10px_rgba(22,35,29,0.05)]">
       <SidebarContent className="bg-white px-3 py-6">
-        <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:pr-3">
+        <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-scrollbar]]:left-0 [&_[data-slot=scroll-area-scrollbar]]:right-auto [&_[data-slot=scroll-area-viewport]]:pl-3">
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu className="gap-3">
