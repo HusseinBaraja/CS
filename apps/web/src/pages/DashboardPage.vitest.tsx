@@ -45,11 +45,13 @@ describe('DashboardPage', () => {
   });
 
   it('keeps dashboard navigation icons on the right with constrained labels', () => {
-    render(<DashboardPage />);
+    const { container } = render(<DashboardPage />);
 
     const aiLabel = screen.getAllByText('تخصيص الذكاء الاصطناعي')[0];
     const navLink = aiLabel.closest('a');
+    const scrollArea = container.querySelector('[data-slot="scroll-area"]');
 
+    expect(scrollArea?.getAttribute('class')).toContain('[&_[data-slot=scroll-area-viewport]]:pr-3');
     expect(navLink?.getAttribute('class')).toContain('grid-cols-[minmax(0,1fr)_1.25rem]');
     expect(aiLabel.getAttribute('class')).toContain('overflow-hidden');
     expect(aiLabel.getAttribute('class')).toContain('break-words');
