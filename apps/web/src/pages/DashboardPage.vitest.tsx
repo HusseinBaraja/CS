@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import logoUrl from '../../../../logo.svg';
@@ -50,13 +50,33 @@ describe('DashboardPage', () => {
     const aiLabel = screen.getAllByText('تخصيص الذكاء الاصطناعي')[0];
     const navLink = aiLabel.closest('a');
     const scrollArea = container.querySelector('[data-slot="scroll-area"]');
+    const overflowShadow = container.querySelector('[data-testid="sidebar-bottom-overflow-shadow"]');
 
     expect(scrollArea?.getAttribute('class')).toContain('[&_[data-slot=scroll-area-scrollbar]]:left-0');
     expect(scrollArea?.getAttribute('class')).toContain('[&_[data-slot=scroll-area-scrollbar]]:right-auto');
     expect(scrollArea?.getAttribute('class')).toContain('[&_[data-slot=scroll-area-viewport]]:pl-3');
+    expect(overflowShadow?.getAttribute('class')).toContain('pointer-events-none');
+    expect(overflowShadow?.getAttribute('class')).toContain('bottom-0');
+    expect(overflowShadow?.getAttribute('class')).toContain('shadow-[0_-18px_28px_rgba(22,35,29,0.10)]');
+    expect(overflowShadow?.getAttribute('class')).toContain('transition-opacity');
     expect(navLink?.getAttribute('class')).toContain('grid-cols-[minmax(0,1fr)_1.25rem]');
     expect(aiLabel.getAttribute('class')).toContain('overflow-hidden');
     expect(aiLabel.getAttribute('class')).toContain('break-words');
     expect(aiLabel.getAttribute('class')).toContain('group-data-[collapsible=icon]:hidden');
+  });
+
+  it('fades the sidebar overflow shadow after navigation scroll starts', async () => {
+    const { container } = render(<DashboardPage />);
+
+    const viewport = container.querySelector('[data-slot="scroll-area-viewport"]');
+    const overflowShadow = container.querySelector('[data-testid="sidebar-bottom-overflow-shadow"]');
+
+    expect(overflowShadow?.getAttribute('data-visible')).toBe('true');
+
+    fireEvent.scroll(viewport as Element, { target: { scrollTop: 12 } });
+
+    await waitFor(() => {
+      expect(overflowShadow?.getAttribute('data-visible')).toBe('false');
+    });
   });
 });

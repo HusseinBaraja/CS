@@ -14,6 +14,7 @@ import {
   UserRound,
   UsersRound,
 } from 'lucide-react';
+import { type UIEvent, useState } from 'react';
 
 import logoUrl from '../../../../logo.svg';
 import dashboardMuralUrl from '../assets/dashboard/dashboard-mural.png';
@@ -153,10 +154,23 @@ function MetricCard({ title, icon: Icon, kind }: (typeof metricCards)[number]) {
 }
 
 function DashboardSidebar() {
+  const [showOverflowShadow, setShowOverflowShadow] = useState(true);
+
+  const handleNavigationScroll = (event: UIEvent<HTMLDivElement>) => {
+    const target = event.target;
+
+    if (target instanceof HTMLElement) {
+      setShowOverflowShadow(target.scrollTop <= 0);
+    }
+  };
+
   return (
     <Sidebar side="right" collapsible="icon" className="top-[82px] h-[calc(100svh-82px)] border-l border-[#dde4e0] shadow-[-2px_0_10px_rgba(22,35,29,0.05)]">
-      <SidebarContent className="bg-white px-3 py-6">
-        <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-scrollbar]]:left-0 [&_[data-slot=scroll-area-scrollbar]]:right-auto [&_[data-slot=scroll-area-viewport]]:pl-3">
+      <SidebarContent className="relative bg-white px-3 py-6">
+        <ScrollArea
+          onScrollCapture={handleNavigationScroll}
+          className="min-h-0 flex-1 [&_[data-slot=scroll-area-scrollbar]]:left-0 [&_[data-slot=scroll-area-scrollbar]]:right-auto [&_[data-slot=scroll-area-viewport]]:pl-3"
+        >
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu className="gap-3">
@@ -180,6 +194,12 @@ function DashboardSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         </ScrollArea>
+        <div
+          aria-hidden="true"
+          data-testid="sidebar-bottom-overflow-shadow"
+          data-visible={showOverflowShadow}
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-linear-to-t from-white via-white/90 to-transparent opacity-0 transition-opacity duration-200 data-[visible=true]:opacity-100"
+        />
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
