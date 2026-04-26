@@ -167,14 +167,14 @@ export function DashboardPage() {
               <a
                 key={label}
                 href="/dashboard"
-                className={`flex h-[66px] items-center justify-between rounded-lg px-4 text-base font-semibold transition-colors ${
+                className={`grid min-h-[66px] grid-cols-[24px_minmax(0,1fr)] items-center gap-4 rounded-lg px-4 text-base font-semibold transition-colors ${
                   active
                     ? 'bg-gradient-to-l from-[#e8f3ee] to-[#f4faf7] text-[#087a43]'
                     : 'text-[#2d3331] hover:bg-[#f5f8f6]'
                 }`}
               >
                 <Icon className="h-6 w-6 stroke-[1.9]" />
-                <span>{label}</span>
+                <span className="min-w-0 text-right leading-6 break-words">{label}</span>
               </a>
             ))}
           </nav>
