@@ -188,7 +188,7 @@ export const logError = (
   log.error(
     {
       ...defaultEnvelope,
-      ...(options.envelopeOverrides ?? {}),
+      ...options.envelopeOverrides,
       error: serializeErrorForLog(error),
       ...(Object.keys(context).length > 0 ? { context } : {}),
     },

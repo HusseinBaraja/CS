@@ -185,7 +185,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
   });
 
   test("skips messages that are no longer pending after reload", async () => {
-    const { client, calls } = createClientStub({
+    const { client } = createClientStub({
       mutation: async (_reference, args) => {
         const input = args as { key?: string; ownerToken?: string };
         if (input.key && input.ownerToken) {
@@ -233,7 +233,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
 
   test("continues processing after a reconciliation failure", async () => {
     let commitAttempts = 0;
-    const { client, calls } = createClientStub({
+    const { client } = createClientStub({
       mutation: async (_reference, args) => {
         const input = args as { key?: string; ownerToken?: string; pendingMessageId?: string };
         if (input.key && input.ownerToken) {
@@ -336,7 +336,7 @@ describe("createPendingAssistantReconciliationProcessor", () => {
   });
 
   test("skips unacknowledged pending messages", async () => {
-    const { client, calls } = createClientStub({
+    const { client } = createClientStub({
       mutation: async (_reference, args) => {
         const input = args as { key?: string; ownerToken?: string };
         if (input.key && input.ownerToken) {
