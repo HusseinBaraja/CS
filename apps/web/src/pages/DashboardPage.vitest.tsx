@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import logoUrl from '../../../../logo.svg';
 import { DashboardPage } from './DashboardPage';
 
 describe('DashboardPage', () => {
@@ -14,5 +15,15 @@ describe('DashboardPage', () => {
     expect(screen.getByText('ملخص الكتالوج')).toBeDefined();
     expect(screen.getByText('نظرة عامة على الأداء')).toBeDefined();
     expect(screen.getAllByText('البيانات غير متاحة حالياً')).toHaveLength(4);
+  });
+
+  it('uses the Reda logo artwork in the dashboard header', () => {
+    const { container } = render(<DashboardPage />);
+
+    const logo = container.querySelector('header img');
+
+    expect(logo).toBeInstanceOf(HTMLImageElement);
+    expect(logo?.getAttribute('src')).toBe(logoUrl);
+    expect(logo?.getAttribute('class')).toContain('object-contain');
   });
 });

@@ -15,6 +15,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 
+import logoUrl from '../../../../logo.svg';
 import dashboardMuralUrl from '../assets/dashboard/dashboard-mural.png';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
@@ -138,7 +139,7 @@ export function DashboardPage() {
       <header className="fixed inset-x-0 top-0 z-30 h-[82px] border-b border-[#dfe4e2] bg-white/95 shadow-[0_2px_10px_rgba(15,23,20,0.08)] backdrop-blur">
         <div className="flex h-full items-center justify-between px-5 sm:px-7">
           <div className="flex items-center gap-3 text-[#0a7a43]">
-            <MessageSquare className="h-12 w-12 stroke-[2.4]" />
+            <img src={logoUrl} alt="" className="h-12 w-12 object-contain" />
             <span className="text-4xl font-black leading-none">رضا</span>
           </div>
 
