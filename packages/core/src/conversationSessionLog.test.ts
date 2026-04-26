@@ -20,11 +20,11 @@ describe("conversation session log helpers", () => {
     expect(sessionId).toMatch(/^\d{2}-\d{2}-\d{2}-\d{2}$/);
   });
 
-  test("creates markdown session files at the repository root", () => {
+  test("creates markdown session files under logs/conversations", () => {
     expect(createConversationSessionLogSessionPath({
       repoRoot: "repo",
       sessionId: "19-04-10-11",
-    })).toBe(join("repo", "19-04-10-11.md"));
+    })).toBe(join("repo", "logs", "conversations", "19-04-10-11.md"));
   });
 
   test("rejects unsafe session ids when building session path", () => {
