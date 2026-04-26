@@ -198,7 +198,7 @@ function DashboardSidebar() {
           aria-hidden="true"
           data-testid="sidebar-bottom-overflow-shadow"
           data-visible={showOverflowShadow}
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-linear-to-t from-white via-white/90 to-transparent opacity-0 transition-opacity duration-200 data-[visible=true]:opacity-100"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-linear-to-t from-white via-white/90 to-transparent opacity-0 transition-opacity duration-500 data-[visible=true]:opacity-100"
         />
       </SidebarContent>
       <SidebarRail />
