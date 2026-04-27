@@ -93,12 +93,28 @@ describe('DashboardPage', () => {
     expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:rounded-lg');
     expect(navButton?.getAttribute('class')).toContain('transition-[height,padding]');
     expect(navButton?.getAttribute('class')).not.toContain('transition-[width,height,padding]');
-    expect(navItem?.getAttribute('class')).toContain('group-data-[collapsible=icon]:flex');
-    expect(navItem?.getAttribute('class')).toContain('group-data-[collapsible=icon]:justify-end');
-    expect(navLink?.getAttribute('class')).toContain('group-data-[collapsible=icon]:grid-cols-1');
-    expect(navLink?.getAttribute('class')).toContain('group-data-[collapsible=icon]:justify-items-center');
-    expect(navIcon?.getAttribute('class')).toContain('group-data-[collapsible=icon]:justify-self-center');
+    expect(navItem?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:flex');
+    expect(navItem?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:justify-center');
+    expect(navItem?.getAttribute('class')).not.toContain('group-data-[collapsible=icon]:justify-end');
+    expect(navLink?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:grid-cols-1');
+    expect(navLink?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:justify-items-center');
+    expect(navIcon?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:justify-self-center');
     expect(navIcon?.getAttribute('class')).toContain('stroke-[1.9]');
+  });
+
+  it('delays collapsed icon centering until the sidebar rail finishes collapsing', async () => {
+    const { container } = render(<DashboardPage />);
+
+    const trigger = container.querySelector('[data-slot="sidebar-trigger"]');
+    expect(trigger).toBeDefined();
+    fireEvent.click(trigger as Element);
+
+    const sidebar = container.querySelector('[data-slot="sidebar"][data-collapsible="icon"]');
+    await waitFor(() => expect(sidebar?.getAttribute('data-icon-layout')).toBe('collapsing'));
+
+    await new Promise((resolve) => window.setTimeout(resolve, 220));
+
+    await waitFor(() => expect(sidebar?.getAttribute('data-icon-layout')).toBe('collapsed'));
   });
 
   it('keeps placeholder sidebar navigation visually enabled', () => {

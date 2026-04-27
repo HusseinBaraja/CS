@@ -187,10 +187,10 @@ function DashboardSidebar() {
                         href="#"
                         data-placeholder="true"
                         onClick={(event) => event.preventDefault()}
-                        className="grid grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-3 group-data-[collapsible=icon]:grid-cols-1 group-data-[collapsible=icon]:justify-items-center group-data-[collapsible=icon]:gap-0"
+                        className="grid grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-3 group-data-[icon-layout=collapsed]:grid-cols-1 group-data-[icon-layout=collapsed]:justify-items-center group-data-[collapsible=icon]:gap-0"
                       >
                         <span className="min-w-0 overflow-hidden text-right leading-6 wrap-break-word hyphens-auto group-data-[collapsible=icon]:hidden">{label}</span>
-                        <Icon className="justify-self-end stroke-[1.9] group-data-[collapsible=icon]:justify-self-center" />
+                        <Icon className="justify-self-end stroke-[1.9] group-data-[icon-layout=collapsed]:justify-self-center" />
                       </a>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

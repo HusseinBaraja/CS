@@ -20,6 +20,7 @@ const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+const SIDEBAR_COLLAPSE_DURATION_MS = 200
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
@@ -152,6 +153,31 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const sidebarRef = React.useRef<HTMLDivElement>(null)
+
+  React.useLayoutEffect(() => {
+    const sidebar = sidebarRef.current
+    if (!sidebar) {
+      return
+    }
+
+    if (collapsible !== "icon") {
+      sidebar.dataset.iconLayout = "expanded"
+      return
+    }
+
+    if (state === "expanded") {
+      sidebar.dataset.iconLayout = "expanded"
+      return
+    }
+
+    sidebar.dataset.iconLayout = "collapsing"
+    const timeoutId = window.setTimeout(() => {
+      sidebar.dataset.iconLayout = "collapsed"
+    }, SIDEBAR_COLLAPSE_DURATION_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [collapsible, state])
 
   if (collapsible === "none") {
     return (
@@ -198,6 +224,7 @@ function Sidebar({
 
   return (
     <div
+      ref={sidebarRef}
       className="group peer hidden text-sidebar-foreground md:block"
       data-state={state}
       data-collapsible={state === "collapsed" ? collapsible : ""}
@@ -454,7 +481,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
     <li
       data-slot="sidebar-menu-item"
       data-sidebar="menu-item"
-      className={cn("group/menu-item relative group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-end", className)}
+      className={cn("group/menu-item relative group-data-[icon-layout=collapsed]:flex group-data-[icon-layout=collapsed]:justify-center", className)}
       {...props}
     />
   )
