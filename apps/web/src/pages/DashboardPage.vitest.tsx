@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
-import logoUrl from '../../../../logo.svg';
+import logoUrl from '../assets/logo.svg';
 import { DashboardPage } from './DashboardPage';
 
 describe('DashboardPage', () => {

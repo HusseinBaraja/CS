@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { type UIEvent, useState } from 'react';
 
-import logoUrl from '../../../../logo.svg';
+import logoUrl from '../assets/logo.svg';
 import dashboardMuralUrl from '../assets/dashboard/dashboard-mural.png';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { Button } from '../components/ui/button';
