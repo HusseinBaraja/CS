@@ -78,6 +78,7 @@ describe('DashboardPage', () => {
     const dashboardLabel = screen.getAllByText('لوحة التحكم')[0];
     const navLink = dashboardLabel.closest('a');
     const navButton = dashboardLabel.closest('[data-sidebar="menu-button"]');
+    const navItem = dashboardLabel.closest('[data-sidebar="menu-item"]');
     const sidebarContent = container.querySelector('[data-sidebar="content"]');
     const sidebarGroup = container.querySelector('[data-sidebar="group"]');
     const scrollArea = container.querySelector('[data-slot="scroll-area"]');
@@ -90,6 +91,10 @@ describe('DashboardPage', () => {
     expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:p-3');
     expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:[&_svg]:size-6');
     expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:rounded-lg');
+    expect(navButton?.getAttribute('class')).toContain('transition-[height,padding]');
+    expect(navButton?.getAttribute('class')).not.toContain('transition-[width,height,padding]');
+    expect(navItem?.getAttribute('class')).toContain('group-data-[collapsible=icon]:flex');
+    expect(navItem?.getAttribute('class')).toContain('group-data-[collapsible=icon]:justify-end');
     expect(navLink?.getAttribute('class')).toContain('group-data-[collapsible=icon]:grid-cols-1');
     expect(navLink?.getAttribute('class')).toContain('group-data-[collapsible=icon]:justify-items-center');
     expect(navIcon?.getAttribute('class')).toContain('group-data-[collapsible=icon]:justify-self-center');
