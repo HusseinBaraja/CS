@@ -185,7 +185,7 @@ function DashboardSidebar() {
                     >
                       <a
                         href="#"
-                        aria-disabled="true"
+                        data-placeholder="true"
                         onClick={(event) => event.preventDefault()}
                         className="grid grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-3"
                       >
