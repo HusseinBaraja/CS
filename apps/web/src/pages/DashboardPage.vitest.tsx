@@ -129,6 +129,9 @@ describe('DashboardPage', () => {
     expect(rail.getAttribute('tabindex')).toBeNull();
     expect(rail.getAttribute('class')).toContain('inset-y-0');
     expect(rail.getAttribute('class')).toContain('w-7');
+    expect(rail.getAttribute('class')).toContain('cursor-pointer');
+    expect(rail.getAttribute('class')).not.toContain('cursor-e-resize');
+    expect(rail.getAttribute('class')).not.toContain('cursor-w-resize');
     expect(rail.getAttribute('class')).toContain('group-data-[side=right]:border-l');
     expect(rail.getAttribute('class')).toContain('group-data-[side=right]:left-0');
     expect(rail.getAttribute('class')).toContain('group-data-[side=right]:-translate-x-full');
