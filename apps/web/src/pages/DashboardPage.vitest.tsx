@@ -112,4 +112,35 @@ describe('DashboardPage', () => {
     expect(sidebar?.getAttribute('class')).toContain('h-[calc(100svh-var(--header-height))]');
     expect(inset?.getAttribute('class')).toContain('pt-[var(--header-height)]');
   });
+
+  it('uses a full-height sidebar rail as the collapse target', () => {
+    const { container } = render(<DashboardPage />);
+
+    const rail = container.querySelector('[data-sidebar="rail"]');
+    if (!rail) {
+      throw new Error('Sidebar rail was not rendered');
+    }
+
+    const railIcon = rail.querySelector('svg');
+    const railIconShell = railIcon?.parentElement;
+
+    expect(rail.getAttribute('data-sidebar')).toBe('rail');
+    expect(rail.getAttribute('data-state')).toBe('expanded');
+    expect(rail.getAttribute('tabindex')).toBeNull();
+    expect(rail.getAttribute('class')).toContain('inset-y-0');
+    expect(rail.getAttribute('class')).toContain('w-7');
+    expect(rail.getAttribute('class')).toContain('group-data-[side=right]:border-l');
+    expect(rail.getAttribute('class')).toContain('group-data-[side=right]:left-0');
+    expect(rail.getAttribute('class')).toContain('group-data-[side=right]:-translate-x-full');
+    expect(rail.getAttribute('class')).toContain('items-center');
+    expect(rail.getAttribute('class')).toContain('justify-center');
+    expect(railIconShell?.getAttribute('class')).toContain('size-7');
+    expect(railIconShell?.getAttribute('class')).toContain('group-data-[state=collapsed]:rotate-180');
+    expect(railIcon?.getAttribute('class')).toContain('size-5');
+
+    fireEvent.click(rail);
+
+    const sidebar = container.querySelector('[data-slot="sidebar"][data-state]');
+    expect(sidebar?.getAttribute('data-state')).toBe('collapsed');
+  });
 });
