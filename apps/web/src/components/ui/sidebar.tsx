@@ -18,8 +18,10 @@ const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
-const SIDEBAR_WIDTH_ICON = "3rem"
+const SIDEBAR_WIDTH_ICON = "5rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+// Keep in sync with sidebar rail transition classes using duration-200.
+// Future refactor: expose --sidebar-collapse-duration and read it via getComputedStyle.
 const SIDEBAR_COLLAPSE_DURATION_MS = 200
 
 type SidebarContextProps = {
@@ -154,12 +156,19 @@ function Sidebar({
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
   const sidebarRef = React.useRef<HTMLDivElement>(null)
+  const prevStateRef = React.useRef<typeof state | null>(null)
+  const prevCollapsibleRef = React.useRef<typeof collapsible | null>(null)
 
   React.useLayoutEffect(() => {
     const sidebar = sidebarRef.current
     if (!sidebar) {
       return
     }
+
+    const prevState = prevStateRef.current
+    const prevCollapsible = prevCollapsibleRef.current
+    prevStateRef.current = state
+    prevCollapsibleRef.current = collapsible
 
     if (collapsible !== "icon") {
       sidebar.dataset.iconLayout = "expanded"
@@ -168,6 +177,11 @@ function Sidebar({
 
     if (state === "expanded") {
       sidebar.dataset.iconLayout = "expanded"
+      return
+    }
+
+    if (prevState !== "expanded" || prevCollapsible !== "icon") {
+      sidebar.dataset.iconLayout = "collapsed"
       return
     }
 
@@ -236,6 +250,7 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
+          // duration-200 must stay in sync with SIDEBAR_COLLAPSE_DURATION_MS.
           "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
@@ -248,6 +263,7 @@ function Sidebar({
         data-slot="sidebar-container"
         data-side={side}
         className={cn(
+          // duration-200 must stay in sync with SIDEBAR_COLLAPSE_DURATION_MS.
           "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"

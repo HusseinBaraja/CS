@@ -1,8 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import logoUrl from '../assets/logo.svg';
+import { Sidebar, SidebarProvider } from '../components/ui/sidebar';
 import { DashboardPage } from './DashboardPage';
+
+const SIDEBAR_COLLAPSE_DURATION_MS = 200;
 
 describe('DashboardPage', () => {
   beforeAll(() => {
@@ -19,6 +22,10 @@ describe('DashboardPage', () => {
         dispatchEvent: vi.fn(),
       })),
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders the RTL dashboard placeholder shell', () => {
@@ -104,6 +111,7 @@ describe('DashboardPage', () => {
   });
 
   it('delays collapsed icon centering until the sidebar rail finishes collapsing', async () => {
+    vi.useFakeTimers();
     const { container } = render(<DashboardPage />);
 
     const trigger = container.querySelector('[data-slot="sidebar-trigger"]');
@@ -111,11 +119,26 @@ describe('DashboardPage', () => {
     fireEvent.click(trigger as Element);
 
     const sidebar = container.querySelector('[data-slot="sidebar"][data-collapsible="icon"]');
-    await waitFor(() => expect(sidebar?.getAttribute('data-icon-layout')).toBe('collapsing'));
+    expect(sidebar?.getAttribute('data-icon-layout')).toBe('collapsing');
 
-    await new Promise((resolve) => window.setTimeout(resolve, 220));
+    act(() => {
+      vi.advanceTimersByTime(SIDEBAR_COLLAPSE_DURATION_MS);
+    });
 
-    await waitFor(() => expect(sidebar?.getAttribute('data-icon-layout')).toBe('collapsed'));
+    expect(sidebar?.getAttribute('data-icon-layout')).toBe('collapsed');
+  });
+
+  it('sets collapsed icon layout immediately when mounted collapsed', () => {
+    const { container } = render(
+      <SidebarProvider defaultOpen={false}>
+        <Sidebar collapsible="icon" />
+      </SidebarProvider>
+    );
+
+    const sidebar = container.querySelector('[data-slot="sidebar"][data-collapsible="icon"]');
+
+    expect(sidebar?.getAttribute('data-icon-layout')).toBe('collapsed');
+    expect(sidebar?.getAttribute('data-icon-layout')).not.toBe('collapsing');
   });
 
   it('keeps placeholder sidebar navigation visually enabled', () => {
