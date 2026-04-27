@@ -1,8 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import logoUrl from '../assets/logo.svg';
+import { Sidebar, SidebarProvider } from '../components/ui/sidebar';
 import { DashboardPage } from './DashboardPage';
+
+const SIDEBAR_COLLAPSE_DURATION_MS = 200;
 
 describe('DashboardPage', () => {
   beforeAll(() => {
@@ -19,6 +22,10 @@ describe('DashboardPage', () => {
         dispatchEvent: vi.fn(),
       })),
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders the RTL dashboard placeholder shell', () => {
@@ -69,7 +76,69 @@ describe('DashboardPage', () => {
     expect(navLink?.getAttribute('class')).toContain('grid-cols-[minmax(0,1fr)_1.25rem]');
     expect(aiLabel.getAttribute('class')).toContain('overflow-hidden');
     expect(aiLabel.getAttribute('class')).toContain('wrap-break-word');
-    expect(aiLabel.getAttribute('class')).toContain('group-data-[collapsible=icon]:hidden');
+    expect(aiLabel.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:hidden');
+  });
+
+  it('enlarges docked nav icons and padding without changing stroke weight', () => {
+    const { container } = render(<DashboardPage />);
+
+    const dashboardLabel = screen.getAllByText('لوحة التحكم')[0];
+    const navLink = dashboardLabel.closest('a');
+    const navButton = dashboardLabel.closest('[data-sidebar="menu-button"]');
+    const navItem = dashboardLabel.closest('[data-sidebar="menu-item"]');
+    const sidebarContent = container.querySelector('[data-sidebar="content"]');
+    const sidebarGroup = container.querySelector('[data-sidebar="group"]');
+    const scrollArea = container.querySelector('[data-slot="scroll-area"]');
+    const navIcon = navLink?.querySelector('svg');
+
+    expect(sidebarContent?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:px-0');
+    expect(scrollArea?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:**:data-[slot=scroll-area-viewport]:pl-0');
+    expect(sidebarGroup?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:p-0');
+    expect(navButton?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:size-12');
+    expect(navButton?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:p-3');
+    expect(navButton?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:[&_svg]:size-6');
+    expect(navButton?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:rounded-lg');
+    expect(navButton?.getAttribute('class')).toContain('transition-[width,height,padding]');
+    expect(navButton?.getAttribute('class')).not.toContain('group-data-[collapsible=icon]:size-12');
+    expect(navItem?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:flex');
+    expect(navItem?.getAttribute('class')).toContain('group-data-[icon-layout=collapsing]:justify-end');
+    expect(navItem?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:justify-center');
+    expect(navItem?.getAttribute('class')).not.toContain('group-data-[collapsible=icon]:justify-end');
+    expect(navLink?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:grid-cols-1');
+    expect(navLink?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:justify-items-center');
+    expect(navIcon?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:justify-self-center');
+    expect(navIcon?.getAttribute('class')).toContain('stroke-[1.9]');
+  });
+
+  it('delays collapsed icon centering until the sidebar rail finishes collapsing', async () => {
+    vi.useFakeTimers();
+    const { container } = render(<DashboardPage />);
+
+    const trigger = container.querySelector('[data-slot="sidebar-trigger"]');
+    expect(trigger).toBeDefined();
+    fireEvent.click(trigger as Element);
+
+    const sidebar = container.querySelector('[data-slot="sidebar"][data-collapsible="icon"]');
+    expect(sidebar?.getAttribute('data-icon-layout')).toBe('collapsing');
+
+    act(() => {
+      vi.advanceTimersByTime(SIDEBAR_COLLAPSE_DURATION_MS);
+    });
+
+    expect(sidebar?.getAttribute('data-icon-layout')).toBe('collapsed');
+  });
+
+  it('sets collapsed icon layout immediately when mounted collapsed', () => {
+    const { container } = render(
+      <SidebarProvider defaultOpen={false}>
+        <Sidebar collapsible="icon" />
+      </SidebarProvider>
+    );
+
+    const sidebar = container.querySelector('[data-slot="sidebar"][data-collapsible="icon"]');
+
+    expect(sidebar?.getAttribute('data-icon-layout')).toBe('collapsed');
+    expect(sidebar?.getAttribute('data-icon-layout')).not.toBe('collapsing');
   });
 
   it('keeps placeholder sidebar navigation visually enabled', () => {

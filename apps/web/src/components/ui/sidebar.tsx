@@ -18,8 +18,11 @@ const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
-const SIDEBAR_WIDTH_ICON = "3rem"
+const SIDEBAR_WIDTH_ICON = "5rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+// Keep in sync with sidebar rail transition classes using duration-200.
+// Future refactor: expose --sidebar-collapse-duration and read it via getComputedStyle.
+const SIDEBAR_COLLAPSE_DURATION_MS = 200
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
@@ -152,6 +155,43 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const sidebarRef = React.useRef<HTMLDivElement>(null)
+  const prevStateRef = React.useRef<typeof state | null>(null)
+  const prevCollapsibleRef = React.useRef<typeof collapsible | null>(null)
+
+  React.useLayoutEffect(() => {
+    const sidebar = sidebarRef.current
+    if (!sidebar) {
+      return
+    }
+
+    const prevState = prevStateRef.current
+    const prevCollapsible = prevCollapsibleRef.current
+    prevStateRef.current = state
+    prevCollapsibleRef.current = collapsible
+
+    if (collapsible !== "icon") {
+      sidebar.dataset.iconLayout = "expanded"
+      return
+    }
+
+    if (state === "expanded") {
+      sidebar.dataset.iconLayout = "expanded"
+      return
+    }
+
+    if (prevState !== "expanded" || prevCollapsible !== "icon") {
+      sidebar.dataset.iconLayout = "collapsed"
+      return
+    }
+
+    sidebar.dataset.iconLayout = "collapsing"
+    const timeoutId = window.setTimeout(() => {
+      sidebar.dataset.iconLayout = "collapsed"
+    }, SIDEBAR_COLLAPSE_DURATION_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [collapsible, state])
 
   if (collapsible === "none") {
     return (
@@ -198,6 +238,7 @@ function Sidebar({
 
   return (
     <div
+      ref={sidebarRef}
       className="group peer hidden text-sidebar-foreground md:block"
       data-state={state}
       data-collapsible={state === "collapsed" ? collapsible : ""}
@@ -209,6 +250,7 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
+          // duration-200 must stay in sync with SIDEBAR_COLLAPSE_DURATION_MS.
           "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
@@ -221,6 +263,7 @@ function Sidebar({
         data-slot="sidebar-container"
         data-side={side}
         className={cn(
+          // duration-200 must stay in sync with SIDEBAR_COLLAPSE_DURATION_MS.
           "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
@@ -454,14 +497,14 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
     <li
       data-slot="sidebar-menu-item"
       data-sidebar="menu-item"
-      className={cn("group/menu-item relative", className)}
+      className={cn("group/menu-item relative group-data-[icon-layout=collapsing]:flex group-data-[icon-layout=collapsing]:justify-end group-data-[icon-layout=collapsed]:flex group-data-[icon-layout=collapsed]:justify-center", className)}
       {...props}
     />
   )
 }
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button group/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-start text-sm ring-sidebar-ring outline-hidden transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pe-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-open:hover:bg-sidebar-accent data-open:hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate",
+  "peer/menu-button group/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-start text-sm ring-sidebar-ring outline-hidden transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pe-8 group-data-[icon-layout=collapsed]:size-12! group-data-[icon-layout=collapsed]:p-3! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-open:hover:bg-sidebar-accent data-open:hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 group-data-[icon-layout=collapsed]:[&_svg]:size-6 [&>span:last-child]:truncate",
   {
     variants: {
       variant: {
@@ -472,7 +515,7 @@ const sidebarMenuButtonVariants = cva(
       size: {
         default: "h-8 text-sm",
         sm: "h-7 text-xs",
-        lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
+        lg: "h-12 text-sm",
       },
     },
     defaultVariants: {
