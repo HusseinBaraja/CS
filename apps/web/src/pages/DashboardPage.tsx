@@ -165,7 +165,7 @@ function DashboardSidebar() {
   };
 
   return (
-    <Sidebar side="right" collapsible="icon" className="top-20.5 h-[calc(100svh-82px)] border-l border-[#dde4e0] shadow-[-2px_0_10px_rgba(22,35,29,0.05)]">
+    <Sidebar side="right" collapsible="icon" className="top-[var(--header-height)] h-[calc(100svh-var(--header-height))] border-l border-[#dde4e0] shadow-[-2px_0_10px_rgba(22,35,29,0.05)]">
       <SidebarContent className="relative bg-white px-3 py-6">
         <ScrollArea
           onScrollCapture={handleNavigationScroll}
@@ -216,7 +216,7 @@ export function DashboardPage() {
     <div dir="rtl" className="min-h-screen bg-[#fbfcfc] font-arabic text-[#1f2925]">
       <TooltipProvider>
         <SidebarProvider defaultOpen>
-        <header className="fixed inset-x-0 top-0 z-30 h-20.5 border-b border-[#dfe4e2] bg-white/95 shadow-[0_2px_10px_rgba(15,23,20,0.08)] backdrop-blur">
+        <header className="fixed inset-x-0 top-0 z-30 h-[var(--header-height)] border-b border-[#dfe4e2] bg-white/95 shadow-[0_2px_10px_rgba(15,23,20,0.08)] backdrop-blur">
           <div className="flex h-full items-center justify-between px-5 sm:px-7">
             <div className="flex items-center gap-3 text-[#0a7a43]">
               <img src={logoUrl} alt="" className="size-12 object-contain" />
@@ -244,7 +244,7 @@ export function DashboardPage() {
 
         <DashboardSidebar />
 
-        <SidebarInset className="min-h-screen bg-[#fbfcfc] pt-20.5">
+        <SidebarInset className="min-h-screen bg-[#fbfcfc] pt-[var(--header-height)]">
           <main className="w-full px-4 py-5 sm:px-7">
             <div className="mx-auto flex max-w-280 flex-col gap-5">
               <Card className="min-h-82.5 border-[#dfe6e2] shadow-[0_1px_3px_rgba(22,35,29,0.08),0_12px_32px_rgba(22,35,29,0.04)]">

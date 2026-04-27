@@ -181,6 +181,7 @@
 }
 
 :root {
+  --header-height: 5.125rem;
   --background: #f8f7f4;
   --foreground: #1a2e27;
   --card: #ffffff;

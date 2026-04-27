@@ -79,4 +79,17 @@ describe('DashboardPage', () => {
       expect(overflowShadow?.getAttribute('data-visible')).toBe('false');
     });
   });
+
+  it('keeps header, sidebar, and content inset synced with shared header height', () => {
+    const { container } = render(<DashboardPage />);
+
+    const header = container.querySelector('header');
+    const sidebar = container.querySelector('[data-slot="sidebar-container"]');
+    const inset = container.querySelector('[data-slot="sidebar-inset"]');
+
+    expect(header?.getAttribute('class')).toContain('h-[var(--header-height)]');
+    expect(sidebar?.getAttribute('class')).toContain('top-[var(--header-height)]');
+    expect(sidebar?.getAttribute('class')).toContain('h-[calc(100svh-var(--header-height))]');
+    expect(inset?.getAttribute('class')).toContain('pt-[var(--header-height)]');
+  });
 });
