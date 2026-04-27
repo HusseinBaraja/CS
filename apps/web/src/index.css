@@ -142,6 +142,11 @@
   --font-sans: var(--font-arabic);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-rail-ring: var(--sidebar-rail-ring);
+  --color-sidebar-rail-border: var(--sidebar-rail-border);
+  --color-sidebar-rail-hover: var(--sidebar-rail-hover);
+  --color-sidebar-rail-foreground: var(--sidebar-rail-foreground);
+  --color-sidebar-rail: var(--sidebar-rail);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
@@ -214,6 +219,12 @@
   --sidebar-accent-foreground: #087a43;
   --sidebar-border: #dde4e0;
   --sidebar-ring: #15864f;
+  --sidebar-rail: #ffffff;
+  --sidebar-rail-foreground: #0a9a4b;
+  --sidebar-rail-hover: #f2faf6;
+  --sidebar-rail-border: #d8e3de;
+  --sidebar-rail-ring: #15864f;
+  --sidebar-rail-shadow: inset -8px 0 18px rgb(14 93 57 / 0.06);
 }
 
 .dark {
@@ -243,4 +254,10 @@
   --sidebar-accent-foreground: #e3b23c;
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: #15864f;
+  --sidebar-rail: oklch(0.205 0 0);
+  --sidebar-rail-foreground: oklch(0.985 0 0);
+  --sidebar-rail-hover: #1f3a31;
+  --sidebar-rail-border: oklch(1 0 0 / 10%);
+  --sidebar-rail-ring: #15864f;
+  --sidebar-rail-shadow: inset -8px 0 18px rgb(5 31 19 / 0.28);
 }
