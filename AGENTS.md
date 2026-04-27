@@ -11,9 +11,9 @@
 - Run all repo scripts from the repository root with `bun`.
 - `bun check` must pass before considering general code tasks complete.
 - Follow test-driven development when making code changes: add or update tests as you go.
-- Use `bun test` for the spesfic aspect you modified, e.g: `bun test:convex` for Convex changes.
+- Use `bun test` for the specific aspect you modified, e.g: `bun test:convex` for Convex changes.
 - Run `bun generate` after any Convex schema change.
-- Run `bun dev` to test if there are no issues with the dev environment unless spesfied otherwise.
+- Don't Run `bun dev` it is always running.
 - Run `bun lint`.
 - Commands list:
   - `bun run check:modularity`
@@ -50,7 +50,6 @@ Reda (رضا) is a multi-tenant WhatsApp customer service platform for small and
 - Correctness and reliability first.
 - Keep responses grounded in real data; avoid architecture that encourages hallucinated or partial state.
 - Prefer small, focused modular programming techniques over large monolithic systems. (Ultra important)
-- When planning a step in the roadmap, split it to distinct mini-steps, run required bun commands at the end of each mini-step, then commit each one separately
 
 ## Maintainability
 
