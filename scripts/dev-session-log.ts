@@ -84,7 +84,12 @@ export const createDevSessionLogSpawnConfig = (input: {
   now?: () => Date;
   repoRoot: string;
 }) => {
-  const devScope = input.extraArgs.length > 0 ? input.extraArgs : DEFAULT_DEV_FILTERS;
+  const hasUserFilter = input.extraArgs.some(
+    (arg) => arg === "--filter" || arg.startsWith("--filter="),
+  );
+  const devScope = hasUserFilter
+    ? input.extraArgs
+    : [...DEFAULT_DEV_FILTERS, ...input.extraArgs];
 
   return {
     command: process.execPath,

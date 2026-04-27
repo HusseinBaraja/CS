@@ -44,6 +44,14 @@ describe('DashboardPage', () => {
     expect(logo?.getAttribute('class')).toContain('object-contain');
   });
 
+  it('marks decorative dashboard images as hidden from assistive tech', () => {
+    const { container } = render(<DashboardPage />);
+
+    const decorativeImages = container.querySelectorAll('img[alt=""][aria-hidden="true"]');
+
+    expect(decorativeImages.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('keeps dashboard navigation icons on the right with constrained labels', () => {
     const { container } = render(<DashboardPage />);
 

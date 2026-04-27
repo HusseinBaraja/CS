@@ -41,8 +41,8 @@ describe('App shell layout behavior', () => {
 
     render(<App />);
 
-    expect(screen.getByTestId('marketing-layout')).toBeDefined();
-    expect(screen.getByText('contact-page')).toBeDefined();
+    screen.getByTestId('marketing-layout');
+    screen.getByText('contact-page');
   });
 
   it('does not wrap nested dashboard paths in marketing layout', async () => {
@@ -53,6 +53,6 @@ describe('App shell layout behavior', () => {
     render(<App />);
 
     expect(screen.queryByTestId('marketing-layout')).toBeNull();
-    expect(screen.getByText('الصفحة غير موجودة - 404')).toBeDefined();
+    screen.getByText('الصفحة غير موجودة - 404');
   });
 });

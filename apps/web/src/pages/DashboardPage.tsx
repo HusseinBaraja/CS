@@ -219,7 +219,7 @@ export function DashboardPage() {
         <header className="fixed inset-x-0 top-0 z-30 h-[var(--header-height)] border-b border-[#dfe4e2] bg-white/95 shadow-[0_2px_10px_rgba(15,23,20,0.08)] backdrop-blur">
           <div className="flex h-full items-center justify-between px-5 sm:px-7">
             <div className="flex items-center gap-3 text-[#0a7a43]">
-              <img src={logoUrl} alt="" className="size-12 object-contain" />
+              <img src={logoUrl} alt="" aria-hidden="true" className="size-12 object-contain" />
               <span className="text-4xl font-black leading-none">رضا</span>
             </div>
 
@@ -253,6 +253,7 @@ export function DashboardPage() {
                     <img
                       src={dashboardMuralUrl}
                       alt=""
+                      aria-hidden="true"
                       className="h-auto w-full max-w-130 object-contain"
                     />
                   </div>

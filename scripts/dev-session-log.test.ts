@@ -66,6 +66,27 @@ describe("createDevSessionLogSpawnConfig", () => {
     expect(config.options.stdio).toBe("inherit");
     expect(config.options).not.toHaveProperty("shell");
   });
+
+  test("keeps default runtime filters when extra args do not define filters", () => {
+    const config = createDevSessionLogSpawnConfig({
+      repoRoot,
+      extraArgs: ["--log-order=stream"],
+      now: () => new Date(2026, 3, 19, 10, 11, 12, 345),
+    });
+
+    expect(config.args).toEqual([
+      "x",
+      "turbo",
+      "run",
+      "dev",
+      "--concurrency=20",
+      "--filter=api",
+      "--filter=bot",
+      "--filter=worker",
+      "--filter=web",
+      "--log-order=stream",
+    ]);
+  });
 });
 
 describe("waitForChildExit", () => {
