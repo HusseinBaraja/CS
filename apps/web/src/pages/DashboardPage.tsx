@@ -171,7 +171,7 @@ function DashboardSidebar() {
           onScrollCapture={handleNavigationScroll}
           className="min-h-0 flex-1 **:data-[slot=scroll-area-scrollbar]:left-0 **:data-[slot=scroll-area-scrollbar]:right-auto **:data-[slot=scroll-area-viewport]:pl-3 group-data-[collapsible=icon]:**:data-[slot=scroll-area-viewport]:pl-0"
         >
-          <SidebarGroup className="group-data-[collapsible=icon]:p-2">
+          <SidebarGroup className="group-data-[collapsible=icon]:p-0">
             <SidebarGroupContent>
               <SidebarMenu className="gap-3">
                 {navItems.map(({ label, icon: Icon, active }) => (
@@ -181,7 +181,7 @@ function DashboardSidebar() {
                       isActive={active}
                       size="lg"
                       tooltip={{ children: label, side: 'left' }}
-                      className="min-h-16.5 rounded-lg px-4 text-base font-semibold text-[#2d3331] data-active:bg-linear-to-l data-active:from-[#e8f3ee] data-active:to-[#f4faf7] data-active:text-[#087a43] hover:bg-[#f5f8f6] group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:min-h-8 group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:px-0"
+                      className="min-h-16.5 rounded-lg px-4 text-base font-semibold text-[#2d3331] data-active:bg-linear-to-l data-active:from-[#e8f3ee] data-active:to-[#f4faf7] data-active:text-[#087a43] hover:bg-[#f5f8f6] group-data-[collapsible=icon]:size-12! group-data-[collapsible=icon]:min-h-12 group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:p-3!"
                     >
                       <a
                         href="#"

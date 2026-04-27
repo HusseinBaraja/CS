@@ -72,7 +72,7 @@ describe('DashboardPage', () => {
     expect(aiLabel.getAttribute('class')).toContain('group-data-[collapsible=icon]:hidden');
   });
 
-  it('centers visible nav icons inside square targets when the sidebar is docked', () => {
+  it('enlarges docked nav icons and padding without changing stroke weight', () => {
     const { container } = render(<DashboardPage />);
 
     const dashboardLabel = screen.getAllByText('لوحة التحكم')[0];
@@ -85,12 +85,15 @@ describe('DashboardPage', () => {
 
     expect(sidebarContent?.getAttribute('class')).toContain('group-data-[collapsible=icon]:px-0');
     expect(scrollArea?.getAttribute('class')).toContain('group-data-[collapsible=icon]:**:data-[slot=scroll-area-viewport]:pl-0');
-    expect(sidebarGroup?.getAttribute('class')).toContain('group-data-[collapsible=icon]:p-2');
-    expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:size-8');
+    expect(sidebarGroup?.getAttribute('class')).toContain('group-data-[collapsible=icon]:p-0');
+    expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:size-12');
+    expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:p-3');
+    expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:[&_svg]:size-6');
     expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:rounded-lg');
     expect(navLink?.getAttribute('class')).toContain('group-data-[collapsible=icon]:grid-cols-1');
     expect(navLink?.getAttribute('class')).toContain('group-data-[collapsible=icon]:justify-items-center');
     expect(navIcon?.getAttribute('class')).toContain('group-data-[collapsible=icon]:justify-self-center');
+    expect(navIcon?.getAttribute('class')).toContain('stroke-[1.9]');
   });
 
   it('keeps placeholder sidebar navigation visually enabled', () => {
