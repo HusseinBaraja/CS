@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { Mail, MessageCircle, MapPin, ArrowRight } from '../components/icons';
+import { ArrowRight, Mail, MapPin, MessageCircle } from '../components/icons';
 import { Link } from '../components/router/HonoRouter';
 
 /**
@@ -107,7 +107,7 @@ export function ContactPage() {
 
         {/* Right Side: Luxury Form */}
         <div className="flex items-center justify-center">
-          <div className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 rounded-[2rem] p-8 md:p-12 w-full max-w-lg shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)]">
+          <div className="bg-white/3 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-8 md:p-12 w-full max-w-lg shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)]">
             <form onSubmit={handleSubmit} className="flex flex-col gap-6">
               
               <div className="contact-right-anim flex flex-col gap-2">

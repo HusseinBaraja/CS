@@ -53,11 +53,11 @@ export function TrialPage() {
       
       {/* Dynamic Ambient Background */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="trial-ambient-blob absolute top-[10%] -right-[10%] w-[60vw] h-[60vw] max-w-[800px] max-h-[800px] rounded-full bg-secondary/10 blur-[100px]" />
-        <div className="trial-ambient-blob absolute bottom-[10%] -left-[10%] w-[50vw] h-[50vw] max-w-[600px] max-h-[600px] rounded-full bg-[#115C42]/5 blur-[100px]" />
+        <div className="trial-ambient-blob absolute top-[10%] -right-[10%] w-[60vw] h-[60vw] max-w-200 max-h-200 rounded-full bg-secondary/10 blur-[100px]" />
+        <div className="trial-ambient-blob absolute bottom-[10%] -left-[10%] w-[50vw] h-[50vw] max-w-150 max-h-150 rounded-full bg-[#115C42]/5 blur-[100px]" />
       </div>
 
-      <div className="relative z-10 w-full max-w-[1000px] flex flex-col items-center">
+      <div className="relative z-10 w-full max-w-250 flex flex-col items-center">
         {/* Minimal Header */}
         <Link href="/" className="trial-content flex items-center justify-center gap-3 mb-10 hover:opacity-80 transition-opacity">
           <img src={logoUrl} alt="" className="h-10 w-auto" />
@@ -132,7 +132,7 @@ export function TrialPage() {
                  <span className="relative z-10">احجز التجربة المجانية</span>
                  <ArrowLeft className="w-5 h-5 relative z-10 group-hover:-translate-x-1 transition-transform" />
                  {/* Shine effect */}
-                 <div className="trial-button-shine absolute top-0 -inset-full h-full w-1/2 z-0 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20" />
+                 <div className="trial-button-shine absolute top-0 -inset-full h-full w-1/2 z-0 block transform -skew-x-12 bg-linear-to-r from-transparent to-white opacity-20" />
                </button>
             </form>
           </div>

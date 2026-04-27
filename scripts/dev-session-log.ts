@@ -21,6 +21,13 @@ export const createDevSessionLogEnvironment = (input: {
   };
 };
 
+const DEFAULT_DEV_FILTERS = [
+  "--filter=api",
+  "--filter=bot",
+  "--filter=worker",
+  "--filter=web",
+];
+
 type SignalForwardingProcess = Pick<NodeJS.Process, "on" | "off"> & {
   exitCode: number | undefined;
 };
@@ -76,21 +83,30 @@ export const createDevSessionLogSpawnConfig = (input: {
   extraArgs: string[];
   now?: () => Date;
   repoRoot: string;
-}) => ({
-  command: process.execPath,
-  args: ["x", "turbo", "run", "dev", "--concurrency=20", ...input.extraArgs],
-  options: {
-    cwd: input.repoRoot,
-    env: {
-      ...process.env,
-      ...createDevSessionLogEnvironment({
-        repoRoot: input.repoRoot,
-        ...(input.now ? { now: input.now } : {}),
-      }),
+}) => {
+  const hasUserFilter = input.extraArgs.some(
+    (arg) => arg === "--filter" || arg.startsWith("--filter="),
+  );
+  const devScope = hasUserFilter
+    ? input.extraArgs
+    : [...DEFAULT_DEV_FILTERS, ...input.extraArgs];
+
+  return {
+    command: process.execPath,
+    args: ["x", "turbo", "run", "dev", "--concurrency=20", ...devScope],
+    options: {
+      cwd: input.repoRoot,
+      env: {
+        ...process.env,
+        ...createDevSessionLogEnvironment({
+          repoRoot: input.repoRoot,
+          ...(input.now ? { now: input.now } : {}),
+        }),
+      },
+      stdio: "inherit" as const,
     },
-    stdio: "inherit" as const,
-  },
-});
+  };
+};
 
 const run = async () => {
   const repoRoot = resolve(import.meta.dir, "..");
