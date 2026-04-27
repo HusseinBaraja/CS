@@ -38,7 +38,7 @@ function AppShell() {
   const { path } = useLocation();
   const route = <RouteView router={router} />;
 
-  if (path === '/dashboard') {
+  if (path === '/dashboard' || path.startsWith('/dashboard/')) {
     return route;
   }
 
