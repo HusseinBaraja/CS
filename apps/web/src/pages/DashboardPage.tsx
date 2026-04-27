@@ -166,12 +166,12 @@ function DashboardSidebar() {
 
   return (
     <Sidebar side="right" collapsible="icon" className="top-[var(--header-height)] h-[calc(100svh-var(--header-height))] border-l border-[#dde4e0] shadow-[-2px_0_10px_rgba(22,35,29,0.05)]">
-      <SidebarContent className="relative bg-white px-3 py-6">
+      <SidebarContent className="relative bg-white px-3 py-6 group-data-[collapsible=icon]:px-0">
         <ScrollArea
           onScrollCapture={handleNavigationScroll}
-          className="min-h-0 flex-1 **:data-[slot=scroll-area-scrollbar]:left-0 **:data-[slot=scroll-area-scrollbar]:right-auto **:data-[slot=scroll-area-viewport]:pl-3"
+          className="min-h-0 flex-1 **:data-[slot=scroll-area-scrollbar]:left-0 **:data-[slot=scroll-area-scrollbar]:right-auto **:data-[slot=scroll-area-viewport]:pl-3 group-data-[collapsible=icon]:**:data-[slot=scroll-area-viewport]:pl-0"
         >
-          <SidebarGroup>
+          <SidebarGroup className="group-data-[collapsible=icon]:p-2">
             <SidebarGroupContent>
               <SidebarMenu className="gap-3">
                 {navItems.map(({ label, icon: Icon, active }) => (
@@ -181,16 +181,16 @@ function DashboardSidebar() {
                       isActive={active}
                       size="lg"
                       tooltip={{ children: label, side: 'left' }}
-                      className="min-h-16.5 rounded-lg px-4 text-base font-semibold text-[#2d3331] data-active:bg-linear-to-l data-active:from-[#e8f3ee] data-active:to-[#f4faf7] data-active:text-[#087a43] hover:bg-[#f5f8f6] group-data-[collapsible=icon]:min-h-8 group-data-[collapsible=icon]:px-0"
+                      className="min-h-16.5 rounded-lg px-4 text-base font-semibold text-[#2d3331] data-active:bg-linear-to-l data-active:from-[#e8f3ee] data-active:to-[#f4faf7] data-active:text-[#087a43] hover:bg-[#f5f8f6] group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:min-h-8 group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:px-0"
                     >
                       <a
                         href="#"
                         data-placeholder="true"
                         onClick={(event) => event.preventDefault()}
-                        className="grid grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-3"
+                        className="grid grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-3 group-data-[collapsible=icon]:grid-cols-1 group-data-[collapsible=icon]:justify-items-center group-data-[collapsible=icon]:gap-0"
                       >
                         <span className="min-w-0 overflow-hidden text-right leading-6 wrap-break-word hyphens-auto group-data-[collapsible=icon]:hidden">{label}</span>
-                        <Icon className="justify-self-end stroke-[1.9]" />
+                        <Icon className="justify-self-end stroke-[1.9] group-data-[collapsible=icon]:justify-self-center" />
                       </a>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
