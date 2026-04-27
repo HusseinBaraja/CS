@@ -85,8 +85,8 @@ function MetricPreview({ kind }: { kind: (typeof metricCards)[number]['kind'] })
           </div>
         </div>
         <div className="grid grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-12 rounded-md bg-linear-to-br from-[#e8eaec] to-[#f7f8f8]" />
+          {Array.from({ length: 4 }, (_, i) => `catalog-skeleton-${i}`).map((id) => (
+            <Skeleton key={id} className="h-12 rounded-md bg-linear-to-br from-[#e8eaec] to-[#f7f8f8]" />
           ))}
         </div>
       </div>
@@ -107,8 +107,8 @@ function MetricPreview({ kind }: { kind: (typeof metricCards)[number]['kind'] })
           </svg>
         </div>
         <div className="grid grid-cols-3 gap-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="flex h-10 items-center gap-2 rounded-md border border-[#e6eaec] px-3">
+          {Array.from({ length: 3 }, (_, i) => `chart-skeleton-${i}`).map((id) => (
+            <div key={id} className="flex h-10 items-center gap-2 rounded-md border border-[#e6eaec] px-3">
               <Skeleton className="size-5 rounded-full bg-[#e7eaec]" />
               <SkeletonLine className="w-12" />
             </div>
@@ -120,8 +120,8 @@ function MetricPreview({ kind }: { kind: (typeof metricCards)[number]['kind'] })
 
   return (
     <div className="flex flex-col gap-5 pt-3">
-      {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="grid grid-cols-[32px_1fr_48px] items-center gap-4">
+      {Array.from({ length: 3 }, (_, i) => `chat-skeleton-${i}`).map((id) => (
+        <div key={id} className="grid grid-cols-[32px_1fr_48px] items-center gap-4">
           <Skeleton className="size-8 rounded-full bg-[#e5e8ea]" />
           <div className="flex flex-col gap-3">
             <SkeletonLine className="w-24" />
@@ -159,7 +159,7 @@ function DashboardSidebar() {
   const handleNavigationScroll = (event: UIEvent<HTMLDivElement>) => {
     const target = event.target;
 
-    if (target instanceof HTMLElement) {
+    if (target instanceof HTMLElement && target.dataset.slot === 'scroll-area-viewport') {
       setShowOverflowShadow(target.scrollTop <= 0);
     }
   };
@@ -284,8 +284,8 @@ export function DashboardPage() {
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
                   <div className="flex flex-col gap-3 opacity-75">
-                    {Array.from({ length: 4 }).map((_, index) => (
-                      <div key={index} className="grid grid-cols-[34px_1fr_64px_160px_56px] items-center gap-5 max-md:grid-cols-[34px_1fr_56px]">
+                    {Array.from({ length: 4 }, (_, i) => `team-skeleton-${i}`).map((id) => (
+                      <div key={id} className="grid grid-cols-[34px_1fr_64px_160px_56px] items-center gap-5 max-md:grid-cols-[34px_1fr_56px]">
                         <Skeleton className="size-8 rounded-full bg-[#e0e4e6]" />
                         <SkeletonLine className="w-full" />
                         <SkeletonLine className="w-16 bg-[#dceee5]" />
