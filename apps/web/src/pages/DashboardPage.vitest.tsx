@@ -69,7 +69,7 @@ describe('DashboardPage', () => {
     expect(navLink?.getAttribute('class')).toContain('grid-cols-[minmax(0,1fr)_1.25rem]');
     expect(aiLabel.getAttribute('class')).toContain('overflow-hidden');
     expect(aiLabel.getAttribute('class')).toContain('wrap-break-word');
-    expect(aiLabel.getAttribute('class')).toContain('group-data-[collapsible=icon]:hidden');
+    expect(aiLabel.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:hidden');
   });
 
   it('enlarges docked nav icons and padding without changing stroke weight', () => {
@@ -84,16 +84,17 @@ describe('DashboardPage', () => {
     const scrollArea = container.querySelector('[data-slot="scroll-area"]');
     const navIcon = navLink?.querySelector('svg');
 
-    expect(sidebarContent?.getAttribute('class')).toContain('group-data-[collapsible=icon]:px-0');
-    expect(scrollArea?.getAttribute('class')).toContain('group-data-[collapsible=icon]:**:data-[slot=scroll-area-viewport]:pl-0');
-    expect(sidebarGroup?.getAttribute('class')).toContain('group-data-[collapsible=icon]:p-0');
-    expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:size-12');
-    expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:p-3');
-    expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:[&_svg]:size-6');
-    expect(navButton?.getAttribute('class')).toContain('group-data-[collapsible=icon]:rounded-lg');
-    expect(navButton?.getAttribute('class')).toContain('transition-[height,padding]');
-    expect(navButton?.getAttribute('class')).not.toContain('transition-[width,height,padding]');
+    expect(sidebarContent?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:px-0');
+    expect(scrollArea?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:**:data-[slot=scroll-area-viewport]:pl-0');
+    expect(sidebarGroup?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:p-0');
+    expect(navButton?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:size-12');
+    expect(navButton?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:p-3');
+    expect(navButton?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:[&_svg]:size-6');
+    expect(navButton?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:rounded-lg');
+    expect(navButton?.getAttribute('class')).toContain('transition-[width,height,padding]');
+    expect(navButton?.getAttribute('class')).not.toContain('group-data-[collapsible=icon]:size-12');
     expect(navItem?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:flex');
+    expect(navItem?.getAttribute('class')).toContain('group-data-[icon-layout=collapsing]:justify-end');
     expect(navItem?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:justify-center');
     expect(navItem?.getAttribute('class')).not.toContain('group-data-[collapsible=icon]:justify-end');
     expect(navLink?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:grid-cols-1');
