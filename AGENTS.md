@@ -3,26 +3,60 @@
 ## Instruction Priority
 
 - Every instruction in this file is mandatory.
-- Use `skills/caveman/SKILL.md` in lite mode
+- Use `skills/caveman/SKILL.md` in lite mode.
 - Commit incrementally when you complete a checkpoint.
+- Follow the existing non-destructive git rules: never revert user changes unless explicitly asked.
 
-## Task Completion Requirements
+## Required Reading
+
+- Read `docs/PROJECT_CHARTER_AND_VISION.md`.
+- Read `docs/SRS.md`.
+- Read `CONTEXT.md`.
+
+## Project Snapshot
+
+Reda (رضا) is a multi-tenant WhatsApp customer service platform for small and mid-size businesses. It helps each company answer customer questions in Arabic and English, share product catalogs and images, hand off conversations to a human when needed, and keep customer data, conversation history, analytics, and business settings isolated per tenant. The product is built to reduce repetitive support work while keeping answers grounded in real catalog data.
+
+
+## Product Invariants
+
+- Arabic UX is primary; English support remains required.
+- The dashboard must use API contracts and must not bypass tenant, validation, or authorization rules.
+- Keep responses and architecture grounded in real stored data.
+
+## Command Rules
 
 - Run all repo scripts from the repository root with `bun`.
-- `bun check` must pass before considering general code tasks complete.
-- Follow test-driven development when making code changes: add or update tests as you go.
-- Use `bun test` for the specific aspect you modified, e.g: `bun test:convex` for Convex changes.
+- Do not run `bun dev`; it is always running.
+- Use `bun test` or the nearest focused script for the specific aspect modified, e.g. `bun test:convex` for Convex changes.
 - Run `bun generate` after any Convex schema change.
-- Don't Run `bun dev` it is always running.
-- Run `bun lint`.
-- Commands list:
-  - `bun run check:modularity`
-  - `bun run check:root`
 
-## Random
-- When fixing PR issues that were submitted by code rabbit, apply minimal fixes and don't go overboard. The goal is to just fix the issues. Minimal change doesn't mean taking shortcuts, if a fix requires a more complex change, that's fine.
+## Completion Gates
+
+- Documentation-only changes: no repo check is required unless generated docs, scripts, or typed examples changed.
+- General code tasks: targeted tests, `bun lint`, and `bun check` must pass before completion.
+- Convex schema changes: run `bun generate`, `bun test:convex`, `bun lint`, and `bun check`.
+- Root script or policy changes: run the relevant focused test plus `bun run check:root`.
+- Modularity-sensitive changes: run `bun run check:modularity`.
+- If a required check fails, fix it or report the exact failure and why it remains.
+
+## Testing Discipline
+
+- Follow test-driven development when making code changes: add or update tests as you go.
+- Keep tests focused on the behavior changed.
+- Broaden tests when touching shared behavior, cross-package contracts, tenant isolation, recovery flows, or customer-visible replies.
+
+## PR Review Fixes
+
+- When fixing PR issues submitted by CodeRabbit, apply minimal fixes and do not go overboard.
+- Minimal change does not mean taking shortcuts; if the correct fix is more involved, make the correct fix.
+
+## Git Workflow
+
 - Never commit to main. If the project is checked out to main and the user asks for a task, create a new branch and do the work in there.
-- Close all powershell/CMD instances after you are done working and the codebase is clean and commited.
+- If the user explicitly says no branch is needed, do not create one.
+- Commit incrementally when a logical checkpoint is complete.
+- Close all PowerShell/CMD instances you created during the session after you are done working and the codebase is clean and committed.
 
 ## Large Task Workflow
 
@@ -34,22 +68,17 @@
   4. a commit created for that step.
 - Do not batch multiple logical steps into one uncommitted work block.
 
-
 ## Commit Message Skill
 
 - Follow the `conventional-commit` skill workflow instead of inventing a commit message ad hoc.
-- use `skills/caveman-commit/SKILL.md` to draft commit messages, then keep the final message Conventional Commits compliant.
+- Use `skills/caveman-commit/SKILL.md` to draft commit messages, then keep the final message Conventional Commits compliant.
 - Preserve the existing non-destructive git rules in this file when handling commit requests.
-
-## Project Snapshot
-
-Reda (رضا) is a multi-tenant WhatsApp customer service platform for small and mid-size businesses. It helps each business answer customer questions in Arabic and English, share product catalogs and images, hand off conversations to a human when needed, and keep customer data, conversation history, analytics, and business settings isolated per tenant. The product is built to reduce repetitive support work while keeping answers grounded in real catalog data.
 
 ## Core Priorities
 
 - Correctness and reliability first.
-- Keep responses grounded in real data; avoid architecture that encourages hallucinated or partial state.
-- Prefer small, focused modular programming techniques over large monolithic systems. (Ultra important)
+- Prefer small, focused modules over large monolithic systems.
+- Avoid architecture that encourages hallucinated, stale, cross-tenant, or partial state.
 
 ## Maintainability
 
@@ -64,14 +93,15 @@ Reda (رضا) is a multi-tenant WhatsApp customer service platform for small and
 - No new core logic `.ts` file may exceed `240` LOC without an explicit entry in `modularity-policy.json`.
 - If a core logic file already exceeds `240` LOC, it must not grow unless its `modularity-policy.json` entry is intentionally updated with rationale.
 - Files classified as `must_split` in `modularity-policy.json` are debt containers: patches are allowed, but adding unrelated responsibilities is not.
+- Before editing a core logic file over `240` LOC, check `modularity-policy.json`.
+- Prefer extracting helper modules before adding new branches to orchestration-heavy files.
 - Any `modularity-policy.json` exception change requires:
   1. updated rationale in the policy entry,
   2. updated checker behavior/tests when applicable,
   3. explicit acknowledgment in the change description that the exception is intentional.
-- Prefer extracting helper modules before adding new branches to orchestration-heavy files.
 
-## Required Reading
+## Final Response Requirements
 
-- Read `docs/PROJECT_CHARTER_AND_VISION.md`.
-- Read `docs/SRS.md`.
-
+- State the files changed.
+- State the tests and checks run.
+- State any required checks skipped and why.
