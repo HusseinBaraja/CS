@@ -27,6 +27,26 @@ describe("createDevSessionLogEnvironment", () => {
 });
 
 describe("createDevSessionLogSpawnConfig", () => {
+  test("limits the root dev fanout to runtime apps by default", () => {
+    const config = createDevSessionLogSpawnConfig({
+      repoRoot,
+      extraArgs: [],
+      now: () => new Date(2026, 3, 19, 10, 11, 12, 345),
+    });
+
+    expect(config.args).toEqual([
+      "x",
+      "turbo",
+      "run",
+      "dev",
+      "--concurrency=20",
+      "--filter=api",
+      "--filter=bot",
+      "--filter=worker",
+      "--filter=web",
+    ]);
+  });
+
   test("builds direct spawn config without shell parsing", () => {
     const config = createDevSessionLogSpawnConfig({
       repoRoot,
