@@ -183,7 +183,12 @@ function DashboardSidebar() {
                       tooltip={{ children: label, side: 'left' }}
                       className="min-h-16.5 rounded-lg px-4 text-base font-semibold text-[#2d3331] data-active:bg-linear-to-l data-active:from-[#e8f3ee] data-active:to-[#f4faf7] data-active:text-[#087a43] hover:bg-[#f5f8f6] group-data-[collapsible=icon]:min-h-8 group-data-[collapsible=icon]:px-0"
                     >
-                      <a href="/dashboard" className="grid grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-3">
+                      <a
+                        href="#"
+                        aria-disabled="true"
+                        onClick={(event) => event.preventDefault()}
+                        className="grid grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-3"
+                      >
                         <span className="min-w-0 overflow-hidden text-right leading-6 wrap-break-word hyphens-auto group-data-[collapsible=icon]:hidden">{label}</span>
                         <Icon className="justify-self-end stroke-[1.9]" />
                       </a>
@@ -229,9 +234,9 @@ export function DashboardPage() {
               </Button>
               <div className="hidden h-8 w-px bg-[#d8dddc] sm:block" />
               <nav className="hidden items-center gap-3 text-sm font-semibold sm:flex">
-                <a href="/dashboard" className="text-[#242b29]">English</a>
+                <a href="#" aria-disabled="true" onClick={(event) => event.preventDefault()} className="text-[#242b29]">English</a>
                 <span className="h-5 w-px bg-[#cfd5d3]" />
-                <a href="/dashboard" className="border-b-2 border-[#0d7c47] px-1 pb-2 text-[#0d7c47]">العربية</a>
+                <a href="#" aria-disabled="true" onClick={(event) => event.preventDefault()} className="border-b-2 border-[#0d7c47] px-1 pb-2 text-[#0d7c47]">العربية</a>
               </nav>
             </div>
           </div>
