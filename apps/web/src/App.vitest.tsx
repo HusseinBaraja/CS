@@ -26,6 +26,10 @@ vi.mock('./pages/DashboardPage', () => ({
   DashboardPage: () => <div>dashboard-page</div>,
 }));
 
+vi.mock('./pages/UploadDataPage', () => ({
+  UploadDataPage: () => <div>upload-data-page</div>,
+}));
+
 describe('App shell layout behavior', () => {
   afterEach(() => {
     window.history.replaceState({}, '', '/');
@@ -47,12 +51,12 @@ describe('App shell layout behavior', () => {
 
   it('does not wrap nested dashboard paths in marketing layout', async () => {
     setupGsapMocks();
-    window.history.replaceState({}, '', '/dashboard/settings');
+    window.history.replaceState({}, '', '/dashboard/upload');
     const { default: App } = await import('./App');
 
     render(<App />);
 
     expect(screen.queryByTestId('marketing-layout')).toBeNull();
-    screen.getByText('الصفحة غير موجودة - 404');
+    screen.getByText('upload-data-page');
   });
 });
