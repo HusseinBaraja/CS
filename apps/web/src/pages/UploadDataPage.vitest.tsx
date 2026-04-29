@@ -52,11 +52,10 @@ describe('UploadDataPage', () => {
   it('marks the upload sidebar item active', () => {
     render(<UploadDataPage />);
 
-    const uploadLabel = screen.getAllByText('رفع البيانات')[0];
-    const navButton = uploadLabel.closest('[data-sidebar="menu-button"]');
-    const uploadLink = uploadLabel.closest('a');
+    const uploadLink = screen.getByRole('link', { name: 'رفع البيانات' });
+    const navButton = uploadLink.closest('[data-sidebar="menu-button"]');
 
-    expect(uploadLink?.getAttribute('href')).toBe('/dashboard/upload');
+    expect(uploadLink.getAttribute('href')).toBe('/dashboard/upload');
     expect(navButton?.getAttribute('data-active')).toBe('true');
   });
 
