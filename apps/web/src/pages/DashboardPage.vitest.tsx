@@ -192,6 +192,7 @@ describe('DashboardPage', () => {
     expect(header?.getAttribute('class')).toContain('h-[var(--header-height)]');
     expect(sidebar?.getAttribute('class')).toContain('top-[var(--header-height)]');
     expect(sidebar?.getAttribute('class')).toContain('h-[calc(100svh-var(--header-height))]');
+    expect(sidebar?.getAttribute('dir')).toBe('rtl');
     expect(inset?.getAttribute('class')).toContain('pt-[var(--header-height)]');
   });
 
@@ -217,6 +218,7 @@ describe('DashboardPage', () => {
     expect(rail.getAttribute('class')).toContain('group-data-[side=right]:border-s');
     expect(rail.getAttribute('class')).toContain('group-data-[side=right]:left-0');
     expect(rail.getAttribute('class')).toContain('group-data-[side=right]:-translate-x-full');
+    expect(rail.getAttribute('class')).not.toContain('rtl:group-data-[side=right]:translate-x-full');
     expect(rail.getAttribute('class')).toContain('items-center');
     expect(rail.getAttribute('class')).toContain('justify-center');
     expect(railIconShell?.getAttribute('class')).toContain('size-7');

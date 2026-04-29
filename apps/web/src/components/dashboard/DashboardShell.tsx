@@ -57,7 +57,7 @@ function DashboardSidebar({ activePath }: { activePath: string }) {
   };
 
   return (
-    <Sidebar side="right" collapsible="icon" className="top-[var(--header-height)] h-[calc(100svh-var(--header-height))] border-s border-[#dde4e0] shadow-[-2px_0_10px_rgba(22,35,29,0.05)]">
+    <Sidebar dir="rtl" side="right" collapsible="icon" className="top-[var(--header-height)] h-[calc(100svh-var(--header-height))] border-s border-[#dde4e0] shadow-[-2px_0_10px_rgba(22,35,29,0.05)]">
       <SidebarContent className="relative bg-white px-3 py-6 group-data-[icon-layout=collapsed]:px-0">
         <ScrollArea
           onScrollCapture={handleNavigationScroll}
