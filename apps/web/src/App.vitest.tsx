@@ -11,8 +11,18 @@ vi.mock('./components/ui/tooltip', () => ({
 }));
 
 vi.mock('./components/ui/direction', () => ({
-  DirectionProvider: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="dashboard-direction-provider">{children}</div>
+  DirectionProvider: ({
+    children,
+    dir,
+    direction,
+  }: {
+    children: React.ReactNode;
+    dir?: string;
+    direction?: string;
+  }) => (
+    <div data-dir={dir} data-direction={direction} data-testid="dashboard-direction-provider">
+      {children}
+    </div>
   ),
 }));
 
@@ -64,7 +74,23 @@ describe('App shell layout behavior', () => {
     render(<App />);
 
     expect(screen.queryByTestId('marketing-layout')).toBeNull();
-    screen.getByTestId('dashboard-direction-provider');
+    const directionProvider = screen.getByTestId('dashboard-direction-provider');
+    expect(directionProvider.getAttribute('data-dir')).toBe('rtl');
+    expect(directionProvider.getAttribute('data-direction')).toBe('rtl');
     screen.getByText('upload-data-page');
+  });
+
+  it('does not wrap the dashboard root in marketing layout', async () => {
+    setupGsapMocks();
+    window.history.replaceState({}, '', '/dashboard');
+    const { default: App } = await import('./App');
+
+    render(<App />);
+
+    expect(screen.queryByTestId('marketing-layout')).toBeNull();
+    const directionProvider = screen.getByTestId('dashboard-direction-provider');
+    expect(directionProvider.getAttribute('data-dir')).toBe('rtl');
+    expect(directionProvider.getAttribute('data-direction')).toBe('rtl');
+    screen.getByText('dashboard-page');
   });
 });
