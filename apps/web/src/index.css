@@ -32,6 +32,10 @@
     outline: 2px solid var(--color-secondary);
     outline-offset: 2px;
   }
+  button:not(:disabled),
+  [data-slot="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
   * {
     @apply border-border outline-ring/50;
   }

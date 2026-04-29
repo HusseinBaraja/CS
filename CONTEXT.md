@@ -40,6 +40,10 @@ _Avoid_: Bot instance
 An assistant response based only on retrieved catalog records and allowed business data.
 _Avoid_: AI answer, generated answer
 
+**Catalog Import**:
+The dashboard workflow where an owner or operator uploads a spreadsheet of company catalog records for later validation and storage.
+_Avoid_: Upload data, business settings import
+
 ## Relationships
 
 - A **Company** is the primary code and data entity for tenant-scoped records.
@@ -49,6 +53,7 @@ _Avoid_: AI answer, generated answer
 - A **Handoff** mutes exactly one **Conversation** until the owner handles it or auto-resume applies.
 - A **Runtime Session** belongs to exactly one **Company**.
 - A **Grounded Answer** may be sent only when retrieved company catalog data is sufficient.
+- A **Catalog Import** belongs to exactly one **Company** and must not include business settings or cross-company data.
 
 ## Example dialogue
 

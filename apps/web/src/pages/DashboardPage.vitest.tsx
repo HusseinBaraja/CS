@@ -144,13 +144,23 @@ describe('DashboardPage', () => {
   it('keeps placeholder sidebar navigation visually enabled', () => {
     render(<DashboardPage />);
 
-    const dashboardLabel = screen.getAllByText('لوحة التحكم')[0];
-    const navLink = dashboardLabel.closest('a');
-    const navButton = dashboardLabel.closest('[data-sidebar="menu-button"]');
+    const conversationsLabel = screen.getAllByText('المحادثات')[0];
+    const navLink = conversationsLabel.closest('a');
+    const navButton = conversationsLabel.closest('[data-sidebar="menu-button"]');
 
     expect(navLink?.getAttribute('aria-disabled')).toBeNull();
     expect(navLink?.getAttribute('data-placeholder')).toBe('true');
     expect(navButton?.getAttribute('class')).toContain('data-active:text-[#087a43]');
+  });
+
+  it('links sidebar upload navigation to the catalog import route', () => {
+    render(<DashboardPage />);
+
+    const uploadLabel = screen.getAllByText('رفع البيانات')[0];
+    const uploadLink = uploadLabel.closest('a');
+
+    expect(uploadLink?.getAttribute('href')).toBe('/dashboard/upload');
+    expect(uploadLink?.getAttribute('data-placeholder')).toBeNull();
   });
 
   it('fades the sidebar overflow shadow after navigation scroll starts', async () => {
