@@ -15,7 +15,6 @@
     "lint": "bun run lint:ox && bun run lint:eslint"
   },
   "dependencies": {
-    "@fontsource-variable/noto-sans-arabic": "^5.2.10",
     "@gsap/react": "^2.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

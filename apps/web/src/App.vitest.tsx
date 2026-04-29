@@ -10,6 +10,12 @@ vi.mock('./components/ui/tooltip', () => ({
   TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+vi.mock('./components/ui/direction', () => ({
+  DirectionProvider: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="dashboard-direction-provider">{children}</div>
+  ),
+}));
+
 vi.mock('./pages/LandingPage', () => ({
   LandingPage: () => <div>landing-page</div>,
 }));
@@ -46,6 +52,7 @@ describe('App shell layout behavior', () => {
     render(<App />);
 
     screen.getByTestId('marketing-layout');
+    expect(screen.queryByTestId('dashboard-direction-provider')).toBeNull();
     screen.getByText('contact-page');
   });
 
@@ -57,6 +64,7 @@ describe('App shell layout behavior', () => {
     render(<App />);
 
     expect(screen.queryByTestId('marketing-layout')).toBeNull();
+    screen.getByTestId('dashboard-direction-provider');
     screen.getByText('upload-data-page');
   });
 });

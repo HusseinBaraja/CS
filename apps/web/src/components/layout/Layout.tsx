@@ -81,7 +81,7 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden">
-      <nav className="w-full fixed top-0 start-0 bg-bg-light/80 backdrop-blur-md z-50 border-b border-primary/5">
+      <nav className="w-full fixed top-0 left-0 bg-bg-light/80 backdrop-blur-md z-50 border-b border-primary/5">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link
             href="/"
@@ -114,7 +114,7 @@ export function Layout({ children }: LayoutProps) {
       </main>
       <footer className="relative bg-primary overflow-hidden border-t border-white/5 py-12 md:py-16">
         {/* Giant Watermark Background */}
-        <div className="absolute end-0 top-1/2 -translate-y-1/2 translate-x-[20%] rtl:-translate-x-[20%] pointer-events-none opacity-[0.08] select-none z-0">
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-[20%] pointer-events-none opacity-[0.08] select-none z-0">
           <img src={logoUrl} alt="" className="h-150 md:h-225 w-auto brightness-0 invert drop-shadow-2xl" />
         </div>
 

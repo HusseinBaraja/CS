@@ -154,7 +154,7 @@ export function ProblemSection() {
                 style={message.style}
               >
                 {message.text}
-                <div className="absolute -bottom-1 -end-1 w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-red-500 flex items-center justify-center text-[8px] sm:text-[10px] text-white font-bold border-2 border-white shadow-sm">
+                <div className="absolute -bottom-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-red-500 flex items-center justify-center text-[8px] sm:text-[10px] text-white font-bold border-2 border-white shadow-sm">
                   1
                 </div>
               </div>

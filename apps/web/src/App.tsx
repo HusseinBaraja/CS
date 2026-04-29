@@ -5,6 +5,7 @@ import { TrieRouter } from 'hono/router/trie-router';
 
 import { Layout } from './components/layout/Layout';
 import { RouterProvider, RouteView, useLocation } from './components/router/HonoRouter';
+import { DirectionProvider } from './components/ui/direction';
 import { TooltipProvider } from './components/ui/tooltip';
 import { LandingPage } from './pages/LandingPage';
 import { ContactPage } from './pages/ContactPage';
@@ -41,7 +42,11 @@ function AppShell() {
   const route = <RouteView router={router} />;
 
   if (path === '/dashboard' || path.startsWith('/dashboard/')) {
-    return route;
+    return (
+      <DirectionProvider dir="rtl" direction="rtl">
+        {route}
+      </DirectionProvider>
+    );
   }
 
   return <Layout>{route}</Layout>;
