@@ -83,10 +83,10 @@ function DashboardSidebar({ activePath }: { activePath: string }) {
                           href={href}
                           data-placeholder={isPlaceholder ? 'true' : undefined}
                           onClick={isPlaceholder ? (event) => event.preventDefault() : undefined}
-                          className="grid grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-3 group-data-[icon-layout=collapsed]:grid-cols-1 group-data-[icon-layout=collapsed]:justify-items-center group-data-[icon-layout=collapsed]:gap-0"
+                          className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 group-data-[icon-layout=collapsed]:grid-cols-1 group-data-[icon-layout=collapsed]:justify-items-center group-data-[icon-layout=collapsed]:gap-0"
                         >
-                          <span className="min-w-0 overflow-hidden text-end leading-6 wrap-break-word hyphens-auto group-data-[icon-layout=collapsed]:hidden">{label}</span>
-                          <Icon className="justify-self-end stroke-[1.9] group-data-[icon-layout=collapsed]:justify-self-center" />
+                          <Icon className="justify-self-start stroke-[1.9] group-data-[icon-layout=collapsed]:justify-self-center" />
+                          <span className="min-w-0 overflow-hidden text-start leading-6 wrap-break-word hyphens-auto group-data-[icon-layout=collapsed]:hidden">{label}</span>
                         </a>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

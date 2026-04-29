@@ -73,9 +73,10 @@ describe('DashboardPage', () => {
     expect(overflowShadow?.getAttribute('class')).toContain('pointer-events-none');
     expect(overflowShadow?.getAttribute('class')).toContain('bottom-0');
     expect(overflowShadow?.getAttribute('class')).toContain('transition-opacity');
-    expect(navLink?.getAttribute('class')).toContain('grid-cols-[minmax(0,1fr)_1.25rem]');
+    expect(navLink?.getAttribute('class')).toContain('grid-cols-[1.25rem_minmax(0,1fr)]');
     expect(aiLabel.getAttribute('class')).toContain('overflow-hidden');
     expect(aiLabel.getAttribute('class')).toContain('wrap-break-word');
+    expect(aiLabel.getAttribute('class')).toContain('text-start');
     expect(aiLabel.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:hidden');
   });
 
@@ -106,6 +107,8 @@ describe('DashboardPage', () => {
     expect(navItem?.getAttribute('class')).not.toContain('group-data-[collapsible=icon]:justify-end');
     expect(navLink?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:grid-cols-1');
     expect(navLink?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:justify-items-center');
+    expect(navIcon?.nextElementSibling?.textContent).toBe('لوحة التحكم');
+    expect(navIcon?.getAttribute('class')).toContain('justify-self-start');
     expect(navIcon?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:justify-self-center');
     expect(navIcon?.getAttribute('class')).toContain('stroke-[1.9]');
   });
