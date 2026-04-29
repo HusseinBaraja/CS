@@ -74,7 +74,11 @@ describe('DashboardPage', () => {
     expect(overflowShadow?.getAttribute('class')).toContain('bottom-0');
     expect(overflowShadow?.getAttribute('class')).toContain('transition-opacity');
     expect(navLink?.getAttribute('class')).toContain('grid-cols-[1.25rem_minmax(0,1fr)]');
-    expect(aiLabel.getAttribute('class')).toContain('overflow-hidden');
+    expect(navLink?.getAttribute('class')).toContain('[&>span:last-child]:whitespace-normal');
+    expect(navLink?.getAttribute('class')).toContain('[&>span:last-child]:text-wrap');
+    expect(navLink?.getAttribute('class')).toContain('[&>span:last-child]:overflow-visible');
+    expect(aiLabel.getAttribute('class')).toContain('overflow-visible');
+    expect(aiLabel.getAttribute('class')).toContain('text-wrap');
     expect(aiLabel.getAttribute('class')).toContain('wrap-break-word');
     expect(aiLabel.getAttribute('class')).toContain('text-start');
     expect(aiLabel.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:hidden');
