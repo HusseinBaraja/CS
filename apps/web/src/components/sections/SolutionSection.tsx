@@ -173,7 +173,7 @@ export function SolutionSection() {
       {/* High-End Editorial Atmosphere */}
       <div className="absolute inset-0 pointer-events-none z-0">
         <div
-          className="ambient-gradient absolute w-full h-[150%] top-[-25%] left-0 opacity-60 mix-blend-screen"
+          className="ambient-gradient absolute w-full h-[150%] top-[-25%] start-0 opacity-60 mix-blend-screen"
           style={{
             background:
               "radial-gradient(circle at 30% 20%, #173827 0%, #0A110E 60%, transparent 100%)",
@@ -190,7 +190,7 @@ export function SolutionSection() {
       </div>
 
       {/* Top Transition Curve */}
-      <div className="absolute top-0 left-0 w-full overflow-hidden leading-none pointer-events-none z-20">
+      <div className="absolute top-0 start-0 w-full overflow-hidden leading-none pointer-events-none z-20">
         <svg
           className="w-full relative block h-10 md:h-20"
           style={{ width: "calc(100% + 2px)" }}
@@ -205,7 +205,7 @@ export function SolutionSection() {
       </div>
 
       {/* Bottom Transition Curve */}
-      <div className="absolute bottom-0 left-0 w-full overflow-hidden leading-none pointer-events-none z-20 rotate-180">
+      <div className="absolute bottom-0 start-0 w-full overflow-hidden leading-none pointer-events-none z-20 rotate-180">
         <svg
           className="w-full relative block h-10 md:h-20"
           style={{ width: "calc(100% + 2px)" }}
@@ -222,7 +222,7 @@ export function SolutionSection() {
       <div className="max-w-360 mx-auto px-6 relative z-10 flex flex-col gap-24">
         {/* Title Area */}
         <div className="flex flex-col md:flex-row justify-between items-end gap-12 border-b border-white/6 pb-16 relative">
-          <div className="absolute right-0 top-0 w-px h-50 bg-white/8 ed-line" />
+          <div className="absolute end-0 top-0 w-px h-50 bg-white/8 ed-line" />
           <div className="ed-header">
             <h2 className="text-4xl md:text-6xl lg:text-7xl font-black leading-[1.1] max-w-4xl tracking-tight">
               نظام{" "}
@@ -243,7 +243,7 @@ export function SolutionSection() {
           {/* Hero Feature Horizontal Banner */}
           <div className="ed-hero relative w-full min-h-100 lg:min-h-[28.125rem] rounded-4xl overflow-hidden bg-linear-to-br from-white/3 to-transparent border border-white/5 p-10 md:p-16 lg:px-24 flex flex-col md:flex-row items-center justify-between backdrop-blur-3xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]">
             {/* The Visual Piece: Master Container */}
-            <div className="absolute top-[-5%] left-[-5%] md:top-1/2 md:-translate-y-1/2 md:left-[5%] w-[50vw] sm:w-[40vw] md:w-150 aspect-square pointer-events-none flex items-center justify-center">
+            <div className="absolute top-[-5%] start-[-5%] md:top-1/2 md:-translate-y-1/2 md:start-[5%] w-[50vw] sm:w-[40vw] md:w-150 aspect-square pointer-events-none flex items-center justify-center">
                
                {/* Abstract Rings Background (Lower Opacity) */}
                <div className="absolute inset-0 flex items-center justify-center opacity-30">
@@ -259,7 +259,7 @@ export function SolutionSection() {
                  <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border border-white/20 bg-white/5 backdrop-blur-xl shadow-[0_0_50px_rgba(227,178,60,0.2)] flex items-center justify-center relative overflow-hidden">
                    
                    {/* Diagonal Light Sweep */}
-                   <div className="absolute -inset-full bg-linear-to-tr from-transparent via-white/10 to-transparent rotate-45 translate-x-1/2" />
+                   <div className="absolute -inset-full bg-linear-to-tr from-transparent via-white/10 to-transparent rotate-45 translate-x-1/2 rtl:-translate-x-1/2" />
                    
                    {/* Central Glowing Diamond */}
                    <div className="solution-spinning-diamond w-6 h-6 md:w-8 md:h-8 rounded-sm bg-secondary shadow-[0_0_40px_rgba(227,178,60,1)] relative flex items-center justify-center animate-[spin_10s_linear_infinite]">
@@ -268,14 +268,14 @@ export function SolutionSection() {
 
                    {/* Orbiting Satellite Dot */}
                    <div className="solution-orbit-wrapper absolute w-full h-full animate-[spin_5s_linear_infinite]">
-                     <div className="w-0.75 h-0.75 md:w-1 md:h-1 rounded-full bg-white absolute -top-0.5 left-1/2 -translate-x-1/2 shadow-[0_0_15px_rgba(255,255,255,1)]" />
+                     <div className="w-0.75 h-0.75 md:w-1 md:h-1 rounded-full bg-white absolute -top-0.5 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 shadow-[0_0_15px_rgba(255,255,255,1)]" />
                    </div>
                  </div>
                </div>
                
             </div>
 
-            <div className="relative z-10 ed-hero-content w-full md:w-3/5 text-right mt-24 sm:mt-28 md:mt-0">
+            <div className="relative z-10 ed-hero-content w-full md:w-3/5 text-end mt-24 sm:mt-28 md:mt-0">
               <div className="w-12 h-0.75 bg-secondary mb-8" />
               <h3 className="text-4xl md:text-5xl lg:text-7xl font-black mb-6 leading-[1.2]">
                 مساعد يعمل <br />

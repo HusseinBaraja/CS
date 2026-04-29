@@ -121,7 +121,7 @@ export function PricingSection() {
 
             <div className="pricing-divider h-px w-full bg-linear-to-l from-primary/10 via-primary/10 to-transparent mb-8"></div>
 
-            <ul className="space-y-4 md:space-y-5 mb-10 grow">
+            <ul className="mb-10 flex grow flex-col gap-4 md:gap-5">
               {[
                 "ردود آلية غير محدودة",
                 "ربط بكتالوج المنتجات الأساسي",
@@ -148,9 +148,9 @@ export function PricingSection() {
           {/* Professional Tier (Recommended) */}
           <div className="pricing-card relative bg-[#11231a] rounded-4xl p-6 md:p-12 shadow-[0_24px_60px_rgba(26,46,39,0.2)] flex flex-col border border-white/5 h-full overflow-hidden z-10">
             {/* Subtle glow effect instead of busy gradients */}
-            <div className="absolute top-0 right-0 w-100 h-100 bg-secondary/10 rounded-full opacity-30 blur-[100px] pointer-events-none" />
+            <div className="absolute top-0 end-0 w-100 h-100 bg-secondary/10 rounded-full opacity-30 blur-[100px] pointer-events-none" />
 
-            <div className="absolute top-6 left-6">
+            <div className="absolute top-6 start-6">
               <span className="inline-block px-4 py-1.5 rounded-full bg-secondary/10 border border-secondary/20 text-secondary text-xs font-bold uppercase tracking-wider">
                 يُنصح بها
               </span>
@@ -159,7 +159,7 @@ export function PricingSection() {
             <div className="mb-8 relative z-10">
               <span className="inline-block relative text-secondary text-sm font-bold mb-6">
                 الاحترافية
-                <span className="absolute -bottom-1.5 right-0 w-full h-0.5 bg-secondary/40 rounded-full" />
+                <span className="absolute -bottom-1.5 end-0 w-full h-0.5 bg-secondary/40 rounded-full" />
               </span>
               <h3 className="text-4xl md:text-5xl font-black text-white mb-4">
                 ١٩٩${" "}
@@ -175,7 +175,7 @@ export function PricingSection() {
 
             <div className="pricing-divider h-px w-full bg-linear-to-l from-white/10 via-white/10 to-transparent mb-8 relative z-10"></div>
 
-            <ul className="space-y-4 md:space-y-5 mb-10 grow relative z-10">
+            <ul className="relative z-10 mb-10 flex grow flex-col gap-4 md:gap-5">
               {[
                 "كل ما في الباقة الأساسية",
                 "نقل المحادثة لفريق المبيعات (Handoff)",
@@ -197,7 +197,7 @@ export function PricingSection() {
 
             <Link href="/contact" className="relative z-10 w-full bg-secondary text-[#11231a] py-3.5 md:py-4 rounded-xl font-bold text-lg hover:bg-white transition-all duration-300 shadow-[0_4px_14px_rgba(227,178,60,0.15)] hover:shadow-[0_6px_20px_rgba(227,178,60,0.25)] flex items-center justify-center gap-2 group translate-y-0 hover:-translate-y-0.5">
               تواصل معنا
-              <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1.5 transition-transform duration-300" />
+              <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1.5 rtl:group-hover:translate-x-1.5 transition-transform duration-300" />
             </Link>
           </div>
         </div>

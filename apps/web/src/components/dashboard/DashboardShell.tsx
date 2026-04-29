@@ -57,11 +57,11 @@ function DashboardSidebar({ activePath }: { activePath: string }) {
   };
 
   return (
-    <Sidebar side="right" collapsible="icon" className="top-[var(--header-height)] h-[calc(100svh-var(--header-height))] border-l border-[#dde4e0] shadow-[-2px_0_10px_rgba(22,35,29,0.05)]">
+    <Sidebar side="right" collapsible="icon" className="top-[var(--header-height)] h-[calc(100svh-var(--header-height))] border-s border-[#dde4e0] shadow-[-2px_0_10px_rgba(22,35,29,0.05)]">
       <SidebarContent className="relative bg-white px-3 py-6 group-data-[icon-layout=collapsed]:px-0">
         <ScrollArea
           onScrollCapture={handleNavigationScroll}
-          className="min-h-0 flex-1 **:data-[slot=scroll-area-scrollbar]:left-0 **:data-[slot=scroll-area-scrollbar]:right-auto **:data-[slot=scroll-area-viewport]:pl-3 group-data-[icon-layout=collapsed]:**:data-[slot=scroll-area-viewport]:pl-0"
+          className="min-h-0 flex-1 **:data-[slot=scroll-area-scrollbar]:start-0 **:data-[slot=scroll-area-scrollbar]:end-auto **:data-[slot=scroll-area-viewport]:ps-3 group-data-[icon-layout=collapsed]:**:data-[slot=scroll-area-viewport]:ps-0"
         >
           <SidebarGroup className="group-data-[icon-layout=collapsed]:p-0">
             <SidebarGroupContent>
@@ -85,7 +85,7 @@ function DashboardSidebar({ activePath }: { activePath: string }) {
                           onClick={isPlaceholder ? (event) => event.preventDefault() : undefined}
                           className="grid grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-3 group-data-[icon-layout=collapsed]:grid-cols-1 group-data-[icon-layout=collapsed]:justify-items-center group-data-[icon-layout=collapsed]:gap-0"
                         >
-                          <span className="min-w-0 overflow-hidden text-right leading-6 wrap-break-word hyphens-auto group-data-[icon-layout=collapsed]:hidden">{label}</span>
+                          <span className="min-w-0 overflow-hidden text-end leading-6 wrap-break-word hyphens-auto group-data-[icon-layout=collapsed]:hidden">{label}</span>
                           <Icon className="justify-self-end stroke-[1.9] group-data-[icon-layout=collapsed]:justify-self-center" />
                         </a>
                       </SidebarMenuButton>
@@ -127,7 +127,7 @@ export function DashboardShell({ activePath, children }: { activePath: string; c
                 </Avatar>
                 <Button variant="ghost" size="icon-lg" className="relative text-[#202825] hover:bg-[#ecf5ef]" aria-label="الإشعارات">
                   <Bell />
-                  <span className="absolute right-2 top-2 size-2.5 rounded-full bg-[#09844a]" />
+                  <span className="absolute end-2 top-2 size-2.5 rounded-full bg-[#09844a]" />
                 </Button>
                 <div className="hidden h-8 w-px bg-[#d8dddc] sm:block" />
                 <nav className="hidden items-center gap-3 text-sm font-semibold sm:flex">

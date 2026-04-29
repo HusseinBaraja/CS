@@ -207,8 +207,8 @@ export function TrustSection() {
             className="trust-visual-container relative w-full aspect-square md:aspect-4/3 lg:aspect-4/5 xl:aspect-square max-w-lg mx-auto rounded-[2.5rem] flex items-center justify-center p-6 md:p-10 perspective-distant"
           >
             <div className="trust-interface-bg absolute inset-0 bg-linear-to-br from-[#FAFAFA] via-[#F3F4F6] to-[#E5E7EB] rounded-[2.5rem] border border-primary/5 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] overflow-hidden">
-              <div className="ambient-glow absolute -top-[30%] -left-[30%] w-[90%] h-[90%] rounded-full bg-secondary/20 blur-[120px] pointer-events-none" />
-              <div className="ambient-glow-reverse absolute -bottom-[20%] -right-[20%] w-[70%] h-[70%] rounded-full bg-emerald-500/15 blur-[100px] pointer-events-none" />
+              <div className="ambient-glow absolute -top-[30%] -start-[30%] w-[90%] h-[90%] rounded-full bg-secondary/20 blur-[120px] pointer-events-none" />
+              <div className="ambient-glow-reverse absolute -bottom-[20%] -end-[20%] w-[70%] h-[70%] rounded-full bg-emerald-500/15 blur-[100px] pointer-events-none" />
               <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] bg-size-[32px_32px] mask-[radial-gradient(ellipse_60%_60%_at_50%_50%,#000_10%,transparent_100%)] opacity-80 pointer-events-none" />
             </div>
 
@@ -218,11 +218,11 @@ export function TrustSection() {
                   <UserCircle className="w-5 h-5 text-primary/50" />
                 </div>
                 <div className="flex-1">
-                  <div className="bg-white/80 backdrop-blur-xl border border-primary/10 px-5 py-4 rounded-3xl rounded-br-sm shadow-[0_8px_32px_-8px_rgba(0,0,0,0.06)]">
+                  <div className="bg-white/80 backdrop-blur-xl border border-primary/10 px-5 py-4 rounded-3xl rounded-ee-sm shadow-[0_8px_32px_-8px_rgba(0,0,0,0.06)]">
                     <p className="text-primary/95 font-semibold text-[15px] leading-snug">
                       بكم أكواب السفري؟
                     </p>
-                    <div className="text-[10px] text-primary/40 mt-1.5 text-left font-mono font-medium tracking-wide">
+                    <div className="text-[10px] text-primary/40 mt-1.5 text-start font-mono font-medium tracking-wide">
                       10:41 ص
                     </div>
                   </div>
@@ -231,7 +231,7 @@ export function TrustSection() {
 
               <div className="flex flex-col items-center h-10 xl:h-12 w-full">
                 <div className="pipeline-line-1 w-px h-full bg-linear-to-b from-primary/10 via-secondary/70 to-secondary/30 relative">
-                  <div className="trust-flow-packet absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-5 bg-secondary rounded-full filter blur-[1px] shadow-[0_0_8px_rgba(227,178,60,0.6)] animate-[flowPacket_1.6s_infinite_linear]" />
+                  <div className="trust-flow-packet absolute top-0 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 w-0.5 h-5 bg-secondary rounded-full filter blur-[1px] shadow-[0_0_8px_rgba(227,178,60,0.6)] animate-[flowPacket_1.6s_infinite_linear]" />
                 </div>
               </div>
               <div className="pipeline-node-1 relative z-10 flex items-center justify-center">
@@ -241,7 +241,7 @@ export function TrustSection() {
 
               <div className="data-card relative w-full p-px rounded-3xl bg-linear-to-b from-white/60 to-white/20 mt-2.5 mb-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.06)]">
                 <div className="relative bg-white/70 backdrop-blur-xl rounded-[23px] p-5 xl:p-6 overflow-hidden border border-white/50">
-                  <div className="absolute top-0 right-10 w-32 h-px bg-linear-to-r from-transparent via-white to-transparent opacity-60" />
+                  <div className="absolute top-0 end-10 w-32 h-px bg-linear-to-r from-transparent via-white to-transparent opacity-60" />
 
                   <div className="flex justify-between items-start gap-4 mb-5">
                     <div className="flex gap-3.5 items-center">
@@ -287,13 +287,13 @@ export function TrustSection() {
               </div>
               <div className="flex flex-col items-center h-10 xl:h-12 w-full">
                 <div className="pipeline-line-2 w-px h-full bg-linear-to-b from-emerald-500/50 to-emerald-500/10 relative">
-                  <div className="trust-flow-packet absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-5 bg-emerald-500 rounded-full filter blur-[1px] shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-[flowPacket_1.6s_infinite_linear_0.8s]" />
+                  <div className="trust-flow-packet absolute top-0 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 w-0.5 h-5 bg-emerald-500 rounded-full filter blur-[1px] shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-[flowPacket_1.6s_infinite_linear_0.8s]" />
                 </div>
               </div>
 
               <div className="message-bot self-end w-[92%] flex gap-3.5 items-end mt-2">
                 <div className="flex-1">
-                  <div className="bg-[#E8F8F1]/90 backdrop-blur-xl border border-emerald-500/20 px-5 py-4.5 rounded-3xl rounded-bl-sm shadow-[0_12px_32px_-8px_rgba(0,0,0,0.06)]">
+                  <div className="bg-[#E8F8F1]/90 backdrop-blur-xl border border-emerald-500/20 px-5 py-4.5 rounded-3xl rounded-es-sm shadow-[0_12px_32px_-8px_rgba(0,0,0,0.06)]">
                     <p className="text-primary/90 font-semibold text-[14.5px] leading-relaxed">
                       أهلاً بك! سعر كرتون أكواب السفري (8 أونص) هو <strong className="text-emerald-700 font-extrabold mx-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10">18,000 ريال</strong>. هل ترغب بصورة للمنتج؟
                     </p>
@@ -322,11 +322,11 @@ export function TrustSection() {
                 <TrendingUp className="w-5 h-5 shrink-0" />
                 <span className="text-xs font-bold uppercase tracking-wider">الأداء</span>
               </div>
-              <div className="font-black text-5xl lg:text-6xl text-primary tracking-tight" style={{ fontFeatureSettings: '"tnum"' }}>+80<span className="text-2xl lg:text-3xl text-primary/40 font-bold ml-1">%</span></div>
+              <div className="font-black text-5xl lg:text-6xl text-primary tracking-tight" style={{ fontFeatureSettings: '"tnum"' }}>+80<span className="text-2xl lg:text-3xl text-primary/40 font-bold ms-1">%</span></div>
               <div className="text-sm text-primary/60 font-semibold mt-1">أتمتة كاملة للردود</div>
               
               {/* Subtle divider for grid */}
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-px h-16 bg-primary/10 hidden md:block" />
+              <div className="absolute start-0 top-1/2 -translate-y-1/2 w-px h-16 bg-primary/10 hidden md:block" />
             </div>
             
             <div className="flex flex-col gap-2">
@@ -334,7 +334,7 @@ export function TrustSection() {
                 <Zap className="w-5 h-5 shrink-0" />
                 <span className="text-xs font-bold uppercase tracking-wider">السرعة</span>
               </div>
-              <div className="font-black text-5xl lg:text-6xl text-primary tracking-tight" style={{ fontFeatureSettings: '"tnum"' }}>&lt; 3<span className="text-2xl lg:text-3xl text-primary/40 font-bold ml-1">ث</span></div>
+              <div className="font-black text-5xl lg:text-6xl text-primary tracking-tight" style={{ fontFeatureSettings: '"tnum"' }}>&lt; 3<span className="text-2xl lg:text-3xl text-primary/40 font-bold ms-1">ث</span></div>
               <div className="text-sm text-primary/60 font-semibold mt-1">زمن الاستجابة</div>
             </div>
           </div>

@@ -53,8 +53,8 @@ export function TrialPage() {
       
       {/* Dynamic Ambient Background */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="trial-ambient-blob absolute top-[10%] -right-[10%] w-[60vw] h-[60vw] max-w-200 max-h-200 rounded-full bg-secondary/10 blur-[100px]" />
-        <div className="trial-ambient-blob absolute bottom-[10%] -left-[10%] w-[50vw] h-[50vw] max-w-150 max-h-150 rounded-full bg-[#115C42]/5 blur-[100px]" />
+        <div className="trial-ambient-blob absolute top-[10%] -end-[10%] w-[60vw] h-[60vw] max-w-200 max-h-200 rounded-full bg-secondary/10 blur-[100px]" />
+        <div className="trial-ambient-blob absolute bottom-[10%] -start-[10%] w-[50vw] h-[50vw] max-w-150 max-h-150 rounded-full bg-[#115C42]/5 blur-[100px]" />
       </div>
 
       <div className="relative z-10 w-full max-w-250 flex flex-col items-center">
@@ -80,7 +80,7 @@ export function TrialPage() {
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                <div className="trial-content">
-                 <label htmlFor="trial-name" className="mb-2 block text-right font-bold text-primary">
+                 <label htmlFor="trial-name" className="mb-2 block text-end font-bold text-primary">
                    الاسم الكامل
                  </label>
                  <input 
@@ -95,7 +95,7 @@ export function TrialPage() {
                </div>
                
                <div className="trial-content">
-                 <label htmlFor="trial-phone" className="mb-2 block text-right font-bold text-primary">
+                 <label htmlFor="trial-phone" className="mb-2 block text-end font-bold text-primary">
                    رقم الواتساب
                  </label>
                  <input 
@@ -106,12 +106,12 @@ export function TrialPage() {
                    onChange={e => setFormData({...formData, phone: e.target.value})}
                    style={{ direction: 'ltr' }}
                    placeholder="+967 7xx xxx xxx"
-                   className="w-full text-right bg-white border border-primary/10 rounded-2xl px-5 py-4 text-primary font-medium placeholder-primary/30 focus:outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10 transition-all shadow-sm"
+                   className="w-full text-end bg-white border border-primary/10 rounded-2xl px-5 py-4 text-primary font-medium placeholder-primary/30 focus:outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10 transition-all shadow-sm"
                  />
                </div>
                
                <div className="trial-content">
-                 <label htmlFor="trial-company" className="mb-2 block text-right font-bold text-primary">
+                 <label htmlFor="trial-company" className="mb-2 block text-end font-bold text-primary">
                    اسم المحل أو الشركة
                  </label>
                  <input 
@@ -130,7 +130,7 @@ export function TrialPage() {
                  className="trial-content relative overflow-hidden group mt-4 w-full bg-primary text-white py-4 rounded-2xl font-bold text-lg hover:bg-primary/90 transition-all duration-300 shadow-xl shadow-primary/20 hover:shadow-2xl hover:shadow-primary/30 flex items-center justify-center gap-3 translate-y-0 hover:-translate-y-1"
                >
                  <span className="relative z-10">احجز التجربة المجانية</span>
-                 <ArrowLeft className="w-5 h-5 relative z-10 group-hover:-translate-x-1 transition-transform" />
+                 <ArrowLeft className="w-5 h-5 relative z-10 group-hover:-translate-x-1 rtl:group-hover:translate-x-1 transition-transform" />
                  {/* Shine effect */}
                  <div className="trial-button-shine absolute top-0 -inset-full h-full w-1/2 z-0 block transform -skew-x-12 bg-linear-to-r from-transparent to-white opacity-20" />
                </button>
@@ -143,7 +143,7 @@ export function TrialPage() {
             
             <h3 className="trial-content text-2xl font-black text-white mb-8">ما الذي ستحصل عليه في التجربة؟</h3>
             
-            <ul className="space-y-6">
+            <ul className="flex flex-col gap-6">
               {[
                 { title: 'ردود مرتبة باللهجة المناسبة', desc: 'صياغة واضحة ومقنعة تناسب طبيعة العملاء والسوق المحلي.' },
                 { title: 'تهيئة تناسب نشاطك', desc: 'نرتب الردود الأولى بحسب منتجاتك وطريقة بيعك على واتساب.' },

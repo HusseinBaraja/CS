@@ -38,8 +38,8 @@ export function CTASection() {
         />
         
         {/* Decorative solid shapes with blur (no gradients) */}
-        <div className="absolute -top-32 -right-32 w-80 h-80 bg-secondary rounded-full mix-blend-overlay opacity-10 blur-[80px] pointer-events-none" />
-        <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500 rounded-full mix-blend-overlay opacity-10 blur-[80px] pointer-events-none" />
+        <div className="absolute -top-32 -end-32 w-80 h-80 bg-secondary rounded-full mix-blend-overlay opacity-10 blur-[80px] pointer-events-none" />
+        <div className="absolute -bottom-32 -start-32 w-80 h-80 bg-emerald-500 rounded-full mix-blend-overlay opacity-10 blur-[80px] pointer-events-none" />
 
         <div className="relative z-10 px-6 py-14 md:py-20 flex flex-col items-center text-center">
 
@@ -48,7 +48,7 @@ export function CTASection() {
             <span className="text-secondary relative inline-block group">
               يتولى مهام الرد
               {/* Solid underline accent */}
-              <span className="absolute -bottom-1 left-0 w-full h-1.5 bg-secondary/30 rounded-full transform origin-left transition-transform duration-500 group-hover:bg-secondary/60" />
+              <span className="absolute -bottom-1 start-0 w-full h-1.5 bg-secondary/30 rounded-full transform origin-start transition-transform duration-500 group-hover:bg-secondary/60" />
             </span> بدءًا من اليوم.
           </h2>
           
@@ -58,7 +58,7 @@ export function CTASection() {
           
           <Link href="/trial" className="bg-secondary text-[#11231a] px-8 md:px-10 py-4 md:py-5 rounded-full font-bold text-lg md:text-xl hover:bg-white transition-all duration-300 shadow-[0_8px_32px_rgba(227,178,60,0.25)] hover:shadow-[0_12px_40px_rgba(227,178,60,0.4)] flex items-center justify-center gap-3 group translate-y-0 hover:-translate-y-1">
             اطلب نسختك التجريبية
-            <ArrowLeft className="w-6 h-6 transform group-hover:-translate-x-1.5 transition-transform duration-300" />
+            <ArrowLeft className="w-6 h-6 transform group-hover:-translate-x-1.5 rtl:group-hover:translate-x-1.5 transition-transform duration-300" />
           </Link>
 
           <div className="mt-8 text-white/40 text-sm font-medium flex items-center gap-2  px-4 py-2 rounded-full border border-white/5">

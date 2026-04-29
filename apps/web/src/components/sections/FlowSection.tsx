@@ -210,8 +210,8 @@ export function FlowSection() {
       id="how-it-works"
     >
       {/* Decorative environment background */}
-      <div className="absolute top-0 right-0 w-200 h-200 pointer-events-none translate-x-1/3 z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.05) 0%, transparent 70%)' }} />
-      <div className="absolute bottom-0 left-0 w-200 h-200 translate-y-1/3 -translate-x-1/3 pointer-events-none z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.04) 0%, transparent 70%)' }} />
+      <div className="absolute top-0 end-0 w-200 h-200 pointer-events-none translate-x-1/3 rtl:-translate-x-1/3 z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.05) 0%, transparent 70%)' }} />
+      <div className="absolute bottom-0 start-0 w-200 h-200 translate-y-1/3 -translate-x-1/3 rtl:translate-x-1/3 pointer-events-none z-0" style={{ background: 'radial-gradient(circle, rgba(26,46,39,0.04) 0%, transparent 70%)' }} />
 
       <div className="max-w-6xl mx-auto px-6 relative z-10 block">
 

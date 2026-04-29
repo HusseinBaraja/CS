@@ -1,11 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@fontsource-variable/noto-sans-arabic";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-arabic: "Tajawal", system-ui, sans-serif;
+  --font-arabic: "Noto Sans Arabic Variable", system-ui, sans-serif;
   --color-primary: #1A2E27; /* Obsidian/Forest green */
   --color-secondary: #E3B23C; /* Warm gold */
   --color-bg-light: #F8F7F4; /* Warm alabaster */
@@ -23,7 +24,6 @@
 @layer base {
   html, body {
     @apply bg-[var(--color-bg-light)] text-[var(--color-primary)] font-arabic antialiased;
-    direction: rtl;
     scrollbar-width: thin;
     scrollbar-color: oklch(0.78 0.01 160) transparent;
   }

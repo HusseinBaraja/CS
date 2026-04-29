@@ -323,9 +323,9 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       onClick={toggleSidebar}
       title="Toggle Sidebar"
       className={cn(
-        "absolute inset-y-0 z-20 hidden w-7 items-center justify-center overflow-hidden border-sidebar-rail-border bg-sidebar-rail/55 text-sidebar-rail-foreground outline-none backdrop-blur-[1px] transition-[background-color,border-color,box-shadow] duration-200 ease-out hover:bg-sidebar-rail-hover hover:shadow-[var(--sidebar-rail-shadow)] focus-visible:ring-2 focus-visible:ring-sidebar-rail-ring/35 sm:flex group-data-[side=left]:-right-7 group-data-[side=left]:border-r group-data-[side=right]:left-0 group-data-[side=right]:-translate-x-full group-data-[side=right]:border-l",
+        "absolute inset-y-0 z-20 hidden w-7 items-center justify-center overflow-hidden border-sidebar-rail-border bg-sidebar-rail/55 text-sidebar-rail-foreground outline-none backdrop-blur-[1px] transition-[background-color,border-color,box-shadow] duration-200 ease-out hover:bg-sidebar-rail-hover hover:shadow-[var(--sidebar-rail-shadow)] focus-visible:ring-2 focus-visible:ring-sidebar-rail-ring/35 sm:flex group-data-[side=left]:-right-7 group-data-[side=left]:border-e group-data-[side=right]:left-0 group-data-[side=right]:-translate-x-full rtl:group-data-[side=right]:translate-x-full group-data-[side=right]:border-s",
         "cursor-pointer",
-        "group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:bg-sidebar/70",
+        "group-data-[collapsible=offcanvas]:translate-x-0 rtl:group-data-[collapsible=offcanvas]:-translate-x-0 group-data-[collapsible=offcanvas]:bg-sidebar/70",
         "[[data-side=left][data-collapsible=offcanvas]_&]:-inset-e-7",
         "[[data-side=right][data-collapsible=offcanvas]_&]:-inset-s-7",
         className

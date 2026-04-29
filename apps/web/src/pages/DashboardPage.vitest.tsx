@@ -67,9 +67,9 @@ describe('DashboardPage', () => {
     const scrollArea = container.querySelector('[data-slot="scroll-area"]');
     const overflowShadow = container.querySelector('[data-testid="sidebar-bottom-overflow-shadow"]');
 
-    expect(scrollArea?.getAttribute('class')).toContain('**:data-[slot=scroll-area-scrollbar]:left-0');
-    expect(scrollArea?.getAttribute('class')).toContain('**:data-[slot=scroll-area-scrollbar]:right-auto');
-    expect(scrollArea?.getAttribute('class')).toContain('**:data-[slot=scroll-area-viewport]:pl-3');
+    expect(scrollArea?.getAttribute('class')).toContain('**:data-[slot=scroll-area-scrollbar]:start-0');
+    expect(scrollArea?.getAttribute('class')).toContain('**:data-[slot=scroll-area-scrollbar]:end-auto');
+    expect(scrollArea?.getAttribute('class')).toContain('**:data-[slot=scroll-area-viewport]:ps-3');
     expect(overflowShadow?.getAttribute('class')).toContain('pointer-events-none');
     expect(overflowShadow?.getAttribute('class')).toContain('bottom-0');
     expect(overflowShadow?.getAttribute('class')).toContain('transition-opacity');
@@ -92,7 +92,7 @@ describe('DashboardPage', () => {
     const navIcon = navLink?.querySelector('svg');
 
     expect(sidebarContent?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:px-0');
-    expect(scrollArea?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:**:data-[slot=scroll-area-viewport]:pl-0');
+    expect(scrollArea?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:**:data-[slot=scroll-area-viewport]:ps-0');
     expect(sidebarGroup?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:p-0');
     expect(navButton?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:size-12');
     expect(navButton?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:p-3');
@@ -211,7 +211,7 @@ describe('DashboardPage', () => {
     expect(rail.getAttribute('class')).toContain('cursor-pointer');
     expect(rail.getAttribute('class')).not.toContain('cursor-e-resize');
     expect(rail.getAttribute('class')).not.toContain('cursor-w-resize');
-    expect(rail.getAttribute('class')).toContain('group-data-[side=right]:border-l');
+    expect(rail.getAttribute('class')).toContain('group-data-[side=right]:border-s');
     expect(rail.getAttribute('class')).toContain('group-data-[side=right]:left-0');
     expect(rail.getAttribute('class')).toContain('group-data-[side=right]:-translate-x-full');
     expect(rail.getAttribute('class')).toContain('items-center');

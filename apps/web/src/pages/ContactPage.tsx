@@ -48,8 +48,8 @@ export function ContactPage() {
       {/* Decorative luxury shapes and noise */}
       <div className="absolute inset-0 z-0 opacity-10 pointer-events-none" 
            style={{ backgroundImage: 'radial-gradient(circle at 100% 0%, var(--color-secondary) 0%, transparent 50%)' }} />
-      <div className="contact-shape absolute top-1/4 -right-32 w-96 h-96 border border-secondary/20 rounded-full z-0" />
-      <div className="contact-shape absolute bottom-0 left-0 w-150 h-150 bg-secondary/5 rounded-tr-[200px] z-0 blur-3xl mix-blend-screen" />
+      <div className="contact-shape absolute top-1/4 -end-32 w-96 h-96 border border-secondary/20 rounded-full z-0" />
+      <div className="contact-shape absolute bottom-0 start-0 w-150 h-150 bg-secondary/5 rounded-se-[200px] z-0 blur-3xl mix-blend-screen" />
       
       <div className="max-w-7xl mx-auto px-6 py-20 w-full grid grid-cols-1 lg:grid-cols-2 gap-16 relative z-10 min-h-[90vh]">
         
@@ -68,7 +68,7 @@ export function ContactPage() {
             مخصص للشركات في اليمن التي تحتاج خدمة عملاء أسرع على واتساب بدون تعقيد.
           </p>
 
-          <div className="contact-left-anim space-y-8">
+          <div className="contact-left-anim flex flex-col gap-8">
             {contactPhoneNumber ? (
               <div className="flex items-center gap-6 group cursor-pointer">
                 <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-secondary/20 group-hover:border-secondary/40 transition-all duration-500">
@@ -111,7 +111,7 @@ export function ContactPage() {
             <form onSubmit={handleSubmit} className="flex flex-col gap-6">
               
               <div className="contact-right-anim flex flex-col gap-2">
-                <label className="text-white/70 text-sm font-medium pr-2">الاسم الكامل</label>
+                <label className="text-white/70 text-sm font-medium pe-2">الاسم الكامل</label>
                 <input 
                   type="text" 
                   value={formData.name}
@@ -123,7 +123,7 @@ export function ContactPage() {
               </div>
 
               <div className="contact-right-anim flex flex-col gap-2">
-                <label className="text-white/70 text-sm font-medium pr-2">رقم الواتساب</label>
+                <label className="text-white/70 text-sm font-medium pe-2">رقم الواتساب</label>
                 <input 
                   type="tel" 
                   value={formData.phone}
@@ -131,12 +131,12 @@ export function ContactPage() {
                   required
                   style={{ direction: 'ltr' }}
                   placeholder="+967 7xx xxx xxx"
-                  className="text-right bg-primary/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-secondary/60 focus:bg-white/5 transition-all w-full"
+                  className="text-end bg-primary/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-secondary/60 focus:bg-white/5 transition-all w-full"
                 />
               </div>
 
               <div className="contact-right-anim flex flex-col gap-2">
-                <label className="text-white/70 text-sm font-medium pr-2">اسم المحل أو الشركة</label>
+                <label className="text-white/70 text-sm font-medium pe-2">اسم المحل أو الشركة</label>
                 <input 
                   type="text" 
                   value={formData.company}
@@ -148,7 +148,7 @@ export function ContactPage() {
               </div>
 
               <div className="contact-right-anim flex flex-col gap-2 mb-2">
-                <label className="text-white/70 text-sm font-medium pr-2">كيف نقدر نخدمك؟</label>
+                <label className="text-white/70 text-sm font-medium pe-2">كيف نقدر نخدمك؟</label>
                 <textarea 
                   rows={4}
                   value={formData.message}
