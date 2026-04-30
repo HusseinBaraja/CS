@@ -1,7 +1,9 @@
 import type { ConversationSessionLogWriter } from "@cs/core";
 import { type ConvexAdminClient, convexInternal } from "@cs/db";
 import {
+  type AnalyticsHandoffState,
   type ConversationMessageDto,
+  type OwnerNotificationHandoffState,
   runPendingHandoffSideEffects,
 } from "@cs/shared";
 import {
@@ -25,7 +27,7 @@ export const replayPendingAssistantAnalyticsIfNeeded = async (
     messageId: string;
     phoneNumber: string;
     timestamp: number;
-    analyticsState?: "pending" | "recorded" | "completed" | "not_applicable";
+    analyticsState?: AnalyticsHandoffState;
   },
 ): Promise<void> => {
   const result = await runPendingHandoffSideEffects({
@@ -96,7 +98,7 @@ export const replayPendingAssistantOwnerNotificationIfNeeded = async (
       companyName: string;
       ownerPhone: string;
     } | null;
-    ownerNotificationState?: "pending" | "sent" | "completed" | "not_applicable";
+    ownerNotificationState?: OwnerNotificationHandoffState;
     phoneNumber: string;
     timestamp: number;
   },

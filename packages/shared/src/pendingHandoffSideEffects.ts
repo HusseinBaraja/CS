@@ -5,9 +5,14 @@ import { formatOwnerNotification } from "./ownerNotifications";
 
 export const OWNER_HANDOFF_HISTORY_LIMIT = 6;
 
-export type PendingHandoffSideEffectState =
+export type AnalyticsHandoffState =
   | "pending"
   | "recorded"
+  | "completed"
+  | "not_applicable";
+
+export type OwnerNotificationHandoffState =
+  | "pending"
   | "sent"
   | "completed"
   | "not_applicable";
@@ -29,8 +34,8 @@ export interface RunPendingHandoffSideEffectsInput {
   handoffSource?: AssistantHandoffSource;
   pendingMessageId: string;
   timestamp: number;
-  analyticsState?: PendingHandoffSideEffectState;
-  ownerNotificationState?: PendingHandoffSideEffectState;
+  analyticsState?: AnalyticsHandoffState;
+  ownerNotificationState?: OwnerNotificationHandoffState;
   completeAnalytics(input: {
     companyId: string;
     conversationId: string;
@@ -79,10 +84,10 @@ export interface RunPendingHandoffSideEffectsResult {
   failures: PendingHandoffSideEffectFailure[];
 }
 
-const shouldRunAnalytics = (state: PendingHandoffSideEffectState | undefined): boolean =>
+const shouldRunAnalytics = (state: AnalyticsHandoffState | undefined): boolean =>
   state === "pending" || state === "recorded";
 
-const shouldRunOwnerNotification = (state: PendingHandoffSideEffectState | undefined): boolean =>
+const shouldRunOwnerNotification = (state: OwnerNotificationHandoffState | undefined): boolean =>
   state === "pending" || state === "sent";
 
 const runAnalyticsSideEffect = async (
