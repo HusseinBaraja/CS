@@ -67,15 +67,20 @@ describe('DashboardPage', () => {
     const scrollArea = container.querySelector('[data-slot="scroll-area"]');
     const overflowShadow = container.querySelector('[data-testid="sidebar-bottom-overflow-shadow"]');
 
-    expect(scrollArea?.getAttribute('class')).toContain('**:data-[slot=scroll-area-scrollbar]:left-0');
-    expect(scrollArea?.getAttribute('class')).toContain('**:data-[slot=scroll-area-scrollbar]:right-auto');
-    expect(scrollArea?.getAttribute('class')).toContain('**:data-[slot=scroll-area-viewport]:pl-3');
+    expect(scrollArea?.getAttribute('class')).toContain('**:data-[slot=scroll-area-scrollbar]:start-0');
+    expect(scrollArea?.getAttribute('class')).toContain('**:data-[slot=scroll-area-scrollbar]:end-auto');
+    expect(scrollArea?.getAttribute('class')).toContain('**:data-[slot=scroll-area-viewport]:ps-3');
     expect(overflowShadow?.getAttribute('class')).toContain('pointer-events-none');
     expect(overflowShadow?.getAttribute('class')).toContain('bottom-0');
     expect(overflowShadow?.getAttribute('class')).toContain('transition-opacity');
-    expect(navLink?.getAttribute('class')).toContain('grid-cols-[minmax(0,1fr)_1.25rem]');
-    expect(aiLabel.getAttribute('class')).toContain('overflow-hidden');
+    expect(navLink?.getAttribute('class')).toContain('grid-cols-[1.25rem_minmax(0,1fr)]');
+    expect(navLink?.getAttribute('class')).toContain('[&>span:last-child]:whitespace-normal');
+    expect(navLink?.getAttribute('class')).toContain('[&>span:last-child]:text-wrap');
+    expect(navLink?.getAttribute('class')).toContain('[&>span:last-child]:overflow-visible');
+    expect(aiLabel.getAttribute('class')).toContain('overflow-visible');
+    expect(aiLabel.getAttribute('class')).toContain('text-wrap');
     expect(aiLabel.getAttribute('class')).toContain('wrap-break-word');
+    expect(aiLabel.getAttribute('class')).toContain('text-start');
     expect(aiLabel.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:hidden');
   });
 
@@ -92,7 +97,7 @@ describe('DashboardPage', () => {
     const navIcon = navLink?.querySelector('svg');
 
     expect(sidebarContent?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:px-0');
-    expect(scrollArea?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:**:data-[slot=scroll-area-viewport]:pl-0');
+    expect(scrollArea?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:**:data-[slot=scroll-area-viewport]:ps-0');
     expect(sidebarGroup?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:p-0');
     expect(navButton?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:size-12');
     expect(navButton?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:p-3');
@@ -106,6 +111,8 @@ describe('DashboardPage', () => {
     expect(navItem?.getAttribute('class')).not.toContain('group-data-[collapsible=icon]:justify-end');
     expect(navLink?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:grid-cols-1');
     expect(navLink?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:justify-items-center');
+    expect(navIcon?.nextElementSibling?.textContent).toBe('لوحة التحكم');
+    expect(navIcon?.getAttribute('class')).toContain('justify-self-start');
     expect(navIcon?.getAttribute('class')).toContain('group-data-[icon-layout=collapsed]:justify-self-center');
     expect(navIcon?.getAttribute('class')).toContain('stroke-[1.9]');
   });
@@ -189,6 +196,7 @@ describe('DashboardPage', () => {
     expect(header?.getAttribute('class')).toContain('h-[var(--header-height)]');
     expect(sidebar?.getAttribute('class')).toContain('top-[var(--header-height)]');
     expect(sidebar?.getAttribute('class')).toContain('h-[calc(100svh-var(--header-height))]');
+    expect(sidebar?.getAttribute('dir')).toBe('rtl');
     expect(inset?.getAttribute('class')).toContain('pt-[var(--header-height)]');
   });
 
@@ -211,9 +219,11 @@ describe('DashboardPage', () => {
     expect(rail.getAttribute('class')).toContain('cursor-pointer');
     expect(rail.getAttribute('class')).not.toContain('cursor-e-resize');
     expect(rail.getAttribute('class')).not.toContain('cursor-w-resize');
+    expect(rail.getAttribute('class')).toContain('group-data-[side=right]:border-s');
     expect(rail.getAttribute('class')).toContain('group-data-[side=right]:border-l');
     expect(rail.getAttribute('class')).toContain('group-data-[side=right]:left-0');
     expect(rail.getAttribute('class')).toContain('group-data-[side=right]:-translate-x-full');
+    expect(rail.getAttribute('class')).not.toContain('rtl:group-data-[side=right]:translate-x-full');
     expect(rail.getAttribute('class')).toContain('items-center');
     expect(rail.getAttribute('class')).toContain('justify-center');
     expect(railIconShell?.getAttribute('class')).toContain('size-7');

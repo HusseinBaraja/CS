@@ -71,7 +71,7 @@ export function UploadDataPage() {
                       <div className="flex size-10 items-center justify-center rounded-lg bg-[#edf7f1] text-[#0d7c47]">
                         <FileSpreadsheet />
                       </div>
-                      <div className="min-w-0 text-right">
+                      <div className="min-w-0 text-end">
                         <p className="truncate font-bold text-[#1c2521]">{uploadedFile.name}</p>
                         <p className="text-sm text-[#68736f]">{uploadedFile.date}</p>
                       </div>

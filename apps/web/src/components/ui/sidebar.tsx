@@ -197,6 +197,7 @@ function Sidebar({
     return (
       <div
         data-slot="sidebar"
+        dir={dir}
         className={cn(
           "flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
           className
@@ -245,6 +246,7 @@ function Sidebar({
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"
+      dir={dir}
     >
       {/* This is what handles the sidebar gap on desktop */}
       <div
@@ -262,6 +264,7 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         data-side={side}
+        dir={dir}
         className={cn(
           // duration-200 must stay in sync with SIDEBAR_COLLAPSE_DURATION_MS.
           "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
@@ -323,9 +326,9 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       onClick={toggleSidebar}
       title="Toggle Sidebar"
       className={cn(
-        "absolute inset-y-0 z-20 hidden w-7 items-center justify-center overflow-hidden border-sidebar-rail-border bg-sidebar-rail/55 text-sidebar-rail-foreground outline-none backdrop-blur-[1px] transition-[background-color,border-color,box-shadow] duration-200 ease-out hover:bg-sidebar-rail-hover hover:shadow-[var(--sidebar-rail-shadow)] focus-visible:ring-2 focus-visible:ring-sidebar-rail-ring/35 sm:flex group-data-[side=left]:-right-7 group-data-[side=left]:border-r group-data-[side=right]:left-0 group-data-[side=right]:-translate-x-full group-data-[side=right]:border-l",
+        "absolute inset-y-0 z-20 hidden w-7 items-center justify-center overflow-hidden border-sidebar-rail-border bg-sidebar-rail/55 text-sidebar-rail-foreground outline-none backdrop-blur-[1px] transition-[background-color,border-color,box-shadow] duration-200 ease-out hover:bg-sidebar-rail-hover hover:shadow-[var(--sidebar-rail-shadow)] focus-visible:ring-2 focus-visible:ring-sidebar-rail-ring/35 sm:flex group-data-[side=left]:-right-7 group-data-[side=left]:border-e group-data-[side=right]:left-0 group-data-[side=right]:-translate-x-full group-data-[side=right]:border-s group-data-[side=right]:border-l",
         "cursor-pointer",
-        "group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:bg-sidebar/70",
+        "group-data-[collapsible=offcanvas]:translate-x-0 rtl:group-data-[collapsible=offcanvas]:-translate-x-0 group-data-[collapsible=offcanvas]:bg-sidebar/70",
         "[[data-side=left][data-collapsible=offcanvas]_&]:-inset-e-7",
         "[[data-side=right][data-collapsible=offcanvas]_&]:-inset-s-7",
         className
