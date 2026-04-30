@@ -37,10 +37,10 @@
       "reason": "Combines runtime lifecycle, access control, persistence, and inbound routing."
     },
     {
-      "path": "apps/bot/src/customerConversationRouter.ts",
-      "classification": "must_split",
-      "maxLines": 570,
-      "reason": "Couples persistence, orchestration, delivery, analytics, and handoff side effects."
+      "path": "apps/bot/src/conversationTurn.ts",
+      "classification": "cohesive_exception",
+      "maxLines": 540,
+      "reason": "Single accepted Conversation Turn lifecycle that hides persistence, Grounded Answer orchestration, delivery, Handoff side effects, and trimming behind one deep module seam."
     },
     {
       "path": "apps/bot/src/conversationStore.ts",

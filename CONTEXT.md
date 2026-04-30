@@ -28,6 +28,10 @@ _Avoid_: Owner
 A tenant-scoped WhatsApp message history between one customer and one company.
 _Avoid_: Chat thread, ticket
 
+**Conversation Turn**:
+One accepted inbound Customer message processed through persistence, prompt history, Grounded Answer generation, pending assistant delivery, Handoff side effects when needed, and history trimming.
+_Avoid_: Router flow, message pipeline
+
 **Handoff**:
 A conversation state where automation is muted and the owner is notified because a human response is requested or safer.
 _Avoid_: Escalation failure
@@ -50,6 +54,7 @@ _Avoid_: Upload data, business settings import
 - A **Tenant** is the architectural isolation boundary around exactly one **Company**.
 - A **Company** has many **Customers** through **Conversations**.
 - A **Conversation** belongs to exactly one **Company** and exactly one **Customer**.
+- A **Conversation Turn** belongs to exactly one **Conversation** and begins from one accepted inbound **Customer** message.
 - A **Handoff** mutes exactly one **Conversation** until the owner handles it or auto-resume applies.
 - A **Runtime Session** belongs to exactly one **Company**.
 - A **Grounded Answer** may be sent only when retrieved company catalog data is sufficient.
