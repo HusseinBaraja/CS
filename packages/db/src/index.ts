@@ -1,7 +1,7 @@
 import { ERROR_CODES } from '@cs/shared';
 import { requireEnv } from '@cs/config';
 import { version as convexVersion } from 'convex';
-export type { Id } from "../../../convex/_generated/dataModel";
+export type { Id } from "@cs/convex/_generated/dataModel";
 
 export * from "./client";
 export * from "./convexIds";

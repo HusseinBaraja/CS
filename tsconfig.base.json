@@ -20,6 +20,9 @@
       "@cs/convex-api": [
         "packages/convex-api/src/index.ts"
       ],
+      "@cs/convex/*": [
+        "convex/*"
+      ],
       "@cs/core": [
         "packages/core/src/index.ts"
       ],

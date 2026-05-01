@@ -1,4 +1,4 @@
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { Id } from "@cs/convex/_generated/dataModel";
 
 const CONVEX_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 

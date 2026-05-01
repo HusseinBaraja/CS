@@ -5,10 +5,12 @@ import {
   checkDbConnection,
   ConvexIdValidationError,
   DB_PROVIDER,
+  toCategoryId,
   toCompanyId,
   toConversationId,
   toMessageId,
   toProductId,
+  toVariantId,
 } from "./index";
 
 describe("@cs/db", () => {
@@ -128,6 +130,8 @@ describe("@cs/db", () => {
     expect(String(toConversationId("conversation-123"))).toBe("conversation-123");
     expect(String(toMessageId("message_123"))).toBe("message_123");
     expect(String(toProductId("product-123"))).toBe("product-123");
+    expect(String(toCategoryId("category-123"))).toBe("category-123");
+    expect(String(toVariantId(" variant_123 "))).toBe("variant_123");
   });
 
   test("Convex id adapters reject blank or malformed ids", () => {
@@ -135,5 +139,9 @@ describe("@cs/db", () => {
     expect(() => toCompanyId("company/123")).toThrow(
       'Invalid companies id "company/123": expected a non-empty identifier containing only letters, numbers, "_" or "-"',
     );
+    expect(() => toCategoryId("category/123")).toThrow(
+      ConvexIdValidationError,
+    );
+    expect(() => toVariantId("variant/123")).toThrow(ConvexIdValidationError);
   });
 });
