@@ -3,7 +3,8 @@
 ## Instruction Priority
 
 - Every instruction in this file is mandatory.
-- Use `skills/caveman/SKILL.md` in lite mode.
+- Use `.agents/skills/caveman/SKILL.md` in lite mode.
+- Use `.agents/skills/vertical-codebase/SKILL.md` to decide how to structure the codebase.
 - Commit incrementally when you complete a checkpoint.
 - Follow the existing non-destructive git rules: never revert user changes unless explicitly asked.
 
