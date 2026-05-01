@@ -22,6 +22,7 @@ import {
   type WorkerLogger,
   withWorkerJobLogger,
 } from './logging';
+import { getConversationLockKey, withConversationLock } from './conversationLock';
 
 const DEFAULT_PENDING_ASSISTANT_RECONCILIATION_INTERVAL_MS = 60_000;
 const DEFAULT_PENDING_ASSISTANT_RECONCILIATION_BATCH_SIZE = 50;
@@ -46,9 +47,6 @@ interface PendingAssistantReconciliationTickResult {
   failedCount: number;
 }
 
-const getConversationLockKey = (companyId: string, phoneNumber: string): string =>
-  `conversation:${companyId}:${phoneNumber}`;
-
 const reconcilePendingAssistantMessage = async (
   client: ConvexAdminClient,
   candidate: {
@@ -64,96 +62,78 @@ const reconcilePendingAssistantMessage = async (
   conversationSessionLog: ConversationSessionLogWriter | undefined,
   sendOwnerNotification?: OwnerNotificationSender,
 ): Promise<"reconciled" | "skipped"> => {
-  const ownerToken = crypto.randomUUID();
   const key = getConversationLockKey(candidate.companyId, candidate.phoneNumber);
-  const acquisition = await client.mutation(convexInternal.conversations.acquireConversationLock, {
+  return withConversationLock({
+    client,
+    context: {
+      jobName: JOB_NAME,
+      companyId: candidate.companyId,
+      conversationId: candidate.conversationId,
+      messageId: candidate.messageId,
+    },
     key,
+    logger,
     now,
-    ownerToken,
-  });
-
-  if (!acquisition.acquired) {
-    return "skipped";
-  }
-
-  try {
-    const message = await client.query(convexInternal.conversations.getConversationMessage, {
-      companyId: candidate.companyId as never,
-      conversationId: candidate.conversationId as never,
-      messageId: candidate.messageId as never,
-    });
-
-    if (!message || message.deliveryState !== "pending" || message.providerAcknowledgedAt === undefined) {
-      return "skipped";
-    }
-
-    const conversationOwnerContext = conversationSessionLog && process.env.NODE_ENV !== "production"
-      ? await client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
+    releaseFailureMessage: "pending assistant reconciliation lock release failed",
+    run: async () => {
+      const message = await client.query(convexInternal.conversations.getConversationMessage, {
         companyId: candidate.companyId as never,
         conversationId: candidate.conversationId as never,
-      })
-      : undefined;
-    const ownerConversationSessionLog = conversationOwnerContext
-      && isSamePhoneNumber(candidate.phoneNumber, conversationOwnerContext.ownerPhone)
-      ? conversationSessionLog
-      : undefined;
-
-    await client.mutation(convexInternal.conversations.commitPendingAssistantMessage, {
-      companyId: candidate.companyId as never,
-      conversationId: candidate.conversationId as never,
-      pendingMessageId: candidate.messageId as never,
-    });
-    await appendAssistantReconciledSessionLog(ownerConversationSessionLog, {
-      companyId: candidate.companyId,
-      conversationId: candidate.conversationId,
-      timestamp: message.timestamp,
-    });
-
-    await replayPendingAssistantAnalyticsIfNeeded(client, {
-      companyId: candidate.companyId,
-      conversationId: candidate.conversationId,
-      conversationSessionLog: ownerConversationSessionLog,
-      handoffSource: message.handoffSource,
-      messageId: candidate.messageId,
-      phoneNumber: candidate.phoneNumber,
-      timestamp: message.timestamp,
-      analyticsState: message.analyticsState,
-    });
-
-    await replayPendingAssistantOwnerNotificationIfNeeded(client, {
-      companyId: candidate.companyId,
-      conversationId: candidate.conversationId,
-      conversationSessionLog: ownerConversationSessionLog,
-      handoffSource: message.handoffSource,
-      messageId: candidate.messageId,
-      ownerContext: conversationOwnerContext,
-      ownerNotificationState: message.ownerNotificationState,
-      phoneNumber: candidate.phoneNumber,
-      timestamp: message.timestamp,
-    }, sendOwnerNotification);
-
-    return "reconciled";
-  } finally {
-    try {
-      await client.mutation(convexInternal.conversations.releaseConversationLock, {
-        key,
-        ownerToken,
+        messageId: candidate.messageId as never,
       });
-    } catch (error) {
-      logWorkerItemFailed(
-        logger,
-        error,
-        {
-          jobName: JOB_NAME,
-          companyId: candidate.companyId,
-          conversationId: candidate.conversationId,
-          messageId: candidate.messageId,
-          step: "lock_release",
-        },
-        "pending assistant reconciliation lock release failed",
-      );
-    }
-  }
+
+      if (!message || message.deliveryState !== "pending" || message.providerAcknowledgedAt === undefined) {
+        return "skipped";
+      }
+
+      const conversationOwnerContext = conversationSessionLog && process.env.NODE_ENV !== "production"
+        ? await client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
+          companyId: candidate.companyId as never,
+          conversationId: candidate.conversationId as never,
+        })
+        : undefined;
+      const ownerConversationSessionLog = conversationOwnerContext
+        && isSamePhoneNumber(candidate.phoneNumber, conversationOwnerContext.ownerPhone)
+        ? conversationSessionLog
+        : undefined;
+
+      await client.mutation(convexInternal.conversations.commitPendingAssistantMessage, {
+        companyId: candidate.companyId as never,
+        conversationId: candidate.conversationId as never,
+        pendingMessageId: candidate.messageId as never,
+      });
+      await appendAssistantReconciledSessionLog(ownerConversationSessionLog, {
+        companyId: candidate.companyId,
+        conversationId: candidate.conversationId,
+        timestamp: message.timestamp,
+      });
+
+      await replayPendingAssistantAnalyticsIfNeeded(client, {
+        companyId: candidate.companyId,
+        conversationId: candidate.conversationId,
+        conversationSessionLog: ownerConversationSessionLog,
+        handoffSource: message.handoffSource,
+        messageId: candidate.messageId,
+        phoneNumber: candidate.phoneNumber,
+        timestamp: message.timestamp,
+        analyticsState: message.analyticsState,
+      });
+
+      await replayPendingAssistantOwnerNotificationIfNeeded(client, {
+        companyId: candidate.companyId,
+        conversationId: candidate.conversationId,
+        conversationSessionLog: ownerConversationSessionLog,
+        handoffSource: message.handoffSource,
+        messageId: candidate.messageId,
+        ownerContext: conversationOwnerContext,
+        ownerNotificationState: message.ownerNotificationState,
+        phoneNumber: candidate.phoneNumber,
+        timestamp: message.timestamp,
+      }, sendOwnerNotification);
+
+      return "reconciled";
+    },
+  });
 };
 
 export const createPendingAssistantReconciliationProcessor = (
