@@ -1,5 +1,11 @@
 import type { ConversationSessionLogWriter } from "@cs/core";
-import { type ConvexAdminClient, convexInternal } from "@cs/db";
+import {
+  type ConvexAdminClient,
+  convexInternal,
+  toCompanyId,
+  toConversationId,
+  toMessageId,
+} from "@cs/db";
 import {
   type AnalyticsHandoffState,
   type ConversationMessageDto,
@@ -41,9 +47,9 @@ export const replayPendingAssistantAnalyticsIfNeeded = async (
     ownerNotificationState: "not_applicable",
     completeAnalytics: async (sideEffectInput) => {
       await client.mutation(convexInternal.conversations.completePendingAssistantSideEffects, {
-        companyId: sideEffectInput.companyId as never,
-        conversationId: sideEffectInput.conversationId as never,
-        pendingMessageId: sideEffectInput.pendingMessageId as never,
+        companyId: toCompanyId(sideEffectInput.companyId),
+        conversationId: toConversationId(sideEffectInput.conversationId),
+        pendingMessageId: toMessageId(sideEffectInput.pendingMessageId),
         analyticsCompleted: true,
       });
     },
@@ -52,7 +58,7 @@ export const replayPendingAssistantAnalyticsIfNeeded = async (
     listRecentMessages: async () => [],
     recordAnalytics: async (sideEffectInput) => {
       await client.mutation(convexInternal.analytics.recordEvent, {
-        companyId: sideEffectInput.companyId as never,
+        companyId: toCompanyId(sideEffectInput.companyId),
         eventType: "handoff_started",
         timestamp: sideEffectInput.timestamp,
         idempotencyKey: sideEffectInput.idempotencyKey,
@@ -65,9 +71,9 @@ export const replayPendingAssistantAnalyticsIfNeeded = async (
     },
     recordAnalyticsProgress: async (sideEffectInput) => {
       await client.mutation(convexInternal.conversations.recordPendingAssistantSideEffectProgress, {
-        companyId: sideEffectInput.companyId as never,
-        conversationId: sideEffectInput.conversationId as never,
-        pendingMessageId: sideEffectInput.pendingMessageId as never,
+        companyId: toCompanyId(sideEffectInput.companyId),
+        conversationId: toConversationId(sideEffectInput.conversationId),
+        pendingMessageId: toMessageId(sideEffectInput.pendingMessageId),
         analyticsRecorded: true,
       });
       await appendAssistantAnalyticsReplayedSessionLog(input.conversationSessionLog, {
@@ -116,9 +122,9 @@ export const replayPendingAssistantOwnerNotificationIfNeeded = async (
     completeAnalytics: async () => undefined,
     completeOwnerNotification: async (sideEffectInput) => {
       await client.mutation(convexInternal.conversations.completePendingAssistantSideEffects, {
-        companyId: sideEffectInput.companyId as never,
-        conversationId: sideEffectInput.conversationId as never,
-        pendingMessageId: sideEffectInput.pendingMessageId as never,
+        companyId: toCompanyId(sideEffectInput.companyId),
+        conversationId: toConversationId(sideEffectInput.conversationId),
+        pendingMessageId: toMessageId(sideEffectInput.pendingMessageId),
         ownerNotificationCompleted: true,
       });
     },
@@ -126,22 +132,22 @@ export const replayPendingAssistantOwnerNotificationIfNeeded = async (
       input.ownerContext !== undefined
         ? input.ownerContext
         : client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
-          companyId: input.companyId as never,
-          conversationId: input.conversationId as never,
+          companyId: toCompanyId(input.companyId),
+          conversationId: toConversationId(input.conversationId),
         }),
     listRecentMessages: (sideEffectInput) =>
       client.query(convexInternal.conversations.listConversationMessages, {
-        companyId: sideEffectInput.companyId as never,
-        conversationId: sideEffectInput.conversationId as never,
+        companyId: toCompanyId(sideEffectInput.companyId),
+        conversationId: toConversationId(sideEffectInput.conversationId),
         limit: sideEffectInput.limit,
       }) as Promise<ConversationMessageDto[]>,
     recordAnalytics: async () => undefined,
     recordAnalyticsProgress: async () => undefined,
     recordOwnerNotificationProgress: async (sideEffectInput) => {
       await client.mutation(convexInternal.conversations.recordPendingAssistantSideEffectProgress, {
-        companyId: sideEffectInput.companyId as never,
-        conversationId: sideEffectInput.conversationId as never,
-        pendingMessageId: sideEffectInput.pendingMessageId as never,
+        companyId: toCompanyId(sideEffectInput.companyId),
+        conversationId: toConversationId(sideEffectInput.conversationId),
+        pendingMessageId: toMessageId(sideEffectInput.pendingMessageId),
         ownerNotificationSent: true,
       });
       await appendAssistantOwnerNotificationReplayedSessionLog(input.conversationSessionLog, {

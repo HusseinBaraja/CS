@@ -4,6 +4,7 @@ import { version as convexVersion } from 'convex';
 export type { Id } from "../../../convex/_generated/dataModel";
 
 export * from "./client";
+export * from "./convexIds";
 
 export const DB_PROVIDER = "convex";
 const QUERY_TIMESTAMP_PATH = "/api/query_ts";
