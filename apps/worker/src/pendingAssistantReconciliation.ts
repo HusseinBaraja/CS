@@ -2,7 +2,14 @@ import {
   type ConversationSessionLogWriter,
   logger as defaultLogger,
 } from '@cs/core';
-import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
+import {
+  type ConvexAdminClient,
+  convexInternal,
+  createConvexAdminClient,
+  toCompanyId,
+  toConversationId,
+  toMessageId,
+} from '@cs/db';
 import {
   type AnalyticsHandoffState,
   isSamePhoneNumber,
@@ -78,9 +85,9 @@ const reconcilePendingAssistantMessage = async (
 
   try {
     const message = await client.query(convexInternal.conversations.getConversationMessage, {
-      companyId: candidate.companyId as never,
-      conversationId: candidate.conversationId as never,
-      messageId: candidate.messageId as never,
+      companyId: toCompanyId(candidate.companyId),
+      conversationId: toConversationId(candidate.conversationId),
+      messageId: toMessageId(candidate.messageId),
     });
 
     if (!message || message.deliveryState !== "pending" || message.providerAcknowledgedAt === undefined) {
@@ -89,8 +96,8 @@ const reconcilePendingAssistantMessage = async (
 
     const conversationOwnerContext = conversationSessionLog && process.env.NODE_ENV !== "production"
       ? await client.query(convexInternal.conversations.getConversationOwnerNotificationContext, {
-        companyId: candidate.companyId as never,
-        conversationId: candidate.conversationId as never,
+        companyId: toCompanyId(candidate.companyId),
+        conversationId: toConversationId(candidate.conversationId),
       })
       : undefined;
     const ownerConversationSessionLog = conversationOwnerContext
@@ -99,9 +106,9 @@ const reconcilePendingAssistantMessage = async (
       : undefined;
 
     await client.mutation(convexInternal.conversations.commitPendingAssistantMessage, {
-      companyId: candidate.companyId as never,
-      conversationId: candidate.conversationId as never,
-      pendingMessageId: candidate.messageId as never,
+      companyId: toCompanyId(candidate.companyId),
+      conversationId: toConversationId(candidate.conversationId),
+      pendingMessageId: toMessageId(candidate.messageId),
     });
     await appendAssistantReconciledSessionLog(ownerConversationSessionLog, {
       companyId: candidate.companyId,

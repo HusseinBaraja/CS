@@ -3,7 +3,8 @@ import { logEvent, redactJidForLog, redactPhoneLikeValue, serializeErrorForLog, 
 import { appendConversationSessionLogAiTracesSafely, appendConversationSessionLogEntrySafely, getOwnerConversationSessionLog, serializeInboundMessage, summarizeAssistantText, summarizeUserText } from './customerConversationLogHelpers';
 import { runPendingHandoffSideEffects, type NormalizedInboundMessage } from '@cs/shared';
 import type { InboundRouteContext } from './sessionManager';
-import { toCompanyId, type ConversationStore } from './conversationStore';
+import { toCompanyId } from '@cs/db';
+import type { ConversationStore } from './conversationStore';
 type CustomerConversationLogger = StructuredLogger;
 interface CustomerConversationRouterOptions {
   catalogChatOrchestrator: CatalogChatOrchestrator;
@@ -44,6 +45,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
       );
       return;
     }
+    const outbound = context.outbound;
     const userMessage = serializeInboundMessage(message);
     const conversationSessionLog = getOwnerConversationSessionLog(
       options.conversationSessionLog,
@@ -271,7 +273,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
 
     let outboundMessageId: string | undefined;
     try {
-      const sendReceipts = await context.outbound.sendText({
+      const sendReceipts = await outbound.sendText({
         logger: routeLogger,
         recipientJid: `${message.sender.phoneNumber}@s.whatsapp.net`,
         text: assistantText,
@@ -473,7 +475,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
             ownerNotificationSent: true,
           }).then(() => undefined),
         sendOwnerNotification: (input) =>
-          context.outbound.sendText({
+          outbound.sendText({
             logger: routeLogger,
             recipientJid: input.recipientJid,
             text: input.text,

@@ -7,7 +7,14 @@ import type {
   ConversationStateEventSource,
 } from '@cs/shared';
 import { isTransientConvexTransportError } from '@cs/core';
-import { type ConvexAdminClient, convexInternal, createConvexAdminClient, type Id } from '@cs/db';
+import {
+  type ConvexAdminClient,
+  convexInternal,
+  createConvexAdminClient,
+  toCompanyId,
+  toConversationId,
+  toMessageId,
+} from '@cs/db';
 
 export type ConversationRecord = ConversationStateDto;
 export type ConversationMessageRecord = ConversationMessageDto;
@@ -160,32 +167,6 @@ export interface ConversationStore {
 interface ConvexConversationStoreOptions {
   createClient?: () => ConvexAdminClient;
 }
-
-const CONVEX_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
-
-const toConvexId = <TableName extends "companies" | "conversations" | "messages">(
-  tableName: TableName,
-  rawValue: string,
-): Id<TableName> => {
-  const normalizedValue = rawValue.trim();
-  if (normalizedValue.length === 0 || !CONVEX_ID_PATTERN.test(normalizedValue)) {
-    throw new Error(
-      `Invalid ${tableName} id "${rawValue}": expected a non-empty identifier containing only letters, numbers, "_" or "-"`,
-    );
-  }
-
-  return normalizedValue as Id<TableName>;
-};
-
-export const toCompanyId = (companyId: string): Id<"companies"> => toConvexId("companies", companyId);
-
-const toConversationId = (conversationId: string): Id<"conversations"> => {
-  return toConvexId("conversations", conversationId);
-};
-
-const toMessageId = (messageId: string): Id<"messages"> => {
-  return toConvexId("messages", messageId);
-};
 
 export const createConvexConversationStore = (
   options: ConvexConversationStoreOptions = {},

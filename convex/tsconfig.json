@@ -15,7 +15,7 @@
 
     /* These compiler options are required by Convex */
     "target": "ESNext",
-    "lib": ["ES2021", "dom"],
+    "lib": ["ES2022", "dom"],
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "isolatedModules": true,
@@ -25,6 +25,7 @@
       "@cs/config": ["packages/config/src/index.ts"],
       "@cs/shared": ["packages/shared/src/index.ts"],
       "@cs/convex-api": ["packages/convex-api/src/index.ts"],
+      "@cs/convex/*": ["convex/*"],
       "@cs/core": ["packages/core/src/index.ts"],
       "@cs/db": ["packages/db/src/index.ts"],
       "@cs/ai": ["packages/ai/src/index.ts"],
