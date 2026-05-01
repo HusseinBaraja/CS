@@ -3,7 +3,11 @@ import {
   logger as defaultLogger,
 } from '@cs/core';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
-import { isSamePhoneNumber } from '@cs/shared';
+import {
+  type AnalyticsHandoffState,
+  isSamePhoneNumber,
+  type OwnerNotificationHandoffState,
+} from '@cs/shared';
 import {
   appendAssistantReconciledSessionLog,
 } from './pendingAssistantSessionLog';
@@ -52,8 +56,8 @@ const reconcilePendingAssistantMessage = async (
     conversationId: string;
     messageId: string;
     phoneNumber: string;
-    analyticsState?: "pending" | "recorded" | "completed" | "not_applicable";
-    ownerNotificationState?: "pending" | "sent" | "completed" | "not_applicable";
+    analyticsState?: AnalyticsHandoffState;
+    ownerNotificationState?: OwnerNotificationHandoffState;
   },
   logger: WorkerLogger,
   now: number,

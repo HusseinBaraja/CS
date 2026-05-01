@@ -3,7 +3,8 @@
 ## Instruction Priority
 
 - Every instruction in this file is mandatory.
-- Use `skills/caveman/SKILL.md` in lite mode.
+- Use `.agents/skills/caveman/SKILL.md` in lite mode.
+- Use `.agents/skills/vertical-codebase/SKILL.md` to decide how to structure the codebase.
 - Commit incrementally when you complete a checkpoint.
 - Follow the existing non-destructive git rules: never revert user changes unless explicitly asked.
 
@@ -90,8 +91,8 @@ Reda (رضا) is a multi-tenant WhatsApp customer service platform for small and
 ## Modularity Guardrails
 
 - For core logic `.ts` files, do not add a new responsibility to an existing file when it should be a sibling module.
-- No new core logic `.ts` file may exceed `240` LOC without an explicit entry in `modularity-policy.json`.
-- If a core logic file already exceeds `240` LOC, it must not grow unless its `modularity-policy.json` entry is intentionally updated with rationale.
+- No new core logic `.ts` file may exceed `240` lines.
+- If a core logic file already exceeds `240` LOC, it must not grow, rather it must be handled right then and go through a splitting process.
 - Files classified as `must_split` in `modularity-policy.json` are debt containers: patches are allowed, but adding unrelated responsibilities is not.
 - Before editing a core logic file over `240` LOC, check `modularity-policy.json`.
 - Prefer extracting helper modules before adding new branches to orchestration-heavy files.

@@ -1,7 +1,7 @@
 import type { CatalogChatOrchestrator } from '@cs/rag';
 import { logEvent, redactJidForLog, redactPhoneLikeValue, serializeErrorForLog, type StructuredLogger, withLogBindings } from '@cs/core';
-import { appendConversationSessionLogAiTracesSafely, appendConversationSessionLogEntrySafely, getAnalyticsIdempotencyKey, getOwnerConversationSessionLog, serializeInboundMessage, summarizeAssistantText, summarizeUserText } from './customerConversationLogHelpers';
-import { canonicalizePhoneNumber, formatOwnerNotification, type NormalizedInboundMessage } from '@cs/shared';
+import { appendConversationSessionLogAiTracesSafely, appendConversationSessionLogEntrySafely, getOwnerConversationSessionLog, serializeInboundMessage, summarizeAssistantText, summarizeUserText } from './customerConversationLogHelpers';
+import { runPendingHandoffSideEffects, type NormalizedInboundMessage } from '@cs/shared';
 import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId, type ConversationStore } from './conversationStore';
 type CustomerConversationLogger = StructuredLogger;
@@ -14,7 +14,6 @@ interface CustomerConversationRouterOptions {
   now?: () => number;
 }
 const DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES = 20;
-const OWNER_HANDOFF_HISTORY_LIMIT = 6;
 export const createCustomerConversationRouter = (options: CustomerConversationRouterOptions): ((message: NormalizedInboundMessage, context: InboundRouteContext) => Promise<void>) => {
   const now = options.now ?? Date.now;
   const conversationHistoryWindowMessages = options.conversationHistoryWindowMessages ?? DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES;
@@ -427,117 +426,84 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
     }, onSessionLogAppendFailed);
 
     if (handoffSource) {
-      try {
-        await options.conversationStore.recordAnalyticsEvent({
-          companyId: message.companyId,
-          eventType: "handoff_started",
-          idempotencyKey: getAnalyticsIdempotencyKey(pendingMessageId),
-          timestamp: assistantTimestamp,
-          payload: {
-            conversationId,
-            phoneNumber: message.conversationPhoneNumber,
-            source: handoffSource,
-          },
-        });
-        await options.conversationStore.recordPendingAssistantSideEffectProgress({
-          companyId: message.companyId,
-          conversationId,
-          pendingMessageId,
-          analyticsRecorded: true,
-        });
-        await options.conversationStore.completePendingAssistantSideEffects({
-          companyId: message.companyId,
-          conversationId,
-          pendingMessageId,
-          analyticsCompleted: true,
-        });
-      } catch (error) {
+      const sideEffectResult = await runPendingHandoffSideEffects({
+        companyId: message.companyId,
+        conversationId,
+        customerPhoneNumber: message.conversationPhoneNumber,
+        handoffSource,
+        pendingMessageId,
+        timestamp: assistantTimestamp,
+        analyticsState: "pending",
+        ownerNotificationState: "pending",
+        completeAnalytics: (input) =>
+          options.conversationStore.completePendingAssistantSideEffects({
+            ...input,
+            analyticsCompleted: true,
+          }).then(() => undefined),
+        completeOwnerNotification: (input) =>
+          options.conversationStore.completePendingAssistantSideEffects({
+            ...input,
+            ownerNotificationCompleted: true,
+          }).then(() => undefined),
+        getOwnerNotificationContext: async () => ({
+          companyName: context.profile.name,
+          ownerPhone: context.profile.ownerPhone,
+        }),
+        listRecentMessages: (input) => options.conversationStore.listRecentMessages(input),
+        recordAnalytics: (input) =>
+          options.conversationStore.recordAnalyticsEvent({
+            companyId: input.companyId,
+            eventType: "handoff_started",
+            idempotencyKey: input.idempotencyKey,
+            timestamp: input.timestamp,
+            payload: {
+              conversationId: input.conversationId,
+              phoneNumber: input.customerPhoneNumber,
+              source: input.handoffSource,
+            },
+          }),
+        recordAnalyticsProgress: (input) =>
+          options.conversationStore.recordPendingAssistantSideEffectProgress({
+            ...input,
+            analyticsRecorded: true,
+          }).then(() => undefined),
+        recordOwnerNotificationProgress: (input) =>
+          options.conversationStore.recordPendingAssistantSideEffectProgress({
+            ...input,
+            ownerNotificationSent: true,
+          }).then(() => undefined),
+        sendOwnerNotification: (input) =>
+          context.outbound.sendText({
+            logger: routeLogger,
+            recipientJid: input.recipientJid,
+            text: input.text,
+          }).then(() => undefined),
+      });
+
+      for (const failure of sideEffectResult.failures) {
+        const isOwnerNotificationFailure = failure.sideEffect === "owner_notification";
         logEvent(
           routeLogger,
           "error",
           {
             companyId: message.companyId,
             conversationId,
-            error: serializeErrorForLog(error),
-            event: "bot.router.handoff_analytics_failed",
+            error: serializeErrorForLog(failure.error),
+            event: isOwnerNotificationFailure
+              ? "bot.router.owner_notification_failed"
+              : "bot.router.handoff_analytics_failed",
             handoffSource,
             messageId: message.messageId,
             outcome: "error",
+            ...(isOwnerNotificationFailure ? { ownerPhoneNumber: redactPhoneLikeValue(context.profile.ownerPhone) } : {}),
             runtime: "bot",
             sessionKey: message.sessionKey,
             surface: "router",
           },
-          "customer conversation handoff analytics failed",
+          isOwnerNotificationFailure
+            ? "customer conversation owner handoff notification failed"
+            : "customer conversation handoff analytics failed",
         );
-      }
-
-      const ownerPhoneNumber = canonicalizePhoneNumber(context.profile.ownerPhone);
-      if (!ownerPhoneNumber) {
-        logEvent(
-          routeLogger,
-          "error",
-          {
-            companyId: message.companyId,
-            conversationId,
-            event: "bot.router.owner_phone_unavailable",
-            outcome: "error",
-            ownerPhone: redactPhoneLikeValue(context.profile.ownerPhone),
-            runtime: "bot",
-            sessionKey: message.sessionKey,
-            surface: "router",
-          },
-          "customer conversation owner phone unavailable for handoff notification",
-        );
-      } else {
-        try {
-          const recentMessages = await options.conversationStore.listRecentMessages({
-            companyId: message.companyId,
-            conversationId,
-            limit: OWNER_HANDOFF_HISTORY_LIMIT,
-          });
-
-          await context.outbound.sendText({
-            logger: routeLogger,
-            recipientJid: `${ownerPhoneNumber}@s.whatsapp.net`,
-            text: formatOwnerNotification({
-              companyName: context.profile.name,
-              customerPhoneNumber: message.conversationPhoneNumber,
-              history: recentMessages,
-              source: handoffSource,
-            }),
-          });
-          await options.conversationStore.recordPendingAssistantSideEffectProgress({
-            companyId: message.companyId,
-            conversationId,
-            pendingMessageId,
-            ownerNotificationSent: true,
-          });
-          await options.conversationStore.completePendingAssistantSideEffects({
-            companyId: message.companyId,
-            conversationId,
-            pendingMessageId,
-            ownerNotificationCompleted: true,
-          });
-        } catch (error) {
-          logEvent(
-            routeLogger,
-            "error",
-            {
-              companyId: message.companyId,
-              conversationId,
-              error: serializeErrorForLog(error),
-              event: "bot.router.owner_notification_failed",
-              handoffSource,
-              outcome: "error",
-              ownerPhoneNumber: redactPhoneLikeValue(ownerPhoneNumber),
-              messageId: message.messageId,
-              runtime: "bot",
-              sessionKey: message.sessionKey,
-              surface: "router",
-            },
-            "customer conversation owner handoff notification failed",
-          );
-        }
       }
     }
 
