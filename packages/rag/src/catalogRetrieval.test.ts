@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { GroundingContextBlock } from '@cs/ai';
 import type { ConvexAdminClient, Id } from '@cs/db';
-import { buildRetrievalQueryText, createProductRetrievalService, generateRetrievalQueryEmbedding } from './index';
+import { buildRetrievalQueryText, createProductRetrievalService, generateRetrievalQueryEmbedding } from './catalogRetrieval';
 
 const COMPANY_ID = "company-1" as Id<"companies">;
 
