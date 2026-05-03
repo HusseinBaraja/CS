@@ -6,15 +6,10 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
+import { CatalogTemplateDownload } from '../features/catalog-import/CatalogTemplateDownload';
+import { buildCatalogTemplateHeaders, defaultCatalogTemplateOptions } from '../features/catalog-import/catalogTemplate';
 
-const requiredColumns = [
-  'رقم الصنف',
-  'اسم الصنف',
-  'تفاصيل الصنف',
-  'المواصفات',
-  'الأساسي',
-  'العمل',
-];
+const requiredColumns = buildCatalogTemplateHeaders(defaultCatalogTemplateOptions);
 
 const uploadedFile = {
   name: 'reda-catalog-template.xlsx',
@@ -47,10 +42,7 @@ export function UploadDataPage() {
                     <p className="text-sm leading-6 text-[#63706b]">الصيغ المدعومة: XLSX، XLS، CSV. الحد الأقصى المقترح 5 MB.</p>
                   </div>
                   <div className="flex flex-wrap items-center justify-center gap-3">
-                    <Button variant="outline">
-                      <FileSpreadsheet data-icon="inline-start" />
-                      تنزيل القالب
-                    </Button>
+                    <CatalogTemplateDownload />
                     <Button onClick={() => setHasUploadedFile(true)}>
                       <UploadCloud data-icon="inline-start" />
                       رفع الملف

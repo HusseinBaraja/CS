@@ -2,6 +2,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { UploadDataPage } from './UploadDataPage';
+import { downloadCatalogTemplate } from '../features/catalog-import/downloadCatalogTemplate';
+
+vi.mock('../features/catalog-import/downloadCatalogTemplate', () => ({
+  downloadCatalogTemplate: vi.fn(),
+}));
 
 describe('UploadDataPage', () => {
   beforeAll(() => {
@@ -21,6 +26,7 @@ describe('UploadDataPage', () => {
   });
 
   afterEach(() => {
+    vi.clearAllMocks();
     cleanup();
   });
 
@@ -33,6 +39,50 @@ describe('UploadDataPage', () => {
     expect(screen.getByRole('button', { name: /رفع الملف/ })).toBeDefined();
     expect(screen.getByText('لم يتم رفع أي ملف بعد.')).toBeDefined();
     expect(screen.queryByText('reda-catalog-template.xlsx')).toBeNull();
+    expect(downloadCatalogTemplate).not.toHaveBeenCalled();
+  });
+
+  it('opens template options without downloading immediately', () => {
+    render(<UploadDataPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
+
+    expect(screen.getByRole('group', { name: 'اختيار العملة' })).toBeDefined();
+    expect(screen.getByRole('group', { name: 'تضمين السعر' })).toBeDefined();
+    expect(screen.getByRole('group', { name: 'اختيار اللغة' })).toBeDefined();
+    expect(screen.getByRole('group', { name: 'تضمين المعلومات الإضافية' })).toBeDefined();
+    expect(screen.getByRole('group', { name: 'تضمين الوصف' })).toBeDefined();
+    expect(screen.getByRole('button', { name: /تحميل ملف Excel/ })).toBeDefined();
+    expect(downloadCatalogTemplate).not.toHaveBeenCalled();
+  });
+
+  it('passes selected template options to the download action', () => {
+    render(<UploadDataPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
+    fireEvent.click(screen.getByRole('radio', { name: 'YER' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'English' }));
+    fireEvent.click(screen.getAllByRole('radio', { name: 'لا' })[1]);
+    fireEvent.click(screen.getAllByRole('radio', { name: 'لا' })[2]);
+    fireEvent.click(screen.getByRole('button', { name: /تحميل ملف Excel/ }));
+
+    expect(downloadCatalogTemplate).toHaveBeenCalledWith({
+      currency: 'YER',
+      includePrice: true,
+      language: 'en',
+      includeSpecifications: false,
+      includeDescription: false,
+    });
+  });
+
+  it('disables currency selection when price is off', () => {
+    render(<UploadDataPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
+    fireEvent.click(screen.getAllByRole('radio', { name: 'لا' })[0]);
+
+    expect(screen.getByRole('radio', { name: 'SAR' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('radio', { name: 'YER' }).hasAttribute('disabled')).toBe(true);
   });
 
   it('shows one simulated uploaded file row after clicking upload', () => {
