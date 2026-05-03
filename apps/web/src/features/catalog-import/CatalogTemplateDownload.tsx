@@ -31,15 +31,23 @@ export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }
   };
 
   return (
-    <Collapsible>
+    <Collapsible className="relative inline-flex">
       <CollapsibleTrigger asChild>
         <Button variant="outline" aria-label="تنزيل القالب">
           <ChevronDown data-icon="inline-start" />
           تنزيل القالب
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="mt-4 flex w-full max-w-xl flex-col gap-4 rounded-lg border border-[#dfe6e2] bg-white p-4 text-start shadow-[0_8px_24px_rgba(22,35,29,0.08)]">
+      <CollapsibleContent className="absolute top-full right-0 z-20 pt-4">
+        <div className="flex w-68 flex-col gap-4 rounded-lg border border-[#dfe6e2] bg-white p-4 text-start shadow-[0_8px_24px_rgba(22,35,29,0.08)]">
+          <TemplateOption label="السعر">
+            <BooleanToggle
+              ariaLabel="تضمين السعر"
+              value={options.includePrice}
+              onChange={(includePrice) => updateOptions({ includePrice })}
+            />
+          </TemplateOption>
+
           <TemplateOption label="العملة">
             <ToggleGroup
               type="single"
@@ -60,14 +68,6 @@ export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }
                 YER
               </ToggleGroupItem>
             </ToggleGroup>
-          </TemplateOption>
-
-          <TemplateOption label="السعر">
-            <BooleanToggle
-              ariaLabel="تضمين السعر"
-              value={options.includePrice}
-              onChange={(includePrice) => updateOptions({ includePrice })}
-            />
           </TemplateOption>
 
           <TemplateOption label="اللغة">

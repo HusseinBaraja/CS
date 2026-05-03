@@ -56,6 +56,17 @@ describe('UploadDataPage', () => {
     expect(downloadCatalogTemplate).not.toHaveBeenCalled();
   });
 
+  it('shows price before currency in template options', () => {
+    render(<UploadDataPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
+
+    const priceGroup = screen.getByRole('group', { name: 'تضمين السعر' });
+    const currencyGroup = screen.getByRole('group', { name: 'اختيار العملة' });
+
+    expect(priceGroup.compareDocumentPosition(currencyGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('passes selected template options to the download action', () => {
     render(<UploadDataPage />);
 
