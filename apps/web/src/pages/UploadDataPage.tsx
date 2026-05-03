@@ -33,7 +33,7 @@ export function UploadDataPage() {
           <div className="flex flex-col gap-5">
             <Card className="border-[#dfe6e2] shadow-[0_1px_3px_rgba(22,35,29,0.08),0_12px_32px_rgba(22,35,29,0.04)]">
               <CardContent className="px-5 pb-5">
-                <div className="flex min-h-78 flex-col items-center justify-center gap-5 rounded-lg border border-dashed border-[#a9bbb2] bg-[#f8fbf9] p-6 text-center">
+                <div className="flex min-h-78 flex-col items-center gap-5 rounded-lg border border-dashed border-[#a9bbb2] bg-[#f8fbf9] px-6 pt-18 pb-6 text-center">
                   <div className="flex size-16 items-center justify-center rounded-lg bg-white text-[#0d7c47] shadow-[0_8px_24px_rgba(22,35,29,0.08)]">
                     <FileSpreadsheet />
                   </div>
