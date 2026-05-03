@@ -20,12 +20,16 @@ export const defaultCatalogTemplateOptions: CatalogTemplateOptions = {
 
 const labels = {
   ar: {
+    categoryName: 'اسم القسم',
+    productNumber: 'رقم المنتج',
     productName: 'اسم المنتج بالعربية',
     description: 'وصف المنتج بالعربية',
-    basePrice: 'السعر الأساسي',
+    basePrice: 'السعر',
     specifications: 'المواصفات',
   },
   en: {
+    categoryName: 'Section Name',
+    productNumber: 'Product Number',
     productName: 'English Product Name',
     description: 'English Product Description',
     basePrice: 'Base Price',
@@ -49,7 +53,7 @@ const currencyLabels = {
 export function buildCatalogTemplateHeaders(options: CatalogTemplateOptions): string[] {
   const selectedLabels = labels[options.language];
   const selectedCurrency = currencyLabels[options.language][options.currency];
-  const headers = ['Category Name', selectedLabels.productName];
+  const headers = [selectedLabels.categoryName, selectedLabels.productNumber, selectedLabels.productName];
 
   if (options.includeDescription) {
     headers.push(selectedLabels.description);

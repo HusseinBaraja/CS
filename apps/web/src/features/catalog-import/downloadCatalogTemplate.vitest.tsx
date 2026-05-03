@@ -31,7 +31,7 @@ describe('downloadCatalogTemplate', () => {
     });
 
     expect(XLSX.utils.aoa_to_sheet).toHaveBeenCalledWith([
-      ['Category Name', 'English Product Name', 'Base Price (Yemeni Rial)'],
+      ['Section Name', 'Product Number', 'English Product Name', 'Base Price (Yemeni Rial)'],
     ]);
     expect(XLSX.utils.book_append_sheet).toHaveBeenCalledWith(workbook, worksheet, 'Catalog Template');
     expect(XLSX.writeFile).toHaveBeenCalledWith(workbook, catalogTemplateFilename);

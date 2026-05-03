@@ -13,17 +13,19 @@ const baseOptions: CatalogTemplateOptions = {
 describe('buildCatalogTemplateHeaders', () => {
   it('maps Arabic headers with all options enabled', () => {
     expect(buildCatalogTemplateHeaders(baseOptions)).toEqual([
-      'Category Name',
+      'اسم القسم',
+      'رقم المنتج',
       'اسم المنتج بالعربية',
       'وصف المنتج بالعربية',
-      'السعر الأساسي (ريال سعودي)',
+      'السعر (ريال سعودي)',
       'المواصفات',
     ]);
   });
 
   it('maps English headers with description off', () => {
     expect(buildCatalogTemplateHeaders({ ...baseOptions, currency: 'YER', language: 'en', includeDescription: false })).toEqual([
-      'Category Name',
+      'Section Name',
+      'Product Number',
       'English Product Name',
       'Base Price (Yemeni Rial)',
       'Additional Information',
@@ -32,7 +34,8 @@ describe('buildCatalogTemplateHeaders', () => {
 
   it('removes price and currency headers when price is off', () => {
     expect(buildCatalogTemplateHeaders({ ...baseOptions, includePrice: false })).toEqual([
-      'Category Name',
+      'اسم القسم',
+      'رقم المنتج',
       'اسم المنتج بالعربية',
       'وصف المنتج بالعربية',
       'المواصفات',
@@ -41,10 +44,11 @@ describe('buildCatalogTemplateHeaders', () => {
 
   it('removes the specifications header when additional info is off', () => {
     expect(buildCatalogTemplateHeaders({ ...baseOptions, includeSpecifications: false })).toEqual([
-      'Category Name',
+      'اسم القسم',
+      'رقم المنتج',
       'اسم المنتج بالعربية',
       'وصف المنتج بالعربية',
-      'السعر الأساسي (ريال سعودي)',
+      'السعر (ريال سعودي)',
     ]);
   });
 });
