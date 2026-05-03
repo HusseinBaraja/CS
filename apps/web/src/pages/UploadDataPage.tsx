@@ -41,7 +41,7 @@ export function UploadDataPage() {
                     <p className="text-xl font-bold text-[#1d2522]">اسحب ملف Excel هنا أو ارفعه من جهازك</p>
                     <p className="text-sm leading-6 text-[#63706b]">الصيغ المدعومة: XLSX، XLS، CSV. الحد الأقصى المقترح 5 MB.</p>
                   </div>
-                  <div className="flex flex-wrap items-center justify-center gap-3">
+                  <div className="flex w-full flex-wrap items-center justify-center gap-3">
                     <CatalogTemplateDownload />
                     <Button onClick={() => setHasUploadedFile(true)}>
                       <UploadCloud data-icon="inline-start" />

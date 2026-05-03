@@ -31,14 +31,14 @@ export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }
   };
 
   return (
-    <Collapsible className="relative inline-flex">
+    <Collapsible className="contents">
       <CollapsibleTrigger asChild>
         <Button variant="outline" aria-label="تنزيل القالب">
           <ChevronDown data-icon="inline-start" />
           تنزيل القالب
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="absolute top-full right-0 z-20 pt-4">
+      <CollapsibleContent className="order-last flex basis-full justify-center pt-4">
         <div className="flex w-68 flex-col gap-4 rounded-lg border border-[#dfe6e2] bg-white p-4 text-start shadow-[0_8px_24px_rgba(22,35,29,0.08)]">
           <TemplateOption label="السعر">
             <BooleanToggle
