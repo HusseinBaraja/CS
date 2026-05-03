@@ -7,6 +7,7 @@ import {
   type WorkerLogger,
   withWorkerJobLogger,
 } from './logging';
+import { getConversationAutoResumeLockKey, withConversationLock } from './conversationLock';
 
 const DEFAULT_AUTO_RESUME_INTERVAL_MS = 60_000;
 const DEFAULT_AUTO_RESUME_BATCH_SIZE = 50;
@@ -26,65 +27,44 @@ interface ConversationAutoResumeTickResult {
   failedCount: number;
 }
 
-const getConversationAutoResumeLockKey = (conversationId: string): string =>
-  `conversation:auto-resume:${conversationId}`;
-
 const processConversation = async (
   client: ConvexAdminClient,
   conversation: { id: string; companyId: string; nextAutoResumeAt?: number; muted: boolean },
   logger: WorkerLogger,
   now: number,
 ): Promise<"resumed" | "skipped"> => {
-  const ownerToken = crypto.randomUUID();
   const key = getConversationAutoResumeLockKey(conversation.id);
-  const acquisition = await client.mutation(convexInternal.conversations.acquireConversationLock, {
+  return withConversationLock({
+    client,
+    context: {
+      jobName: JOB_NAME,
+      companyId: conversation.companyId,
+      conversationId: conversation.id,
+    },
     key,
+    logger,
     now,
-    ownerToken,
-  });
-
-  if (!acquisition.acquired) {
-    return "skipped";
-  }
-
-  try {
-    const reloaded = await client.query(convexInternal.conversations.getConversation, {
-      companyId: conversation.companyId as never,
-      conversationId: conversation.id as never,
-    });
-
-    if (!reloaded.muted || reloaded.nextAutoResumeAt === undefined || reloaded.nextAutoResumeAt > now) {
-      return "skipped";
-    }
-
-    await client.mutation(convexInternal.conversations.resumeConversation, {
-      companyId: conversation.companyId as never,
-      conversationId: conversation.id as never,
-      resumedAt: now,
-      source: "worker_auto",
-    });
-
-    return "resumed";
-  } finally {
-    try {
-      await client.mutation(convexInternal.conversations.releaseConversationLock, {
-        key,
-        ownerToken,
+    releaseFailureMessage: "conversation auto-resume lock release failed",
+    run: async () => {
+      const reloaded = await client.query(convexInternal.conversations.getConversation, {
+        companyId: conversation.companyId as never,
+        conversationId: conversation.id as never,
       });
-    } catch (error) {
-      logWorkerItemFailed(
-        logger,
-        error,
-        {
-          jobName: JOB_NAME,
-          companyId: conversation.companyId,
-          conversationId: conversation.id,
-          step: "lock_release",
-        },
-        "conversation auto-resume lock release failed",
-      );
-    }
-  }
+
+      if (!reloaded.muted || reloaded.nextAutoResumeAt === undefined || reloaded.nextAutoResumeAt > now) {
+        return "skipped";
+      }
+
+      await client.mutation(convexInternal.conversations.resumeConversation, {
+        companyId: conversation.companyId as never,
+        conversationId: conversation.id as never,
+        resumedAt: now,
+        source: "worker_auto",
+      });
+
+      return "resumed";
+    },
+  });
 };
 
 export const createConversationAutoResumeProcessor = (
