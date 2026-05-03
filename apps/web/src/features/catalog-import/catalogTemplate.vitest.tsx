@@ -16,8 +16,7 @@ describe('buildCatalogTemplateHeaders', () => {
       'Category Name',
       'اسم المنتج بالعربية',
       'وصف المنتج بالعربية',
-      'السعر الأساسي',
-      'العملة الأساسية (SAR)',
+      'السعر الأساسي (ريال سعودي)',
       'المواصفات',
     ]);
   });
@@ -26,8 +25,7 @@ describe('buildCatalogTemplateHeaders', () => {
     expect(buildCatalogTemplateHeaders({ ...baseOptions, currency: 'YER', language: 'en', includeDescription: false })).toEqual([
       'Category Name',
       'English Product Name',
-      'Base Price',
-      'Base Currency (YER)',
+      'Base Price (Yemeni Rial)',
       'Additional Information',
     ]);
   });
@@ -46,8 +44,7 @@ describe('buildCatalogTemplateHeaders', () => {
       'Category Name',
       'اسم المنتج بالعربية',
       'وصف المنتج بالعربية',
-      'السعر الأساسي',
-      'العملة الأساسية (SAR)',
+      'السعر الأساسي (ريال سعودي)',
     ]);
   });
 });

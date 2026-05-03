@@ -23,22 +23,32 @@ const labels = {
     productName: 'اسم المنتج بالعربية',
     description: 'وصف المنتج بالعربية',
     basePrice: 'السعر الأساسي',
-    baseCurrency: 'العملة الأساسية',
     specifications: 'المواصفات',
   },
   en: {
     productName: 'English Product Name',
     description: 'English Product Description',
     basePrice: 'Base Price',
-    baseCurrency: 'Base Currency',
     specifications: 'Additional Information',
   },
 } satisfies Record<CatalogTemplateLanguage, Record<string, string>>;
+
+const currencyLabels = {
+  ar: {
+    SAR: 'ريال سعودي',
+    YER: 'ريال يمني',
+  },
+  en: {
+    SAR: 'Saudi Riyal',
+    YER: 'Yemeni Rial',
+  },
+} satisfies Record<CatalogTemplateLanguage, Record<CatalogTemplateCurrency, string>>;
 
 // Mapped from convex/schema.ts products table: categoryId, nameEn/nameAr,
 // descriptionEn/descriptionAr, basePrice, baseCurrency, specifications.
 export function buildCatalogTemplateHeaders(options: CatalogTemplateOptions): string[] {
   const selectedLabels = labels[options.language];
+  const selectedCurrency = currencyLabels[options.language][options.currency];
   const headers = ['Category Name', selectedLabels.productName];
 
   if (options.includeDescription) {
@@ -46,7 +56,7 @@ export function buildCatalogTemplateHeaders(options: CatalogTemplateOptions): st
   }
 
   if (options.includePrice) {
-    headers.push(selectedLabels.basePrice, `${selectedLabels.baseCurrency} (${options.currency})`);
+    headers.push(`${selectedLabels.basePrice} (${selectedCurrency})`);
   }
 
   if (options.includeSpecifications) {
