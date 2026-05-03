@@ -1,7 +1,17 @@
 import { version as convexVersion } from "convex";
 import { describe, expect, test } from "bun:test";
 import { ERROR_CODES } from "@cs/shared";
-import { checkDbConnection, DB_PROVIDER } from "./index";
+import {
+  checkDbConnection,
+  ConvexIdValidationError,
+  DB_PROVIDER,
+  toCategoryId,
+  toCompanyId,
+  toConversationId,
+  toMessageId,
+  toProductId,
+  toVariantId,
+} from "./index";
 
 describe("@cs/db", () => {
   test("checkDbConnection probes the Convex timestamp endpoint", async () => {
@@ -113,5 +123,25 @@ describe("@cs/db", () => {
     });
 
     expect(Date.now() - startedAt).toBeLessThan(150);
+  });
+
+  test("Convex id adapters trim and return valid ids", () => {
+    expect(String(toCompanyId(" company_123 "))).toBe("company_123");
+    expect(String(toConversationId("conversation-123"))).toBe("conversation-123");
+    expect(String(toMessageId("message_123"))).toBe("message_123");
+    expect(String(toProductId("product-123"))).toBe("product-123");
+    expect(String(toCategoryId("category-123"))).toBe("category-123");
+    expect(String(toVariantId(" variant_123 "))).toBe("variant_123");
+  });
+
+  test("Convex id adapters reject blank or malformed ids", () => {
+    expect(() => toCompanyId(" ")).toThrow(ConvexIdValidationError);
+    expect(() => toCompanyId("company/123")).toThrow(
+      'Invalid companies id "company/123": expected a non-empty identifier containing only letters, numbers, "_" or "-"',
+    );
+    expect(() => toCategoryId("category/123")).toThrow(
+      ConvexIdValidationError,
+    );
+    expect(() => toVariantId("variant/123")).toThrow(ConvexIdValidationError);
   });
 });

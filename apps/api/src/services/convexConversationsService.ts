@@ -1,4 +1,11 @@
-import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
+import {
+  type ConvexAdminClient,
+  ConvexIdValidationError,
+  convexInternal,
+  createConvexAdminClient,
+  toCompanyId,
+  toConversationId,
+} from '@cs/db';
 import { ERROR_CODES } from '@cs/shared';
 import {
   type ConversationStateDto,
@@ -43,6 +50,10 @@ const normalizeServiceError = (error: unknown): ConversationsServiceError => {
   }
 
   if (error instanceof Error) {
+    if (error instanceof ConvexIdValidationError) {
+      return createValidationServiceError("Invalid company identifier or phone number");
+    }
+
     const taggedError = parseTaggedError(error.message);
     if (taggedError) {
       return taggedError;
@@ -90,7 +101,7 @@ export const createConvexConversationsService = (
     phoneNumber: string,
   ): Promise<ConversationStateDto | null> =>
     client.query(convexInternal.conversations.getConversationByPhone, {
-      companyId: companyId as never,
+      companyId: toCompanyId(companyId),
       phoneNumber,
     }) as Promise<ConversationStateDto | null>;
 
@@ -108,8 +119,8 @@ export const createConvexConversationsService = (
     }
 
     return client.mutation(convexInternal.conversations.startHandoff, {
-      companyId: input.companyId as never,
-      conversationId: conversation.id as never,
+      companyId: toCompanyId(input.companyId),
+      conversationId: toConversationId(conversation.id),
       triggerTimestamp: now(),
       source: "api_manual",
       ...(normalizeReason(input.reason) ? { reason: normalizeReason(input.reason) } : {}),
@@ -131,8 +142,8 @@ export const createConvexConversationsService = (
     }
 
     return client.mutation(convexInternal.conversations.resumeConversation, {
-      companyId: input.companyId as never,
-      conversationId: conversation.id as never,
+      companyId: toCompanyId(input.companyId),
+      conversationId: toConversationId(conversation.id),
       resumedAt: now(),
       source: "api_manual",
       ...(normalizeReason(input.reason) ? { reason: normalizeReason(input.reason) } : {}),
