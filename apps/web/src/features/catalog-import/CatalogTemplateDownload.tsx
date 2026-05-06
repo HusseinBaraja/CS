@@ -112,7 +112,12 @@ export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }
             />
           </TemplateOption>
 
-          <Button onClick={() => void onDownload(options)}>
+          <Button onClick={() => {
+            onDownload(options).catch((error: unknown) => {
+              console.error('[CatalogTemplateDownload] download failed', error);
+              // TODO: surface error to user (toast / error state)
+            });
+          }}>
             <Download data-icon="inline-start" />
             تحميل ملف Excel
           </Button>
