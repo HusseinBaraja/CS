@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { UploadDataPage } from './UploadDataPage';
@@ -73,8 +73,8 @@ describe('UploadDataPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
     fireEvent.click(screen.getByRole('radio', { name: 'YER' }));
     fireEvent.click(screen.getByRole('radio', { name: 'English' }));
-    fireEvent.click(screen.getAllByRole('radio', { name: 'لا' })[1]);
-    fireEvent.click(screen.getAllByRole('radio', { name: 'لا' })[2]);
+    fireEvent.click(within(screen.getByRole('group', { name: 'تضمين المعلومات الإضافية' })).getByRole('radio', { name: 'لا' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'تضمين الوصف' })).getByRole('radio', { name: 'لا' }));
     fireEvent.click(screen.getByRole('button', { name: /تحميل ملف Excel/ }));
 
     expect(downloadCatalogTemplate).toHaveBeenCalledWith({
