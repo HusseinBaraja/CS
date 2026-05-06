@@ -14,7 +14,7 @@ import {
 import { downloadCatalogTemplate } from './downloadCatalogTemplate';
 
 type CatalogTemplateDownloadProps = {
-  onDownload?: (options: CatalogTemplateOptions) => void;
+  onDownload?: (options: CatalogTemplateOptions) => void | Promise<void>;
 };
 
 type BooleanOption = 'yes' | 'no';
@@ -107,7 +107,7 @@ export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }
             />
           </TemplateOption>
 
-          <Button onClick={() => onDownload(options)}>
+          <Button onClick={() => void onDownload(options)}>
             <Download data-icon="inline-start" />
             تحميل ملف Excel
           </Button>
