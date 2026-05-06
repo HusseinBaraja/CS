@@ -92,7 +92,8 @@ const createTenantFixture = async (
 
     for (let index = 0; index < variantCount; index += 1) {
       await ctx.db.insert("productVariants", {
-        productId: productIds[index % productIds.length]!,
+        companyId,
+          productId: productIds[index % productIds.length]!,
         label: `Variant ${index}`,
         });
     }
@@ -370,6 +371,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       companyId,
       counts: {
         companies: 1,
+        companySettings: 0,
         categories: 1,
         botRuntimePairingArtifacts: 1,
         botRuntimeSessions: 1,
@@ -378,6 +380,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
         productVariants: 2,
         embeddings: 4,
         conversations: 1,
+        conversationStateEvents: 0,
         messages: 2,
         mediaCleanupJobs: 1,
         offers: 1,
@@ -420,6 +423,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
 
     expect(result?.counts).toEqual({
       companies: 1,
+      companySettings: 0,
       categories: 1,
       botRuntimePairingArtifacts: 1,
       botRuntimeSessions: 1,
@@ -428,6 +432,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       productVariants: oversizedBatchCount,
       embeddings: oversizedBatchCount,
       conversations: 3,
+      conversationStateEvents: 0,
       messages: oversizedBatchCount,
       mediaCleanupJobs: 1,
       offers: 1,
@@ -616,6 +621,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
 
       for (let index = 0; index < oversizedBatchCount; index += 1) {
         await ctx.db.insert("productVariants", {
+          companyId,
           productId,
           label: `Variant ${index}`,
           });
@@ -687,13 +693,15 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
 
       for (let index = 0; index < CLEANUP_BATCH_SIZE; index += 1) {
         await ctx.db.insert("productVariants", {
+          companyId,
           productId: firstProductId,
           label: `Variant ${index}`,
           });
       }
 
       const trailingVariantId = await ctx.db.insert("productVariants", {
-        productId: secondProductId,
+        companyId,
+          productId: secondProductId,
         label: "Trailing Variant",
         });
 

@@ -16,8 +16,6 @@ import {
   createNotFoundServiceError,
   createValidationServiceError,
   type DeleteProductResult,
-  type ProductDetailDto,
-  type ProductListItemDto,
   type ProductsService,
   ProductsServiceError,
 } from './products';

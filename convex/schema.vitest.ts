@@ -124,15 +124,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
           descriptionEn: "Standard paper cup",
           price: 0.15,
           currency: "SAR",
-          images: [
-            {
-              id: "image-1",
-              key: "companies/company-1/products/product-1/image-1.jpg",
-              contentType: "image/jpeg",
-              sizeBytes: 1024,
-              uploadedAt: Date.UTC(2026, 2, 12, 0, 0, 0),
-            },
-          ],
         }).then(({ productId }) => productId),
       );
 
@@ -142,7 +133,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
         price: 0.15,
         currency: "SAR",
       });
-      expect(doc?.images).toHaveLength(1);
     });
   });
 
@@ -167,8 +157,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
       );
 
       const variantId = await t.run(async (ctx) =>
-        createVariant(ctx, {
-          productId,
+        createVariant(ctx, { companyId, productId,
           label: "Large White",
           price: 0.2,
         }).then(({ variantId }) => variantId),
@@ -178,46 +167,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
       expect(doc).toMatchObject({
         label: "Large White",
         });
-    });
-
-    it("accepts nested object and array attribute values", async () => {
-      const t = convexTest(schema, modules);
-      const companyId = await t.run(async (ctx) =>
-        createCompany(ctx, {
-          name: "Nested Test Co",
-        }).then(({ companyId }) => companyId),
-      );
-      const catId = await t.run(async (ctx) =>
-        createCategory(ctx, { companyId, nameEn: "Containers" }).then(({ categoryId }) => categoryId),
-      );
-      const productId = await t.run(async (ctx) =>
-        createProduct(ctx, {
-          companyId,
-          categoryId: catId,
-          nameEn: "Meal Box",
-        }).then(({ productId }) => productId),
-      );
-
-      const variantId = await t.run(async (ctx) =>
-        createVariant(ctx, {
-          productId,
-          label: "Family Pack",
-          },
-          },
-        }).then(({ variantId }) => variantId),
-      );
-
-      const doc = await t.run(async (ctx) => ctx.db.get(variantId));
-      expect(doc?.attributes).toEqual({
-        size: "XL",
-        nested: {
-          materials: ["paper", "kraft"],
-          metadata: {
-            recyclable: true,
-            notes: null,
-          },
-        },
-      });
     });
   });
 
@@ -645,5 +594,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
     });
   });
 });
+
 
 

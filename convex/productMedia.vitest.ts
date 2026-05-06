@@ -100,39 +100,28 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex product media", 
     });
 
     expect(image).toEqual({
-      id: upload!.imageId,
-      key: upload!.objectKey,
-      contentType: "image/png",
-      sizeBytes: 2048,
-      etag: '"etag-1"',
-      uploadedAt: createdAt + 1_000,
+      objectKey: upload!.objectKey,
     });
 
     const productAfterAttach = await t.run(async (ctx) => ctx.db.get(productId));
-    expect(productAfterAttach?.images).toEqual([image]);
+    expect(productAfterAttach?.primaryImage).toBe(upload!.objectKey);
 
     const deleted = await t.mutation(internal.productMedia.deleteImage, {
       companyId,
       productId,
-      imageId: upload!.imageId,
       deletedAt: createdAt + 2_000,
     });
 
-    expect(deleted).toEqual({
-      productId,
-      imageId: upload!.imageId,
-      objectKey: upload!.objectKey,
-    });
+    expect(deleted).toMatchObject({ productId });
 
     const cleanupJobs = await t.run(async (ctx) => ctx.db.query("mediaCleanupJobs").collect());
     const productAfterDelete = await t.run(async (ctx) => ctx.db.get(productId));
 
-    expect(productAfterDelete?.images ?? []).toHaveLength(0);
+    expect(productAfterDelete?.primaryImage).toBeUndefined();
     expect(cleanupJobs).toHaveLength(1);
     expect(cleanupJobs[0]).toMatchObject({
       companyId,
       productId,
-      imageId: upload!.imageId,
       objectKey: upload!.objectKey,
       reason: "product_image_deleted",
       status: "pending",
@@ -155,15 +144,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex product media", 
         companyId,
         categoryId,
         nameEn: "Burger Box",
-        images: [
-          {
-            id: "image-1",
-            key: "companies/company-1/products/product-1/image-1.jpg",
-            contentType: "image/jpeg",
-            sizeBytes: 1024,
-            uploadedAt: Date.UTC(2026, 2, 12, 0, 0, 0),
-          },
-        ],
+        primaryImage: "companies/company-1/products/product-1/image-1.jpg",
       });
 
       return {
@@ -183,7 +164,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex product media", 
     expect(cleanupJobs[0]).toMatchObject({
       companyId,
       productId,
-      imageId: "image-1",
       objectKey: imageKey,
       reason: "product_deleted",
     });

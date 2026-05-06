@@ -4,8 +4,6 @@ import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from
 
 export type MissingPricePolicy = 'reply_unavailable' | 'handoff';
 
-const MISSING_PRICE_POLICIES = ['reply_unavailable', 'handoff'] as const;
-
 const missingPricePolicyValidator = v.union(
   v.literal('reply_unavailable'),
   v.literal('handoff'),

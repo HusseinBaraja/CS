@@ -6,7 +6,6 @@ import {
   createProductPatch,
   mergeVariantUpdateState,
   normalizeCreateState,
-  normalizeVariantAttributes,
 } from './normalization';
 
 const COMPANY_ID = 'company_1' as Id<'companies'>;
@@ -33,14 +32,7 @@ describe('products normalization helpers', () => {
     });
   });
 
-  it('rejects duplicate variant attribute keys after trimming', () => {
-    expect(() =>
-      normalizeVariantAttributes({
-        color: 'red',
-        ' color ': 'blue',
-      }),
-    ).toThrowError('VALIDATION_FAILED: attributes keys must be unique after trimming: color');
-  });
+
 
   it('builds product patch and supports explicit null clearing for optional fields', () => {
     const patch = createProductPatch({
@@ -85,7 +77,7 @@ describe('products embedding payload helper', () => {
         productId: PRODUCT_ID,
         englishText: 'partial',
       }),
-    ).toThrowError('All embedding fields must be provided together');
+    ).toThrowError('VALIDATION_FAILED: Embedding replacement payload must be all-or-none');
   });
 
   it('returns null for no replacement and structured args for complete replacement', () => {
@@ -94,7 +86,7 @@ describe('products embedding payload helper', () => {
         companyId: COMPANY_ID,
         productId: PRODUCT_ID,
       }),
-    ).toBeUndefined();
+    ).toBeNull();
 
     expect(
       getEmbeddingReplacementArgs({

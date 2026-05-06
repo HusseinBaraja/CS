@@ -53,7 +53,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
     });
 
     expect(categories).toHaveLength(3);
-    expect(categories?.map((category: { nameEn: string }) => category.nameEn)).toEqual([
+    expect(categories?.map((category: { nameEn?: string }) => category.nameEn)).toEqual([
       "Bags",
       "Containers",
       "Containers",

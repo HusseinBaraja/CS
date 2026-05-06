@@ -174,7 +174,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
       });
 
       await ctx.db.insert("productVariants", {
-        productId: secondProductId,
+        companyId,
+          productId: secondProductId,
         label: "Large",
         });
 
@@ -197,13 +198,13 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
         companyId,
         categoryId: expect.any(String),
         nameEn: "Beta Cup",
-        images: [],
         variants: [
           {
+            companyId,
             id: expect.any(String),
             productId: secondProductId,
             label: "Large",
-            },
+          },
         ],
       },
       {
@@ -211,7 +212,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
         companyId,
         categoryId: expect.any(String),
         nameEn: "Alpha Box",
-        images: [],
         variants: [],
       },
     ]);

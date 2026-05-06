@@ -507,6 +507,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
         });
 
         await ctx.db.insert("productVariants", {
+          companyId: seededCompany._id,
           productId: products[0]._id,
           label: `seed cleanup variant ${index}`,
           });

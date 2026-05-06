@@ -79,11 +79,12 @@ describe('variant mutation definitions', () => {
 
   it('refreshes catalog language hints after creating a variant embedding', async () => {
     const ctx = buildCtx();
-    getScopedProduct.mockResolvedValue({ revision: 5 });
+    getScopedProduct.mockResolvedValue({ currency: 'SAR' });
     normalizeVariantCreateState.mockReturnValue({
       productId: PRODUCT_ID,
       label: 'Large',
       price: 10,
+      currency: "SAR", // Mocked for assertProductHasCurrency
     });
     (ctx.db.insert as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(VARIANT_ID);
     (ctx.db.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -91,13 +92,13 @@ describe('variant mutation definitions', () => {
       productId: PRODUCT_ID,
       label: 'Large',
       price: 10,
+      currency: "SAR", // Mocked for assertProductHasCurrency
     });
     mapVariant.mockReturnValue({ id: VARIANT_ID });
 
     await insertVariantWithEmbeddingsDefinition.handler(ctx, {
       ...EMBEDDING_ARGS,
       label: 'Large',
-      expectedRevision: 5,
     });
 
     expect(replaceProductEmbeddingsInMutation).toHaveBeenCalledWith(ctx, EMBEDDING_ARGS);
@@ -109,7 +110,7 @@ describe('variant mutation definitions', () => {
 
   it('refreshes catalog language hints after patching a variant embedding', async () => {
     const ctx = buildCtx();
-    getScopedProduct.mockResolvedValue({ revision: 5 });
+    getScopedProduct.mockResolvedValue({ currency: 'SAR' });
     getScopedVariant.mockResolvedValue({ _id: VARIANT_ID });
     createVariantPatch.mockReturnValue({
       label: 'XL',
@@ -125,7 +126,6 @@ describe('variant mutation definitions', () => {
       ...EMBEDDING_ARGS,
       variantId: VARIANT_ID,
       label: 'XL',
-      expectedRevision: 5,
     });
 
     expect(replaceProductEmbeddingsInMutation).toHaveBeenCalledWith(ctx, EMBEDDING_ARGS);
@@ -137,13 +137,12 @@ describe('variant mutation definitions', () => {
 
   it('refreshes catalog language hints after deleting a variant embedding', async () => {
     const ctx = buildCtx();
-    getScopedProduct.mockResolvedValue({ revision: 5 });
+    getScopedProduct.mockResolvedValue({ currency: 'SAR' });
     getScopedVariant.mockResolvedValue({ _id: VARIANT_ID });
 
     await removeVariantWithEmbeddingsDefinition.handler(ctx, {
       ...EMBEDDING_ARGS,
       variantId: VARIANT_ID,
-      expectedRevision: 5,
     });
 
     expect(replaceProductEmbeddingsInMutation).toHaveBeenCalledWith(ctx, EMBEDDING_ARGS);
