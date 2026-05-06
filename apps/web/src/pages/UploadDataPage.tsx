@@ -6,15 +6,10 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
+import { CatalogTemplateDownload } from '../features/catalog-import/CatalogTemplateDownload';
+import { buildCatalogTemplateHeaders, defaultCatalogTemplateOptions } from '../features/catalog-import/catalogTemplate';
 
-const requiredColumns = [
-  'رقم الصنف',
-  'اسم الصنف',
-  'تفاصيل الصنف',
-  'المواصفات',
-  'الأساسي',
-  'العمل',
-];
+const requiredColumns = buildCatalogTemplateHeaders(defaultCatalogTemplateOptions);
 
 const uploadedFile = {
   name: 'reda-catalog-template.xlsx',
@@ -38,7 +33,7 @@ export function UploadDataPage() {
           <div className="flex flex-col gap-5">
             <Card className="border-[#dfe6e2] shadow-[0_1px_3px_rgba(22,35,29,0.08),0_12px_32px_rgba(22,35,29,0.04)]">
               <CardContent className="px-5 pb-5">
-                <div className="flex min-h-78 flex-col items-center justify-center gap-5 rounded-lg border border-dashed border-[#a9bbb2] bg-[#f8fbf9] p-6 text-center">
+                <div className="flex min-h-78 flex-col items-center gap-5 rounded-lg border border-dashed border-[#a9bbb2] bg-[#f8fbf9] px-6 pt-18 pb-6 text-center">
                   <div className="flex size-16 items-center justify-center rounded-lg bg-white text-[#0d7c47] shadow-[0_8px_24px_rgba(22,35,29,0.08)]">
                     <FileSpreadsheet />
                   </div>
@@ -46,11 +41,8 @@ export function UploadDataPage() {
                     <p className="text-xl font-bold text-[#1d2522]">اسحب ملف Excel هنا أو ارفعه من جهازك</p>
                     <p className="text-sm leading-6 text-[#63706b]">الصيغ المدعومة: XLSX، XLS، CSV. الحد الأقصى المقترح 5 MB.</p>
                   </div>
-                  <div className="flex flex-wrap items-center justify-center gap-3">
-                    <Button variant="outline">
-                      <FileSpreadsheet data-icon="inline-start" />
-                      تنزيل القالب
-                    </Button>
+                  <div className="flex w-full flex-wrap items-center justify-center gap-3">
+                    <CatalogTemplateDownload />
                     <Button onClick={() => setHasUploadedFile(true)}>
                       <UploadCloud data-icon="inline-start" />
                       رفع الملف
