@@ -90,7 +90,10 @@ describe('UploadDataPage', () => {
     render(<UploadDataPage />);
 
     fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
-    fireEvent.click(screen.getAllByRole('radio', { name: 'لا' })[0]);
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'تضمين السعر' }))
+        .getByRole('radio', { name: 'لا' }),
+    );
 
     expect(screen.getByRole('radio', { name: 'SAR' }).hasAttribute('disabled')).toBe(true);
     expect(screen.getByRole('radio', { name: 'YER' }).hasAttribute('disabled')).toBe(true);
