@@ -44,7 +44,12 @@ export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }
             <BooleanToggle
               ariaLabel="تضمين السعر"
               value={options.includePrice}
-              onChange={(includePrice) => updateOptions({ includePrice })}
+              onChange={(includePrice) =>
+                updateOptions({
+                  includePrice,
+                  currency: includePrice ? options.currency ?? defaultCatalogTemplateOptions.currency : undefined,
+                })
+              }
             />
           </TemplateOption>
 

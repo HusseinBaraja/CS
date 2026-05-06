@@ -33,11 +33,22 @@ describe('buildCatalogTemplateHeaders', () => {
   });
 
   it('removes price and currency headers when price is off', () => {
-    expect(buildCatalogTemplateHeaders({ ...baseOptions, includePrice: false })).toEqual([
+    expect(buildCatalogTemplateHeaders({ ...baseOptions, currency: undefined, includePrice: false })).toEqual([
       'اسم القسم',
       'رقم المنتج',
       'اسم المنتج بالعربية',
       'وصف المنتج بالعربية',
+      'المواصفات',
+    ]);
+  });
+
+  it('falls back to the default currency when price is on and currency is absent', () => {
+    expect(buildCatalogTemplateHeaders({ ...baseOptions, currency: undefined })).toEqual([
+      'اسم القسم',
+      'رقم المنتج',
+      'اسم المنتج بالعربية',
+      'وصف المنتج بالعربية',
+      'السعر (ريال سعودي)',
       'المواصفات',
     ]);
   });

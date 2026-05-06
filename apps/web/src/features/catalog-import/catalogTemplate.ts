@@ -3,7 +3,7 @@ export type CatalogTemplateCurrency = 'SAR' | 'YER';
 export type CatalogTemplateLanguage = 'ar' | 'en';
 
 export type CatalogTemplateOptions = {
-  currency: CatalogTemplateCurrency;
+  currency?: CatalogTemplateCurrency;
   includePrice: boolean;
   language: CatalogTemplateLanguage;
   includeSpecifications: boolean;
@@ -52,7 +52,6 @@ const currencyLabels = {
 // descriptionEn/descriptionAr, basePrice, baseCurrency, specifications.
 export function buildCatalogTemplateHeaders(options: CatalogTemplateOptions): string[] {
   const selectedLabels = labels[options.language];
-  const selectedCurrency = currencyLabels[options.language][options.currency];
   const headers = [selectedLabels.categoryName, selectedLabels.productNumber, selectedLabels.productName];
 
   if (options.includeDescription) {
@@ -60,6 +59,8 @@ export function buildCatalogTemplateHeaders(options: CatalogTemplateOptions): st
   }
 
   if (options.includePrice) {
+    const currency: CatalogTemplateCurrency = options.currency ?? defaultCatalogTemplateOptions.currency ?? 'SAR';
+    const selectedCurrency = currencyLabels[options.language][currency];
     headers.push(`${selectedLabels.basePrice} (${selectedCurrency})`);
   }
 
