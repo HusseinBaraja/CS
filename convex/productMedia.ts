@@ -9,16 +9,6 @@ const VALIDATION_PREFIX = "VALIDATION_FAILED";
 
 type ProductImageContentType = (typeof PRODUCT_IMAGE_ALLOWED_MIME_TYPES)[number];
 
-type StoredProductImage = {
-  id: string;
-  key: string;
-  contentType: string;
-  sizeBytes: number;
-  etag?: string;
-  alt?: string;
-  uploadedAt: number;
-};
-
 const createTaggedError = (prefix: string, message: string): Error =>
   new Error(`${prefix}: ${message}`);
 
@@ -69,9 +59,6 @@ const getScopedProduct = async (
 
   return product;
 };
-
-const getStoredImages = (product: Doc<"products">): StoredProductImage[] =>
-  (product.images ?? []) as StoredProductImage[];
 
 export const createUploadSession = internalMutation({
   args: {
@@ -146,9 +133,8 @@ export const completeUploadSession = internalMutation({
       return null;
     }
 
-    const existingImage = getStoredImages(product).find((image) => image.id === upload.imageId);
     if (upload.status === "completed") {
-      return existingImage ?? null;
+      return { objectKey: upload.objectKey };
     }
 
     if (upload.status !== "pending") {
@@ -201,26 +187,26 @@ export const completeUploadSession = internalMutation({
       throw createTaggedError(VALIDATION_PREFIX, "Uploaded object exceeds the allowed size");
     }
 
-    const nextImage: StoredProductImage = {
-      id: upload.imageId,
-      key: upload.objectKey,
-      contentType: observedContentType,
-      sizeBytes: args.sizeBytes,
-      ...(normalizeOptionalString(args.etag) ? { etag: normalizeOptionalString(args.etag) } : {}),
-      ...(normalizeOptionalString(upload.alt) ? { alt: normalizeOptionalString(upload.alt) } : {}),
-      uploadedAt: args.completedAt,
-    };
+    // Clean up previous primaryImage if present
+    if (product.primaryImage) {
+      await enqueueCleanupJobInMutation(ctx, {
+        companyId: args.companyId,
+        productId: args.productId,
+        objectKey: product.primaryImage,
+        reason: "primary_image_replaced",
+        now: args.completedAt,
+      });
+    }
 
     await ctx.db.patch(args.productId, {
-      images: [...getStoredImages(product), nextImage],
-      revision: (product.revision ?? 0) + 1,
+      primaryImage: upload.objectKey,
     });
     await ctx.db.patch(args.uploadId, {
       status: "completed",
       completedAt: args.completedAt,
     });
 
-    return nextImage;
+    return { objectKey: upload.objectKey };
   },
 });
 
@@ -228,7 +214,6 @@ export const deleteImage = internalMutation({
   args: {
     companyId: v.id("companies"),
     productId: v.id("products"),
-    imageId: v.string(),
     deletedAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -237,30 +222,26 @@ export const deleteImage = internalMutation({
       return null;
     }
 
-    const images = getStoredImages(product);
-    const image = images.find((entry) => entry.id === args.imageId);
-    if (!image) {
-      throw createTaggedError(NOT_FOUND_PREFIX, "Product image not found");
+    if (!product.primaryImage) {
+      throw createTaggedError(NOT_FOUND_PREFIX, "Product has no primary image");
     }
 
+    const objectKey = product.primaryImage;
     await ctx.db.patch(args.productId, {
-      images: images.filter((entry) => entry.id !== args.imageId),
-      revision: (product.revision ?? 0) + 1,
+      primaryImage: undefined,
     });
 
     await enqueueCleanupJobInMutation(ctx, {
       companyId: args.companyId,
       productId: args.productId,
-      imageId: args.imageId,
-      objectKey: image.key,
+      objectKey,
       reason: "product_image_deleted",
       now: args.deletedAt,
     });
 
     return {
       productId: args.productId,
-      imageId: args.imageId,
-      objectKey: image.key,
+      objectKey,
     };
   },
 });

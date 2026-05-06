@@ -3,38 +3,23 @@ import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, type MutationCtx } from './_generated/server';
 import { v } from 'convex/values';
 
-export type ProductEmbeddingSpecifications = Record<string, string | number | boolean>;
-
-export type ProductEmbeddingVariantAttributeValue =
-  | string
-  | number
-  | boolean
-  | null
-  | ProductEmbeddingVariantAttributeValue[]
-  | ProductEmbeddingVariantAttributes;
-
-export interface ProductEmbeddingVariantAttributes {
-  [key: string]: ProductEmbeddingVariantAttributeValue;
-}
-
 export type ProductEmbeddingProductState = {
   companyId: Id<"companies">;
   categoryId: Id<"categories">;
-  nameEn: string;
+  productNo?: string;
+  nameEn?: string;
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  specifications?: ProductEmbeddingSpecifications;
-  basePrice?: number;
-  baseCurrency?: string;
+  price?: number;
+  currency?: string;
 };
 
 export type ProductEmbeddingVariantState = {
   id: string;
   productId: string;
-  variantLabel: string;
-  attributes: ProductEmbeddingVariantAttributes;
-  priceOverride?: number;
+  label: string;
+  price?: number;
 };
 
 export type ProductEmbeddingPayload = {
@@ -57,49 +42,15 @@ const normalizeOptionalString = (value: string | null | undefined): string | und
 
 const sortVariants = <T extends ProductEmbeddingVariantState>(variants: T[]): T[] =>
   variants.sort((left, right) =>
-    left.variantLabel.localeCompare(right.variantLabel) || left.id.localeCompare(right.id),
+    left.label.localeCompare(right.label) || left.id.localeCompare(right.id),
   );
-
-const serializeSpecifications = (specifications: ProductEmbeddingSpecifications | undefined): string =>
-  specifications
-    ? Object.entries(specifications)
-        .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-        .map(([key, value]) => `${key}: ${String(value)}`)
-        .join("\n")
-    : "";
-
-const serializeVariantAttributeValue = (value: ProductEmbeddingVariantAttributeValue): string => {
-  if (value === null) {
-    return "null";
-  }
-
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map(serializeVariantAttributeValue).join(", ")}]`;
-  }
-
-  return `{ ${Object.entries(value)
-    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-    .map(([key, entryValue]) => `${key}: ${serializeVariantAttributeValue(entryValue)}`)
-    .join(", ")} }`;
-};
-
-const serializeVariantAttributes = (attributes: ProductEmbeddingVariantAttributes): string =>
-  Object.entries(attributes)
-    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-    .map(([key, value]) => `${key}: ${serializeVariantAttributeValue(value)}`)
-    .join(", ");
 
 const serializeVariants = (variants: ProductEmbeddingVariantState[]): string =>
   sortVariants([...variants])
     .map((variant) =>
       [
-        `variantLabel:${variant.variantLabel}`,
-        variant.priceOverride !== undefined ? `priceOverride:${variant.priceOverride}` : undefined,
-        `attributes:${serializeVariantAttributes(variant.attributes)}`,
+        `label:${variant.label}`,
+        variant.price !== undefined ? `price:${variant.price}` : undefined,
       ]
         .filter((value): value is string => Boolean(value))
         .join("\n"),
@@ -111,21 +62,23 @@ const buildLanguageEmbeddingText = (
   variants: ProductEmbeddingVariantState[],
   language: "en" | "ar",
 ): string => {
+  const nameEn = normalizeOptionalString(product.nameEn);
+  const nameAr = normalizeOptionalString(product.nameAr);
   const name =
     language === "en"
-      ? product.nameEn
-      : normalizeOptionalString(product.nameAr) ?? product.nameEn;
+      ? nameEn ?? nameAr ?? ""
+      : nameAr ?? nameEn ?? "";
   const description =
     language === "en"
       ? normalizeOptionalString(product.descriptionEn)
       : normalizeOptionalString(product.descriptionAr) ?? normalizeOptionalString(product.descriptionEn);
-  const specs = serializeSpecifications(product.specifications);
 
   return [
     `language:${language}`,
-    `name:${name}`,
+    name ? `name:${name}` : undefined,
     description ? `description:${description}` : undefined,
-    specs ? `specifications:\n${specs}` : undefined,
+    product.price !== undefined ? `price:${product.price}` : undefined,
+    product.currency ? `currency:${product.currency}` : undefined,
     variants.length > 0 ? `variants:\n${serializeVariants(variants)}` : undefined,
   ]
     .filter((value): value is string => Boolean(value))
@@ -230,13 +183,13 @@ export const mapProductDocToEmbeddingState = (
 ): ProductEmbeddingProductState => ({
   companyId: product.companyId,
   categoryId: product.categoryId,
-  nameEn: product.nameEn,
+  ...(product.productNo ? { productNo: product.productNo } : {}),
+  ...(product.nameEn ? { nameEn: product.nameEn } : {}),
   ...(product.nameAr ? { nameAr: product.nameAr } : {}),
   ...(product.descriptionEn ? { descriptionEn: product.descriptionEn } : {}),
   ...(product.descriptionAr ? { descriptionAr: product.descriptionAr } : {}),
-  ...(product.specifications ? { specifications: product.specifications } : {}),
-  ...(product.basePrice !== undefined ? { basePrice: product.basePrice } : {}),
-  ...(product.baseCurrency ? { baseCurrency: product.baseCurrency } : {}),
+  ...(product.price !== undefined ? { price: product.price } : {}),
+  ...(product.currency ? { currency: product.currency } : {}),
 });
 
 export const mapVariantDocToEmbeddingState = (
@@ -244,7 +197,6 @@ export const mapVariantDocToEmbeddingState = (
 ): ProductEmbeddingVariantState => ({
   id: variant._id,
   productId: variant.productId,
-  variantLabel: variant.variantLabel,
-  attributes: variant.attributes as ProductEmbeddingVariantAttributes,
-  ...(variant.priceOverride !== undefined ? { priceOverride: variant.priceOverride } : {}),
+  label: variant.label,
+  ...(variant.price !== undefined ? { price: variant.price } : {}),
 });

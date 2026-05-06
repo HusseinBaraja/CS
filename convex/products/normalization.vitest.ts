@@ -21,7 +21,7 @@ describe('products normalization helpers', () => {
       nameEn: '  Burger Box  ',
       nameAr: '   ',
       descriptionEn: '  Disposable  ',
-      baseCurrency: '  USD  ',
+      currency: '  USD  ',
     });
 
     expect(state).toEqual({
@@ -29,7 +29,7 @@ describe('products normalization helpers', () => {
       categoryId: 'category_1',
       nameEn: 'Burger Box',
       descriptionEn: 'Disposable',
-      baseCurrency: 'USD',
+      currency: 'USD',
     });
   });
 
@@ -47,12 +47,12 @@ describe('products normalization helpers', () => {
       companyId: COMPANY_ID,
       productId: PRODUCT_ID,
       nameAr: null,
-      basePrice: null,
+      price: null,
     });
 
     expect(patch).toEqual({
       nameAr: undefined,
-      basePrice: undefined,
+      price: undefined,
     });
   });
 
@@ -61,21 +61,19 @@ describe('products normalization helpers', () => {
       {
         id: 'variant_1',
         productId: 'product_1',
-        variantLabel: 'Large',
-        attributes: { size: 'L' },
-        priceOverride: 12,
+        label: 'Large',
+        price: 12,
       },
       {
-        priceOverride: null,
+        price: null,
       },
     );
 
     expect(next).toEqual({
       id: 'variant_1',
       productId: 'product_1',
-      variantLabel: 'Large',
-      attributes: { size: 'L' },
-    });
+      label: 'Large',
+      });
   });
 });
 
@@ -117,3 +115,4 @@ describe('products embedding payload helper', () => {
     });
   });
 });
+

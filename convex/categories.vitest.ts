@@ -375,3 +375,4 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
     expect(storedCategoryAfterOutOfScopeDelete).toEqual(storedCategoryAfterConflict);
   });
 });
+

@@ -6,35 +6,36 @@ import { buildProductEmbeddingPayload } from '../../productEmbeddingRuntime';
 import { NOT_FOUND_PREFIX, createTaggedError } from '../errors';
 import { hasEmbeddingRelevantChanges, toVariantWriteState } from '../mapping';
 import { mergeUpdateState, normalizeCreateState } from '../normalization';
-import {
-  flexRecord,
-  type ProductDetailDto,
+import type {
+  ProductDetailDto,
 } from '../types';
 
 export const createDefinition = {
   args: {
     companyId: v.id('companies'),
     categoryId: v.id('categories'),
-    nameEn: v.string(),
+    productNo: v.optional(v.string()),
+    nameEn: v.optional(v.string()),
     nameAr: v.optional(v.string()),
     descriptionEn: v.optional(v.string()),
     descriptionAr: v.optional(v.string()),
-    specifications: v.optional(flexRecord),
-    basePrice: v.optional(v.number()),
-    baseCurrency: v.optional(v.string()),
+    price: v.optional(v.number()),
+    currency: v.optional(v.string()),
+    primaryImage: v.optional(v.string()),
   },
   handler: async (
     ctx: ActionCtx,
     args: {
       companyId: Id<'companies'>;
       categoryId: Id<'categories'>;
-      nameEn: string;
+      productNo?: string;
+      nameEn?: string;
       nameAr?: string;
       descriptionEn?: string;
       descriptionAr?: string;
-      specifications?: Record<string, string | number | boolean>;
-      basePrice?: number;
-      baseCurrency?: string;
+      price?: number;
+      currency?: string;
+      primaryImage?: string;
     },
   ): Promise<ProductDetailDto> => {
     const createContext = await ctx.runQuery(internal.products.getCreateContext, {
@@ -65,13 +66,14 @@ export const updateDefinition = {
     companyId: v.id('companies'),
     productId: v.id('products'),
     categoryId: v.optional(v.id('categories')),
-    nameEn: v.optional(v.string()),
+    productNo: v.optional(v.union(v.string(), v.null())),
+    nameEn: v.optional(v.union(v.string(), v.null())),
     nameAr: v.optional(v.union(v.string(), v.null())),
     descriptionEn: v.optional(v.union(v.string(), v.null())),
     descriptionAr: v.optional(v.union(v.string(), v.null())),
-    specifications: v.optional(v.union(flexRecord, v.null())),
-    basePrice: v.optional(v.union(v.number(), v.null())),
-    baseCurrency: v.optional(v.union(v.string(), v.null())),
+    price: v.optional(v.union(v.number(), v.null())),
+    currency: v.optional(v.union(v.string(), v.null())),
+    primaryImage: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (
     ctx: ActionCtx,
@@ -79,13 +81,14 @@ export const updateDefinition = {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
       categoryId?: Id<'categories'>;
-      nameEn?: string;
+      productNo?: string | null;
+      nameEn?: string | null;
       nameAr?: string | null;
       descriptionEn?: string | null;
       descriptionAr?: string | null;
-      specifications?: Record<string, string | number | boolean> | null;
-      basePrice?: number | null;
-      baseCurrency?: string | null;
+      price?: number | null;
+      currency?: string | null;
+      primaryImage?: string | null;
     },
   ): Promise<ProductDetailDto | null> => {
     const existingProduct = await ctx.runQuery(internal.products.getUpdateSnapshot, {
@@ -123,13 +126,11 @@ export const updateDefinition = {
     if (!embeddings) {
       return ctx.runMutation(internal.products.patchProductWithEmbeddings, {
         ...args,
-        expectedRevision: existingProduct.expectedRevision,
       });
     }
 
     return ctx.runMutation(internal.products.patchProductWithEmbeddings, {
       ...args,
-      expectedRevision: existingProduct.expectedRevision,
       ...embeddings,
     });
   },

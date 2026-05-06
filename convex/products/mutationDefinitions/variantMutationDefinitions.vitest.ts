@@ -82,24 +82,21 @@ describe('variant mutation definitions', () => {
     getScopedProduct.mockResolvedValue({ revision: 5 });
     normalizeVariantCreateState.mockReturnValue({
       productId: PRODUCT_ID,
-      variantLabel: 'Large',
-      attributes: { size: 'L' },
-      priceOverride: 10,
+      label: 'Large',
+      price: 10,
     });
     (ctx.db.insert as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(VARIANT_ID);
     (ctx.db.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       _id: VARIANT_ID,
       productId: PRODUCT_ID,
-      variantLabel: 'Large',
-      attributes: { size: 'L' },
-      priceOverride: 10,
+      label: 'Large',
+      price: 10,
     });
     mapVariant.mockReturnValue({ id: VARIANT_ID });
 
     await insertVariantWithEmbeddingsDefinition.handler(ctx, {
       ...EMBEDDING_ARGS,
-      variantLabel: 'Large',
-      attributes: { size: 'L' },
+      label: 'Large',
       expectedRevision: 5,
     });
 
@@ -115,22 +112,19 @@ describe('variant mutation definitions', () => {
     getScopedProduct.mockResolvedValue({ revision: 5 });
     getScopedVariant.mockResolvedValue({ _id: VARIANT_ID });
     createVariantPatch.mockReturnValue({
-      variantLabel: 'XL',
-      attributes: { size: 'XL' },
-    });
+      label: 'XL',
+      });
     (ctx.db.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       _id: VARIANT_ID,
       productId: PRODUCT_ID,
-      variantLabel: 'XL',
-      attributes: { size: 'XL' },
-    });
+      label: 'XL',
+      });
     mapVariant.mockReturnValue({ id: VARIANT_ID });
 
     await patchVariantWithEmbeddingsDefinition.handler(ctx, {
       ...EMBEDDING_ARGS,
       variantId: VARIANT_ID,
-      variantLabel: 'XL',
-      attributes: { size: 'XL' },
+      label: 'XL',
       expectedRevision: 5,
     });
 
@@ -159,3 +153,4 @@ describe('variant mutation definitions', () => {
     );
   });
 });
+

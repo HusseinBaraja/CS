@@ -81,9 +81,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         categoryId,
         nameEn: "Burger Box",
         descriptionEn: "Paper meal packaging",
-        specifications: {
-          material: "paper",
-        },
       });
       await ctx.db.insert("products", {
         companyId,
@@ -144,11 +141,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
 
       const variantId = await ctx.db.insert("productVariants", {
         productId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-        priceOverride: 1.45,
+        label: "Large",
+        price: 1.45,
       });
 
       return {
@@ -174,16 +168,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       companyId,
       categoryId,
       nameEn: "Burger Box",
-      images: [],
       variants: [
         {
           id: variantId,
           productId,
-          variantLabel: "Large",
-          attributes: {
-            size: "L",
-          },
-          priceOverride: 1.45,
+          label: "Large",
+          price: 1.45,
         },
       ],
     });
@@ -214,14 +204,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
 
       await ctx.db.insert("productVariants", {
         productId,
-        variantLabel: "Large",
-        attributes: { size: "L" },
-      });
+        label: "Large",
+        });
       await ctx.db.insert("productVariants", {
         productId,
-        variantLabel: "Family Pack",
-        attributes: { size: "XL" },
-      });
+        label: "Family Pack",
+        });
 
       return {
         companyId,
@@ -239,7 +227,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       productId,
     });
 
-    expect(variants?.map((variant: { variantLabel: string }) => variant.variantLabel)).toEqual(["Family Pack", "Large"]);
+    expect(variants?.map((variant: { label: string }) => variant.label)).toEqual(["Family Pack", "Large"]);
     expect(hiddenVariants).toBeNull();
   });
 
@@ -268,9 +256,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       categoryId,
       nameEn: "Burger Box",
       descriptionEn: "Disposable meal box",
-      specifications: {
-        material: "paper",
-      },
     });
     const storedProduct = await t.run(async (ctx) =>
       ctx.db
@@ -317,10 +302,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         companyId,
         categoryId,
         nameEn: "Burger Box",
-        specifications: {
-          size: "Large",
-          " size ": "Medium",
-        },
       }),
     ).rejects.toThrow(
       "VALIDATION_FAILED: specifications keys must be non-empty strings and unique after trimming",
@@ -584,8 +565,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     const updatedProduct = await t.action(internal.products.update, {
       companyId,
       productId,
-      basePrice: 2.5,
-      baseCurrency: "SAR",
+      price: 2.5,
+      currency: "SAR",
     });
     const embeddingsAfter = await t.run(async (ctx) =>
       ctx.db
@@ -597,8 +578,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
 
     expect(updatedProduct).toMatchObject({
       id: productId,
-      basePrice: 2.5,
-      baseCurrency: "SAR",
+      price: 2.5,
+      currency: "SAR",
     });
     expect(storedProduct?.revision).toBe(1);
     expect(embeddingsAfter.map((embedding) => embedding._id)).toEqual(
@@ -628,7 +609,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const productId = await ctx.db.insert("products", {
         companyId,
         categoryId,
-        revision: 1,
         nameEn: "Burger Box",
       });
 
@@ -659,18 +639,10 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     const variant = await t.action(internal.products.createVariant, {
       companyId,
       productId,
-      variantLabel: "Family Pack",
-      attributes: {
-        size: "XL",
-        nested: {
-          finish: ["matte", "gloss"],
-          metadata: {
-            recyclable: true,
-            notes: null,
-          },
-        },
+      label: "Family Pack",
       },
-      priceOverride: 2.1,
+      },
+      price: 2.1,
     });
     const embeddingsAfter = await t.run(async (ctx) =>
       ctx.db
@@ -689,18 +661,10 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(variant).toEqual({
       id: storedVariants[0]!._id,
       productId,
-      variantLabel: "Family Pack",
-      attributes: {
-        size: "XL",
-        nested: {
-          finish: ["matte", "gloss"],
-          metadata: {
-            recyclable: true,
-            notes: null,
-          },
-        },
+      label: "Family Pack",
       },
-      priceOverride: 2.1,
+      },
+      price: 2.1,
     });
     expect(storedProduct?.revision).toBe(2);
     expect(storedVariants).toHaveLength(1);
@@ -716,7 +680,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     );
   });
 
-  it("updates a variant, clears priceOverride, and refreshes embeddings", async () => {
+  it("updates a variant, clears price, and refreshes embeddings", async () => {
     installGeminiStub();
     const t = convexTest(schema, modules);
 
@@ -732,16 +696,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const productId = await ctx.db.insert("products", {
         companyId,
         categoryId,
-        revision: 1,
         nameEn: "Burger Box",
       });
       const variantId = await ctx.db.insert("productVariants", {
         productId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-        priceOverride: 1.45,
+        label: "Large",
+        price: 1.45,
       });
 
       for (const language of ["en", "ar"] as const) {
@@ -766,14 +726,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       companyId,
       productId,
       variantId,
-      variantLabel: "Extra Large",
-      attributes: {
-        size: "XL",
-        nested: {
-          palette: ["white", "kraft"],
-        },
+      label: "Extra Large",
       },
-      priceOverride: null,
+      price: null,
     });
     const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
     const storedVariant = await t.run(async (ctx) => ctx.db.get(variantId));
@@ -787,29 +742,19 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(updatedVariant).toEqual({
       id: variantId,
       productId,
-      variantLabel: "Extra Large",
-      attributes: {
-        size: "XL",
-        nested: {
-          palette: ["white", "kraft"],
-        },
+      label: "Extra Large",
       },
     });
     expect(storedVariant).toMatchObject({
-      variantLabel: "Extra Large",
-      attributes: {
-        size: "XL",
-        nested: {
-          palette: ["white", "kraft"],
-        },
+      label: "Extra Large",
       },
     });
-    expect(storedVariant?.priceOverride).toBeUndefined();
+    expect(storedVariant?.price).toBeUndefined();
     expect(storedProduct?.revision).toBe(2);
     expect(embeddings.every((embedding) => embedding.textContent.includes("Extra Large"))).toBe(true);
   });
 
-  it("updates a variant without priceOverride and preserves the existing override", async () => {
+  it("updates a variant without price and preserves the existing override", async () => {
     installGeminiStub();
     const t = convexTest(schema, modules);
 
@@ -825,16 +770,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const productId = await ctx.db.insert("products", {
         companyId,
         categoryId,
-        revision: 1,
         nameEn: "Burger Box",
       });
       const variantId = await ctx.db.insert("productVariants", {
         productId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-        priceOverride: 1.45,
+        label: "Large",
+        price: 1.45,
       });
 
       for (const language of ["en", "ar"] as const) {
@@ -859,11 +800,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       companyId,
       productId,
       variantId,
-      variantLabel: "Extra Large",
-      attributes: {
-        size: "XL",
-      },
-    });
+      label: "Extra Large",
+      });
     const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
     const storedVariant = await t.run(async (ctx) => ctx.db.get(variantId));
     const embeddings = await t.run(async (ctx) =>
@@ -876,18 +814,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(updatedVariant).toEqual({
       id: variantId,
       productId,
-      variantLabel: "Extra Large",
-      attributes: {
-        size: "XL",
-      },
-      priceOverride: 1.45,
+      label: "Extra Large",
+      price: 1.45,
     });
     expect(storedVariant).toMatchObject({
-      variantLabel: "Extra Large",
-      attributes: {
-        size: "XL",
-      },
-      priceOverride: 1.45,
+      label: "Extra Large",
+      price: 1.45,
     });
     expect(storedProduct?.revision).toBe(2);
     expect(embeddings.every((embedding) => embedding.textContent.includes("Extra Large"))).toBe(true);
@@ -909,23 +841,16 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const productId = await ctx.db.insert("products", {
         companyId,
         categoryId,
-        revision: 1,
         nameEn: "Burger Box",
       });
       const variantId = await ctx.db.insert("productVariants", {
         productId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-      });
+        label: "Large",
+        });
       const retainedVariantId = await ctx.db.insert("productVariants", {
         productId,
-        variantLabel: "Small",
-        attributes: {
-          size: "S",
-        },
-      });
+        label: "Small",
+        });
 
       for (const language of ["en", "ar"] as const) {
         await ctx.db.insert("embeddings", {
@@ -992,16 +917,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const productId = await ctx.db.insert("products", {
         companyId,
         categoryId,
-        revision: 1,
         nameEn: "Burger Box",
       });
       const variantId = await ctx.db.insert("productVariants", {
         productId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-      });
+        label: "Large",
+        });
 
       for (const language of ["en", "ar"] as const) {
         await ctx.db.insert("embeddings", {
@@ -1038,7 +959,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
 
     await t.run(async (ctx) => {
       await ctx.db.patch(productId, {
-        revision: 2,
         nameEn: "Concurrent change",
       });
     });
@@ -1048,10 +968,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         companyId,
         productId,
         expectedRevision: createSnapshot!.expectedRevision,
-        variantLabel: "Family Pack",
-        attributes: {
-          size: "XL",
-        },
+        label: "Family Pack",
         englishEmbedding: createEmbedding(90),
         arabicEmbedding: createEmbedding(91),
         englishText: "english text",
@@ -1065,7 +982,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         productId,
         variantId,
         expectedRevision: updateSnapshot!.expectedRevision,
-        variantLabel: "Updated",
+        label: "Updated",
         englishEmbedding: createEmbedding(92),
         arabicEmbedding: createEmbedding(93),
         englishText: "english text",
@@ -1133,7 +1050,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     await t.run(async (ctx) => {
       await ctx.db.patch(productId, {
         nameEn: "Concurrent change",
-        revision: 1,
       });
     });
 
@@ -1149,7 +1065,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
     expect(storedProduct).toMatchObject({
       nameEn: "Concurrent change",
-      revision: 1,
     });
   });
 
@@ -1173,11 +1088,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
 
       await ctx.db.insert("productVariants", {
         productId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-      });
+        label: "Large",
+        });
       await ctx.db.insert("embeddings", {
         companyId,
         productId,
@@ -1256,3 +1168,5 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(deletedProduct).toBeNull();
   });
 });
+
+

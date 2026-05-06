@@ -8,7 +8,6 @@ import {
   toProductId,
   toVariantId,
 } from '@cs/db';
-import { createR2Storage, type ObjectStorage, PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS } from '@cs/storage';
 import { ERROR_CODES } from '@cs/shared';
 import {
   createAiServiceError,
@@ -18,7 +17,6 @@ import {
   createValidationServiceError,
   type DeleteProductResult,
   type ProductDetailDto,
-  type ProductImageDto,
   type ProductListItemDto,
   type ProductsService,
   ProductsServiceError,
@@ -26,7 +24,6 @@ import {
 
 interface ConvexProductsServiceOptions {
   createClient?: () => ConvexAdminClient;
-  createStorage?: () => ObjectStorage;
 }
 
 const ERROR_PREFIXES = new Map<string, (message: string) => ProductsServiceError>([
@@ -84,13 +81,6 @@ export const createConvexProductsService = (
   options: ConvexProductsServiceOptions = {},
 ): ProductsService => {
   const createClient = options.createClient ?? createConvexAdminClient;
-  const createStorage = options.createStorage ?? createR2Storage;
-  let storageClient: ObjectStorage | undefined;
-
-  const getStorage = (): ObjectStorage => {
-    storageClient ??= createStorage();
-    return storageClient;
-  };
 
   const withClient = async <T>(callback: (client: ConvexAdminClient) => Promise<T>): Promise<T> => {
     try {
@@ -99,30 +89,6 @@ export const createConvexProductsService = (
       throw normalizeServiceError(error);
     }
   };
-
-  const decorateImage = async (image: ProductImageDto): Promise<ProductImageDto> => {
-    try {
-      const download = await getStorage().createPresignedDownload({
-        key: image.key,
-        expiresIn: PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS,
-      });
-
-      return {
-        ...image,
-        downloadUrl: download.url,
-        downloadUrlExpiresAt: download.expiresAt,
-      };
-    } catch {
-      return image;
-    }
-  };
-
-  const decorateProduct = async <TProduct extends ProductListItemDto | ProductDetailDto>(
-    product: TProduct,
-  ): Promise<TProduct> => ({
-    ...product,
-    images: await Promise.all((product.images ?? []).map(decorateImage)),
-  });
 
   return {
     list: (companyId, filters) =>
@@ -133,7 +99,7 @@ export const createConvexProductsService = (
           ...(filters.search ? { search: filters.search } : {}),
         });
 
-        return products ? Promise.all(products.map(decorateProduct)) : null;
+        return products;
       }),
     get: (companyId, productId) =>
       withClient(async (client) => {
@@ -142,7 +108,7 @@ export const createConvexProductsService = (
           productId: toProductId(productId),
         });
 
-        return product ? decorateProduct(product) : null;
+        return product;
       }),
     listVariants: (companyId, productId) =>
       withClient((client) =>
@@ -158,11 +124,11 @@ export const createConvexProductsService = (
           ...restInput
         } = input;
 
-        return decorateProduct(await client.action(convexInternal.products.create, {
+        return client.action(convexInternal.products.create, {
           companyId: toCompanyId(companyId),
           ...restInput,
           categoryId: toCategoryId(categoryId),
-        }));
+        });
       }),
     update: (companyId, productId, patch) =>
       withClient(async (client) => {
@@ -171,14 +137,12 @@ export const createConvexProductsService = (
           ...restPatch
         } = patch;
 
-        const product = await client.action(convexInternal.products.update, {
+        return client.action(convexInternal.products.update, {
           companyId: toCompanyId(companyId),
           productId: toProductId(productId),
           ...restPatch,
           ...(categoryId ? { categoryId: toCategoryId(categoryId) } : {}),
         });
-
-        return product ? decorateProduct(product) : null;
       }),
     createVariant: (companyId, productId, input) =>
       withClient((client) =>

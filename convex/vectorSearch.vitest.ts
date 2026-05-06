@@ -175,11 +175,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
 
       await ctx.db.insert("productVariants", {
         productId: secondProductId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-      });
+        label: "Large",
+        });
 
       return {
         companyId,
@@ -205,11 +202,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
           {
             id: expect.any(String),
             productId: secondProductId,
-            variantLabel: "Large",
-            attributes: {
-              size: "L",
+            label: "Large",
             },
-          },
         ],
       },
       {
@@ -223,3 +217,4 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
     ]);
   });
 });
+

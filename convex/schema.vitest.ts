@@ -122,9 +122,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
           nameEn: "Paper Cup 8oz",
           nameAr: "كوب ورقي 8 أونس",
           descriptionEn: "Standard paper cup",
-          specifications: { size: "8oz", material: "paper" },
-          basePrice: 0.15,
-          baseCurrency: "SAR",
+          price: 0.15,
+          currency: "SAR",
           images: [
             {
               id: "image-1",
@@ -140,8 +139,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
       const doc = await t.run(async (ctx) => ctx.db.get(productId));
       expect(doc).toMatchObject({
         nameEn: "Paper Cup 8oz",
-        basePrice: 0.15,
-        baseCurrency: "SAR",
+        price: 0.15,
+        currency: "SAR",
       });
       expect(doc?.images).toHaveLength(1);
     });
@@ -170,17 +169,15 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
       const variantId = await t.run(async (ctx) =>
         createVariant(ctx, {
           productId,
-          variantLabel: "Large White",
-          attributes: { size: "L", color: "White" },
-          priceOverride: 0.2,
+          label: "Large White",
+          price: 0.2,
         }).then(({ variantId }) => variantId),
       );
 
       const doc = await t.run(async (ctx) => ctx.db.get(variantId));
       expect(doc).toMatchObject({
-        variantLabel: "Large White",
-        attributes: { size: "L", color: "White" },
-      });
+        label: "Large White",
+        });
     });
 
     it("accepts nested object and array attribute values", async () => {
@@ -204,16 +201,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
       const variantId = await t.run(async (ctx) =>
         createVariant(ctx, {
           productId,
-          variantLabel: "Family Pack",
-          attributes: {
-            size: "XL",
-            nested: {
-              materials: ["paper", "kraft"],
-              metadata: {
-                recyclable: true,
-                notes: null,
-              },
-            },
+          label: "Family Pack",
+          },
           },
         }).then(({ variantId }) => variantId),
       );
@@ -656,3 +645,5 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
     });
   });
 });
+
+

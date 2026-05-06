@@ -2,8 +2,6 @@ export {
   normalizeOptionalNumber,
   normalizeOptionalString,
   normalizeRequiredString,
-  normalizeSpecifications,
-  normalizeVariantAttributes,
 } from './normalizationPrimitives';
 
 export {
@@ -14,3 +12,5 @@ export {
   normalizeCreateState,
   normalizeVariantCreateState,
 } from './stateTransforms';
+
+export type { ProductCreateState } from './types';

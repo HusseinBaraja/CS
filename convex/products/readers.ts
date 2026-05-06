@@ -37,11 +37,12 @@ export const getScopedProduct = async (
 
 export const getScopedVariant = async (
   ctx: ProductReader,
+  companyId: Id<'companies'>,
   productId: Id<'products'>,
   variantId: Id<'productVariants'>,
 ): Promise<Doc<'productVariants'> | null> => {
   const variant = await ctx.db.get(variantId);
-  if (!variant || variant.productId !== productId) {
+  if (!variant || variant.productId !== productId || variant.companyId !== companyId) {
     return null;
   }
 
@@ -72,7 +73,6 @@ export const getVariantCreateSnapshotData = async (
   const variants = await getProductVariants(ctx, productId);
   return {
     productId: product._id,
-    expectedRevision: product.revision ?? 0,
     ...toWriteState(product),
     variants: variants.map(mapVariant),
   };

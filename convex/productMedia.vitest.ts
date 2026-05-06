@@ -73,7 +73,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex product media", 
       const productId = await ctx.db.insert("products", {
         companyId,
         categoryId,
-        revision: 0,
         nameEn: "Burger Box",
       });
 
@@ -190,3 +189,5 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex product media", 
     });
   });
 });
+
+

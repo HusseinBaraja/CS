@@ -5,7 +5,7 @@ import { refreshCompanyCatalogLanguageHintsInMutation } from '../../catalogLangu
 import { enqueueCleanupJobInMutation } from '../../mediaCleanup';
 import { replaceProductEmbeddingsInMutation } from '../../productEmbeddingRuntime';
 import { getEmbeddingReplacementArgs } from '../embedding';
-import { CONFLICT_PREFIX, NOT_FOUND_PREFIX, createTaggedError } from '../errors';
+import { NOT_FOUND_PREFIX, createTaggedError } from '../errors';
 import { mapProductDetail } from '../mapping';
 import { createProductPatch, normalizeCreateState } from '../normalization';
 import {
@@ -14,23 +14,23 @@ import {
   getScopedCategory,
   getScopedProduct,
 } from '../readers';
-import {
-  flexRecord,
-  type DeleteProductResult,
-  type ProductDetailDto,
+import type {
+  DeleteProductResult,
+  ProductDetailDto,
 } from '../types';
 
 export const insertProductWithEmbeddingsDefinition = {
   args: {
     companyId: v.id('companies'),
     categoryId: v.id('categories'),
-    nameEn: v.string(),
+    productNo: v.optional(v.string()),
+    nameEn: v.optional(v.string()),
     nameAr: v.optional(v.string()),
     descriptionEn: v.optional(v.string()),
     descriptionAr: v.optional(v.string()),
-    specifications: v.optional(flexRecord),
-    basePrice: v.optional(v.number()),
-    baseCurrency: v.optional(v.string()),
+    price: v.optional(v.number()),
+    currency: v.optional(v.string()),
+    primaryImage: v.optional(v.string()),
     englishEmbedding: v.array(v.float64()),
     arabicEmbedding: v.array(v.float64()),
     englishText: v.string(),
@@ -41,13 +41,14 @@ export const insertProductWithEmbeddingsDefinition = {
     args: {
       companyId: Id<'companies'>;
       categoryId: Id<'categories'>;
-      nameEn: string;
+      productNo?: string;
+      nameEn?: string;
       nameAr?: string;
       descriptionEn?: string;
       descriptionAr?: string;
-      specifications?: Record<string, string | number | boolean>;
-      basePrice?: number;
-      baseCurrency?: string;
+      price?: number;
+      currency?: string;
+      primaryImage?: string;
       englishEmbedding: number[];
       arabicEmbedding: number[];
       englishText: string;
@@ -68,15 +69,14 @@ export const insertProductWithEmbeddingsDefinition = {
     const productId = await ctx.db.insert('products', {
       companyId: args.companyId,
       categoryId: productState.categoryId,
-      revision: 1,
-      nameEn: productState.nameEn,
+      ...(productState.productNo ? { productNo: productState.productNo } : {}),
+      ...(productState.nameEn ? { nameEn: productState.nameEn } : {}),
       ...(productState.nameAr ? { nameAr: productState.nameAr } : {}),
       ...(productState.descriptionEn ? { descriptionEn: productState.descriptionEn } : {}),
       ...(productState.descriptionAr ? { descriptionAr: productState.descriptionAr } : {}),
-      ...(productState.specifications ? { specifications: productState.specifications } : {}),
-      ...(productState.basePrice !== undefined ? { basePrice: productState.basePrice } : {}),
-      ...(productState.baseCurrency ? { baseCurrency: productState.baseCurrency } : {}),
-      images: [],
+      ...(productState.price !== undefined ? { price: productState.price } : {}),
+      ...(productState.currency ? { currency: productState.currency } : {}),
+      ...(productState.primaryImage ? { primaryImage: productState.primaryImage } : {}),
     });
 
     await replaceProductEmbeddingsInMutation(ctx, {
@@ -103,14 +103,14 @@ export const patchProductWithEmbeddingsDefinition = {
     companyId: v.id('companies'),
     productId: v.id('products'),
     categoryId: v.optional(v.id('categories')),
-    nameEn: v.optional(v.string()),
+    productNo: v.optional(v.union(v.string(), v.null())),
+    nameEn: v.optional(v.union(v.string(), v.null())),
     nameAr: v.optional(v.union(v.string(), v.null())),
     descriptionEn: v.optional(v.union(v.string(), v.null())),
     descriptionAr: v.optional(v.union(v.string(), v.null())),
-    specifications: v.optional(v.union(flexRecord, v.null())),
-    basePrice: v.optional(v.union(v.number(), v.null())),
-    baseCurrency: v.optional(v.union(v.string(), v.null())),
-    expectedRevision: v.number(),
+    price: v.optional(v.union(v.number(), v.null())),
+    currency: v.optional(v.union(v.string(), v.null())),
+    primaryImage: v.optional(v.union(v.string(), v.null())),
     englishEmbedding: v.optional(v.array(v.float64())),
     arabicEmbedding: v.optional(v.array(v.float64())),
     englishText: v.optional(v.string()),
@@ -122,14 +122,14 @@ export const patchProductWithEmbeddingsDefinition = {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
       categoryId?: Id<'categories'>;
-      nameEn?: string;
+      productNo?: string | null;
+      nameEn?: string | null;
       nameAr?: string | null;
       descriptionEn?: string | null;
       descriptionAr?: string | null;
-      specifications?: Record<string, string | number | boolean> | null;
-      basePrice?: number | null;
-      baseCurrency?: string | null;
-      expectedRevision: number;
+      price?: number | null;
+      currency?: string | null;
+      primaryImage?: string | null;
       englishEmbedding?: number[];
       arabicEmbedding?: number[];
       englishText?: string;
@@ -141,10 +141,6 @@ export const patchProductWithEmbeddingsDefinition = {
       return null;
     }
 
-    if ((existingProduct.revision ?? 0) !== args.expectedRevision) {
-      throw createTaggedError(CONFLICT_PREFIX, 'Product was modified concurrently; retry the update');
-    }
-
     if (args.categoryId !== undefined) {
       const category = await getScopedCategory(ctx, args.companyId, args.categoryId);
       if (!category) {
@@ -153,10 +149,7 @@ export const patchProductWithEmbeddingsDefinition = {
     }
 
     const patch = createProductPatch(args);
-    await ctx.db.patch(args.productId, {
-      ...patch,
-      revision: args.expectedRevision + 1,
-    });
+    await ctx.db.patch(args.productId, patch);
 
     const embeddingReplacementArgs = getEmbeddingReplacementArgs(args);
     if (embeddingReplacementArgs) {
@@ -204,12 +197,12 @@ export const removeDefinition = {
       await ctx.db.delete(embedding._id);
     }
 
-    for (const image of product.images ?? []) {
+    // Clean up primary image if present
+    if (product.primaryImage) {
       await enqueueCleanupJobInMutation(ctx, {
         companyId: args.companyId,
         productId: args.productId,
-        imageId: image.id,
-        objectKey: image.key,
+        objectKey: product.primaryImage,
         reason: 'product_deleted',
       });
     }

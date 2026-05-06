@@ -5,7 +5,7 @@ import { internalMutation, type MutationCtx, internalQuery } from './_generated/
 type CategoryDto = {
   id: string;
   companyId: string;
-  nameEn: string;
+  nameEn?: string;
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
@@ -42,7 +42,7 @@ const normalizeOptionalString = (value: string | null | undefined): string | und
 const mapCategory = (category: Doc<"categories">): CategoryDto => ({
   id: category._id,
   companyId: category.companyId,
-  nameEn: category.nameEn,
+  ...(category.nameEn ? { nameEn: category.nameEn } : {}),
   ...(category.nameAr ? { nameAr: category.nameAr } : {}),
   ...(category.descriptionEn ? { descriptionEn: category.descriptionEn } : {}),
   ...(category.descriptionAr ? { descriptionAr: category.descriptionAr } : {}),
@@ -106,7 +106,11 @@ export const list = internalQuery({
 
     return categories
       .map(mapCategory)
-      .sort((left, right) => left.nameEn.localeCompare(right.nameEn) || left.id.localeCompare(right.id));
+      .sort((left, right) => {
+        const leftName = left.nameEn ?? left.nameAr ?? '';
+        const rightName = right.nameEn ?? right.nameAr ?? '';
+        return leftName.localeCompare(rightName) || left.id.localeCompare(right.id);
+      });
   },
 });
 

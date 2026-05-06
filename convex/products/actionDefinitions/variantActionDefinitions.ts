@@ -9,29 +9,25 @@ import {
   mergeVariantUpdateState,
   normalizeVariantCreateState,
 } from '../normalization';
-import {
-  type DeleteProductVariantResult,
-  type ProductVariantAttributes,
-  type ProductVariantDto,
-  variantAttributesValidator,
+import type {
+  DeleteProductVariantResult,
+  ProductVariantDto,
 } from '../types';
 
 export const createVariantDefinition = {
   args: {
     companyId: v.id('companies'),
     productId: v.id('products'),
-    variantLabel: v.string(),
-    attributes: variantAttributesValidator,
-    priceOverride: v.optional(v.number()),
+    label: v.string(),
+    price: v.optional(v.number()),
   },
   handler: async (
     ctx: ActionCtx,
     args: {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
-      variantLabel: string;
-      attributes: ProductVariantAttributes;
-      priceOverride?: number;
+      label: string;
+      price?: number;
     },
   ): Promise<ProductVariantDto | null> => {
     const snapshot = await ctx.runQuery(internal.products.getVariantCreateSnapshot, {
@@ -45,9 +41,8 @@ export const createVariantDefinition = {
 
     const nextVariant = normalizeVariantCreateState({
       productId: args.productId,
-      variantLabel: args.variantLabel,
-      attributes: args.attributes,
-      priceOverride: args.priceOverride,
+      label: args.label,
+      price: args.price,
     });
     const embeddings = await buildProductEmbeddingPayload(snapshot, sortVariants([
       ...snapshot.variants.map(toVariantWriteState),
@@ -56,7 +51,6 @@ export const createVariantDefinition = {
 
     return ctx.runMutation(internal.products.insertVariantWithEmbeddings, {
       ...args,
-      expectedRevision: snapshot.expectedRevision,
       ...embeddings,
     });
   },
@@ -67,9 +61,8 @@ export const updateVariantDefinition = {
     companyId: v.id('companies'),
     productId: v.id('products'),
     variantId: v.id('productVariants'),
-    variantLabel: v.optional(v.string()),
-    attributes: v.optional(variantAttributesValidator),
-    priceOverride: v.optional(v.union(v.number(), v.null())),
+    label: v.optional(v.string()),
+    price: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (
     ctx: ActionCtx,
@@ -77,9 +70,8 @@ export const updateVariantDefinition = {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
       variantId: Id<'productVariants'>;
-      variantLabel?: string;
-      attributes?: ProductVariantAttributes;
-      priceOverride?: number | null;
+      label?: string;
+      price?: number | null;
     },
   ): Promise<ProductVariantDto | null> => {
     const snapshot = await ctx.runQuery(internal.products.getVariantUpdateSnapshot, {
@@ -108,7 +100,6 @@ export const updateVariantDefinition = {
 
     return ctx.runMutation(internal.products.patchVariantWithEmbeddings, {
       ...args,
-      expectedRevision: snapshot.expectedRevision,
       ...embeddings,
     });
   },
@@ -151,7 +142,6 @@ export const removeVariantDefinition = {
 
     return ctx.runMutation(internal.products.removeVariantWithEmbeddings, {
       ...args,
-      expectedRevision: snapshot.expectedRevision,
       ...embeddings,
     });
   },

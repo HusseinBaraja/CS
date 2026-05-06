@@ -201,7 +201,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     });
 
     expect(counts.categories.every((category) => category.nameAr && category.descriptionAr)).toBe(true);
-    expect(counts.products.every((product) => product.nameAr && product.descriptionAr && product.baseCurrency === "SAR")).toBe(true);
+    expect(counts.products.every((product) => product.nameAr && product.descriptionAr && product.currency === "SAR")).toBe(true);
     expect(counts.offers.every((offer) => offer.active && offer.contentAr)).toBe(true);
     expect(counts.currencyRates[0]).toMatchObject(seedCurrencyRate);
 
@@ -508,9 +508,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
 
         await ctx.db.insert("productVariants", {
           productId: products[0]._id,
-          variantLabel: `seed cleanup variant ${index}`,
-          attributes: { size: index },
-        });
+          label: `seed cleanup variant ${index}`,
+          });
       }
     });
 
@@ -622,3 +621,4 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
   });
 });
+

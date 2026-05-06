@@ -12,15 +12,6 @@ const flexRecord = v.record(
   v.string(),
   v.union(v.string(), v.number(), v.boolean()),
 );
-const productImageValidator = v.object({
-  id: v.string(),
-  key: v.string(),
-  contentType: v.string(),
-  sizeBytes: v.number(),
-  etag: v.optional(v.string()),
-  alt: v.optional(v.string()),
-  uploadedAt: v.number(),
-});
 const productImageUploadStatusValidator = v.union(
   v.literal("pending"),
   v.literal("completed"),
@@ -69,6 +60,11 @@ const botRuntimeSessionStateValidator = v.union(
   v.literal(failedState),
 );
 
+const missingPricePolicyValidator = v.union(
+  v.literal("reply_unavailable"),
+  v.literal("handoff"),
+);
+
 export default defineSchema({
   // ── Companies ────────────────────────────────────────────────────────────
   companies: defineTable({
@@ -85,6 +81,13 @@ export default defineSchema({
   })
     .index("by_owner_phone", ["ownerPhone"])
     .index("by_seed_key", ["seedKey"]),
+
+  // ── Company Settings ────────────────────────────────────────────────────
+  companySettings: defineTable({
+    companyId: v.id("companies"),
+    missingPricePolicy: missingPricePolicyValidator,
+  })
+    .index("by_company", ["companyId"]),
 
   jobLocks: defineTable({
     key: v.string(),
@@ -125,27 +128,27 @@ export default defineSchema({
   // ── Categories ──────────────────────────────────────────────────────────
   categories: defineTable({
     companyId: v.id("companies"),
-    nameEn: v.string(),
+    nameEn: v.optional(v.string()),
     nameAr: v.optional(v.string()),
     descriptionEn: v.optional(v.string()),
     descriptionAr: v.optional(v.string()),
   })
     .index("by_company", ["companyId"])
-    .index("by_company_name_en", ["companyId", "nameEn"]),
+    .index("by_company_name_en", ["companyId", "nameEn"])
+    .index("by_company_name_ar", ["companyId", "nameAr"]),
 
   // ── Products ────────────────────────────────────────────────────────────
   products: defineTable({
     companyId: v.id("companies"),
     categoryId: v.id("categories"),
-    revision: v.optional(v.number()),
-    nameEn: v.string(),
+    productNo: v.optional(v.string()),
+    nameEn: v.optional(v.string()),
     nameAr: v.optional(v.string()),
     descriptionEn: v.optional(v.string()),
     descriptionAr: v.optional(v.string()),
-    specifications: v.optional(flexRecord),
-    basePrice: v.optional(v.number()),
-    baseCurrency: v.optional(v.string()), // Default: "SAR"
-    images: v.optional(v.array(productImageValidator)),
+    price: v.optional(v.number()),
+    currency: v.optional(v.string()),
+    primaryImage: v.optional(v.string()),
   })
     .index("by_company", ["companyId"])
     .index("by_category", ["companyId", "categoryId"]),
@@ -188,11 +191,13 @@ export default defineSchema({
 
   // ── Product Variants ────────────────────────────────────────────────────
   productVariants: defineTable({
+    companyId: v.id("companies"),
     productId: v.id("products"),
-    variantLabel: v.string(),
-    attributes: v.record(v.string(), v.any()),
-    priceOverride: v.optional(v.number()),
-  }).index("by_product", ["productId"]),
+    label: v.string(),
+    price: v.optional(v.number()),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_product", ["productId"]),
 
   // ── Embeddings (with vector index) ──────────────────────────────────────
   embeddings: defineTable({

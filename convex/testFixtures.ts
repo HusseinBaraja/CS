@@ -124,23 +124,24 @@ export const createProduct = async (
 export const createVariant = async (
   ctx: TestDbCtx,
   input: {
+    companyId: Id<"companies">;
     productId: Id<"products">;
-  } & Partial<Omit<InsertableDoc<"productVariants">, "productId">>,
+  } & Partial<Omit<InsertableDoc<"productVariants">, "companyId" | "productId">>,
 ): Promise<{
   variantId: Id<"productVariants">;
   variant: InsertableDoc<"productVariants">;
 }> => {
   const {
+    companyId,
     productId,
-    variantLabel = "Variant",
-    attributes = {},
+    label = "Variant",
     ...rest
   } = input;
 
   const variant = {
+    companyId,
     productId,
-    variantLabel,
-    attributes,
+    label,
     ...rest,
   };
   const variantId = await ctx.db.insert("productVariants", variant) as Id<"productVariants">;

@@ -93,11 +93,8 @@ const createTenantFixture = async (
     for (let index = 0; index < variantCount; index += 1) {
       await ctx.db.insert("productVariants", {
         productId: productIds[index % productIds.length]!,
-        variantLabel: `Variant ${index}`,
-        attributes: {
-          size: index,
-        },
-      });
+        label: `Variant ${index}`,
+        });
     }
 
     const conversationIds: Array<Id<"conversations">> = [];
@@ -620,11 +617,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       for (let index = 0; index < oversizedBatchCount; index += 1) {
         await ctx.db.insert("productVariants", {
           productId,
-          variantLabel: `Variant ${index}`,
-          attributes: {
-            size: index,
-          },
-        });
+          label: `Variant ${index}`,
+          });
         await ctx.db.insert("messages", {
           conversationId,
           role: "user",
@@ -694,20 +688,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       for (let index = 0; index < CLEANUP_BATCH_SIZE; index += 1) {
         await ctx.db.insert("productVariants", {
           productId: firstProductId,
-          variantLabel: `Variant ${index}`,
-          attributes: {
-            size: index,
-          },
-        });
+          label: `Variant ${index}`,
+          });
       }
 
       const trailingVariantId = await ctx.db.insert("productVariants", {
         productId: secondProductId,
-        variantLabel: "Trailing Variant",
-        attributes: {
-          size: CLEANUP_BATCH_SIZE,
-        },
-      });
+        label: "Trailing Variant",
+        });
 
       return {
         companyId,
@@ -799,3 +787,4 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     expect(fixture.trailingMessageId).toBeDefined();
   });
 });
+
