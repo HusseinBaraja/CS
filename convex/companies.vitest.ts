@@ -14,6 +14,7 @@ const modules =
 const collectCounts = async (t: ReturnType<typeof convexTest>) =>
   t.run(async (ctx) => {
     const companies = await ctx.db.query("companies").collect();
+    const companySettings = await ctx.db.query("companySettings").collect();
     const categories = await ctx.db.query("categories").collect();
     const products = await ctx.db.query("products").collect();
     const productImageUploads = await ctx.db.query("productImageUploads").collect();
@@ -24,6 +25,7 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
     const offers = await ctx.db.query("offers").collect();
     const currencyRates = await ctx.db.query("currencyRates").collect();
     const conversations = await ctx.db.query("conversations").collect();
+    const conversationStateEvents = await ctx.db.query("conversationStateEvents").collect();
     const messages = await ctx.db.query("messages").collect();
     const analyticsEvents = await ctx.db.query("analyticsEvents").collect();
     const embeddings = await ctx.db.query("embeddings").collect();
@@ -34,7 +36,9 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
       categories,
       botRuntimeSessions,
       companies,
+      companySettings,
       conversations,
+      conversationStateEvents,
       currencyRates,
       embeddings,
       messages,
@@ -74,6 +78,11 @@ const createTenantFixture = async (
       },
     });
 
+    await ctx.db.insert("companySettings", {
+      companyId,
+      missingPricePolicy: "handoff",
+    });
+
     const categoryId = await ctx.db.insert("categories", {
       companyId,
       nameEn: "Containers",
@@ -108,6 +117,16 @@ const createTenantFixture = async (
       });
       conversationIds.push(conversationId);
     }
+
+    await ctx.db.insert("conversationStateEvents", {
+      companyId,
+      conversationId: conversationIds[0]!,
+      phoneNumber: "967700000001",
+      eventType: "handoff_started",
+      timestamp: Date.UTC(2026, 2, 12, 0, 0, 0),
+      source: "assistant_action",
+      reason: "tenant_cleanup_test",
+    });
 
     for (let index = 0; index < messageCount; index += 1) {
       await ctx.db.insert("messages", {
@@ -371,7 +390,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       companyId,
       counts: {
         companies: 1,
-        companySettings: 0,
+        companySettings: 1,
         categories: 1,
         botRuntimePairingArtifacts: 1,
         botRuntimeSessions: 1,
@@ -380,7 +399,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
         productVariants: 2,
         embeddings: 4,
         conversations: 1,
-        conversationStateEvents: 0,
+        conversationStateEvents: 1,
         messages: 2,
         mediaCleanupJobs: 1,
         offers: 1,
@@ -389,6 +408,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       },
     });
     expect(counts.companies).toHaveLength(0);
+    expect(counts.companySettings).toHaveLength(0);
     expect(counts.categories).toHaveLength(0);
     expect(counts.botRuntimePairingArtifacts).toHaveLength(0);
     expect(counts.botRuntimeSessions).toHaveLength(0);
@@ -397,6 +417,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     expect(counts.productVariants).toHaveLength(0);
     expect(counts.embeddings).toHaveLength(0);
     expect(counts.conversations).toHaveLength(0);
+    expect(counts.conversationStateEvents).toHaveLength(0);
     expect(counts.messages).toHaveLength(0);
     expect(counts.mediaCleanupJobs).toHaveLength(0);
     expect(counts.offers).toHaveLength(0);
@@ -423,7 +444,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
 
     expect(result?.counts).toEqual({
       companies: 1,
-      companySettings: 0,
+      companySettings: 1,
       categories: 1,
       botRuntimePairingArtifacts: 1,
       botRuntimeSessions: 1,
@@ -432,7 +453,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       productVariants: oversizedBatchCount,
       embeddings: oversizedBatchCount,
       conversations: 3,
-      conversationStateEvents: 0,
+      conversationStateEvents: 1,
       messages: oversizedBatchCount,
       mediaCleanupJobs: 1,
       offers: 1,
@@ -440,6 +461,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       analyticsEvents: oversizedBatchCount,
     });
     expect(counts.companies).toHaveLength(0);
+    expect(counts.companySettings).toHaveLength(0);
     expect(counts.categories).toHaveLength(0);
     expect(counts.botRuntimePairingArtifacts).toHaveLength(0);
     expect(counts.botRuntimeSessions).toHaveLength(0);
@@ -448,6 +470,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     expect(counts.productVariants).toHaveLength(0);
     expect(counts.embeddings).toHaveLength(0);
     expect(counts.conversations).toHaveLength(0);
+    expect(counts.conversationStateEvents).toHaveLength(0);
     expect(counts.messages).toHaveLength(0);
     expect(counts.mediaCleanupJobs).toHaveLength(0);
     expect(counts.offers).toHaveLength(0);
@@ -466,6 +489,13 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       productCount: 3,
       conversationCount: 3,
     });
+
+    const settingsBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
+      companyId,
+    });
+
+    expect(settingsBatch.stage).toBe("companySettings");
+    expect(settingsBatch.deletedCount).toBe(1);
 
     const firstVariantBatch = await t.mutation(internal.companyCleanup.clearCompanyDataBatch, {
       companyId,
