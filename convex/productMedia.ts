@@ -13,9 +13,7 @@ const createTaggedError = (prefix: string, message: string): Error =>
   new Error(`${prefix}: ${message}`);
 
 const normalizeOptionalString = (value: string | null | undefined): string | undefined => {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
+  if (value === undefined || value === null) return undefined;
 
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : undefined;
@@ -78,10 +76,7 @@ export const createUploadSession = internalMutation({
 
     const contentType = normalizeContentType(args.contentType);
     if (!Number.isInteger(args.maxSizeBytes) || args.maxSizeBytes <= 0 || args.maxSizeBytes > PRODUCT_IMAGE_MAX_SIZE_BYTES) {
-      throw createTaggedError(
-        VALIDATION_PREFIX,
-        `maxSizeBytes must be between 1 and ${PRODUCT_IMAGE_MAX_SIZE_BYTES}`,
-      );
+      throw createTaggedError(VALIDATION_PREFIX, `maxSizeBytes must be between 1 and ${PRODUCT_IMAGE_MAX_SIZE_BYTES}`);
     }
 
     if (args.expiresAt <= args.createdAt) {
@@ -150,9 +145,7 @@ export const completeUploadSession = internalMutation({
     }
 
     if (upload.expiresAt < args.completedAt) {
-      await ctx.db.patch(args.uploadId, {
-        status: "expired",
-      });
+      await ctx.db.patch(args.uploadId, { status: "expired" });
       await enqueueCleanupJobInMutation(ctx, {
         companyId: args.companyId,
         productId: args.productId,
@@ -166,9 +159,7 @@ export const completeUploadSession = internalMutation({
 
     const observedContentType = normalizeContentType(args.observedContentType);
     if (observedContentType !== upload.intendedContentType) {
-      await ctx.db.patch(args.uploadId, {
-        status: "expired",
-      });
+      await ctx.db.patch(args.uploadId, { status: "expired" });
       await enqueueCleanupJobInMutation(ctx, {
         companyId: args.companyId,
         productId: args.productId,
@@ -181,9 +172,7 @@ export const completeUploadSession = internalMutation({
     }
 
     if (!Number.isFinite(args.sizeBytes) || args.sizeBytes <= 0 || args.sizeBytes > upload.maxSizeBytes) {
-      await ctx.db.patch(args.uploadId, {
-        status: "expired",
-      });
+      await ctx.db.patch(args.uploadId, { status: "expired" });
       await enqueueCleanupJobInMutation(ctx, {
         companyId: args.companyId,
         productId: args.productId,
@@ -195,7 +184,6 @@ export const completeUploadSession = internalMutation({
       throw createTaggedError(VALIDATION_PREFIX, "Uploaded object exceeds the allowed size");
     }
 
-    // Clean up previous primaryImage if present
     if (product.primaryImage) {
       await enqueueCleanupJobInMutation(ctx, {
         companyId: args.companyId,
@@ -206,9 +194,7 @@ export const completeUploadSession = internalMutation({
       });
     }
 
-    await ctx.db.patch(args.productId, {
-      primaryImage: upload.objectKey,
-    });
+    await ctx.db.patch(args.productId, { primaryImage: upload.objectKey });
     await ctx.db.patch(args.uploadId, {
       status: "completed",
       completedAt: args.completedAt,
@@ -230,6 +216,7 @@ export const deleteImage = internalMutation({
   args: {
     companyId: v.id("companies"),
     productId: v.id("products"),
+    imageId: v.string(),
     deletedAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -242,14 +229,22 @@ export const deleteImage = internalMutation({
       throw createTaggedError(NOT_FOUND_PREFIX, "Product has no primary image");
     }
 
+    const upload = await ctx.db
+      .query("productImageUploads")
+      .withIndex("by_product", (q) => q.eq("productId", args.productId))
+      .filter((q) => q.eq(q.field("imageId"), args.imageId))
+      .unique();
+    if (!upload || upload.status !== "completed" || upload.objectKey !== product.primaryImage) {
+      throw createTaggedError(NOT_FOUND_PREFIX, "Product image not found");
+    }
+
     const objectKey = product.primaryImage;
-    await ctx.db.patch(args.productId, {
-      primaryImage: undefined,
-    });
+    await ctx.db.patch(args.productId, { primaryImage: undefined });
 
     await enqueueCleanupJobInMutation(ctx, {
       companyId: args.companyId,
       productId: args.productId,
+      imageId: args.imageId,
       objectKey,
       reason: "product_image_deleted",
       now: args.deletedAt,
@@ -257,6 +252,7 @@ export const deleteImage = internalMutation({
 
     return {
       productId: args.productId,
+      imageId: args.imageId,
       objectKey,
     };
   },

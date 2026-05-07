@@ -115,10 +115,15 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex product media", 
     const deleted = await t.mutation(internal.productMedia.deleteImage, {
       companyId,
       productId,
+      imageId: upload!.imageId,
       deletedAt: createdAt + 2_000,
     });
 
-    expect(deleted).toMatchObject({ productId });
+    expect(deleted).toMatchObject({
+      productId,
+      imageId: upload!.imageId,
+      objectKey: upload!.objectKey,
+    });
 
     const cleanupJobs = await t.run(async (ctx) => ctx.db.query("mediaCleanupJobs").collect());
     const productAfterDelete = await t.run(async (ctx) => ctx.db.get(productId));
@@ -132,6 +137,49 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex product media", 
       reason: "product_image_deleted",
       status: "pending",
     });
+  });
+
+  it("rejects deleting an image that is not the current primary image", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000703",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+        primaryImage: "companies/company-1/products/product-1/image-1.jpg",
+      });
+
+      await ctx.db.insert("productImageUploads", {
+        companyId,
+        productId,
+        imageId: "image-2",
+        objectKey: "companies/company-1/products/product-1/image-2.jpg",
+        intendedContentType: "image/jpeg",
+        maxSizeBytes: 5 * 1024 * 1024,
+        status: "completed",
+        createdAt: Date.UTC(2026, 2, 12, 0, 0, 0),
+        expiresAt: Date.UTC(2026, 2, 12, 0, 15, 0),
+        completedAt: Date.UTC(2026, 2, 12, 0, 1, 0),
+      });
+
+      return { companyId, productId };
+    });
+
+    await expect(t.mutation(internal.productMedia.deleteImage, {
+      companyId,
+      productId,
+      imageId: "image-2",
+      deletedAt: Date.UTC(2026, 2, 12, 0, 2, 0),
+    })).rejects.toThrow("NOT_FOUND: Product image not found");
   });
 
   it("queues cleanup jobs for stored images when a product is deleted", async () => {

@@ -238,10 +238,9 @@ export const createConvexProductMediaService = (
         client.mutation(convexInternal.productMedia.deleteImage, {
           companyId: companyId as never,
           productId: productId as never,
+          imageId,
           deletedAt: now(),
-        }).then((deleted) =>
-          deleted ? { ...deleted, imageId } : null
-        )
+        })
       ),
   };
 };
