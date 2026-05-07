@@ -113,7 +113,7 @@ export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }
           </TemplateOption>
 
           <Button onClick={() => {
-            onDownload(options).catch((error: unknown) => {
+            Promise.resolve(onDownload(options)).catch((error: unknown) => {
               console.error('[CatalogTemplateDownload] download failed', error);
               // TODO: surface error to user (toast / error state)
             });
