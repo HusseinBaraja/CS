@@ -217,6 +217,7 @@ export const deleteImage = internalMutation({
     companyId: v.id("companies"),
     productId: v.id("products"),
     imageId: v.string(),
+    expectedObjectKey: v.optional(v.string()),
     deletedAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -227,6 +228,10 @@ export const deleteImage = internalMutation({
 
     if (!product.primaryImage) {
       throw createTaggedError(NOT_FOUND_PREFIX, "Product has no primary image");
+    }
+
+    if (args.expectedObjectKey !== undefined && args.expectedObjectKey !== product.primaryImage) {
+      throw createTaggedError(NOT_FOUND_PREFIX, "Product image not found");
     }
 
     const upload = await ctx.db

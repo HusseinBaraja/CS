@@ -182,6 +182,56 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex product media", 
     })).rejects.toThrow("NOT_FOUND: Product image not found");
   });
 
+  it("rejects deleting an image when the expected object key is stale", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000704",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+        primaryImage: "companies/company-1/products/product-1/current.jpg",
+      });
+
+      await ctx.db.insert("productImageUploads", {
+        companyId,
+        productId,
+        imageId: "image-1",
+        objectKey: "companies/company-1/products/product-1/current.jpg",
+        intendedContentType: "image/jpeg",
+        maxSizeBytes: 5 * 1024 * 1024,
+        status: "completed",
+        createdAt: Date.UTC(2026, 2, 12, 0, 0, 0),
+        expiresAt: Date.UTC(2026, 2, 12, 0, 15, 0),
+        completedAt: Date.UTC(2026, 2, 12, 0, 1, 0),
+      });
+
+      return { companyId, productId };
+    });
+
+    await expect(t.mutation(internal.productMedia.deleteImage, {
+      companyId,
+      productId,
+      imageId: "image-1",
+      expectedObjectKey: "companies/company-1/products/product-1/stale.jpg",
+      deletedAt: Date.UTC(2026, 2, 12, 0, 2, 0),
+    })).rejects.toThrow("NOT_FOUND: Product image not found");
+
+    const productAfterDeleteAttempt = await t.run(async (ctx) => ctx.db.get(productId));
+    const cleanupJobs = await t.run(async (ctx) => ctx.db.query("mediaCleanupJobs").collect());
+
+    expect(productAfterDeleteAttempt?.primaryImage).toBe("companies/company-1/products/product-1/current.jpg");
+    expect(cleanupJobs).toHaveLength(0);
+  });
+
   it("queues cleanup jobs for stored images when a product is deleted", async () => {
     const t = convexTest(schema, modules);
 
