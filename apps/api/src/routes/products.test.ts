@@ -48,6 +48,19 @@ const baseProductDetail: ProductDetailDto = {
   variants: [baseVariant],
 };
 
+const otherCompanyProduct: ProductDetailDto = {
+  ...baseProductDetail,
+  id: 'product-2',
+  companyId: 'company-2',
+  primaryImage: 'companies/company-2/products/product-2/image-2.jpg',
+  variants: [{
+    ...baseVariant,
+    id: 'variant-2',
+    companyId: 'company-2',
+    productId: 'product-2',
+  }],
+};
+
 const authHeaders = {
   'x-api-key': API_KEY,
   'content-type': 'application/json',
@@ -241,6 +254,122 @@ describe('product routes', () => {
       currency: null,
       primaryImage: null,
     });
+  });
+
+  test('product routes do not expose resources from another company', async () => {
+    const notFoundBody = {
+      ok: false,
+      error: {
+        code: ERROR_CODES.NOT_FOUND,
+        message: 'Product not found',
+      },
+    };
+    const app = createTestApp(
+      createStubProductsService({
+        list: async (companyId) => (
+          otherCompanyProduct.companyId === companyId ? [otherCompanyProduct] : []
+        ),
+        get: async (companyId, productId) => (
+          otherCompanyProduct.companyId === companyId && otherCompanyProduct.id === productId
+            ? otherCompanyProduct
+            : null
+        ),
+        update: async (companyId, productId, patch) => (
+          otherCompanyProduct.companyId === companyId && otherCompanyProduct.id === productId
+            ? {
+              ...otherCompanyProduct,
+              nameEn: patch.nameEn === null ? undefined : patch.nameEn ?? otherCompanyProduct.nameEn,
+            }
+            : null
+        ),
+        createVariant: async (companyId, productId, input) => (
+          otherCompanyProduct.companyId === companyId && otherCompanyProduct.id === productId
+            ? {
+              id: 'variant-created',
+              companyId,
+              productId,
+              ...input,
+            }
+            : null
+        ),
+        updateVariant: async (companyId, productId, variantId, patch) => {
+          const variant = otherCompanyProduct.variants.find((item) => item.id === variantId);
+          return otherCompanyProduct.companyId === companyId
+            && otherCompanyProduct.id === productId
+            && variant
+            ? {
+              ...variant,
+              ...patch,
+              price: patch.price === null ? undefined : patch.price ?? variant.price,
+            }
+            : null;
+        },
+      }),
+      createStubProductMediaService({
+        deleteImage: async (companyId, productId, imageId) => (
+          companyId === otherCompanyProduct.companyId
+            && productId === otherCompanyProduct.id
+            && imageId === 'image-2'
+            ? {
+              productId,
+              imageId,
+              objectKey: otherCompanyProduct.primaryImage ?? '',
+            }
+            : null
+        ),
+      }),
+    );
+
+    const listResponse = await app.request('/api/companies/company-1/products', {
+      headers: authHeaders,
+    });
+    const getResponse = await app.request('/api/companies/company-1/products/product-2', {
+      headers: authHeaders,
+    });
+    const updateResponse = await app.request('/api/companies/company-1/products/product-2', {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify({
+        nameEn: 'Updated',
+      }),
+    });
+    const createVariantResponse = await app.request('/api/companies/company-1/products/product-2/variants', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        label: 'Large',
+      }),
+    });
+    const updateVariantResponse = await app.request(
+      '/api/companies/company-1/products/product-2/variants/variant-2',
+      {
+        method: 'PUT',
+        headers: authHeaders,
+        body: JSON.stringify({
+          label: 'Small',
+        }),
+      },
+    );
+    const deleteImageResponse = await app.request('/api/companies/company-1/products/product-2/images/image-2', {
+      method: 'DELETE',
+      headers: authHeaders,
+    });
+
+    expect(listResponse.status).toBe(200);
+    expect(await listResponse.json()).toEqual({
+      ok: true,
+      products: [],
+    });
+    expect(getResponse.status).toBe(404);
+    expect(await getResponse.json()).toEqual(notFoundBody);
+    expect(updateResponse.status).toBe(404);
+    expect(await updateResponse.json()).toEqual(notFoundBody);
+    expect(createVariantResponse.status).toBe(404);
+    expect(await createVariantResponse.json()).toEqual(notFoundBody);
+    expect(updateVariantResponse.status).toBe(404);
+    expect(await updateVariantResponse.json()).toEqual(notFoundBody);
+    expect(deleteImageResponse.status).toBe(404);
+    expect(await deleteImageResponse.json()).toEqual(notFoundBody);
   });
 
   test('POST /api/companies/:companyId/products rejects missing product names', async () => {
