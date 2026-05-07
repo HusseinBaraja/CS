@@ -35,6 +35,7 @@ const createClientStub = (overrides: Partial<{
 const createProduct = (overrides: Partial<{
   id: string;
   categoryId: string;
+  productNo: string;
   nameEn: string;
   nameAr?: string;
   descriptionEn?: string;
@@ -47,6 +48,7 @@ const createProduct = (overrides: Partial<{
   id: overrides.id ?? "product-1",
   companyId: COMPANY_ID,
   categoryId: overrides.categoryId ?? "category-1",
+  ...(overrides.productNo ? { productNo: overrides.productNo } : {}),
   nameEn: overrides.nameEn ?? "Burger Box",
   ...(overrides.nameAr ? { nameAr: overrides.nameAr } : {}),
   ...(overrides.descriptionEn ? { descriptionEn: overrides.descriptionEn } : {}),
@@ -296,6 +298,43 @@ describe("@cs/rag", () => {
         "Name (AR): كوب شوربة",
         "Description: Single-wall soup cup",
       ].join("\n"),
+    });
+  });
+
+  test("falls back to product number for context block heading when names are absent", async () => {
+    const { client } = createClientStub({
+      action: async () => [
+        {
+          _id: "embedding-5",
+          _score: 0.89,
+          productId: "product-5",
+          textContent: "Product number only embedding",
+          language: "en",
+        },
+      ],
+      query: async () => [
+        createProduct({
+          id: "product-5",
+          productNo: "SKU-500",
+          nameEn: "",
+        }),
+      ],
+    });
+
+    const service = createProductRetrievalService({
+      createClient: () => client,
+      generateEmbedding: async () => Array.from({ length: 768 }, () => 7),
+    });
+
+    const result = await service.retrieveCatalogContext({
+      companyId: COMPANY_ID,
+      query: "SKU-500",
+      language: "en",
+    });
+
+    expect(result.contextBlocks[0]).toMatchObject({
+      id: "product-5",
+      heading: "SKU-500",
     });
   });
 

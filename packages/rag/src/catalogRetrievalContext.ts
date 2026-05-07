@@ -95,7 +95,7 @@ export const buildContextBlock = (
   language: ChatLanguage,
 ): GroundingContextBlock => ({
   id: product.id,
-  heading: getPreferredName(product, language),
+  heading: getPreferredName(product, language) || product.productNo || product.id,
   body: buildContextBlockBody(product, language),
 });
 
