@@ -8,6 +8,8 @@ type LooseDoc = Record<string, unknown> & {
   conversationId?: unknown;
 };
 
+type DocCursor = string | undefined;
+
 const TENANT_TABLES = [
   'embeddings',
   'productImageUploads',
@@ -61,8 +63,37 @@ const firstImageKey = (value: unknown): string | undefined => {
   return undefined;
 };
 
-const getDocs = async (db: any, table: string, limit: number): Promise<LooseDoc[]> =>
-  db.query(table).take(limit);
+const getDocs = async (
+  db: any,
+  table: string,
+  limit: number,
+  cursor?: DocCursor,
+): Promise<LooseDoc[]> => {
+  const query = db.query(table).order('asc');
+  const pagedQuery = cursor
+    ? query.filter((q: any) => q.gt(q.field('_id'), cursor))
+    : query;
+  return pagedQuery.take(limit);
+};
+
+const processDocs = async (
+  db: any,
+  table: string,
+  limit: number,
+  processDoc: (doc: LooseDoc) => Promise<void>,
+): Promise<void> => {
+  let cursor: DocCursor;
+  while (true) {
+    const docs = await getDocs(db, table, limit, cursor);
+    for (const doc of docs) {
+      await processDoc(doc);
+      cursor = typeof doc._id === 'string' ? doc._id : cursor;
+    }
+    if (docs.length < limit) {
+      return;
+    }
+  }
+};
 
 const companyExists = async (db: any, companyId: unknown): Promise<boolean> =>
   typeof companyId === 'string' && Boolean(await db.get(companyId));
@@ -86,11 +117,11 @@ export const run = internalMutation({
       orphanDeleted: 0,
     };
 
-    for (const category of await getDocs(db, 'categories', limit)) {
+    await processDocs(db, 'categories', limit, async (category) => {
       if (!(await companyExists(db, category.companyId))) {
         await db.delete(category._id);
         result.orphanDeleted += 1;
-        continue;
+        return;
       }
       if (!category.nameKey) {
         const nameKey = normalizeNameKey(category.nameAr) ?? normalizeNameKey(category.nameEn);
@@ -99,13 +130,13 @@ export const run = internalMutation({
           result.categoriesUpdated += 1;
         }
       }
-    }
+    });
 
-    for (const product of await getDocs(db, 'products', limit)) {
+    await processDocs(db, 'products', limit, async (product) => {
       if (!(await companyExists(db, product.companyId))) {
         await db.delete(product._id);
         result.productsDeleted += 1;
-        continue;
+        return;
       }
       const price = numberOrUndefined(product.price) ?? numberOrUndefined(product.basePrice);
       const currency = stringOrUndefined(product.currency) ?? stringOrUndefined(product.baseCurrency);
@@ -120,20 +151,20 @@ export const run = internalMutation({
         images: undefined,
       });
       result.productsUpdated += 1;
-    }
+    });
 
-    for (const variant of await getDocs(db, 'productVariants', limit)) {
+    await processDocs(db, 'productVariants', limit, async (variant) => {
       const product = variant.productId ? await db.get(variant.productId) : null;
       if (!product || !(await companyExists(db, product.companyId))) {
         await db.delete(variant._id);
         result.variantsDeleted += 1;
-        continue;
+        return;
       }
       const label = stringOrUndefined(variant.label) ?? stringOrUndefined(variant.variantLabel);
       if (!label) {
         await db.delete(variant._id);
         result.variantsDeleted += 1;
-        continue;
+        return;
       }
       await db.patch(variant._id, {
         companyId: product.companyId,
@@ -146,36 +177,36 @@ export const run = internalMutation({
         priceOverride: undefined,
       });
       result.variantsUpdated += 1;
-    }
+    });
 
-    for (const message of await getDocs(db, 'messages', limit)) {
+    await processDocs(db, 'messages', limit, async (message) => {
       if (message.companyId && (await companyExists(db, message.companyId))) {
-        continue;
+        return;
       }
       const conversation = message.conversationId ? await db.get(message.conversationId) : null;
       if (conversation?.companyId && (await companyExists(db, conversation.companyId))) {
         await db.patch(message._id, { companyId: conversation.companyId });
         result.messagesUpdated += 1;
-        continue;
+        return;
       }
       await db.delete(message._id);
       result.messagesDeleted += 1;
-    }
+    });
 
     for (const table of TENANT_TABLES) {
-      for (const doc of await getDocs(db, table, limit)) {
+      await processDocs(db, table, limit, async (doc) => {
         if (!(await companyExists(db, doc.companyId))) {
           await db.delete(doc._id);
           result.orphanDeleted += 1;
         }
-      }
+      });
     }
 
     for (const table of LEGACY_TABLES) {
-      for (const doc of await getDocs(db, table, limit)) {
+      await processDocs(db, table, limit, async (doc) => {
         await db.delete(doc._id);
         result.legacyDeleted += 1;
-      }
+      });
     }
 
     return result;
