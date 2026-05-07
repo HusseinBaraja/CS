@@ -1,93 +1,16 @@
 import { v } from 'convex/values';
-import type { Doc, Id } from './_generated/dataModel';
-import { internalMutation, type MutationCtx, internalQuery } from './_generated/server';
-
-type CategoryDto = {
-  id: string;
-  companyId: string;
-  nameEn?: string;
-  nameAr?: string;
-  descriptionEn?: string;
-  descriptionAr?: string;
-};
-
-type DeleteCategoryResult = {
-  categoryId: string;
-};
-
-const CONFLICT_PREFIX = "CONFLICT";
-const VALIDATION_PREFIX = "VALIDATION_FAILED";
-
-const createTaggedError = (prefix: string, message: string): Error =>
-  new Error(`${prefix}: ${message}`);
-
-const normalizeRequiredString = (value: string, fieldName: string): string => {
-  const normalized = value.trim();
-  if (normalized.length === 0) {
-    throw createTaggedError(VALIDATION_PREFIX, `${fieldName} is required`);
-  }
-
-  return normalized;
-};
-
-const normalizeOptionalString = (value: string | null | undefined): string | undefined => {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : undefined;
-};
-
-const mapCategory = (category: Doc<"categories">): CategoryDto => ({
-  id: category._id,
-  companyId: category.companyId,
-  ...(category.nameEn ? { nameEn: category.nameEn } : {}),
-  ...(category.nameAr ? { nameAr: category.nameAr } : {}),
-  ...(category.descriptionEn ? { descriptionEn: category.descriptionEn } : {}),
-  ...(category.descriptionAr ? { descriptionAr: category.descriptionAr } : {}),
-});
-
-type CategoryReader = {
-  db: Pick<MutationCtx["db"], "get" | "query">;
-};
-
-const getCompany = async (
-  ctx: CategoryReader,
-  companyId: Id<"companies">,
-) => ctx.db.get(companyId);
-
-const getScopedCategory = async (
-  ctx: CategoryReader,
-  companyId: Id<"companies">,
-  categoryId: Id<"categories">,
-): Promise<Doc<"categories"> | null> => {
-  const category = await ctx.db.get(categoryId);
-  if (!category || category.companyId !== companyId) {
-    return null;
-  }
-
-  return category;
-};
-
-const assertCategoryNameAvailable = async (
-  ctx: MutationCtx,
-  companyId: Id<"companies">,
-  nameEn: string,
-  categoryId?: Id<"categories">,
-): Promise<void> => {
-  const existingCategories = await ctx.db
-    .query("categories")
-    .withIndex("by_company_name_en", (q) =>
-      q.eq("companyId", companyId).eq("nameEn", nameEn),
-    )
-    .collect();
-
-  const conflictingCategory = existingCategories.find((category) => category._id !== categoryId);
-  if (conflictingCategory) {
-    throw createTaggedError(CONFLICT_PREFIX, "Category name already exists for this company");
-  }
-};
+import type { CategoryDto, DeleteCategoryResult } from './categoriesShared';
+import {
+  CONFLICT_PREFIX,
+  assertCategoryNameAvailable,
+  createTaggedError,
+  getCompany,
+  getScopedCategory,
+  mapCategory,
+  normalizeNameKey,
+  normalizeOptionalString,
+} from './categoriesShared';
+import { internalMutation, internalQuery } from './_generated/server';
 
 export const list = internalQuery({
   args: {
@@ -128,7 +51,7 @@ export const get = internalQuery({
 export const create = internalMutation({
   args: {
     companyId: v.id("companies"),
-    nameEn: v.string(),
+    nameEn: v.optional(v.string()),
     nameAr: v.optional(v.string()),
     descriptionEn: v.optional(v.string()),
     descriptionAr: v.optional(v.string()),
@@ -139,16 +62,18 @@ export const create = internalMutation({
       return null;
     }
 
-    const nameEn = normalizeRequiredString(args.nameEn, "nameEn");
+    const nameEn = normalizeOptionalString(args.nameEn);
     const nameAr = normalizeOptionalString(args.nameAr);
+    const nameKey = normalizeNameKey(nameEn, nameAr);
     const descriptionEn = normalizeOptionalString(args.descriptionEn);
     const descriptionAr = normalizeOptionalString(args.descriptionAr);
 
-    await assertCategoryNameAvailable(ctx, args.companyId, nameEn);
+    await assertCategoryNameAvailable(ctx, args.companyId, nameKey);
 
     const categoryId = await ctx.db.insert("categories", {
       companyId: args.companyId,
-      nameEn,
+      nameKey,
+      ...(nameEn ? { nameEn } : {}),
       ...(nameAr ? { nameAr } : {}),
       ...(descriptionEn ? { descriptionEn } : {}),
       ...(descriptionAr ? { descriptionAr } : {}),
@@ -179,19 +104,26 @@ export const update = internalMutation({
     }
 
     const patch: {
-      nameEn?: string;
+      nameEn?: string | undefined;
       nameAr?: string | undefined;
+      nameKey?: string | undefined;
       descriptionEn?: string | undefined;
       descriptionAr?: string | undefined;
     } = {};
 
     if (args.nameEn !== undefined) {
-      patch.nameEn = normalizeRequiredString(args.nameEn, "nameEn");
-      await assertCategoryNameAvailable(ctx, args.companyId, patch.nameEn, args.categoryId);
+      patch.nameEn = normalizeOptionalString(args.nameEn);
     }
 
     if (args.nameAr !== undefined) {
       patch.nameAr = normalizeOptionalString(args.nameAr);
+    }
+
+    if (args.nameEn !== undefined || args.nameAr !== undefined) {
+      const nextNameEn = args.nameEn !== undefined ? patch.nameEn : existingCategory.nameEn;
+      const nextNameAr = args.nameAr !== undefined ? patch.nameAr : existingCategory.nameAr;
+      patch.nameKey = normalizeNameKey(nextNameEn, nextNameAr);
+      await assertCategoryNameAvailable(ctx, args.companyId, patch.nameKey, args.categoryId);
     }
 
     if (args.descriptionEn !== undefined) {

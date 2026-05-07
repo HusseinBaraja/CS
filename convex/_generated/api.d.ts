@@ -10,7 +10,9 @@
 
 import type * as analytics from "../analytics.js";
 import type * as catalogLanguageHints from "../catalogLanguageHints.js";
+import type * as catalogRestructureCleanup from "../catalogRestructureCleanup.js";
 import type * as categories from "../categories.js";
+import type * as categoriesShared from "../categoriesShared.js";
 import type * as companies from "../companies.js";
 import type * as companyCleanup from "../companyCleanup.js";
 import type * as companyRuntime from "../companyRuntime.js";
@@ -70,7 +72,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   catalogLanguageHints: typeof catalogLanguageHints;
+  catalogRestructureCleanup: typeof catalogRestructureCleanup;
   categories: typeof categories;
+  categoriesShared: typeof categoriesShared;
   companies: typeof companies;
   companyCleanup: typeof companyCleanup;
   companyRuntime: typeof companyRuntime;

@@ -53,14 +53,15 @@ describe('downloadCatalogTemplate', () => {
       currency: 'YER',
       includePrice: true,
       language: 'en',
-      includeSpecifications: false,
       includeDescription: false,
+      includePrimaryImage: false,
+      includeVariants: false,
     });
 
     expect(ExcelJS.default.Workbook).toHaveBeenCalled();
     expect(mocks.addWorksheet).toHaveBeenCalledWith('Catalog Template');
     expect(mocks.addRow).toHaveBeenCalledWith(
-      ['Section Name', 'Product Number', 'English Product Name', 'Base Price (Yemeni Rial)'],
+      ['Section Name', 'Product Number', 'Arabic Product Name', 'English Product Name', 'Product Price', 'Currency'],
     );
     expect(mocks.writeBuffer).toHaveBeenCalled();
     expect(document.createElement).toHaveBeenCalledWith('a');

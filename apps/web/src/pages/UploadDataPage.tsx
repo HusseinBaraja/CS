@@ -14,7 +14,7 @@ const requiredColumns = buildCatalogTemplateHeaders(defaultCatalogTemplateOption
 const uploadedFile = {
   name: 'reda-catalog-template.xlsx',
   date: '28 أبريل 2026',
-  columns: 7,
+  columns: requiredColumns.length,
   rows: 124,
   size: '86 KB',
 };

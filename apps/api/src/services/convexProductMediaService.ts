@@ -1,6 +1,5 @@
 import {
-  createR2Storage,
-  type ObjectStorage,
+  createR2Storage, type ObjectStorage,
   PRODUCT_IMAGE_ALLOWED_MIME_TYPES,
   PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS,
   PRODUCT_IMAGE_MAX_SIZE_BYTES,
@@ -10,9 +9,9 @@ import {
 import { logEvent, logger as defaultLogger, serializeErrorForLog, type StructuredLogger } from '@cs/core';
 import { ConfigError, ERROR_CODES, type ErrorCode } from '@cs/shared';
 import { type ConvexAdminClient, convexInternal, createConvexAdminClient } from '@cs/db';
-import type { ProductImageDto } from './products';
 import {
   type CreateProductImageUploadResult,
+  type ProductImageDto,
   createProductMediaConfigError,
   createProductMediaDatabaseError,
   createProductMediaNotFoundError,
@@ -239,9 +238,10 @@ export const createConvexProductMediaService = (
         client.mutation(convexInternal.productMedia.deleteImage, {
           companyId: companyId as never,
           productId: productId as never,
-          imageId,
           deletedAt: now(),
-        })
+        }).then((deleted) =>
+          deleted ? { ...deleted, imageId } : null
+        )
       ),
   };
 };

@@ -39,11 +39,10 @@ const createProduct = (overrides: Partial<{
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  specifications?: Record<string, string | number | boolean>;
-  basePrice?: number;
-  baseCurrency?: string;
-  images: Array<{ id: string; key: string; contentType: string; sizeBytes: number; uploadedAt: number }>;
-  variants: Array<{ id: string; productId: string; variantLabel: string; attributes: Record<string, unknown>; priceOverride?: number }>;
+  price?: number;
+  currency?: string;
+  primaryImage?: string;
+  variants: Array<{ id: string; companyId: string; productId: string; label: string; price?: number }>;
 }> = {}) => ({
   id: overrides.id ?? "product-1",
   companyId: COMPANY_ID,
@@ -52,10 +51,9 @@ const createProduct = (overrides: Partial<{
   ...(overrides.nameAr ? { nameAr: overrides.nameAr } : {}),
   ...(overrides.descriptionEn ? { descriptionEn: overrides.descriptionEn } : {}),
   ...(overrides.descriptionAr ? { descriptionAr: overrides.descriptionAr } : {}),
-  ...(overrides.specifications ? { specifications: overrides.specifications } : {}),
-  ...(overrides.basePrice !== undefined ? { basePrice: overrides.basePrice } : {}),
-  ...(overrides.baseCurrency ? { baseCurrency: overrides.baseCurrency } : {}),
-  images: overrides.images ?? [],
+  ...(overrides.price !== undefined ? { price: overrides.price } : {}),
+  ...(overrides.currency ? { currency: overrides.currency } : {}),
+  ...(overrides.primaryImage ? { primaryImage: overrides.primaryImage } : {}),
   variants: overrides.variants ?? [],
 });
 
@@ -198,39 +196,22 @@ describe("@cs/rag", () => {
           nameEn: "Burger Box",
           nameAr: "علبة برجر",
           descriptionEn: "Disposable meal packaging",
-          specifications: {
-            material: "paper",
-            recyclable: true,
-          },
-          basePrice: 12.5,
-          baseCurrency: "SAR",
-          images: [
-            {
-              id: "image-1",
-              key: "products/image-1.jpg",
-              contentType: "image/jpeg",
-              sizeBytes: 1_024,
-              uploadedAt: 1,
-            },
-          ],
+          price: 12.5,
+          currency: "SAR",
+          primaryImage: "products/image-1.jpg",
           variants: [
             {
               id: "variant-2",
+              companyId: COMPANY_ID,
               productId: "product-1",
-              variantLabel: "Large",
-              attributes: {
-                size: "L",
-                finish: ["matte", "gloss"],
-              },
-              priceOverride: 13.5,
+              label: "Large",
+              price: 13.5,
             },
             {
               id: "variant-1",
+              companyId: COMPANY_ID,
               productId: "product-1",
-              variantLabel: "Family Pack",
-              attributes: {
-                size: "XL",
-              },
+              label: "Family Pack",
             },
           ],
         }),
@@ -253,7 +234,7 @@ describe("@cs/rag", () => {
     expect(result.outcome).toBe("grounded");
     expect(result.topScore).toBe(0.91);
     expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]?.product.imageCount).toBe(1);
+    expect(result.candidates[0]?.product.primaryImage).toBe("products/image-1.jpg");
     expect(contextBlock).toEqual({
       id: "product-1",
       heading: "Burger Box",
@@ -261,14 +242,11 @@ describe("@cs/rag", () => {
         "Name (EN): Burger Box",
         "Name (AR): علبة برجر",
         "Description: Disposable meal packaging",
-        "Base price: 12.5 SAR",
-        "Specifications:",
-        "- material: paper",
-        "- recyclable: true",
+        "Price: 12.5 SAR",
         "Variants:",
-        '- Family Pack | attributes: { size: XL }',
-        '- Large | attributes: { finish: [matte, gloss], size: L } | priceOverride: 13.5',
-        "Images available: 1",
+        "- Family Pack",
+        "- Large | price: 13.5",
+        "Primary image is available.",
       ].join("\n"),
     });
     expect(calls.queries[0]?.args).toEqual({
@@ -317,7 +295,6 @@ describe("@cs/rag", () => {
         "Name (EN): Soup Cup",
         "Name (AR): كوب شوربة",
         "Description: Single-wall soup cup",
-        "Images available: 0",
       ].join("\n"),
     });
   });

@@ -97,6 +97,7 @@ export const toConversationDto = (conversation: Doc<'conversations'>): Conversat
 
 export const toMessageDto = (message: Doc<'messages'>): ConversationMessageDto => ({
   id: message._id,
+  ...(message.companyId !== undefined ? { companyId: message.companyId } : {}),
   conversationId: message.conversationId,
   role: message.role,
   content: message.content,

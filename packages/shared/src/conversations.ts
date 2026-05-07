@@ -28,6 +28,7 @@ export interface ConversationStateDto {
 
 export interface ConversationMessageDto {
   id: string;
+  companyId?: string;
   conversationId: string;
   role: "user" | "assistant";
   content: string;

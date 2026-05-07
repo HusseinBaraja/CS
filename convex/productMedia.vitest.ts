@@ -80,6 +80,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex product media", 
     });
 
     const createdAt = Date.UTC(2026, 2, 12, 0, 0, 0);
+    const completedAt = createdAt + 1_000;
     const upload = await t.mutation(internal.productMedia.createUploadSession, {
       companyId,
       productId,
@@ -96,11 +97,16 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex product media", 
       observedContentType: "image/png",
       sizeBytes: 2048,
       etag: '"etag-1"',
-      completedAt: createdAt + 1_000,
+      completedAt,
     });
 
     expect(image).toEqual({
-      objectKey: upload!.objectKey,
+      id: upload!.imageId,
+      key: upload!.objectKey,
+      contentType: "image/png",
+      sizeBytes: 2048,
+      etag: '"etag-1"',
+      uploadedAt: completedAt,
     });
 
     const productAfterAttach = await t.run(async (ctx) => ctx.db.get(productId));

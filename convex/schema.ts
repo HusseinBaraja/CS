@@ -130,10 +130,12 @@ export default defineSchema({
     companyId: v.id("companies"),
     nameEn: v.optional(v.string()),
     nameAr: v.optional(v.string()),
+    nameKey: v.optional(v.string()),
     descriptionEn: v.optional(v.string()),
     descriptionAr: v.optional(v.string()),
   })
     .index("by_company", ["companyId"])
+    .index("by_company_name_key", ["companyId", "nameKey"])
     .index("by_company_name_en", ["companyId", "nameEn"])
     .index("by_company_name_ar", ["companyId", "nameAr"]),
 
@@ -246,6 +248,7 @@ export default defineSchema({
 
   // ── Messages ────────────────────────────────────────────────────────────
   messages: defineTable({
+    companyId: v.optional(v.id("companies")),
     conversationId: v.id("conversations"),
     role: v.union(v.literal("user"), v.literal("assistant")),
     content: v.string(),

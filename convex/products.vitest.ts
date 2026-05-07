@@ -557,12 +557,13 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(embeddingsAfter.map((embedding) => embedding.textContent)).toEqual(
       embeddingsBefore.map((embedding) => embedding.textContent),
     );
+    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
     expect(storedProduct?.companyId).toBe(companyId);
     const storedCompany = await t.run(async (ctx) => ctx.db.get(companyId));
     expect(storedCompany?.catalogLanguageHints).toEqual(originalCatalogLanguageHints);
   });
 
-  it("creates a variant, preserves nested attributes, and replaces embeddings with variant content", async () => {
+  it("creates a variant and replaces embeddings with variant content", async () => {
     installGeminiStub();
     const t = convexTest(schema, modules);
 

@@ -251,6 +251,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex categories", () 
       _creationTime: expect.any(Number),
       companyId,
       nameEn: "Containers",
+      nameKey: "containers",
       descriptionAr: "وصف محدث",
     });
 

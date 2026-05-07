@@ -22,30 +22,24 @@ export type VectorSearchHit = {
 
 export type ProductVariantRecord = {
   id: string;
+  companyId: string;
   productId: string;
-  variantLabel: string;
-  attributes: Record<string, unknown>;
-  priceOverride?: number;
+  label: string;
+  price?: number;
 };
 
 export type HydratedProductRecord = {
   id: string;
   companyId: string;
   categoryId: string;
-  nameEn: string;
+  productNo?: string;
+  nameEn?: string;
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  specifications?: Record<string, string | number | boolean>;
-  basePrice?: number;
-  baseCurrency?: string;
-  images: Array<{
-    id: string;
-    key: string;
-    contentType: string;
-    sizeBytes: number;
-    uploadedAt: number;
-  }>;
+  price?: number;
+  currency?: string;
+  primaryImage?: string;
   variants: ProductVariantRecord[];
 };
 
@@ -63,18 +57,17 @@ export interface RetrieveCatalogContextInput {
 export interface RetrievedProductContext {
   id: string;
   categoryId: string;
-  nameEn: string;
+  productNo?: string;
+  nameEn?: string;
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  specifications?: Record<string, string | number | boolean>;
-  basePrice?: number;
-  baseCurrency?: string;
-  imageCount: number;
+  price?: number;
+  currency?: string;
+  primaryImage?: string;
   variants: Array<{
-    variantLabel: string;
-    attributes: Record<string, unknown>;
-    priceOverride?: number;
+    label: string;
+    price?: number;
   }>;
 }
 

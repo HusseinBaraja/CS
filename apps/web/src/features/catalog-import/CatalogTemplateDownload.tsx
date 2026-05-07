@@ -96,11 +96,11 @@ export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }
             </ToggleGroup>
           </TemplateOption>
 
-          <TemplateOption label="معلومات إضافية">
+          <TemplateOption label="الصورة الرئيسية">
             <BooleanToggle
-              ariaLabel="تضمين المعلومات الإضافية"
-              value={options.includeSpecifications}
-              onChange={(includeSpecifications) => updateOptions({ includeSpecifications })}
+              ariaLabel="تضمين الصورة الرئيسية"
+              value={options.includePrimaryImage}
+              onChange={(includePrimaryImage) => updateOptions({ includePrimaryImage })}
             />
           </TemplateOption>
 
@@ -112,8 +112,16 @@ export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }
             />
           </TemplateOption>
 
+          <TemplateOption label="المتغيرات">
+            <BooleanToggle
+              ariaLabel="تضمين المتغيرات"
+              value={options.includeVariants}
+              onChange={(includeVariants) => updateOptions({ includeVariants })}
+            />
+          </TemplateOption>
+
           <Button onClick={() => {
-            onDownload(options).catch((error: unknown) => {
+            Promise.resolve(onDownload(options)).catch((error: unknown) => {
               console.error('[CatalogTemplateDownload] download failed', error);
               // TODO: surface error to user (toast / error state)
             });

@@ -42,7 +42,8 @@ const groundedRetrievalResult = (
         id: "product-1",
         categoryId: "category-1",
         nameEn: "Burger Box",
-        imageCount: 0,
+        price: 1.25,
+        currency: "SAR",
         variants: [],
       },
     },
@@ -281,6 +282,53 @@ describe("createCatalogChatOrchestrator", () => {
     });
     expect(chatCalls).toHaveLength(1);
   }, 10_000);
+
+  test("uses missingPricePolicy when a price is requested but catalog has no price", async () => {
+    const chatCalls: unknown[] = [];
+    const noPriceRetrieval = groundedRetrievalResult({
+      candidates: [
+        {
+          ...groundedRetrievalResult().candidates[0]!,
+          product: {
+            id: "product-1",
+            categoryId: "category-1",
+            nameEn: "Burger Box",
+            variants: [],
+          },
+        },
+      ],
+    });
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(noPriceRetrieval),
+      rewriteService: createRewriteService(highConfidenceRewriteAttempt()),
+      companySettingsService: {
+        async getSettings() {
+          return { missingPricePolicy: "handoff" };
+        },
+      },
+      chatManager: createChatManagerStub(async () => {
+        chatCalls.push("called");
+        throw new Error("chat should not be called");
+      }),
+    });
+
+    const result = await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      userMessage: "How much is the Burger Box?",
+    });
+
+    expect(result).toMatchObject({
+      outcome: "missing_price_fallback",
+      assistant: {
+        action: {
+          type: "handoff",
+        },
+      },
+    });
+    expect(chatCalls).toHaveLength(0);
+  });
 
   test("preserves detected Arabic response language through retrieval and prompt assembly", async () => {
     const retrievalCalls: Array<Record<string, unknown>> = [];

@@ -16,11 +16,7 @@ import {
   toMessageDto,
 } from './message_helpers';
 import type { AppendInboundCustomerMessageResult } from './types';
-export {
-  ensureActiveConversationDefinition,
-  getOrCreateActiveConversationDefinition,
-  getOrCreateConversationForInboundDefinition,
-} from './inbound_conversation_entrypoints';
+export { ensureActiveConversationDefinition, getOrCreateActiveConversationDefinition, getOrCreateConversationForInboundDefinition } from './inbound_conversation_entrypoints';
 
 export const appendConversationMessageDefinition = {
   args: {
@@ -54,6 +50,7 @@ export const appendConversationMessageDefinition = {
     );
 
     const messageId = await ctx.db.insert('messages', {
+      companyId: args.companyId,
       conversationId: args.conversationId,
       role: args.role,
       content,
@@ -109,6 +106,7 @@ export const appendMutedCustomerMessageDefinition = {
     }
 
     await ctx.db.insert('messages', {
+      companyId: args.companyId,
       conversationId: args.conversationId,
       role: 'user',
       content,
@@ -165,6 +163,7 @@ export const appendInboundCustomerMessageToConversationDefinition = {
     }
 
     await ctx.db.insert('messages', {
+      companyId: args.companyId,
       conversationId: args.conversationId,
       role: 'user',
       content,

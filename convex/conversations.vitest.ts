@@ -872,6 +872,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId,
+      companyId,
       role: "assistant",
       content: "Connecting you with the team.",
       timestamp: 2_000,
@@ -962,6 +963,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: pending.id,
       conversationId,
+      companyId,
       role: "assistant",
       content: "Assistant reply",
       timestamp: 2_000,
@@ -1031,6 +1033,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       {
         id: expect.any(String),
         conversationId,
+        companyId,
         role: "user",
         content: "Customer message",
         timestamp: 2_100,
@@ -1038,6 +1041,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       {
         id: visibleAssistant.id,
         conversationId,
+        companyId,
         role: "assistant",
         content: "Visible assistant reply",
         timestamp: 2_200,
@@ -1115,6 +1119,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       {
         id: expect.any(String),
         conversationId,
+        companyId,
         role: "assistant",
         content: "visible-2",
         timestamp: 1_100,
@@ -1124,6 +1129,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       {
         id: expect.any(String),
         conversationId,
+        companyId,
         role: "user",
         content: "visible-3",
         timestamp: 1_200,
@@ -1752,6 +1758,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId,
+      companyId,
       role: "user",
       content: "hello again",
       timestamp: 5_000,
@@ -1805,6 +1812,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId,
+      companyId,
       role: "user",
       content: "hello again",
       timestamp: 5_000,
@@ -1842,6 +1850,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId: result.conversation.id,
+      companyId,
       role: "user",
       content: "hello",
       timestamp: 2_000,
@@ -1873,6 +1882,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId: result.conversation.id,
+      companyId,
       role: "user",
       content: "hello",
       timestamp: 2_000,
@@ -1918,6 +1928,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId: first.conversation.id,
+      companyId,
       role: "user",
       content: "hello",
       timestamp: 2_000,
@@ -1979,6 +1990,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId,
+      companyId,
       role: "user",
       content: "hello again",
       timestamp: 5_000,

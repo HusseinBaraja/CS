@@ -134,7 +134,15 @@ export const completeUploadSession = internalMutation({
     }
 
     if (upload.status === "completed") {
-      return { objectKey: upload.objectKey };
+      return {
+        id: upload.imageId,
+        key: upload.objectKey,
+        contentType: upload.intendedContentType,
+        sizeBytes: upload.maxSizeBytes,
+        ...(args.etag ? { etag: args.etag } : {}),
+        ...(upload.alt ? { alt: upload.alt } : {}),
+        uploadedAt: upload.completedAt ?? args.completedAt,
+      };
     }
 
     if (upload.status !== "pending") {
@@ -206,7 +214,15 @@ export const completeUploadSession = internalMutation({
       completedAt: args.completedAt,
     });
 
-    return { objectKey: upload.objectKey };
+    return {
+      id: upload.imageId,
+      key: upload.objectKey,
+      contentType: observedContentType,
+      sizeBytes: args.sizeBytes,
+      ...(args.etag ? { etag: args.etag } : {}),
+      ...(upload.alt ? { alt: upload.alt } : {}),
+      uploadedAt: args.completedAt,
+    };
   },
 });
 
