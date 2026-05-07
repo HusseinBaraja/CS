@@ -123,17 +123,12 @@ export const updateDefinition = {
       ? await buildProductEmbeddingPayload(nextState, (variants ?? []).map(toVariantWriteState))
       : null;
 
-    if (!embeddings) {
-      return ctx.runMutation(internal.products.patchProductWithEmbeddings, {
-        ...args,
-        expectedRevision: existingProduct.revision,
-      });
-    }
-
-    return ctx.runMutation(internal.products.patchProductWithEmbeddings, {
+    const payload = {
       ...args,
       expectedRevision: existingProduct.revision,
-      ...embeddings,
-    });
+      ...(embeddings ? embeddings : {}),
+    };
+
+    return ctx.runMutation(internal.products.patchProductWithEmbeddings, payload);
   },
 };
