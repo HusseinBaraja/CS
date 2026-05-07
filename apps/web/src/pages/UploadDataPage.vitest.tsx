@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { UploadDataPage } from './UploadDataPage';
+import { buildCatalogTemplateHeaders, defaultCatalogTemplateOptions } from '../features/catalog-import/catalogTemplate';
 import { downloadCatalogTemplate } from '../features/catalog-import/downloadCatalogTemplate';
 
 vi.mock('../features/catalog-import/downloadCatalogTemplate', () => ({
@@ -107,9 +108,11 @@ describe('UploadDataPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /رفع الملف/ }));
 
+    const expectedLabel = `${buildCatalogTemplateHeaders(defaultCatalogTemplateOptions).length} أعمدة`;
+
     expect(screen.getByText('reda-catalog-template.xlsx')).toBeDefined();
     expect(screen.getByText('28 أبريل 2026')).toBeDefined();
-    expect(screen.getByText('11 أعمدة')).toBeDefined();
+    expect(screen.getByText(expectedLabel)).toBeDefined();
     expect(screen.getByText('124 صف')).toBeDefined();
     expect(screen.getByText('86 KB')).toBeDefined();
     expect(screen.getByText('جاهز')).toBeDefined();
