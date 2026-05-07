@@ -220,6 +220,42 @@ describe("category routes", () => {
     });
   });
 
+  test("POST /api/companies/:companyId/categories creates a category with an Arabic name only", async () => {
+    let receivedInput: CreateCategoryInput | undefined;
+    const app = createTestApp(createStubCategoriesService({
+      create: async (companyId, input) => {
+        receivedInput = input;
+        return {
+          id: "category-created",
+          companyId,
+          ...input,
+        };
+      },
+    }));
+
+    const response = await app.request("/api/companies/company-1/categories", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        nameAr: "  تصنيف جديد  ",
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(receivedInput).toEqual({
+      nameAr: "تصنيف جديد",
+    });
+    expect(body).toEqual({
+      ok: true,
+      category: {
+        id: "category-created",
+        companyId: "company-1",
+        nameAr: "تصنيف جديد",
+      },
+    });
+  });
+
   test("POST /api/companies/:companyId/categories rejects invalid input", async () => {
     const app = createTestApp(createStubCategoriesService());
 
