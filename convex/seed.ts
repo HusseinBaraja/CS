@@ -353,8 +353,8 @@ export const insertSeedSampleData = internalMutation({
         nameAr: product.nameAr,
         descriptionEn: product.descriptionEn,
         descriptionAr: product.descriptionAr,
-        price: product.price,
-        currency: product.currency,
+        ...(product.price !== undefined ? { price: product.price } : {}),
+        ...(product.currency !== undefined ? { currency: product.currency } : {}),
       });
       productIds.set(product.key, productId);
     }
