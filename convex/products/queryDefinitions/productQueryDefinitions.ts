@@ -71,7 +71,7 @@ export const getDefinition = {
       return null;
     }
 
-    const variants = await getProductVariants(ctx, args.productId);
+    const variants = await getProductVariants(ctx, args.companyId, args.productId);
     return mapProductDetail(product, variants);
   },
 };
@@ -102,7 +102,7 @@ export const getManyForRagDefinition = {
       uniqueProductIds.map(async (productId): Promise<ProductDetailDto | null> => {
         const [product, variants] = await Promise.all([
           getScopedProduct(ctx, args.companyId, productId),
-          getProductVariants(ctx, productId),
+          getProductVariants(ctx, args.companyId, productId),
         ]);
         if (!product) {
           return null;
@@ -133,7 +133,7 @@ export const listVariantsDefinition = {
       return null;
     }
 
-    const variants = await getProductVariants(ctx, args.productId);
+    const variants = await getProductVariants(ctx, args.companyId, args.productId);
     return variants.map(mapVariant);
   },
 };

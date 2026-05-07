@@ -51,12 +51,14 @@ export const getScopedVariant = async (
 
 export const getProductVariants = async (
   ctx: ProductReader,
+  companyId: Id<'companies'>,
   productId: Id<'products'>,
 ): Promise<ProductVariantDoc[]> =>
   sortVariantDocs(
     await ctx.db
       .query('productVariants')
       .withIndex('by_product', (q) => q.eq('productId', productId))
+      .filter((q) => q.eq(q.field('companyId'), companyId))
       .collect(),
   );
 
@@ -70,7 +72,7 @@ export const getVariantCreateSnapshotData = async (
     return null;
   }
 
-  const variants = await getProductVariants(ctx, productId);
+  const variants = await getProductVariants(ctx, companyId, productId);
   return {
     productId: product._id,
     ...toWriteState(product),

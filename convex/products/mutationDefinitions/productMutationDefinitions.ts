@@ -162,7 +162,7 @@ export const patchProductWithEmbeddingsDefinition = {
       throw new Error('Updated product could not be loaded');
     }
 
-    const variants = await getProductVariants(ctx, args.productId);
+    const variants = await getProductVariants(ctx, args.companyId, args.productId);
     return mapProductDetail(updatedProduct, variants);
   },
 };

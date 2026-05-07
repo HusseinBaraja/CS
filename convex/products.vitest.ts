@@ -120,7 +120,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
   it("gets a product with variants nested and hides out-of-scope products", async () => {
     const t = convexTest(schema, modules);
 
-    const { companyId, otherCompanyId, categoryId, productId, variantId } = await t.run(async (ctx) => {
+    const {
+      companyId,
+      otherCompanyId,
+      categoryId,
+      productId,
+      variantId,
+      otherVariantId,
+    } = await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", {
         name: "Tenant One",
         ownerPhone: "966500000602",
@@ -146,6 +153,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         label: "Large",
         price: 1.45,
       });
+      const otherVariantId = await ctx.db.insert("productVariants", {
+        companyId: otherCompanyId,
+        productId,
+        label: "Other Tenant",
+        price: 9.99,
+      });
 
       return {
         companyId,
@@ -153,6 +166,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         categoryId,
         productId,
         variantId,
+        otherVariantId,
       };
     });
 
@@ -181,13 +195,16 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         },
       ],
     });
+    expect(product?.variants.map((variant: { id: string }) => variant.id)).not.toContain(
+      otherVariantId,
+    );
     expect(hiddenProduct).toBeNull();
   });
 
   it("lists scoped variants for a product in stable order", async () => {
     const t = convexTest(schema, modules);
 
-    const { companyId, otherCompanyId, productId } = await t.run(async (ctx) => {
+    const { companyId, otherCompanyId, productId, otherVariantId } = await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", {
         name: "Tenant One",
         ownerPhone: "966500000612",
@@ -211,17 +228,23 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         companyId,
         productId,
         label: "Large",
-        });
+      });
       await ctx.db.insert("productVariants", {
         companyId,
         productId,
         label: "Family Pack",
-        });
+      });
+      const otherVariantId = await ctx.db.insert("productVariants", {
+        companyId: otherCompanyId,
+        productId,
+        label: "Other Tenant",
+      });
 
       return {
         companyId,
         otherCompanyId,
         productId,
+        otherVariantId,
       };
     });
 
@@ -234,7 +257,13 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       productId,
     });
 
-    expect(variants?.map((variant: { label: string }) => variant.label)).toEqual(["Family Pack", "Large"]);
+    expect(variants?.map((variant: { label: string }) => variant.label)).toEqual([
+      "Family Pack",
+      "Large",
+    ]);
+    expect(variants?.map((variant: { id: string }) => variant.id)).not.toContain(
+      otherVariantId,
+    );
     expect(hiddenVariants).toBeNull();
   });
 
