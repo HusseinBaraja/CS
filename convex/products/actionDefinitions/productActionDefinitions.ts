@@ -3,12 +3,45 @@ import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import { internal } from '../../_generated/api';
 import { buildProductEmbeddingPayload } from '../../productEmbeddingRuntime';
-import { NOT_FOUND_PREFIX, createTaggedError } from '../errors';
+import { NOT_FOUND_PREFIX, VALIDATION_PREFIX, createTaggedError } from '../errors';
 import { hasEmbeddingRelevantChanges, toVariantWriteState } from '../mapping';
 import { mergeUpdateState, normalizeCreateState } from '../normalization';
 import type {
   ProductDetailDto,
 } from '../types';
+
+const hasIdentifyingField = (product: {
+  productNo?: string;
+  nameEn?: string;
+  nameAr?: string;
+  descriptionEn?: string;
+  descriptionAr?: string;
+  primaryImage?: string;
+}): boolean =>
+  Boolean(
+    product.productNo
+      || product.nameEn
+      || product.nameAr
+      || product.descriptionEn
+      || product.descriptionAr
+      || product.primaryImage,
+  );
+
+const assertHasIdentifyingField = (product: {
+  productNo?: string;
+  nameEn?: string;
+  nameAr?: string;
+  descriptionEn?: string;
+  descriptionAr?: string;
+  primaryImage?: string;
+}): void => {
+  if (!hasIdentifyingField(product)) {
+    throw createTaggedError(
+      VALIDATION_PREFIX,
+      'at least one product identifier is required',
+    );
+  }
+};
 
 export const createDefinition = {
   args: {
@@ -112,6 +145,7 @@ export const updateDefinition = {
     }
 
     const nextState = mergeUpdateState(existingProduct, args);
+    assertHasIdentifyingField(nextState);
     const shouldRefreshEmbeddings = hasEmbeddingRelevantChanges(existingProduct, nextState);
     const variants = shouldRefreshEmbeddings
       ? await ctx.runQuery(internal.products.listVariants, {

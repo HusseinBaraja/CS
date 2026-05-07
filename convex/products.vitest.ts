@@ -516,6 +516,82 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     ).rejects.toThrow("NOT_FOUND: Category not found");
   });
 
+  it("rejects product updates that would remove all identifying fields before refreshing embeddings", async () => {
+    installGeminiStub();
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000616",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        productNo: "BOX-1",
+        nameEn: "Burger Box",
+        nameAr: "علبة برجر",
+        descriptionEn: "Disposable box",
+        descriptionAr: "علبة للاستعمال مرة واحدة",
+        primaryImage: "https://example.com/box.png",
+      });
+
+      for (const language of ["en", "ar"] as const) {
+        await ctx.db.insert("embeddings", {
+          companyId,
+          productId,
+          embedding: createEmbedding(language === "en" ? 30 : 40),
+          textContent: `${language} text before rejected update`,
+          language,
+          companyLanguage: `${companyId}:${language}`,
+        });
+      }
+
+      return {
+        companyId,
+        productId,
+      };
+    });
+
+    await expect(
+      t.action(internal.products.update, {
+        companyId,
+        productId,
+        productNo: null,
+        nameEn: null,
+        nameAr: null,
+        descriptionEn: null,
+        descriptionAr: null,
+        primaryImage: null,
+      }),
+    ).rejects.toThrow("VALIDATION_FAILED: at least one product identifier is required");
+
+    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
+    const embeddings = await t.run(async (ctx) =>
+      ctx.db
+        .query("embeddings")
+        .withIndex("by_product", (q) => q.eq("productId", productId))
+        .collect(),
+    );
+
+    expect(storedProduct).toMatchObject({
+      productNo: "BOX-1",
+      nameEn: "Burger Box",
+      nameAr: "علبة برجر",
+      descriptionEn: "Disposable box",
+      descriptionAr: "علبة للاستعمال مرة واحدة",
+      primaryImage: "https://example.com/box.png",
+    });
+    expect(embeddings).toHaveLength(2);
+    expect(embeddings.every((embedding) =>
+      embedding.textContent.includes("before rejected update"),
+    )).toBe(true);
+  });
+
   it("updates non-embedding fields without replacing embeddings", async () => {
     const t = convexTest(schema, modules);
     const originalCatalogLanguageHints = {
