@@ -75,6 +75,7 @@ const buildLanguageEmbeddingText = (
 
   return [
     `language:${language}`,
+    product.productNo ? `sku:${product.productNo}` : undefined,
     name ? `name:${name}` : undefined,
     description ? `description:${description}` : undefined,
     product.price !== undefined ? `price:${product.price}` : undefined,
