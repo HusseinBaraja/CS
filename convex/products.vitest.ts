@@ -592,6 +592,49 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(storedCompany?.catalogLanguageHints).toEqual(originalCatalogLanguageHints);
   });
 
+  it("rejects stale product update snapshots before patching", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId, staleRevision } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000622",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+      });
+      const product = await ctx.db.get(productId);
+      await ctx.db.patch(productId, {
+        productNo: "fresh",
+        version: (product!.version ?? 0) + 1,
+      });
+
+      return {
+        companyId,
+        productId,
+        staleRevision: product!.version ?? 0,
+      };
+    });
+
+    await expect(
+      t.mutation(internal.products.patchProductWithEmbeddings, {
+        companyId,
+        productId,
+        expectedRevision: staleRevision,
+        productNo: "stale",
+      }),
+    ).rejects.toThrow("CONFLICT: Product was modified concurrently; retry the update");
+
+    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
+    expect(storedProduct?.productNo).toBe("fresh");
+  });
+
   it("creates a variant and replaces embeddings with variant content", async () => {
     installGeminiStub();
     const t = convexTest(schema, modules);

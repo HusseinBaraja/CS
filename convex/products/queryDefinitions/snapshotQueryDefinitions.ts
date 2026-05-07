@@ -52,6 +52,7 @@ export const getUpdateSnapshotDefinition = {
 
     return {
       productId: product._id,
+      revision: product.version ?? 0,
       ...toWriteState(product),
       ...(product.primaryImage ? { primaryImage: product.primaryImage } : {}),
     };

@@ -151,6 +151,7 @@ export default defineSchema({
     price: v.optional(v.number()),
     currency: v.optional(v.string()),
     primaryImage: v.optional(v.string()),
+    version: v.optional(v.number()),
   })
     .index("by_company", ["companyId"])
     .index("by_category", ["companyId", "categoryId"]),

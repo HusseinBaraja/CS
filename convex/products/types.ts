@@ -66,6 +66,7 @@ export type ProductUpdateArgs = {
 
 export type ProductWriteSnapshot = ProductWriteState & {
   productId: Id<'products'>;
+  revision: number;
   primaryImage?: string;
 };
 
@@ -106,6 +107,7 @@ export type ProductPatch = {
   price?: number | undefined;
   currency?: string | undefined;
   primaryImage?: string | undefined;
+  version?: number;
 };
 
 export type ProductVariantPatch = {

@@ -5,7 +5,7 @@ import { refreshCompanyCatalogLanguageHintsInMutation } from '../../catalogLangu
 import { enqueueCleanupJobInMutation } from '../../mediaCleanup';
 import { replaceProductEmbeddingsInMutation } from '../../productEmbeddingRuntime';
 import { getEmbeddingReplacementArgs } from '../embedding';
-import { NOT_FOUND_PREFIX, createTaggedError } from '../errors';
+import { CONFLICT_PREFIX, NOT_FOUND_PREFIX, createTaggedError } from '../errors';
 import { mapProductDetail } from '../mapping';
 import { createProductPatch, normalizeCreateState } from '../normalization';
 import {
@@ -77,6 +77,7 @@ export const insertProductWithEmbeddingsDefinition = {
       ...(productState.price !== undefined ? { price: productState.price } : {}),
       ...(productState.currency ? { currency: productState.currency } : {}),
       ...(productState.primaryImage ? { primaryImage: productState.primaryImage } : {}),
+      version: 1,
     });
 
     await replaceProductEmbeddingsInMutation(ctx, {
@@ -102,6 +103,7 @@ export const patchProductWithEmbeddingsDefinition = {
   args: {
     companyId: v.id('companies'),
     productId: v.id('products'),
+    expectedRevision: v.number(),
     categoryId: v.optional(v.id('categories')),
     productNo: v.optional(v.union(v.string(), v.null())),
     nameEn: v.optional(v.union(v.string(), v.null())),
@@ -121,6 +123,7 @@ export const patchProductWithEmbeddingsDefinition = {
     args: {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
+      expectedRevision: number;
       categoryId?: Id<'categories'>;
       productNo?: string | null;
       nameEn?: string | null;
@@ -140,6 +143,10 @@ export const patchProductWithEmbeddingsDefinition = {
     if (!existingProduct) {
       return null;
     }
+    const currentRevision = existingProduct.version ?? 0;
+    if (currentRevision !== args.expectedRevision) {
+      throw createTaggedError(CONFLICT_PREFIX, 'Product was modified concurrently; retry the update');
+    }
 
     if (args.categoryId !== undefined) {
       const category = await getScopedCategory(ctx, args.companyId, args.categoryId);
@@ -149,6 +156,7 @@ export const patchProductWithEmbeddingsDefinition = {
     }
 
     const patch = createProductPatch(args);
+    patch.version = currentRevision + 1;
     await ctx.db.patch(args.productId, patch);
 
     const embeddingReplacementArgs = getEmbeddingReplacementArgs(args);

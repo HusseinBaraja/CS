@@ -126,11 +126,13 @@ export const updateDefinition = {
     if (!embeddings) {
       return ctx.runMutation(internal.products.patchProductWithEmbeddings, {
         ...args,
+        expectedRevision: existingProduct.revision,
       });
     }
 
     return ctx.runMutation(internal.products.patchProductWithEmbeddings, {
       ...args,
+      expectedRevision: existingProduct.revision,
       ...embeddings,
     });
   },

@@ -75,6 +75,7 @@ export const getVariantCreateSnapshotData = async (
   const variants = await getProductVariants(ctx, companyId, productId);
   return {
     productId: product._id,
+    revision: product.version ?? 0,
     ...toWriteState(product),
     variants: variants.map(mapVariant),
   };
