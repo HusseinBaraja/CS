@@ -30,6 +30,7 @@ export type ProductEmbeddingPayload = {
 };
 
 const AI_PREFIX = "AI_PROVIDER_FAILED";
+const VALIDATION_PREFIX = "VALIDATION_FAILED";
 
 const normalizeOptionalString = (value: string | null | undefined): string | undefined => {
   if (value === undefined || value === null) {
@@ -56,6 +57,19 @@ const serializeVariants = (variants: ProductEmbeddingVariantState[]): string =>
         .join("\n"),
     )
     .join("\n---\n");
+
+const hasMeaningfulEmbeddingText = (
+  product: ProductEmbeddingProductState,
+  variants: ProductEmbeddingVariantState[],
+): boolean =>
+  [
+    product.nameEn,
+    product.nameAr,
+    product.descriptionEn,
+    product.descriptionAr,
+    product.productNo,
+  ].some((value) => normalizeOptionalString(value) !== undefined) ||
+  variants.some((variant) => normalizeOptionalString(variant.label) !== undefined);
 
 const buildLanguageEmbeddingText = (
   product: ProductEmbeddingProductState,
@@ -97,6 +111,10 @@ export const buildProductEmbeddingPayload = async (
 ): Promise<ProductEmbeddingPayload> => {
   const englishText = buildLanguageEmbeddingText(product, variants, "en");
   const arabicText = buildLanguageEmbeddingText(product, variants, "ar");
+
+  if (!hasMeaningfulEmbeddingText(product, variants)) {
+    throw new Error(`${VALIDATION_PREFIX}: product embedding requires product or variant descriptive text`);
+  }
 
   try {
     const [englishEmbedding, arabicEmbedding] = await generateGeminiEmbeddings(

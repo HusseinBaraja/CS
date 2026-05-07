@@ -1,5 +1,5 @@
 /// <reference types='vite/client' />
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Id } from './_generated/dataModel';
 
 const { generateGeminiEmbeddings } = vi.hoisted(() => ({
@@ -17,6 +17,10 @@ const COMPANY_ID = 'company_1' as Id<'companies'>;
 const CATEGORY_ID = 'category_1' as Id<'categories'>;
 
 describe('product embedding runtime', () => {
+  beforeEach(() => {
+    generateGeminiEmbeddings.mockReset();
+  });
+
   it('includes product number as a SKU token in English and Arabic embedding text', async () => {
     generateGeminiEmbeddings.mockResolvedValue([
       [1, 2, 3],
@@ -42,5 +46,52 @@ describe('product embedding runtime', () => {
         outputDimensionality: 768,
       },
     );
+  });
+
+  it('rejects products with no meaningful product or variant text before embedding', async () => {
+    await expect(
+      buildProductEmbeddingPayload({
+        companyId: COMPANY_ID,
+        categoryId: CATEGORY_ID,
+        nameEn: ' ',
+        nameAr: '',
+        descriptionEn: ' ',
+        descriptionAr: '',
+      }, [
+        {
+          id: 'variant_1',
+          productId: 'product_1',
+          label: ' ',
+          price: 10,
+        },
+      ]),
+    ).rejects.toThrow(
+      'VALIDATION_FAILED: product embedding requires product or variant descriptive text',
+    );
+
+    expect(generateGeminiEmbeddings).not.toHaveBeenCalled();
+  });
+
+  it('allows variant labels to provide meaningful embedding text', async () => {
+    generateGeminiEmbeddings.mockResolvedValue([
+      [1, 2, 3],
+      [4, 5, 6],
+    ]);
+
+    const payload = await buildProductEmbeddingPayload({
+      companyId: COMPANY_ID,
+      categoryId: CATEGORY_ID,
+    }, [
+      {
+        id: 'variant_1',
+        productId: 'product_1',
+        label: 'Large',
+        price: 10,
+      },
+    ]);
+
+    expect(payload.englishText).toContain('label:Large');
+    expect(payload.arabicText).toContain('label:Large');
+    expect(generateGeminiEmbeddings).toHaveBeenCalledOnce();
   });
 });
