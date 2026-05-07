@@ -94,4 +94,25 @@ describe('product embedding runtime', () => {
     expect(payload.arabicText).toContain('label:Large');
     expect(generateGeminiEmbeddings).toHaveBeenCalledOnce();
   });
+
+  it('falls back between localized descriptions symmetrically', async () => {
+    generateGeminiEmbeddings.mockResolvedValue([
+      [1, 2, 3],
+      [4, 5, 6],
+    ]);
+
+    const payload = await buildProductEmbeddingPayload({
+      companyId: COMPANY_ID,
+      categoryId: CATEGORY_ID,
+      nameEn: 'Coffee cup',
+      descriptionAr: 'كوب ورقي للقهوة',
+    });
+
+    expect(payload.englishText).toContain('description:كوب ورقي للقهوة');
+    expect(payload.arabicText).toContain('description:كوب ورقي للقهوة');
+    expect(generateGeminiEmbeddings).toHaveBeenCalledWith(
+      [payload.englishText, payload.arabicText],
+      expect.any(Object),
+    );
+  });
 });

@@ -82,10 +82,12 @@ const buildLanguageEmbeddingText = (
     language === "en"
       ? nameEn ?? nameAr ?? ""
       : nameAr ?? nameEn ?? "";
+  const descriptionEn = normalizeOptionalString(product.descriptionEn);
+  const descriptionAr = normalizeOptionalString(product.descriptionAr);
   const description =
     language === "en"
-      ? normalizeOptionalString(product.descriptionEn)
-      : normalizeOptionalString(product.descriptionAr) ?? normalizeOptionalString(product.descriptionEn);
+      ? descriptionEn ?? descriptionAr
+      : descriptionAr ?? descriptionEn;
 
   return [
     `language:${language}`,
