@@ -52,6 +52,7 @@ import {
 const COMPANY_ID = 'company_1' as Id<'companies'>;
 const PRODUCT_ID = 'product_1' as Id<'products'>;
 const VARIANT_ID = 'variant_1' as Id<'productVariants'>;
+const EXPECTED_REVISION = 1;
 
 const buildCtx = (): MutationCtx =>
   ({
@@ -72,6 +73,11 @@ const EMBEDDING_ARGS = {
   arabicText: 'arabic',
 };
 
+const MUTATION_BASE_ARGS = {
+  ...EMBEDDING_ARGS,
+  expectedRevision: EXPECTED_REVISION,
+};
+
 describe('variant mutation definitions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -79,7 +85,7 @@ describe('variant mutation definitions', () => {
 
   it('refreshes catalog language hints after creating a variant embedding', async () => {
     const ctx = buildCtx();
-    getScopedProduct.mockResolvedValue({ currency: 'SAR' });
+    getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
     normalizeVariantCreateState.mockReturnValue({
       productId: PRODUCT_ID,
       label: 'Large',
@@ -97,7 +103,7 @@ describe('variant mutation definitions', () => {
     mapVariant.mockReturnValue({ id: VARIANT_ID });
 
     await insertVariantWithEmbeddingsDefinition.handler(ctx, {
-      ...EMBEDDING_ARGS,
+      ...MUTATION_BASE_ARGS,
       label: 'Large',
     });
 
@@ -110,7 +116,7 @@ describe('variant mutation definitions', () => {
 
   it('refreshes catalog language hints after patching a variant embedding', async () => {
     const ctx = buildCtx();
-    getScopedProduct.mockResolvedValue({ currency: 'SAR' });
+    getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
     getScopedVariant.mockResolvedValue({ _id: VARIANT_ID });
     createVariantPatch.mockReturnValue({
       label: 'XL',
@@ -123,7 +129,7 @@ describe('variant mutation definitions', () => {
     mapVariant.mockReturnValue({ id: VARIANT_ID });
 
     await patchVariantWithEmbeddingsDefinition.handler(ctx, {
-      ...EMBEDDING_ARGS,
+      ...MUTATION_BASE_ARGS,
       variantId: VARIANT_ID,
       label: 'XL',
     });
@@ -137,11 +143,11 @@ describe('variant mutation definitions', () => {
 
   it('refreshes catalog language hints after deleting a variant embedding', async () => {
     const ctx = buildCtx();
-    getScopedProduct.mockResolvedValue({ currency: 'SAR' });
+    getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
     getScopedVariant.mockResolvedValue({ _id: VARIANT_ID });
 
     await removeVariantWithEmbeddingsDefinition.handler(ctx, {
-      ...EMBEDDING_ARGS,
+      ...MUTATION_BASE_ARGS,
       variantId: VARIANT_ID,
     });
 
@@ -150,6 +156,38 @@ describe('variant mutation definitions', () => {
     expect(replaceProductEmbeddingsInMutation.mock.invocationCallOrder[0]).toBeLessThan(
       refreshCompanyCatalogLanguageHintsInMutation.mock.invocationCallOrder[0],
     );
+  });
+
+  it('rejects stale variant create writes', async () => {
+    const ctx = buildCtx();
+    getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 2 });
+
+    await expect(
+      insertVariantWithEmbeddingsDefinition.handler(ctx, {
+        ...MUTATION_BASE_ARGS,
+        label: 'Large',
+      }),
+    ).rejects.toThrow('CONFLICT: Product was modified concurrently; retry the update');
+
+    expect(ctx.db.insert).not.toHaveBeenCalled();
+    expect(replaceProductEmbeddingsInMutation).not.toHaveBeenCalled();
+  });
+
+  it('rejects stale variant patch writes', async () => {
+    const ctx = buildCtx();
+    getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 2 });
+
+    await expect(
+      patchVariantWithEmbeddingsDefinition.handler(ctx, {
+        ...MUTATION_BASE_ARGS,
+        variantId: VARIANT_ID,
+        label: 'XL',
+      }),
+    ).rejects.toThrow('CONFLICT: Product was modified concurrently; retry the update');
+
+    expect(getScopedVariant).not.toHaveBeenCalled();
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+    expect(replaceProductEmbeddingsInMutation).not.toHaveBeenCalled();
   });
 });
 

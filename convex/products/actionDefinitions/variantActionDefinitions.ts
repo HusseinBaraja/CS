@@ -51,6 +51,7 @@ export const createVariantDefinition = {
 
     return ctx.runMutation(internal.products.insertVariantWithEmbeddings, {
       ...args,
+      expectedRevision: snapshot.revision,
       ...embeddings,
     });
   },
@@ -100,6 +101,7 @@ export const updateVariantDefinition = {
 
     return ctx.runMutation(internal.products.patchVariantWithEmbeddings, {
       ...args,
+      expectedRevision: snapshot.revision,
       ...embeddings,
     });
   },
@@ -142,6 +144,7 @@ export const removeVariantDefinition = {
 
     return ctx.runMutation(internal.products.removeVariantWithEmbeddings, {
       ...args,
+      expectedRevision: snapshot.revision,
       ...embeddings,
     });
   },
