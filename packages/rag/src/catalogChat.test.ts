@@ -285,6 +285,7 @@ describe("createCatalogChatOrchestrator", () => {
 
   test("uses missingPricePolicy when a price is requested but catalog has no price", async () => {
     const chatCalls: unknown[] = [];
+    const settingsCalls: string[] = [];
     const noPriceRetrieval = groundedRetrievalResult({
       candidates: [
         {
@@ -302,7 +303,8 @@ describe("createCatalogChatOrchestrator", () => {
       retrievalService: createRetrievalService(noPriceRetrieval),
       rewriteService: createRewriteService(highConfidenceRewriteAttempt()),
       companySettingsService: {
-        async getSettings() {
+        async getSettings(companyId: string) {
+          settingsCalls.push(companyId);
           return { missingPricePolicy: "handoff" };
         },
       },
@@ -322,11 +324,13 @@ describe("createCatalogChatOrchestrator", () => {
     expect(result).toMatchObject({
       outcome: "missing_price_fallback",
       assistant: {
+        text: "I can't help safely right now, so I'll connect you with the team.",
         action: {
           type: "handoff",
         },
       },
     });
+    expect(settingsCalls).toEqual([COMPANY_ID]);
     expect(chatCalls).toHaveLength(0);
   });
 
