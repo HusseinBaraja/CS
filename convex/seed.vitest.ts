@@ -510,7 +510,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
           companyId: seededCompany._id,
           productId: products[0]._id,
           label: `seed cleanup variant ${index}`,
-          });
+        });
       }
     });
 
