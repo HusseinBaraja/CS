@@ -175,9 +175,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
 
       await ctx.db.insert("productVariants", {
         companyId,
-          productId: secondProductId,
+        productId: secondProductId,
         label: "Large",
-        });
+      });
 
       return {
         companyId,
