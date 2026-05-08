@@ -21,7 +21,7 @@ import { VALIDATION_PREFIX, createTaggedError } from './errors';
  * Validates that currency is present whenever a price is set.
  * This applies to both product-level price and variant prices.
  */
-const assertCurrencyIfPriced = (price: number | undefined, currency: string | undefined): void => {
+export const assertCurrencyIfPriced = (price: number | undefined, currency: string | undefined): void => {
   if (price !== undefined && !currency) {
     throw createTaggedError(VALIDATION_PREFIX, 'currency is required when a price is set');
   }
@@ -38,8 +38,10 @@ const assertAtLeastOneName = (nameEn: string | undefined, nameAr: string | undef
 
 export const normalizeVariantCreateState = (
   args: Pick<ProductVariantCreateArgs, 'productId' | 'label' | 'price'>,
+  productCurrency: string | undefined,
 ): ProductVariantWriteState => {
   const normalizedPrice = normalizeOptionalNumber(args.price, 'price');
+  assertCurrencyIfPriced(normalizedPrice, productCurrency);
 
   return {
     id: '~new',
@@ -52,11 +54,18 @@ export const normalizeVariantCreateState = (
 export const mergeVariantUpdateState = (
   existingVariant: ProductVariantWriteState,
   patch: Pick<ProductVariantUpdateArgs, 'label' | 'price'>,
+  productCurrency: string | undefined,
 ): ProductVariantWriteState => {
   const normalizedPrice =
     patch.price !== undefined
       ? normalizeOptionalNumber(patch.price, 'price')
       : undefined;
+
+  const nextPrice =
+    patch.price !== undefined
+      ? normalizedPrice
+      : existingVariant.price;
+  assertCurrencyIfPriced(nextPrice, productCurrency);
 
   return {
     id: existingVariant.id,
@@ -65,9 +74,7 @@ export const mergeVariantUpdateState = (
       patch.label !== undefined
         ? normalizeRequiredString(patch.label, 'label')
         : existingVariant.label,
-    ...(patch.price !== undefined
-      ? (normalizedPrice !== undefined ? { price: normalizedPrice } : {})
-      : (existingVariant.price !== undefined ? { price: existingVariant.price } : {})),
+    ...(nextPrice !== undefined ? { price: nextPrice } : {}),
   };
 };
 

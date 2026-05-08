@@ -1,32 +1,20 @@
 import { v } from 'convex/values';
-import type { Doc, Id } from '../../_generated/dataModel';
+import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { refreshCompanyCatalogLanguageHintsInMutation } from '../../catalogLanguageHints';
 import { replaceProductEmbeddingsInMutation } from '../../productEmbeddingRuntime';
-import { CONFLICT_PREFIX, NOT_FOUND_PREFIX, VALIDATION_PREFIX, createTaggedError } from '../errors';
+import { CONFLICT_PREFIX, NOT_FOUND_PREFIX, createTaggedError } from '../errors';
 import { mapVariant } from '../mapping';
-import { createVariantPatch, normalizeVariantCreateState } from '../normalization';
+import {
+  assertCurrencyIfPriced,
+  createVariantPatch,
+  normalizeVariantCreateState,
+} from '../normalization';
 import { getScopedProduct, getScopedVariant } from '../readers';
 import type {
   DeleteProductVariantResult,
   ProductVariantDto,
 } from '../types';
-
-/**
- * Asserts that currency exists on the parent product when a variant has a price.
- */
-const assertProductHasCurrency = (
-  product: Doc<'products'>,
-  variantPrice: number | undefined,
-): void => {
-  if (variantPrice === undefined) {
-    return;
-  }
-
-  if (!product.currency) {
-    throw createTaggedError(VALIDATION_PREFIX, 'Product must have currency when a variant has a price');
-  }
-};
 
 const assertExpectedRevision = (
   currentRevision: number,
@@ -70,13 +58,14 @@ export const insertVariantWithEmbeddingsDefinition = {
     const currentRevision = product.version ?? 0;
     assertExpectedRevision(currentRevision, args.expectedRevision);
 
-    const variantState = normalizeVariantCreateState({
-      productId: args.productId,
-      label: args.label,
-      price: args.price,
-    });
-
-    assertProductHasCurrency(product, variantState.price);
+    const variantState = normalizeVariantCreateState(
+      {
+        productId: args.productId,
+        label: args.label,
+        price: args.price,
+      },
+      product.currency,
+    );
 
     const variantId = await ctx.db.insert('productVariants', {
       companyId: args.companyId,
@@ -156,7 +145,7 @@ export const patchVariantWithEmbeddingsDefinition = {
         : patch.price !== undefined
           ? patch.price
           : existingVariant.price;
-    assertProductHasCurrency(product, effectivePrice);
+    assertCurrencyIfPriced(effectivePrice, product.currency);
 
     await ctx.db.patch(args.variantId, patch);
     await ctx.db.patch(args.productId, { version: currentRevision + 1 });

@@ -8,6 +8,7 @@ const {
   refreshCompanyCatalogLanguageHintsInMutation,
   getScopedProduct,
   getScopedVariant,
+  assertCurrencyIfPriced,
   normalizeVariantCreateState,
   createVariantPatch,
   mapVariant,
@@ -16,6 +17,7 @@ const {
   refreshCompanyCatalogLanguageHintsInMutation: vi.fn(),
   getScopedProduct: vi.fn(),
   getScopedVariant: vi.fn(),
+  assertCurrencyIfPriced: vi.fn(),
   normalizeVariantCreateState: vi.fn(),
   createVariantPatch: vi.fn(),
   mapVariant: vi.fn(),
@@ -35,6 +37,7 @@ vi.mock('../readers', () => ({
 }));
 
 vi.mock('../normalization', () => ({
+  assertCurrencyIfPriced,
   normalizeVariantCreateState,
   createVariantPatch,
 }));
@@ -105,6 +108,14 @@ describe('variant mutation definitions', () => {
       label: 'Large',
     });
 
+    expect(normalizeVariantCreateState).toHaveBeenCalledWith(
+      {
+        productId: PRODUCT_ID,
+        label: 'Large',
+        price: undefined,
+      },
+      'SAR',
+    );
     expect(replaceProductEmbeddingsInMutation).toHaveBeenCalledWith(ctx, EMBEDDING_ARGS);
     expect(refreshCompanyCatalogLanguageHintsInMutation).toHaveBeenCalledWith(ctx, COMPANY_ID);
     expect(replaceProductEmbeddingsInMutation.mock.invocationCallOrder[0]).toBeLessThan(
@@ -132,6 +143,7 @@ describe('variant mutation definitions', () => {
       label: 'XL',
     });
 
+    expect(assertCurrencyIfPriced).toHaveBeenCalledWith(undefined, 'SAR');
     expect(replaceProductEmbeddingsInMutation).toHaveBeenCalledWith(ctx, EMBEDDING_ARGS);
     expect(refreshCompanyCatalogLanguageHintsInMutation).toHaveBeenCalledWith(ctx, COMPANY_ID);
     expect(replaceProductEmbeddingsInMutation.mock.invocationCallOrder[0]).toBeLessThan(

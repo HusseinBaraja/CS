@@ -5,6 +5,7 @@ export {
 } from './normalizationPrimitives';
 
 export {
+  assertCurrencyIfPriced,
   createProductPatch,
   createVariantPatch,
   mergeUpdateState,

@@ -42,15 +42,21 @@ export const createVariantDefinition = {
       return null;
     }
 
-    const nextVariant = normalizeVariantCreateState({
-      productId: args.productId,
-      label: args.label,
-      price: args.price,
-    });
-    const embeddings = await buildProductEmbeddingPayload(snapshot, sortVariants([
-      ...snapshot.variants.map(toVariantWriteState),
-      nextVariant,
-    ]));
+    const nextVariant = normalizeVariantCreateState(
+      {
+        productId: args.productId,
+        label: args.label,
+        price: args.price,
+      },
+      snapshot.currency,
+    );
+    const embeddings = await buildProductEmbeddingPayload(
+      snapshot,
+      sortVariants([
+        ...snapshot.variants.map(toVariantWriteState),
+        nextVariant,
+      ]),
+    );
 
     return ctx.runMutation(internal.products.insertVariantWithEmbeddings, {
       ...args,
@@ -94,7 +100,11 @@ export const updateVariantDefinition = {
       throw createTaggedError(NOT_FOUND_PREFIX, 'Variant not found');
     }
 
-    const nextVariant = mergeVariantUpdateState(toVariantWriteState(snapshot.targetVariant), args);
+    const nextVariant = mergeVariantUpdateState(
+      toVariantWriteState(snapshot.targetVariant),
+      args,
+      snapshot.currency,
+    );
     const embeddings = await buildProductEmbeddingPayload(
       snapshot,
       sortVariants(

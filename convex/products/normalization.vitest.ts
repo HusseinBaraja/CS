@@ -6,6 +6,7 @@ import {
   createProductPatch,
   mergeVariantUpdateState,
   normalizeCreateState,
+  normalizeVariantCreateState,
 } from './normalization';
 
 const COMPANY_ID = 'company_1' as Id<'companies'>;
@@ -59,13 +60,41 @@ describe('products normalization helpers', () => {
       {
         price: null,
       },
+      undefined,
     );
 
     expect(next).toEqual({
       id: 'variant_1',
       productId: 'product_1',
       label: 'Large',
-      });
+    });
+  });
+
+  it('rejects priced variants when the parent product has no currency', () => {
+    expect(() =>
+      normalizeVariantCreateState(
+        {
+          productId: PRODUCT_ID,
+          label: 'Large',
+          price: 12,
+        },
+        undefined,
+      ),
+    ).toThrowError('VALIDATION_FAILED: currency is required when a price is set');
+
+    expect(() =>
+      mergeVariantUpdateState(
+        {
+          id: 'variant_1',
+          productId: PRODUCT_ID,
+          label: 'Large',
+        },
+        {
+          price: 12,
+        },
+        undefined,
+      ),
+    ).toThrowError('VALIDATION_FAILED: currency is required when a price is set');
   });
 });
 
