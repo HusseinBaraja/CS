@@ -5,19 +5,11 @@ import { refreshCompanyCatalogLanguageHintsInMutation } from '../../catalogLangu
 import { enqueueCleanupJobInMutation } from '../../mediaCleanup';
 import { replaceProductEmbeddingsInMutation } from '../../productEmbeddingRuntime';
 import { getEmbeddingReplacementArgs } from '../embedding';
-import { CONFLICT_PREFIX, NOT_FOUND_PREFIX, createTaggedError } from '../errors';
+import { CONFLICT_PREFIX, createTaggedError, NOT_FOUND_PREFIX } from '../errors';
 import { mapProductDetail } from '../mapping';
 import { createProductPatch, normalizeCreateState } from '../normalization';
-import {
-  getCompany,
-  getProductVariants,
-  getScopedCategory,
-  getScopedProduct,
-} from '../readers';
-import type {
-  DeleteProductResult,
-  ProductDetailDto,
-} from '../types';
+import { getCompany, getProductVariants, getScopedCategory, getScopedProduct } from '../readers';
+import type { DeleteProductResult, ProductDetailDto } from '../types';
 
 export const insertProductWithEmbeddingsDefinition = {
   args: {
@@ -192,6 +184,7 @@ export const removeDefinition = {
     const variants = await ctx.db
       .query('productVariants')
       .withIndex('by_product', (q) => q.eq('productId', args.productId))
+      .filter((q) => q.eq(q.field('companyId'), args.companyId))
       .collect();
     for (const variant of variants) {
       await ctx.db.delete(variant._id);
