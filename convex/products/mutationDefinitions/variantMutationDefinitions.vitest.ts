@@ -141,6 +141,30 @@ describe('variant mutation definitions', () => {
     );
   });
 
+  it('allows clearing a variant price when the product has no currency', async () => {
+    const ctx = buildCtx();
+    getScopedProduct.mockResolvedValue({ version: 1 });
+    getScopedVariant.mockResolvedValue({ _id: VARIANT_ID, price: 10 });
+    createVariantPatch.mockReturnValue({
+      price: undefined,
+    });
+    (ctx.db.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      _id: VARIANT_ID,
+      productId: PRODUCT_ID,
+      label: 'Large',
+    });
+    mapVariant.mockReturnValue({ id: VARIANT_ID });
+
+    await patchVariantWithEmbeddingsDefinition.handler(ctx, {
+      ...MUTATION_BASE_ARGS,
+      variantId: VARIANT_ID,
+      price: null,
+    });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(VARIANT_ID, { price: undefined });
+    expect(replaceProductEmbeddingsInMutation).toHaveBeenCalledWith(ctx, EMBEDDING_ARGS);
+  });
+
   it('refreshes catalog language hints after deleting a variant embedding', async () => {
     const ctx = buildCtx();
     getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });

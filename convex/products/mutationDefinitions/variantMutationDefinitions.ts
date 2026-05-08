@@ -150,8 +150,12 @@ export const patchVariantWithEmbeddingsDefinition = {
       price: args.price,
     });
 
-    // Check currency if we're setting a price
-    const effectivePrice = patch.price !== undefined ? patch.price : existingVariant.price;
+    const effectivePrice: number | undefined =
+      args.price === null
+        ? undefined
+        : patch.price !== undefined
+          ? patch.price
+          : existingVariant.price;
     assertProductHasCurrency(product, effectivePrice);
 
     await ctx.db.patch(args.variantId, patch);
