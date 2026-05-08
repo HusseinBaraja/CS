@@ -15,6 +15,38 @@ import type {
   ProductVariantDto,
 } from '../types';
 
+const hasText = (value: string | null | undefined): boolean =>
+  value !== undefined && value !== null && value.trim().length > 0;
+
+const hasSearchableProductText = (snapshot: {
+  productNo?: string;
+  nameEn?: string;
+  nameAr?: string;
+  descriptionEn?: string;
+  descriptionAr?: string;
+}): boolean =>
+  [
+    snapshot.productNo,
+    snapshot.nameEn,
+    snapshot.nameAr,
+    snapshot.descriptionEn,
+    snapshot.descriptionAr,
+  ].some(hasText);
+
+const hasSearchableTextAfterVariantDelete = (
+  snapshot: {
+    productNo?: string;
+    nameEn?: string;
+    nameAr?: string;
+    descriptionEn?: string;
+    descriptionAr?: string;
+    variants: ProductVariantDto[];
+  },
+  remainingVariants: ProductVariantDto[],
+): boolean =>
+  hasSearchableProductText(snapshot) ||
+  remainingVariants.some((variant) => hasText(variant.label));
+
 export const createVariantDefinition = {
   args: {
     companyId: v.id('companies'),
@@ -150,12 +182,15 @@ export const removeVariantDefinition = {
       throw createTaggedError(NOT_FOUND_PREFIX, 'Variant not found');
     }
 
-    const embeddings = await buildProductEmbeddingPayload(
-      snapshot,
-      snapshot.variants
-        .filter((variant: ProductVariantDto) => variant.id !== args.variantId)
-        .map(toVariantWriteState),
+    const remainingVariants = snapshot.variants.filter(
+      (variant: ProductVariantDto) => variant.id !== args.variantId,
     );
+    const embeddings = hasSearchableTextAfterVariantDelete(snapshot, remainingVariants)
+      ? await buildProductEmbeddingPayload(
+        snapshot,
+        remainingVariants.map(toVariantWriteState),
+      )
+      : { clearEmbeddings: true };
 
     return ctx.runMutation(internal.products.removeVariantWithEmbeddings, {
       ...args,

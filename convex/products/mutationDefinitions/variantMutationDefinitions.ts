@@ -15,6 +15,7 @@ import type {
   DeleteProductVariantResult,
   ProductVariantDto,
 } from '../types';
+import { applyVariantEmbeddingMutation } from './variantEmbeddingMutations';
 
 const assertExpectedRevision = (
   currentRevision: number,
@@ -175,10 +176,11 @@ export const removeVariantWithEmbeddingsDefinition = {
     productId: v.id('products'),
     variantId: v.id('productVariants'),
     expectedRevision: v.number(),
-    englishEmbedding: v.array(v.float64()),
-    arabicEmbedding: v.array(v.float64()),
-    englishText: v.string(),
-    arabicText: v.string(),
+    clearEmbeddings: v.optional(v.boolean()),
+    englishEmbedding: v.optional(v.array(v.float64())),
+    arabicEmbedding: v.optional(v.array(v.float64())),
+    englishText: v.optional(v.string()),
+    arabicText: v.optional(v.string()),
   },
   handler: async (
     ctx: MutationCtx,
@@ -187,10 +189,11 @@ export const removeVariantWithEmbeddingsDefinition = {
       productId: Id<'products'>;
       variantId: Id<'productVariants'>;
       expectedRevision: number;
-      englishEmbedding: number[];
-      arabicEmbedding: number[];
-      englishText: string;
-      arabicText: string;
+      clearEmbeddings?: boolean;
+      englishEmbedding?: number[];
+      arabicEmbedding?: number[];
+      englishText?: string;
+      arabicText?: string;
     },
   ): Promise<DeleteProductVariantResult | null> => {
     const product = await getScopedProduct(ctx, args.companyId, args.productId);
@@ -208,14 +211,7 @@ export const removeVariantWithEmbeddingsDefinition = {
     await ctx.db.delete(args.variantId);
     await ctx.db.patch(args.productId, { version: currentRevision + 1 });
 
-    await replaceProductEmbeddingsInMutation(ctx, {
-      companyId: args.companyId,
-      productId: args.productId,
-      englishEmbedding: args.englishEmbedding,
-      arabicEmbedding: args.arabicEmbedding,
-      englishText: args.englishText,
-      arabicText: args.arabicText,
-    });
+    await applyVariantEmbeddingMutation(ctx, args);
     await refreshCompanyCatalogLanguageHintsInMutation(ctx, args.companyId);
 
     return {

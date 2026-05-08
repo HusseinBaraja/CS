@@ -148,6 +148,11 @@ type ReplaceProductEmbeddingsArgs = {
   arabicText: string;
 };
 
+type ClearProductEmbeddingsArgs = {
+  companyId: Id<"companies">;
+  productId: Id<"products">;
+};
+
 const insertProductEmbeddingsInMutation = async (
   ctx: MutationCtx,
   args: ReplaceProductEmbeddingsArgs,
@@ -171,9 +176,9 @@ const insertProductEmbeddingsInMutation = async (
   });
 };
 
-export const replaceProductEmbeddingsInMutation = async (
+export const clearProductEmbeddingsInMutation = async (
   ctx: MutationCtx,
-  args: ReplaceProductEmbeddingsArgs,
+  args: ClearProductEmbeddingsArgs,
 ): Promise<void> => {
   const existingEmbeddings = await ctx.db
     .query("embeddings")
@@ -183,6 +188,13 @@ export const replaceProductEmbeddingsInMutation = async (
   for (const embedding of existingEmbeddings) {
     await ctx.db.delete(embedding._id);
   }
+};
+
+export const replaceProductEmbeddingsInMutation = async (
+  ctx: MutationCtx,
+  args: ReplaceProductEmbeddingsArgs,
+): Promise<void> => {
+  await clearProductEmbeddingsInMutation(ctx, args);
 
   await insertProductEmbeddingsInMutation(ctx, args);
 };

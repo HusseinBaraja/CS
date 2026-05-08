@@ -4,6 +4,7 @@ import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 
 const {
+  clearProductEmbeddingsInMutation,
   replaceProductEmbeddingsInMutation,
   refreshCompanyCatalogLanguageHintsInMutation,
   getScopedProduct,
@@ -13,6 +14,7 @@ const {
   createVariantPatch,
   mapVariant,
 } = vi.hoisted(() => ({
+  clearProductEmbeddingsInMutation: vi.fn(),
   replaceProductEmbeddingsInMutation: vi.fn(),
   refreshCompanyCatalogLanguageHintsInMutation: vi.fn(),
   getScopedProduct: vi.fn(),
@@ -24,6 +26,7 @@ const {
 }));
 
 vi.mock('../../productEmbeddingRuntime', () => ({
+  clearProductEmbeddingsInMutation,
   replaceProductEmbeddingsInMutation,
 }));
 
@@ -188,6 +191,30 @@ describe('variant mutation definitions', () => {
     expect(replaceProductEmbeddingsInMutation).toHaveBeenCalledWith(ctx, EMBEDDING_ARGS);
     expect(refreshCompanyCatalogLanguageHintsInMutation).toHaveBeenCalledWith(ctx, COMPANY_ID);
     expect(replaceProductEmbeddingsInMutation.mock.invocationCallOrder[0]).toBeLessThan(
+      refreshCompanyCatalogLanguageHintsInMutation.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('clears embeddings after deleting a variant when requested', async () => {
+    const ctx = buildCtx();
+    getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
+    getScopedVariant.mockResolvedValue({ _id: VARIANT_ID });
+
+    await removeVariantWithEmbeddingsDefinition.handler(ctx, {
+      companyId: COMPANY_ID,
+      productId: PRODUCT_ID,
+      variantId: VARIANT_ID,
+      expectedRevision: EXPECTED_REVISION,
+      clearEmbeddings: true,
+    });
+
+    expect(clearProductEmbeddingsInMutation).toHaveBeenCalledWith(ctx, {
+      companyId: COMPANY_ID,
+      productId: PRODUCT_ID,
+    });
+    expect(replaceProductEmbeddingsInMutation).not.toHaveBeenCalled();
+    expect(refreshCompanyCatalogLanguageHintsInMutation).toHaveBeenCalledWith(ctx, COMPANY_ID);
+    expect(clearProductEmbeddingsInMutation.mock.invocationCallOrder[0]).toBeLessThan(
       refreshCompanyCatalogLanguageHintsInMutation.mock.invocationCallOrder[0],
     );
   });
