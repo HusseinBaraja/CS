@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { UploadDataPage } from './UploadDataPage';
@@ -69,7 +69,7 @@ describe('UploadDataPage', () => {
     expect(priceGroup.compareDocumentPosition(currencyGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('passes selected template options to the download action', () => {
+  it('passes selected template options to the download action', async () => {
     render(<UploadDataPage />);
 
     fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
@@ -80,13 +80,15 @@ describe('UploadDataPage', () => {
     fireEvent.click(within(screen.getByRole('group', { name: 'تضمين المتغيرات' })).getByRole('radio', { name: 'لا' }));
     fireEvent.click(screen.getByRole('button', { name: /تحميل ملف Excel/ }));
 
-    expect(downloadCatalogTemplate).toHaveBeenCalledWith({
-      currency: 'YER',
-      includePrice: true,
-      language: 'en',
-      includeDescription: false,
-      includePrimaryImage: false,
-      includeVariants: false,
+    await waitFor(() => {
+      expect(downloadCatalogTemplate).toHaveBeenCalledWith({
+        currency: 'YER',
+        includePrice: true,
+        language: 'en',
+        includeDescription: false,
+        includePrimaryImage: false,
+        includeVariants: false,
+      });
     });
   });
 
