@@ -90,7 +90,6 @@ describe('variant mutation definitions', () => {
       productId: PRODUCT_ID,
       label: 'Large',
       price: 10,
-      currency: "SAR", // Mocked for assertProductHasCurrency
     });
     (ctx.db.insert as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(VARIANT_ID);
     (ctx.db.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -98,7 +97,6 @@ describe('variant mutation definitions', () => {
       productId: PRODUCT_ID,
       label: 'Large',
       price: 10,
-      currency: "SAR", // Mocked for assertProductHasCurrency
     });
     mapVariant.mockReturnValue({ id: VARIANT_ID });
 
