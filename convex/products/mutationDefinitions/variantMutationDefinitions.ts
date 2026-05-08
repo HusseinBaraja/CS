@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import type { Id } from '../../_generated/dataModel';
+import type { Doc, Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { refreshCompanyCatalogLanguageHintsInMutation } from '../../catalogLanguageHints';
 import { replaceProductEmbeddingsInMutation } from '../../productEmbeddingRuntime';
@@ -15,17 +15,15 @@ import type {
 /**
  * Asserts that currency exists on the parent product when a variant has a price.
  */
-const assertProductHasCurrency = async (
-  ctx: MutationCtx,
-  productId: Id<'products'>,
+const assertProductHasCurrency = (
+  product: Doc<'products'>,
   variantPrice: number | undefined,
-): Promise<void> => {
+): void => {
   if (variantPrice === undefined) {
     return;
   }
 
-  const product = await ctx.db.get(productId);
-  if (!product?.currency) {
+  if (!product.currency) {
     throw createTaggedError(VALIDATION_PREFIX, 'Product must have currency when a variant has a price');
   }
 };
@@ -78,7 +76,7 @@ export const insertVariantWithEmbeddingsDefinition = {
       price: args.price,
     });
 
-    await assertProductHasCurrency(ctx, args.productId, variantState.price);
+    assertProductHasCurrency(product, variantState.price);
 
     const variantId = await ctx.db.insert('productVariants', {
       companyId: args.companyId,
@@ -154,7 +152,7 @@ export const patchVariantWithEmbeddingsDefinition = {
 
     // Check currency if we're setting a price
     const effectivePrice = patch.price !== undefined ? patch.price : existingVariant.price;
-    await assertProductHasCurrency(ctx, args.productId, effectivePrice);
+    assertProductHasCurrency(product, effectivePrice);
 
     await ctx.db.patch(args.variantId, patch);
     await ctx.db.patch(args.productId, { version: currentRevision + 1 });
