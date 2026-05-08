@@ -21,6 +21,16 @@ const getPreferredDescription = (
     ? product.descriptionAr ?? product.descriptionEn
     : product.descriptionEn ?? product.descriptionAr;
 
+const getPrimaryImageLine = (primaryImage: string | undefined): string | undefined => {
+  if (!primaryImage) {
+    return undefined;
+  }
+
+  return primaryImage.startsWith("http://") || primaryImage.startsWith("https://")
+    ? `Primary image URL: ${primaryImage}`
+    : `Primary image key: ${primaryImage}`;
+};
+
 export const toRetrievedProductContext = (
   product: HydratedProductRecord,
 ): RetrievedProductContext => ({
@@ -83,8 +93,9 @@ const buildContextBlockBody = (
     }
   }
 
-  if (product.primaryImage) {
-    lines.push("Primary image is available.");
+  const primaryImageLine = getPrimaryImageLine(product.primaryImage);
+  if (primaryImageLine) {
+    lines.push(primaryImageLine);
   }
 
   return lines.join("\n");

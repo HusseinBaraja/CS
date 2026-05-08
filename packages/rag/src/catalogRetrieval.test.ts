@@ -248,7 +248,7 @@ describe("@cs/rag", () => {
         "Variants:",
         "- Family Pack",
         "- Large | price: 13.5",
-        "Primary image is available.",
+        "Primary image key: products/image-1.jpg",
       ].join("\n"),
     });
     expect(calls.queries[0]?.args).toEqual({
