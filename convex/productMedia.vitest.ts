@@ -109,6 +109,26 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex product media", 
       uploadedAt: completedAt,
     });
 
+    const uploadAfterCompletion = await t.run(async (ctx) => ctx.db.get(upload!.uploadId));
+    expect(uploadAfterCompletion).toMatchObject({
+      status: "completed",
+      observedContentType: "image/png",
+      sizeBytes: 2048,
+      etag: '"etag-1"',
+      completedAt,
+    });
+
+    const retryImage = await t.mutation(internal.productMedia.completeUploadSession, {
+      companyId,
+      productId,
+      uploadId: upload!.uploadId,
+      observedContentType: "image/png",
+      sizeBytes: 4096,
+      etag: '"retry-etag"',
+      completedAt: completedAt + 1_000,
+    });
+    expect(retryImage).toEqual(image);
+
     const productAfterAttach = await t.run(async (ctx) => ctx.db.get(productId));
     expect(productAfterAttach?.primaryImage).toBe(upload!.objectKey);
 

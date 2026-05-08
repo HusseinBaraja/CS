@@ -132,9 +132,9 @@ export const completeUploadSession = internalMutation({
       return {
         id: upload.imageId,
         key: upload.objectKey,
-        contentType: upload.intendedContentType,
-        sizeBytes: upload.maxSizeBytes,
-        ...(args.etag ? { etag: args.etag } : {}),
+        contentType: upload.observedContentType ?? upload.intendedContentType,
+        sizeBytes: upload.sizeBytes ?? upload.maxSizeBytes,
+        ...(upload.etag ? { etag: upload.etag } : {}),
         ...(upload.alt ? { alt: upload.alt } : {}),
         uploadedAt: upload.completedAt ?? args.completedAt,
       };
@@ -196,8 +196,10 @@ export const completeUploadSession = internalMutation({
 
     await ctx.db.patch(args.productId, { primaryImage: upload.objectKey });
     await ctx.db.patch(args.uploadId, {
-      status: "completed",
-      completedAt: args.completedAt,
+      status: "completed", completedAt: args.completedAt,
+      observedContentType,
+      sizeBytes: args.sizeBytes,
+      ...(args.etag ? { etag: args.etag } : {}),
     });
 
     return {

@@ -167,6 +167,9 @@ export default defineSchema({
     status: productImageUploadStatusValidator,
     expiresAt: v.number(),
     createdAt: v.number(),
+    observedContentType: v.optional(v.string()),
+    sizeBytes: v.optional(v.number()),
+    etag: v.optional(v.string()),
     completedAt: v.optional(v.number()),
   })
     .index("by_company", ["companyId"])
