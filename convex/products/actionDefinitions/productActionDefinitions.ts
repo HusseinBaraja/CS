@@ -85,6 +85,7 @@ export const createDefinition = {
     }
 
     const productState = normalizeCreateState(args);
+    assertHasIdentifyingField(productState);
     const embeddings = await buildProductEmbeddingPayload(productState);
 
     return ctx.runMutation(internal.products.insertProductWithEmbeddings, {
