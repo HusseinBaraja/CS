@@ -4,6 +4,7 @@ import type { Id } from '../_generated/dataModel';
 import { getEmbeddingReplacementArgs } from './embedding';
 import {
   createProductPatch,
+  mergeUpdateState,
   mergeVariantUpdateState,
   normalizeCreateState,
   normalizeVariantCreateState,
@@ -47,6 +48,27 @@ describe('products normalization helpers', () => {
       nameAr: undefined,
       price: undefined,
     });
+  });
+
+  it('rejects product updates that clear both names', () => {
+    expect(() =>
+      mergeUpdateState(
+        {
+          companyId: COMPANY_ID,
+          productId: PRODUCT_ID,
+          categoryId: CATEGORY_ID,
+          revision: 1,
+          nameEn: 'Burger Box',
+          nameAr: 'علبة برجر',
+        },
+        {
+          companyId: COMPANY_ID,
+          productId: PRODUCT_ID,
+          nameEn: null,
+          nameAr: '   ',
+        },
+      ),
+    ).toThrowError('VALIDATION_FAILED: at least one of nameEn or nameAr is required');
   });
 
   it('merges variant updates and drops price override when null is provided', () => {
