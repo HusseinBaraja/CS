@@ -250,5 +250,21 @@ describe('variant mutation definitions', () => {
     expect(ctx.db.patch).not.toHaveBeenCalled();
     expect(replaceProductEmbeddingsInMutation).not.toHaveBeenCalled();
   });
+
+  it('rejects stale variant delete writes', async () => {
+    const ctx = buildCtx();
+    getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 2 });
+
+    await expect(
+      removeVariantWithEmbeddingsDefinition.handler(ctx, {
+        ...MUTATION_BASE_ARGS,
+        variantId: VARIANT_ID,
+      }),
+    ).rejects.toThrow('CONFLICT: Product was modified concurrently; retry the update');
+
+    expect(getScopedVariant).not.toHaveBeenCalled();
+    expect(ctx.db.delete).not.toHaveBeenCalled();
+    expect(replaceProductEmbeddingsInMutation).not.toHaveBeenCalled();
+  });
 });
 
