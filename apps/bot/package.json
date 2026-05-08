@@ -7,7 +7,7 @@
     "dev": "node --watch --env-file-if-exists=../../.env --import tsx src/main.ts",
     "start": "node --env-file-if-exists=../../.env --import tsx src/main.ts",
     "dev:bun-experimental": "bun --env-file=../../.env --watch src/main.ts",
-    "build": "bun --env-file=../../.env build src/main.ts --outdir dist",
+    "build": "bun --env-file=../../.env build src/main.ts --outdir dist --target node",
     "typecheck": "tsc --noEmit",
     "check": "bun run typecheck && bun run lint",
     "test": "bun --env-file=../../.env test --pass-with-no-tests",
