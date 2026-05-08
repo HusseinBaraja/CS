@@ -23,6 +23,8 @@ const DEFAULT_SETTINGS: CompanySettings = {
   missingPricePolicy: 'reply_unavailable',
 };
 
+const createDefaultSettings = (): CompanySettings => ({ ...DEFAULT_SETTINGS });
+
 export const createCompanySettingsService = (
   options: CompanySettingsServiceOptions = {},
 ): CompanySettingsService => {
@@ -30,13 +32,18 @@ export const createCompanySettingsService = (
 
   return {
     async getSettings(companyId) {
-      const settings = await createClient().query(convexInternal.companySettings.get, {
-        companyId,
-      });
+      let settings: CompanySettings | null;
+      try {
+        settings = await createClient().query(convexInternal.companySettings.get, {
+          companyId,
+        });
+      } catch {
+        return createDefaultSettings();
+      }
 
       return settings
         ? { missingPricePolicy: settings.missingPricePolicy }
-        : DEFAULT_SETTINGS;
+        : createDefaultSettings();
     },
   };
 };
