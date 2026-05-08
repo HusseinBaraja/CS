@@ -7,6 +7,7 @@ import { NOT_FOUND_PREFIX, createTaggedError } from '../errors';
 import { sortVariants, toVariantWriteState } from '../mapping';
 import {
   mergeVariantUpdateState,
+  normalizeOptionalNumber,
   normalizeVariantCreateState,
 } from '../normalization';
 import type {
@@ -30,6 +31,8 @@ export const createVariantDefinition = {
       price?: number;
     },
   ): Promise<ProductVariantDto | null> => {
+    normalizeOptionalNumber(args.price, 'price');
+
     const snapshot = await ctx.runQuery(internal.products.getVariantCreateSnapshot, {
       companyId: args.companyId,
       productId: args.productId,
@@ -75,6 +78,8 @@ export const updateVariantDefinition = {
       price?: number | null;
     },
   ): Promise<ProductVariantDto | null> => {
+    normalizeOptionalNumber(args.price, 'price');
+
     const snapshot = await ctx.runQuery(internal.products.getVariantUpdateSnapshot, {
       companyId: args.companyId,
       productId: args.productId,
