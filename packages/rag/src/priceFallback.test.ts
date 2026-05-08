@@ -36,8 +36,15 @@ const buildCandidate = (
 describe("priceFallback", () => {
   test("detects English and Arabic price intent", () => {
     expect(hasPriceIntent("How much is this?")).toBe(true);
+    expect(hasPriceIntent("How much does this cost?")).toBe(true);
     expect(hasPriceIntent("what is the price")).toBe(true);
+    expect(hasPriceIntent("price of the red dress")).toBe(true);
     expect(hasPriceIntent("كم السعر؟")).toBe(true);
+    expect(hasPriceIntent("سعر المنتج")).toBe(true);
+    expect(hasPriceIntent("كم يكلف المنتج؟")).toBe(true);
+    expect(hasPriceIntent("how much time do you need?")).toBe(false);
+    expect(hasPriceIntent("how much can it carry?")).toBe(false);
+    expect(hasPriceIntent("كم سعرات المنتج؟")).toBe(false);
     expect(hasPriceIntent("هل يوجد مقاس كبير؟")).toBe(false);
   });
 
