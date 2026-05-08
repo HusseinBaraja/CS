@@ -33,6 +33,7 @@ describe("runPendingHandoffSideEffects", () => {
       }),
       listRecentMessages: async () => [{
         id: "message-1",
+        companyId: "company-1",
         conversationId: "conversation-1",
         role: "user",
         content: "hello",

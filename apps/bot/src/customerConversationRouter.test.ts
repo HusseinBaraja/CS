@@ -132,6 +132,7 @@ const createContext = (outbound?: OutboundMessenger): InboundRouteContext => ({
 const createStore = (overrides: Partial<ConversationStore> = {}): ConversationStore => ({
   appendPendingAssistantMessage: async (input) => ({
     id: "pending-assistant-message",
+    companyId: input.companyId,
     conversationId: input.conversationId,
     role: "assistant",
     content: input.content,
@@ -140,6 +141,7 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
   }),
   acknowledgePendingAssistantMessage: async (input) => ({
     id: input.pendingMessageId,
+    companyId: input.companyId,
     conversationId: input.conversationId,
     role: "assistant",
     content: "acknowledged assistant",
@@ -153,6 +155,7 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
   }),
   completePendingAssistantSideEffects: async (input) => ({
     id: input.pendingMessageId,
+    companyId: input.companyId,
     conversationId: input.conversationId,
     role: "assistant",
     content: "completed assistant",
@@ -164,6 +167,7 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
   }),
   recordPendingAssistantSideEffectProgress: async (input) => ({
     id: input.pendingMessageId,
+    companyId: input.companyId,
     conversationId: input.conversationId,
     role: "assistant",
     content: "progress assistant",
@@ -181,6 +185,7 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
   }),
   markPendingAssistantMessageFailed: async (input) => ({
     id: input.pendingMessageId,
+    companyId: input.companyId,
     conversationId: input.conversationId,
     role: "assistant",
     content: "failed assistant",
@@ -189,6 +194,7 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
   }),
   appendAssistantMessage: async (input) => ({
     id: "assistant-message",
+    companyId: input.companyId,
     conversationId: input.conversationId,
     role: "assistant",
     content: input.content,
@@ -214,6 +220,7 @@ const createStore = (overrides: Partial<ConversationStore> = {}): ConversationSt
   }),
   appendUserMessage: async (input) => ({
     id: "user-message",
+    companyId: input.companyId,
     conversationId: input.conversationId,
     role: "user",
     content: input.content,
@@ -321,6 +328,7 @@ describe("createCustomerConversationRouter", () => {
         calls.push(`pending:${input.content}:${input.timestamp}:${input.source ?? "none"}`);
         return {
           id: "pending-message-1",
+          companyId: input.companyId,
           conversationId: input.conversationId,
           role: "assistant",
           content: input.content,
@@ -332,6 +340,7 @@ describe("createCustomerConversationRouter", () => {
         calls.push(`ack:${input.pendingMessageId}:${input.transportMessageId ?? "none"}:${input.acknowledgedAt}`);
         return {
           id: input.pendingMessageId,
+          companyId: input.companyId,
           conversationId: input.conversationId,
           role: "assistant",
           content: "Assistant reply",
@@ -396,6 +405,7 @@ describe("createCustomerConversationRouter", () => {
       conversationStore: createStore({
         appendPendingAssistantMessage: async (input) => ({
           id: "pending-1",
+          companyId: input.companyId,
           conversationId: input.conversationId,
           role: "assistant",
           content: input.content,
@@ -499,6 +509,7 @@ describe("createCustomerConversationRouter", () => {
       conversationStore: createStore({
         appendPendingAssistantMessage: async (input) => ({
           id: "pending-1",
+          companyId: input.companyId,
           conversationId: input.conversationId,
           role: "assistant",
           content: input.content,
@@ -644,6 +655,7 @@ describe("createCustomerConversationRouter", () => {
       }),
       appendAssistantMessage: async (input) => ({
         id: crypto.randomUUID(),
+        companyId: input.companyId,
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
@@ -783,6 +795,7 @@ describe("createCustomerConversationRouter", () => {
         calls.push(`pending:${input.content}`);
         return {
           id: "pending-1",
+          companyId: input.companyId,
           conversationId: input.conversationId,
           role: "assistant",
           content: input.content,
@@ -794,6 +807,7 @@ describe("createCustomerConversationRouter", () => {
         calls.push(`ack:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
         return {
           id: input.pendingMessageId,
+          companyId: input.companyId,
           conversationId: input.conversationId,
           role: "assistant",
           content: "Assistant reply",
@@ -922,6 +936,7 @@ describe("createCustomerConversationRouter", () => {
         operations.push(`pending:${input.content}:${input.source ?? "none"}`);
         return {
           id: "pending-handoff-1",
+          companyId: input.companyId,
           conversationId: input.conversationId,
           role: "assistant",
           content: input.content,
@@ -933,6 +948,7 @@ describe("createCustomerConversationRouter", () => {
         operations.push(`ack:${input.pendingMessageId}:${input.transportMessageId ?? "none"}`);
         return {
           id: input.pendingMessageId,
+          companyId: input.companyId,
           conversationId: input.conversationId,
           role: "assistant",
           content: "Connecting you with the team.",
@@ -959,6 +975,7 @@ describe("createCustomerConversationRouter", () => {
       listRecentMessages: async () => [
         {
           id: "user-1",
+          companyId: "company-1",
           conversationId: "conversation-1",
           role: "user",
           content: "hello",
@@ -966,6 +983,7 @@ describe("createCustomerConversationRouter", () => {
         },
         {
           id: "assistant-1",
+          companyId: "company-1",
           conversationId: "conversation-1",
           role: "assistant",
           content: "Connecting you with the team.",
@@ -981,6 +999,7 @@ describe("createCustomerConversationRouter", () => {
         );
         return {
           id: input.pendingMessageId,
+          companyId: input.companyId,
           conversationId: input.conversationId,
           role: "assistant",
           content: "Connecting you with the team.",
@@ -997,6 +1016,7 @@ describe("createCustomerConversationRouter", () => {
         );
         return {
           id: input.pendingMessageId,
+          companyId: input.companyId,
           conversationId: input.conversationId,
           role: "assistant",
           content: "Connecting you with the team.",
@@ -1172,6 +1192,7 @@ describe("createCustomerConversationRouter", () => {
       },
       appendPendingAssistantMessage: async (input) => ({
         id: "pending-assistant",
+        companyId: input.companyId,
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
@@ -1223,6 +1244,7 @@ describe("createCustomerConversationRouter", () => {
       },
       appendPendingAssistantMessage: async (input) => ({
         id: "pending-assistant",
+        companyId: input.companyId,
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
@@ -1349,6 +1371,7 @@ describe("createCustomerConversationRouter", () => {
       }),
       appendPendingAssistantMessage: async (input) => ({
         id: "pending-message-1",
+        companyId: input.companyId,
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
@@ -1400,6 +1423,7 @@ describe("createCustomerConversationRouter", () => {
       }),
       appendPendingAssistantMessage: async (input) => ({
         id: "pending-message-1",
+        companyId: input.companyId,
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
@@ -1458,6 +1482,7 @@ describe("createCustomerConversationRouter", () => {
       appendPendingAssistantMessage: async (input) => {
         return {
           id: "pending-message-1",
+          companyId: input.companyId,
           conversationId: input.conversationId,
           role: "assistant",
           content: input.content,
@@ -1469,6 +1494,7 @@ describe("createCustomerConversationRouter", () => {
         markedFailed = true;
         return {
           id: input.pendingMessageId,
+          companyId: input.companyId,
           conversationId: input.conversationId,
           role: "assistant",
           content: "Assistant reply",
@@ -1658,6 +1684,7 @@ describe("createCustomerConversationRouter", () => {
       }),
       appendPendingAssistantMessage: async (input) => ({
         id: "pending-handoff-1",
+        companyId: input.companyId,
         conversationId: input.conversationId,
         role: "assistant",
         content: input.content,
