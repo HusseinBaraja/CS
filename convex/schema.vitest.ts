@@ -168,6 +168,40 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
         label: "Large White",
         });
     });
+
+    it("rejects a variant companyId that does not match the product", async () => {
+      const t = convexTest(schema, modules);
+      const companyId = await t.run(async (ctx) =>
+        createCompany(ctx, {
+          name: "Product Company",
+        }).then(({ companyId }) => companyId),
+      );
+      const otherCompanyId = await t.run(async (ctx) =>
+        createCompany(ctx, {
+          name: "Other Company",
+        }).then(({ companyId }) => companyId),
+      );
+      const catId = await t.run(async (ctx) =>
+        createCategory(ctx, { companyId, nameEn: "Cups" }).then(({ categoryId }) => categoryId),
+      );
+      const productId = await t.run(async (ctx) =>
+        createProduct(ctx, {
+          companyId,
+          categoryId: catId,
+          nameEn: "Paper Cup",
+        }).then(({ productId }) => productId),
+      );
+
+      await expect(
+        t.run(async (ctx) =>
+          createVariant(ctx, {
+            companyId: otherCompanyId,
+            productId,
+            label: "Large White",
+          }),
+        ),
+      ).rejects.toThrow("Variant companyId must match the product companyId");
+    });
   });
 
   // ── Conversations & Messages ──────────────────────────────────────────

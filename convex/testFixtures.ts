@@ -124,7 +124,7 @@ export const createProduct = async (
 export const createVariant = async (
   ctx: TestDbCtx,
   input: {
-    companyId: Id<"companies">;
+    companyId?: Id<"companies">;
     productId: Id<"products">;
   } & Partial<Omit<InsertableDoc<"productVariants">, "companyId" | "productId">>,
 ): Promise<{
@@ -138,8 +138,16 @@ export const createVariant = async (
     ...rest
   } = input;
 
+  const product = await ctx.db.get(productId) as Doc<"products"> | null;
+  if (!product) {
+    throw new Error(`Cannot create variant for missing product: ${productId}`);
+  }
+  if (companyId !== undefined && companyId !== product.companyId) {
+    throw new Error("Variant companyId must match the product companyId");
+  }
+
   const variant = {
-    companyId,
+    companyId: product.companyId,
     productId,
     label,
     ...rest,
