@@ -252,7 +252,7 @@ export default defineSchema({
 
   // ── Messages ────────────────────────────────────────────────────────────
   messages: defineTable({
-    companyId: v.optional(v.id("companies")),
+    companyId: v.id("companies"),
     conversationId: v.id("conversations"),
     role: v.union(v.literal("user"), v.literal("assistant")),
     content: v.string(),

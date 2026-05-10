@@ -49,6 +49,7 @@ import type * as products_errors from "../products/errors.js";
 import type * as products_mapping from "../products/mapping.js";
 import type * as products_mutationDefinitions from "../products/mutationDefinitions.js";
 import type * as products_mutationDefinitions_productMutationDefinitions from "../products/mutationDefinitions/productMutationDefinitions.js";
+import type * as products_mutationDefinitions_variantEmbeddingMutations from "../products/mutationDefinitions/variantEmbeddingMutations.js";
 import type * as products_mutationDefinitions_variantMutationDefinitions from "../products/mutationDefinitions/variantMutationDefinitions.js";
 import type * as products_normalization from "../products/normalization.js";
 import type * as products_normalizationPrimitives from "../products/normalizationPrimitives.js";
@@ -111,6 +112,7 @@ declare const fullApi: ApiFromModules<{
   "products/mapping": typeof products_mapping;
   "products/mutationDefinitions": typeof products_mutationDefinitions;
   "products/mutationDefinitions/productMutationDefinitions": typeof products_mutationDefinitions_productMutationDefinitions;
+  "products/mutationDefinitions/variantEmbeddingMutations": typeof products_mutationDefinitions_variantEmbeddingMutations;
   "products/mutationDefinitions/variantMutationDefinitions": typeof products_mutationDefinitions_variantMutationDefinitions;
   "products/normalization": typeof products_normalization;
   "products/normalizationPrimitives": typeof products_normalizationPrimitives;

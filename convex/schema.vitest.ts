@@ -225,12 +225,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
 
       await t.run(async (ctx) => {
         await ctx.db.insert("messages", {
+          companyId,
           conversationId: convId,
           role: "user",
           content: "Do you have burger boxes?",
           timestamp: Date.now(),
         });
         await ctx.db.insert("messages", {
+          companyId,
           conversationId: convId,
           role: "assistant",
           content: "Yes! We have 3 sizes.",
@@ -246,6 +248,34 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
       );
       expect(messages).toHaveLength(2);
       expect(messages[0]?.role).toBe("user");
+    });
+
+    it("rejects messages without company ownership", async () => {
+      const t = convexTest(schema, modules);
+      const companyId = await t.run(async (ctx) =>
+        ctx.db.insert("companies", {
+          name: "Test Co",
+          ownerPhone: "966500000000",
+        }),
+      );
+      const convId = await t.run(async (ctx) =>
+        ctx.db.insert("conversations", {
+          companyId,
+          phoneNumber: "967771234567",
+          muted: false,
+        }),
+      );
+
+      await expect(
+        t.run(async (ctx) =>
+          ctx.db.insert("messages", {
+            conversationId: convId,
+            role: "user",
+            content: "Missing company",
+            timestamp: Date.now(),
+          } as any),
+        ),
+      ).rejects.toThrow();
     });
 
     it("queries conversations by the new index", async () => {

@@ -130,6 +130,7 @@ const createTenantFixture = async (
 
     for (let index = 0; index < messageCount; index += 1) {
       await ctx.db.insert("messages", {
+        companyId,
         conversationId: conversationIds[index % conversationIds.length]!,
         role: "user",
         content: `Message ${index}`,
@@ -656,6 +657,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
           label: `Variant ${index}`,
           });
         await ctx.db.insert("messages", {
+          companyId,
           conversationId,
           role: "user",
           content: `Message ${index}`,
@@ -783,6 +785,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
 
       for (let index = 0; index < CLEANUP_BATCH_SIZE; index += 1) {
         await ctx.db.insert("messages", {
+          companyId,
           conversationId: firstConversationId,
           role: "user",
           content: `Message ${index}`,
@@ -791,6 +794,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       }
 
       const trailingMessageId = await ctx.db.insert("messages", {
+        companyId,
         conversationId: secondConversationId,
         role: "user",
         content: "Trailing message",

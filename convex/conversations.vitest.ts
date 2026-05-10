@@ -247,6 +247,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     });
     await t.run(async (ctx) =>
       ctx.db.insert("messages", {
+        companyId,
         conversationId,
         role: "assistant",
         content: "invisible-middle",
@@ -256,6 +257,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     for (let index = 0; index < 101; index += 1) {
       await t.run(async (ctx) =>
         ctx.db.insert("messages", {
+          companyId,
           conversationId,
           role: "assistant",
           content: `invisible-${index}`,
@@ -305,6 +307,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     for (let index = 0; index < 105; index += 1) {
       await t.run(async (ctx) =>
         ctx.db.insert("messages", {
+          companyId,
           conversationId,
           role: "assistant",
           content: `invisible-${index}`,
@@ -2153,6 +2156,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     for (let index = 0; index < 120; index += 1) {
       await t.run(async (ctx) =>
         ctx.db.insert("messages", {
+          companyId,
           conversationId,
           role: "assistant",
           content: `invisible-${index}`,
@@ -2309,6 +2313,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     for (let index = 0; index < 120; index += 1) {
       await t.run(async (ctx) =>
         ctx.db.insert("messages", {
+          companyId,
           conversationId,
           role: "assistant",
           content: `invisible-stale-${index}`,

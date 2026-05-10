@@ -484,6 +484,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
 
       for (let index = 0; index < oversizedBatchCount; index += 1) {
         await ctx.db.insert("messages", {
+          companyId: seededCompany._id,
           conversationId,
           role: "user",
           content: `seed cleanup message ${index}`,
