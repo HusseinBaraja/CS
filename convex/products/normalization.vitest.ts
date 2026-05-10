@@ -23,6 +23,7 @@ describe('products normalization helpers', () => {
       nameAr: '   ',
       descriptionEn: '  Disposable  ',
       currency: '  USD  ',
+      primaryImage: '  raw-object-key.jpg  ',
     });
 
     expect(state).toEqual({
@@ -34,19 +35,42 @@ describe('products normalization helpers', () => {
     });
   });
 
-
-
   it('builds product patch and supports explicit null clearing for optional fields', () => {
     const patch = createProductPatch({
       companyId: COMPANY_ID,
       productId: PRODUCT_ID,
       nameAr: null,
       price: null,
+      primaryImage: null,
     });
 
     expect(patch).toEqual({
       nameAr: undefined,
       price: undefined,
+    });
+  });
+
+  it('keeps product update normalization from writing primary images', () => {
+    const next = mergeUpdateState(
+      {
+        companyId: COMPANY_ID,
+        productId: PRODUCT_ID,
+        categoryId: CATEGORY_ID,
+        revision: 1,
+        nameEn: 'Burger Box',
+        primaryImage: 'companies/company_1/products/product_1/current.jpg',
+      },
+      {
+        companyId: COMPANY_ID,
+        productId: PRODUCT_ID,
+        primaryImage: 'companies/company_1/products/product_1/raw.jpg',
+      },
+    );
+
+    expect(next).toEqual({
+      companyId: COMPANY_ID,
+      categoryId: CATEGORY_ID,
+      nameEn: 'Burger Box',
     });
   });
 

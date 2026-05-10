@@ -113,7 +113,6 @@ export const normalizeCreateState = (args: {
   const descriptionAr = normalizeOptionalString(args.descriptionAr);
   const price = normalizeOptionalNumber(args.price, 'price');
   const currency = normalizeOptionalString(args.currency);
-  const primaryImage = normalizeOptionalString(args.primaryImage);
 
   assertAtLeastOneName(nameEn, nameAr);
   assertCurrencyIfPriced(price, currency);
@@ -128,7 +127,6 @@ export const normalizeCreateState = (args: {
     ...(descriptionAr ? { descriptionAr } : {}),
     ...(price !== undefined ? { price } : {}),
     ...(currency ? { currency } : {}),
-    ...(primaryImage ? { primaryImage } : {}),
   };
 };
 
@@ -156,10 +154,6 @@ export const mergeUpdateState = (
     patch.currency !== undefined
       ? normalizeOptionalString(patch.currency)
       : existingProduct.currency;
-  const primaryImage =
-    patch.primaryImage !== undefined
-      ? normalizeOptionalString(patch.primaryImage)
-      : existingProduct.primaryImage;
 
   assertAtLeastOneName(nameEn, nameAr);
   assertCurrencyIfPriced(price, currency);
@@ -174,7 +168,6 @@ export const mergeUpdateState = (
     ...(descriptionAr ? { descriptionAr } : {}),
     ...(price !== undefined ? { price } : {}),
     ...(currency ? { currency } : {}),
-    ...(primaryImage ? { primaryImage } : {}),
   };
 };
 
@@ -211,10 +204,6 @@ export const createProductPatch = (args: ProductUpdateArgs): ProductPatch => {
 
   if (args.currency !== undefined) {
     patch.currency = normalizeOptionalString(args.currency);
-  }
-
-  if (args.primaryImage !== undefined) {
-    patch.primaryImage = normalizeOptionalString(args.primaryImage);
   }
 
   return patch;

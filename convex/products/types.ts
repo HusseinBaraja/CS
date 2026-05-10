@@ -10,10 +10,7 @@ export type {
   ProductWriteState,
 };
 
-/** Extends ProductWriteState with non-embedding product fields. */
-export type ProductCreateState = ProductWriteState & {
-  primaryImage?: string;
-};
+export type ProductCreateState = ProductWriteState;
 
 export type ProductVariantDto = {
   id: string;

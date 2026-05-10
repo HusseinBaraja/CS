@@ -16,15 +16,13 @@ const hasIdentifyingField = (product: {
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  primaryImage?: string;
 }): boolean =>
   Boolean(
     product.productNo
       || product.nameEn
       || product.nameAr
       || product.descriptionEn
-      || product.descriptionAr
-      || product.primaryImage,
+      || product.descriptionAr,
   );
 
 const assertHasIdentifyingField = (product: {
@@ -33,7 +31,6 @@ const assertHasIdentifyingField = (product: {
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  primaryImage?: string;
 }): void => {
   if (!hasIdentifyingField(product)) {
     throw createTaggedError(

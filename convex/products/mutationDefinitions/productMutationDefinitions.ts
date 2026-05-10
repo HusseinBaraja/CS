@@ -68,7 +68,6 @@ export const insertProductWithEmbeddingsDefinition = {
       ...(productState.descriptionAr ? { descriptionAr: productState.descriptionAr } : {}),
       ...(productState.price !== undefined ? { price: productState.price } : {}),
       ...(productState.currency ? { currency: productState.currency } : {}),
-      ...(productState.primaryImage ? { primaryImage: productState.primaryImage } : {}),
       version: 1,
     });
 
