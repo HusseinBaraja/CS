@@ -568,8 +568,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         descriptionAr: null,
         primaryImage: null,
       }),
-    ).rejects.toThrow("VALIDATION_FAILED: at least one of nameEn or nameAr is required");
-
+    ).rejects.toThrow("VALIDATION_FAILED: at least one product identifier is required");
     const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
     const embeddings = await t.run(async (ctx) =>
       ctx.db
