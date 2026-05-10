@@ -6,7 +6,7 @@ const { generateGeminiEmbeddings } = vi.hoisted(() => ({
   generateGeminiEmbeddings: vi.fn(),
 }));
 
-vi.mock('../packages/ai/src/embeddings', () => ({
+vi.mock('@cs/ai/embeddings', () => ({
   GEMINI_EMBEDDING_DIMENSIONS: 768,
   generateGeminiEmbeddings,
 }));
