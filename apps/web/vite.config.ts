@@ -22,6 +22,19 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 1800,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/exceljs/')) {
+            return 'vendor-exceljs';
+          }
+
+          if (id.includes('/node_modules/gsap/') || id.includes('/node_modules/@gsap/react/')) {
+            return 'vendor-gsap';
+          }
+        },
+      },
+    },
   },
   test: {
     environment: 'jsdom',

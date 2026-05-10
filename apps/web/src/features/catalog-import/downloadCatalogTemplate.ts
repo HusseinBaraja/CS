@@ -1,10 +1,9 @@
-import ExcelJS from 'exceljs';
-
 import { buildCatalogTemplateHeaders, type CatalogTemplateOptions } from './catalogTemplate';
 
 export const catalogTemplateFilename = 'reda-catalog-template.xlsx';
 
 export async function downloadCatalogTemplate(options: CatalogTemplateOptions): Promise<void> {
+  const { default: ExcelJS } = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Catalog Template');
 
