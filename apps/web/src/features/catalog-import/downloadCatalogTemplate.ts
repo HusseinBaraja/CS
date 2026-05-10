@@ -3,7 +3,18 @@ import { buildCatalogTemplateHeaders, type CatalogTemplateOptions } from './cata
 export const catalogTemplateFilename = 'reda-catalog-template.xlsx';
 
 export async function downloadCatalogTemplate(options: CatalogTemplateOptions): Promise<void> {
-  const { default: ExcelJS } = await import('exceljs');
+  let ExcelJS: typeof import('exceljs');
+
+  try {
+    const excelModule = await import('exceljs') as typeof import('exceljs') & {
+      default?: typeof import('exceljs');
+    };
+    ExcelJS = excelModule.default ?? excelModule;
+  } catch (error) {
+    console.error('[downloadCatalogTemplate] Failed to load ExcelJS for catalog template', error);
+    return;
+  }
+
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Catalog Template');
 

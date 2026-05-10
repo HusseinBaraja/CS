@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { catalogTemplateFilename, downloadCatalogTemplate } from './downloadCatalogTemplate';
 
+const RealURL = URL;
+
 const mocks = vi.hoisted(() => {
   const addRow = vi.fn();
   const writeBuffer = vi.fn(async () => new Uint8Array([1, 2, 3]));
@@ -69,5 +71,37 @@ describe('downloadCatalogTemplate', () => {
     expect(mocks.click).toHaveBeenCalled();
     expect(mocks.revokeObjectURL).toHaveBeenCalledWith('blob:catalog-template');
     expect(catalogTemplateFilename).toBe('reda-catalog-template.xlsx');
+  });
+
+  it('logs and aborts when ExcelJS cannot be loaded', async () => {
+    vi.stubGlobal('URL', RealURL);
+    vi.resetModules();
+    vi.doMock('exceljs', () => {
+      throw new Error('exceljs unavailable');
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { downloadCatalogTemplate: downloadCatalogTemplateWithFailedImport } = await import(
+      './downloadCatalogTemplate'
+    );
+
+    await downloadCatalogTemplateWithFailedImport({
+      currency: 'YER',
+      includePrice: true,
+      language: 'en',
+      includeDescription: false,
+      includePrimaryImage: false,
+      includeVariants: false,
+    });
+
+    expect(consoleError).toHaveBeenCalledWith(
+      '[downloadCatalogTemplate] Failed to load ExcelJS for catalog template',
+      expect.any(Error),
+    );
+    expect(document.createElement).not.toHaveBeenCalled();
+    expect(mocks.createObjectURL).not.toHaveBeenCalled();
+    expect(mocks.click).not.toHaveBeenCalled();
+
+    vi.doUnmock('exceljs');
+    vi.resetModules();
   });
 });
