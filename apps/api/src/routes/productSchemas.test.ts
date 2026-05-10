@@ -56,15 +56,15 @@ describe('product schema parsers', () => {
         descriptionAr: null,
         price: null,
         currency: 'SAR',
-        primaryImage: null,
       },
     });
   });
 
-  test('parseUpdateProductBody rejects payloads with only removed fields', () => {
+  test('parseUpdateProductBody rejects payloads with only removed or media fields', () => {
     expect(parseUpdateProductBody({
       specifications: { material: 'paper' },
       basePrice: 12,
+      primaryImage: null,
     })).toEqual({
       ok: false,
       message: 'Request body must include at least one recognized updatable field',

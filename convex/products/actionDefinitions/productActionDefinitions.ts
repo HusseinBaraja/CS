@@ -104,7 +104,6 @@ export const updateDefinition = {
     descriptionAr: v.optional(v.union(v.string(), v.null())),
     price: v.optional(v.union(v.number(), v.null())),
     currency: v.optional(v.union(v.string(), v.null())),
-    primaryImage: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (
     ctx: ActionCtx,
@@ -119,7 +118,6 @@ export const updateDefinition = {
       descriptionAr?: string | null;
       price?: number | null;
       currency?: string | null;
-      primaryImage?: string | null;
     },
   ): Promise<ProductDetailDto | null> => {
     const existingProduct = await ctx.runQuery(internal.products.getUpdateSnapshot, {

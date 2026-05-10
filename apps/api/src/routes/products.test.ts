@@ -93,8 +93,6 @@ const createStubProductsService = (
         : patch.descriptionAr ?? baseProductDetail.descriptionAr,
     price: patch.price === null ? undefined : patch.price ?? baseProductDetail.price,
     currency: patch.currency === null ? undefined : patch.currency ?? baseProductDetail.currency,
-    primaryImage:
-      patch.primaryImage === null ? undefined : patch.primaryImage ?? baseProductDetail.primaryImage,
   }),
   delete: async () => ({
     productId: 'product-1',
@@ -252,7 +250,6 @@ describe('product routes', () => {
       nameEn: 'Updated',
       price: null,
       currency: null,
-      primaryImage: null,
     });
   });
 

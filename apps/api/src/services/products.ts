@@ -52,7 +52,6 @@ export interface UpdateProductInput {
   descriptionAr?: string | null;
   price?: number | null;
   currency?: string | null;
-  primaryImage?: string | null;
 }
 
 export interface DeleteProductResult {

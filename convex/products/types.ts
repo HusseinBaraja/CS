@@ -58,7 +58,6 @@ export type ProductUpdateArgs = {
   descriptionAr?: string | null;
   price?: number | null;
   currency?: string | null;
-  primaryImage?: string | null;
 };
 
 export type ProductWriteSnapshot = ProductWriteState & {
@@ -103,7 +102,6 @@ export type ProductPatch = {
   descriptionAr?: string | undefined;
   price?: number | undefined;
   currency?: string | undefined;
-  primaryImage?: string | undefined;
   version?: number;
 };
 

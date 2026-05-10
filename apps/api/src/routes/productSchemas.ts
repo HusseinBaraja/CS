@@ -249,17 +249,6 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
     assignOptionalNullableString(updates, 'currency', currency.value);
   }
 
-  if ('primaryImage' in parsedObject.value) {
-    const primaryImage = parseOptionalString(parsedObject.value.primaryImage, 'primaryImage', {
-      allowNull: true,
-    });
-    if (!primaryImage.ok) {
-      return primaryImage;
-    }
-
-    assignOptionalNullableString(updates, 'primaryImage', primaryImage.value);
-  }
-
   if (Object.keys(updates).length === 0) {
     return {
       ok: false,

@@ -41,7 +41,6 @@ describe('products normalization helpers', () => {
       productId: PRODUCT_ID,
       nameAr: null,
       price: null,
-      primaryImage: null,
     });
 
     expect(patch).toEqual({
@@ -50,7 +49,7 @@ describe('products normalization helpers', () => {
     });
   });
 
-  it('keeps product update normalization from writing primary images', () => {
+  it('keeps product update normalization focused on generic product fields', () => {
     const next = mergeUpdateState(
       {
         companyId: COMPANY_ID,
@@ -63,7 +62,7 @@ describe('products normalization helpers', () => {
       {
         companyId: COMPANY_ID,
         productId: PRODUCT_ID,
-        primaryImage: 'companies/company_1/products/product_1/raw.jpg',
+        descriptionEn: '  Fresh box  ',
       },
     );
 
@@ -71,6 +70,7 @@ describe('products normalization helpers', () => {
       companyId: COMPANY_ID,
       categoryId: CATEGORY_ID,
       nameEn: 'Burger Box',
+      descriptionEn: 'Fresh box',
     });
   });
 

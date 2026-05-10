@@ -103,7 +103,6 @@ export const patchProductWithEmbeddingsDefinition = {
     descriptionAr: v.optional(v.union(v.string(), v.null())),
     price: v.optional(v.union(v.number(), v.null())),
     currency: v.optional(v.union(v.string(), v.null())),
-    primaryImage: v.optional(v.union(v.string(), v.null())),
     englishEmbedding: v.optional(v.array(v.float64())),
     arabicEmbedding: v.optional(v.array(v.float64())),
     englishText: v.optional(v.string()),
@@ -123,7 +122,6 @@ export const patchProductWithEmbeddingsDefinition = {
       descriptionAr?: string | null;
       price?: number | null;
       currency?: string | null;
-      primaryImage?: string | null;
       englishEmbedding?: number[];
       arabicEmbedding?: number[];
       englishText?: string;
