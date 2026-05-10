@@ -3,12 +3,13 @@ import { internalMutation } from './_generated/server';
 
 type LooseDoc = Record<string, unknown> & {
   _id: unknown;
+  _creationTime: unknown;
   companyId?: unknown;
   productId?: unknown;
   conversationId?: unknown;
 };
 
-type DocCursor = string | undefined;
+type DocCursor = { creationTime: number; id: string } | undefined;
 
 const TENANT_TABLES = [
   'embeddings',
@@ -71,7 +72,15 @@ const getDocs = async (
 ): Promise<LooseDoc[]> => {
   const query = db.query(table).order('asc');
   const pagedQuery = cursor
-    ? query.filter((q: any) => q.gt(q.field('_id'), cursor))
+    ? query.filter((q: any) =>
+        q.or(
+          q.gt(q.field('_creationTime'), cursor.creationTime),
+          q.and(
+            q.eq(q.field('_creationTime'), cursor.creationTime),
+            q.gt(q.field('_id'), cursor.id),
+          ),
+        ),
+      )
     : query;
   return pagedQuery.take(limit);
 };
@@ -86,8 +95,10 @@ const processDocs = async (
   while (true) {
     const docs = await getDocs(db, table, limit, cursor);
     for (const doc of docs) {
+      if (typeof doc._creationTime === 'number' && typeof doc._id === 'string') {
+        cursor = { creationTime: doc._creationTime, id: doc._id };
+      }
       await processDoc(doc);
-      cursor = typeof doc._id === 'string' ? doc._id : cursor;
     }
     if (docs.length < limit) {
       return;

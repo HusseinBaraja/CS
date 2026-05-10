@@ -33,4 +33,36 @@ describe.skipIf(typeof import.meta.glob !== "function")("catalog restructure cle
     expect(result.orphanDeleted).toBe(1);
     expect(categories).toHaveLength(0);
   });
+
+  it("continues cleanup across one-document pages", async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Deleted Tenant",
+        ownerPhone: "966500000811",
+      });
+      await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "First Orphan Category",
+      });
+      await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Second Orphan Category",
+      });
+      await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Third Orphan Category",
+      });
+      await ctx.db.delete(companyId);
+    });
+
+    const result = await t.mutation(internal.catalogRestructureCleanup.run, {
+      limit: 1,
+    });
+    const categories = await t.run(async (ctx) => ctx.db.query("categories").collect());
+
+    expect(result.orphanDeleted).toBe(3);
+    expect(categories).toHaveLength(0);
+  });
 });
