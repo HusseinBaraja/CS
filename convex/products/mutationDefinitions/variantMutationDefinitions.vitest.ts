@@ -178,6 +178,37 @@ describe('variant mutation definitions', () => {
     expect(replaceProductEmbeddingsInMutation).toHaveBeenCalledWith(ctx, EMBEDDING_ARGS);
   });
 
+  it('treats an empty normalized variant patch as a no-op', async () => {
+    const ctx = buildCtx();
+    const existingVariant = {
+      _id: VARIANT_ID,
+      productId: PRODUCT_ID,
+      label: 'Large',
+    };
+    getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
+    getScopedVariant.mockResolvedValue(existingVariant);
+    createVariantPatch.mockReturnValue({});
+    mapVariant.mockReturnValue({ id: VARIANT_ID });
+
+    const result = await patchVariantWithEmbeddingsDefinition.handler(ctx, {
+      ...MUTATION_BASE_ARGS,
+      variantId: VARIANT_ID,
+      label: '  Large  ',
+    });
+
+    expect(result).toEqual({ id: VARIANT_ID });
+    expect(createVariantPatch).toHaveBeenCalledWith({
+      label: '  Large  ',
+      price: undefined,
+    });
+    expect(mapVariant).toHaveBeenCalledWith(existingVariant);
+    expect(assertCurrencyIfPriced).not.toHaveBeenCalled();
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+    expect(ctx.db.get).not.toHaveBeenCalled();
+    expect(replaceProductEmbeddingsInMutation).not.toHaveBeenCalled();
+    expect(refreshCompanyCatalogLanguageHintsInMutation).not.toHaveBeenCalled();
+  });
+
   it('refreshes catalog language hints after deleting a variant embedding', async () => {
     const ctx = buildCtx();
     getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });

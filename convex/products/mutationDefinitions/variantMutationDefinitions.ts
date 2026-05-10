@@ -139,6 +139,9 @@ export const patchVariantWithEmbeddingsDefinition = {
       label: args.label,
       price: args.price,
     });
+    if (Object.keys(patch).length === 0) {
+      return mapVariant(existingVariant);
+    }
 
     const effectivePrice: number | undefined =
       args.price === null
