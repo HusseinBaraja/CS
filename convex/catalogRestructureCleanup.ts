@@ -98,13 +98,22 @@ const processDocs = async (
 const companyExists = async (db: any, companyId: unknown): Promise<boolean> =>
   typeof companyId === 'string' && Boolean(await db.get(companyId));
 
+const normalizeBatchLimit = (value: number | undefined): number => {
+  const limit = value ?? 200;
+  if (!Number.isFinite(limit)) {
+    throw new Error('limit must be a finite number');
+  }
+
+  return Math.max(1, Math.trunc(limit));
+};
+
 export const run = internalMutation({
   args: {
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const db = ctx.db as any;
-    const limit = args.limit ?? 200;
+    const limit = normalizeBatchLimit(args.limit);
     const result = {
       productsUpdated: 0,
       productsDeleted: 0,
