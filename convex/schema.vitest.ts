@@ -166,7 +166,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
       const doc = await t.run(async (ctx) => ctx.db.get(variantId));
       expect(doc).toMatchObject({
         label: "Large White",
-        });
+        price: 0.2,
+      });
     });
 
     it("rejects a variant companyId that does not match the product", async () => {
