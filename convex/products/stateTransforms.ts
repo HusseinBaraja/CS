@@ -157,7 +157,6 @@ export const mergeUpdateState = (
       ? normalizeOptionalString(patch.currency)
       : existingProduct.currency;
 
-  assertAtLeastOneName(nameEn, nameAr);
   assertCurrencyIfPriced(price, currency);
 
   return {

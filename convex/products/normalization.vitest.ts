@@ -75,25 +75,30 @@ describe('products normalization helpers', () => {
     });
   });
 
-  it('rejects product updates that clear both names', () => {
-    expect(() =>
-      mergeUpdateState(
-        {
-          companyId: COMPANY_ID,
-          productId: PRODUCT_ID,
-          categoryId: CATEGORY_ID,
-          revision: 1,
-          nameEn: 'Burger Box',
-          nameAr: 'علبة برجر',
-        },
-        {
-          companyId: COMPANY_ID,
-          productId: PRODUCT_ID,
-          nameEn: null,
-          nameAr: '   ',
-        },
-      ),
-    ).toThrowError('VALIDATION_FAILED: at least one of nameEn or nameAr is required');
+  it('allows product updates to rely on non-name identifiers', () => {
+    const next = mergeUpdateState(
+      {
+        companyId: COMPANY_ID,
+        productId: PRODUCT_ID,
+        categoryId: CATEGORY_ID,
+        revision: 1,
+        productNo: 'BOX-1',
+        nameEn: 'Burger Box',
+        nameAr: 'علبة برجر',
+      },
+      {
+        companyId: COMPANY_ID,
+        productId: PRODUCT_ID,
+        nameEn: null,
+        nameAr: '   ',
+      },
+    );
+
+    expect(next).toEqual({
+      companyId: COMPANY_ID,
+      categoryId: CATEGORY_ID,
+      productNo: 'BOX-1',
+    });
   });
 
   it('merges variant updates and drops price override when null is provided', () => {

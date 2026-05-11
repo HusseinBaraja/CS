@@ -24,16 +24,15 @@ export default defineConfig({
     chunkSizeWarningLimit: 1800,
     rollupOptions: {
       output: {
-        output: {
-          manualChunks(id) {
-            const normalizedId = id.replace(/\\/g, '/');
-            if (normalizedId.includes('/node_modules/exceljs/')) {
-              return 'vendor-exceljs';
-            }
+        manualChunks(id) {
+          const normalizedId = id.replace(/\\/g, '/');
+          if (normalizedId.includes('/node_modules/exceljs/')) {
+            return 'vendor-exceljs';
+          }
 
-            if (normalizedId.includes('/node_modules/gsap/') || normalizedId.includes('/node_modules/@gsap/react/')) {
-              return 'vendor-gsap';
-            }
+          if (normalizedId.includes('/node_modules/gsap/') || normalizedId.includes('/node_modules/@gsap/react/')) {
+            return 'vendor-gsap';
+          }
         },
       },
     },
