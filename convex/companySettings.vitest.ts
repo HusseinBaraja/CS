@@ -3,7 +3,7 @@ import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 import { internal } from './_generated/api';
 import schema from './schema';
-import { createCompany } from './testFixtures';
+import { createCompany, createDeletedCompany } from './testFixtures';
 
 const modules =
   typeof import.meta.glob === 'function'
@@ -11,6 +11,22 @@ const modules =
     : ({} as Record<string, () => Promise<any>>);
 
 describe.skipIf(typeof import.meta.glob !== 'function')('convex companySettings', () => {
+  it('returns null when companyId does not refer to an existing company', async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      createDeletedCompany(ctx).then(({ companyId }) => companyId),
+    );
+
+    const settings = await t.query(internal.companySettings.get, { companyId });
+    const upserted = await t.mutation(internal.companySettings.upsert, {
+      companyId,
+      missingPricePolicy: 'handoff',
+    });
+
+    expect(settings).toBeNull();
+    expect(upserted).toBeNull();
+  });
+
   it('returns default settings when a company has no settings row', async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
@@ -90,6 +106,38 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex companySettings'
     expect(rows).toEqual([
       expect.objectContaining({
         _id: firstSettingsId,
+        companyId,
+        missingPricePolicy: 'handoff',
+      }),
+    ]);
+  });
+
+  it('inserts settings when a company has no settings row during upsert', async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      createCompany(ctx).then(({ companyId }) => companyId),
+    );
+
+    const settings = await t.mutation(internal.companySettings.upsert, {
+      companyId,
+      missingPricePolicy: 'handoff',
+    });
+    const rows = await t.run(async (ctx) =>
+      ctx.db
+        .query('companySettings')
+        .withIndex('by_company', (q) => q.eq('companyId', companyId))
+        .collect(),
+    );
+
+    expect(settings).toEqual({
+      id: expect.any(String),
+      companyId,
+      missingPricePolicy: 'handoff',
+    });
+    expect(settings?.id).not.toHaveLength(0);
+    expect(rows).toEqual([
+      expect.objectContaining({
+        _id: settings?.id,
         companyId,
         missingPricePolicy: 'handoff',
       }),
