@@ -344,7 +344,6 @@ Checkpoint:
 
 - `bun check`
 - `bun lint`
-- `bun run check:modularity`
 - `bun run check:root`
 
 Run `bun dev` after implementation to verify the dev-session artifact manually.

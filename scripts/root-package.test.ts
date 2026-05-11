@@ -52,8 +52,7 @@ describe("root package scripts", () => {
     expect(scripts["dev:web"]).toBe("turbo run dev --filter=web");
     expect(scripts["dev:worker"]).toBe("bun scripts/dev-session-log.ts --filter=worker");
     expect(scripts["build:web"]).toBe("turbo run build --filter=web");
-    expect(scripts["check:modularity"]).toBe("bun scripts/modularity-policy.ts");
-    expect(scripts["check:root"]).toBe("bun run check:modularity");
+    expect(scripts["check:root"]).toBe("bun run test:root");
     expect(scripts["lint:root"]).toBe(
       "oxlint --config .oxlintrc.json --ignore-path .oxlintignore scripts",
     );
@@ -63,7 +62,7 @@ describe("root package scripts", () => {
     expect(scripts.seed).toBe("bun run --cwd apps/cli seed");
     expect(scripts.backup).toBe("bun run --cwd apps/cli backup");
     expect(scripts["issue:diagram"]).toBe("bun scripts/generate-agent-mermaid.ts");
-    expect(scripts.ci).toBe("bun run check:root && bun run test:root && turbo run ci");
+    expect(scripts.ci).toBe("bun run check:root && turbo run ci");
   });
 
   test("keeps cli out of the root long-running dev fanout", () => {
@@ -78,7 +77,6 @@ describe("root package scripts", () => {
   test("keeps lint as fast static analysis only", () => {
     expect(scripts.lint).toContain("turbo run lint");
     expect(scripts.lint).not.toContain("typecheck");
-    expect(scripts.lint).not.toContain("check:modularity");
     expect(scripts.lint).not.toContain("test");
     expect(scripts.lint).not.toContain("generate");
   });
