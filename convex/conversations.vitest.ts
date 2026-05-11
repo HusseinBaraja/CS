@@ -152,6 +152,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
         source: "assistant_action",
       }),
     ).rejects.toThrow("Conversation not found for company");
+
+    const messages = await t.run(async (ctx) => ctx.db.query("messages").collect());
+    expect(messages).toEqual([]);
   });
 
   it("rejects empty message content", async () => {
