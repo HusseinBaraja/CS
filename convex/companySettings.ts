@@ -41,6 +41,26 @@ const chooseCanonicalSettings = (
   settings: Awaited<ReturnType<typeof listSettingsForCompany>>,
 ) => chooseCanonicalByCreation(settings);
 
+const collapseSettingsRows = async (
+  ctx: Pick<MutationCtx, 'db'>,
+  settingsRows: Awaited<ReturnType<typeof listSettingsForCompany>>,
+  missingPricePolicy: MissingPricePolicy,
+) => {
+  const canonical = chooseCanonicalSettings(settingsRows);
+  if (!canonical) {
+    return null;
+  }
+
+  await ctx.db.patch(canonical._id, { missingPricePolicy });
+  await Promise.all(
+    settingsRows
+      .filter((settings) => settings._id !== canonical._id)
+      .map((settings) => ctx.db.delete(settings._id)),
+  );
+
+  return canonical;
+};
+
 const acquireCompanySettingsLock = async (
   ctx: Pick<MutationCtx, 'db'>,
   companyId: Id<'companies'>,
@@ -151,14 +171,7 @@ export const upsert = internalMutation({
       const existing = chooseCanonicalSettings(settingsRows);
 
       if (existing) {
-        await ctx.db.patch(existing._id, {
-          missingPricePolicy: args.missingPricePolicy,
-        });
-        await Promise.all(
-          settingsRows
-            .filter((settings) => settings._id !== existing._id)
-            .map((settings) => ctx.db.delete(settings._id)),
-        );
+        await collapseSettingsRows(ctx, settingsRows, args.missingPricePolicy);
         return {
           id: existing._id,
           companyId: existing.companyId,
@@ -171,8 +184,14 @@ export const upsert = internalMutation({
         missingPricePolicy: args.missingPricePolicy,
       });
 
+      const canonical = await collapseSettingsRows(
+        ctx,
+        await listSettingsForCompany(ctx, args.companyId),
+        args.missingPricePolicy,
+      );
+
       return {
-        id: settingsId,
+        id: canonical?._id ?? settingsId,
         companyId: args.companyId,
         missingPricePolicy: args.missingPricePolicy,
       };
