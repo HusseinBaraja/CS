@@ -223,6 +223,36 @@ describe('product routes', () => {
     });
   });
 
+  test('POST /api/companies/:companyId/products allows productNo-only creates', async () => {
+    let receivedInput: CreateProductInput | undefined;
+    const app = createTestApp(createStubProductsService({
+      create: async (_companyId, input) => {
+        receivedInput = input;
+        return {
+          id: 'product-created',
+          companyId: 'company-1',
+          ...input,
+          variants: [],
+        };
+      },
+    }));
+
+    const response = await app.request('/api/companies/company-1/products', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        categoryId: 'category-1',
+        productNo: ' SKU-1 ',
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(receivedInput).toEqual({
+      categoryId: 'category-1',
+      productNo: 'SKU-1',
+    });
+  });
+
   test('PUT /api/companies/:companyId/products/:id updates nullable product fields', async () => {
     let receivedPatch: UpdateProductInput | undefined;
     const app = createTestApp(createStubProductsService({
@@ -369,7 +399,7 @@ describe('product routes', () => {
     expect(await deleteImageResponse.json()).toEqual(notFoundBody);
   });
 
-  test('POST /api/companies/:companyId/products rejects missing product names', async () => {
+  test('POST /api/companies/:companyId/products rejects missing product identifiers', async () => {
     const app = createTestApp(createStubProductsService());
 
     const response = await app.request('/api/companies/company-1/products', {
@@ -385,7 +415,7 @@ describe('product routes', () => {
       ok: false,
       error: {
         code: ERROR_CODES.VALIDATION_FAILED,
-        message: 'at least one of nameEn or nameAr is required',
+        message: 'at least one of productNo, nameEn or nameAr is required',
       },
     });
   });

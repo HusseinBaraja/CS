@@ -54,8 +54,9 @@ const assignOptionalNullableNumber = (
   }
 };
 
-const hasAtLeastOneName = (value: Pick<CreateProductInput, 'nameAr' | 'nameEn'>): boolean =>
-  Boolean(value.nameAr || value.nameEn);
+const hasAtLeastOneIdentifier = (
+  value: Pick<CreateProductInput, 'productNo' | 'nameAr' | 'nameEn'>,
+): boolean => Boolean(value.productNo || value.nameAr || value.nameEn);
 
 export const parseListProductsQuery = (
   categoryId: string | undefined,
@@ -150,10 +151,10 @@ export const parseCreateProductBody = (value: unknown): ParseResult<CreateProduc
   assignOptionalString(parsedProduct, 'currency', currency.value);
   assignOptionalString(parsedProduct, 'primaryImage', primaryImage.value);
 
-  if (!hasAtLeastOneName(parsedProduct)) {
+  if (!hasAtLeastOneIdentifier(parsedProduct)) {
     return {
       ok: false,
-      message: 'at least one of nameEn or nameAr is required',
+      message: 'at least one of productNo, nameEn or nameAr is required',
     };
   }
 

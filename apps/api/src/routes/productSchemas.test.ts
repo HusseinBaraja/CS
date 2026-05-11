@@ -30,13 +30,26 @@ describe('product schema parsers', () => {
     });
   });
 
-  test('parseCreateProductBody requires one product name', () => {
+  test('parseCreateProductBody accepts productNo-only creates', () => {
+    expect(parseCreateProductBody({
+      categoryId: 'category-1',
+      productNo: ' SKU-1 ',
+    })).toEqual({
+      ok: true,
+      value: {
+        categoryId: 'category-1',
+        productNo: 'SKU-1',
+      },
+    });
+  });
+
+  test('parseCreateProductBody requires one product identifier', () => {
     expect(parseCreateProductBody({
       categoryId: 'category-1',
       descriptionEn: 'Box',
     })).toEqual({
       ok: false,
-      message: 'at least one of nameEn or nameAr is required',
+      message: 'at least one of productNo, nameEn or nameAr is required',
     });
   });
 
