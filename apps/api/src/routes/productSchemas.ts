@@ -14,44 +14,21 @@ import {
   type ParseResult,
 } from './parserUtils';
 
-const assignOptionalString = (
-  target: object,
-  key: string,
-  value: string | null | undefined,
+const assignOptional = <T, K extends keyof T>(
+  target: T,
+  key: K,
+  value: T[K] | null | undefined,
+  { allowNull }: { allowNull?: boolean } = {},
 ): void => {
-  if (value !== undefined && value !== null) {
-    (target as Record<string, unknown>)[key] = value;
+  if (value === undefined) {
+    return;
   }
-};
 
-const assignOptionalNullableString = (
-  target: object,
-  key: string,
-  value: string | null | undefined,
-): void => {
-  if (value !== undefined) {
-    (target as Record<string, unknown>)[key] = value;
+  if (value === null && !allowNull) {
+    return;
   }
-};
 
-const assignOptionalNumber = (
-  target: object,
-  key: string,
-  value: number | null | undefined,
-): void => {
-  if (value !== undefined && value !== null) {
-    (target as Record<string, unknown>)[key] = value;
-  }
-};
-
-const assignOptionalNullableNumber = (
-  target: object,
-  key: string,
-  value: number | null | undefined,
-): void => {
-  if (value !== undefined) {
-    (target as Record<string, unknown>)[key] = value;
-  }
+  target[key] = value as T[K];
 };
 
 const hasAtLeastOneIdentifier = (
@@ -142,14 +119,14 @@ export const parseCreateProductBody = (value: unknown): ParseResult<CreateProduc
   const parsedProduct: CreateProductInput = {
     categoryId: categoryId.value,
   };
-  assignOptionalString(parsedProduct, 'productNo', productNo.value);
-  assignOptionalString(parsedProduct, 'nameEn', nameEn.value);
-  assignOptionalString(parsedProduct, 'nameAr', nameAr.value);
-  assignOptionalString(parsedProduct, 'descriptionEn', descriptionEn.value);
-  assignOptionalString(parsedProduct, 'descriptionAr', descriptionAr.value);
-  assignOptionalNumber(parsedProduct, 'price', price.value);
-  assignOptionalString(parsedProduct, 'currency', currency.value);
-  assignOptionalString(parsedProduct, 'primaryImage', primaryImage.value);
+  assignOptional(parsedProduct, 'productNo', productNo.value);
+  assignOptional(parsedProduct, 'nameEn', nameEn.value);
+  assignOptional(parsedProduct, 'nameAr', nameAr.value);
+  assignOptional(parsedProduct, 'descriptionEn', descriptionEn.value);
+  assignOptional(parsedProduct, 'descriptionAr', descriptionAr.value);
+  assignOptional(parsedProduct, 'price', price.value);
+  assignOptional(parsedProduct, 'currency', currency.value);
+  assignOptional(parsedProduct, 'primaryImage', primaryImage.value);
 
   if (!hasAtLeastOneIdentifier(parsedProduct)) {
     return {
@@ -187,7 +164,7 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
       return productNo;
     }
 
-    assignOptionalNullableString(updates, 'productNo', productNo.value);
+    assignOptional(updates, 'productNo', productNo.value, { allowNull: true });
   }
 
   if ('nameEn' in parsedObject.value) {
@@ -196,7 +173,7 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
       return nameEn;
     }
 
-    assignOptionalNullableString(updates, 'nameEn', nameEn.value);
+    assignOptional(updates, 'nameEn', nameEn.value, { allowNull: true });
   }
 
   if ('nameAr' in parsedObject.value) {
@@ -205,7 +182,7 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
       return nameAr;
     }
 
-    assignOptionalNullableString(updates, 'nameAr', nameAr.value);
+    assignOptional(updates, 'nameAr', nameAr.value, { allowNull: true });
   }
 
   if ('descriptionEn' in parsedObject.value) {
@@ -216,7 +193,7 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
       return descriptionEn;
     }
 
-    assignOptionalNullableString(updates, 'descriptionEn', descriptionEn.value);
+    assignOptional(updates, 'descriptionEn', descriptionEn.value, { allowNull: true });
   }
 
   if ('descriptionAr' in parsedObject.value) {
@@ -227,7 +204,7 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
       return descriptionAr;
     }
 
-    assignOptionalNullableString(updates, 'descriptionAr', descriptionAr.value);
+    assignOptional(updates, 'descriptionAr', descriptionAr.value, { allowNull: true });
   }
 
   if ('price' in parsedObject.value) {
@@ -236,7 +213,7 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
       return price;
     }
 
-    assignOptionalNullableNumber(updates, 'price', price.value);
+    assignOptional(updates, 'price', price.value, { allowNull: true });
   }
 
   if ('currency' in parsedObject.value) {
@@ -247,7 +224,7 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
       return currency;
     }
 
-    assignOptionalNullableString(updates, 'currency', currency.value);
+    assignOptional(updates, 'currency', currency.value, { allowNull: true });
   }
 
   if ('primaryImage' in parsedObject.value) {
@@ -258,7 +235,7 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
       return primaryImage;
     }
 
-    assignOptionalNullableString(updates, 'primaryImage', primaryImage.value);
+    assignOptional(updates, 'primaryImage', primaryImage.value, { allowNull: true });
   }
 
   if (Object.keys(updates).length === 0) {
