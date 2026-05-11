@@ -10,7 +10,9 @@ export type {
   ProductWriteState,
 };
 
-export type ProductCreateState = ProductWriteState;
+export type ProductCreateState = ProductWriteState & {
+  primaryImage?: string;
+};
 
 export type ProductVariantDto = {
   id: string;

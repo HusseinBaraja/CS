@@ -113,6 +113,7 @@ export const normalizeCreateState = (args: {
   const descriptionAr = normalizeOptionalString(args.descriptionAr);
   const price = normalizeOptionalNumber(args.price, 'price');
   const currency = normalizeOptionalString(args.currency);
+  const primaryImage = normalizeOptionalString(args.primaryImage);
 
   assertAtLeastOneName(nameEn, nameAr);
   assertCurrencyIfPriced(price, currency);
@@ -127,6 +128,7 @@ export const normalizeCreateState = (args: {
     ...(descriptionAr ? { descriptionAr } : {}),
     ...(price !== undefined ? { price } : {}),
     ...(currency ? { currency } : {}),
+    ...(primaryImage ? { primaryImage } : {}),
   };
 };
 

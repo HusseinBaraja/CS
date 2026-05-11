@@ -32,6 +32,7 @@ describe('products normalization helpers', () => {
       nameEn: 'Burger Box',
       descriptionEn: 'Disposable',
       currency: 'USD',
+      primaryImage: 'raw-object-key.jpg',
     });
   });
 

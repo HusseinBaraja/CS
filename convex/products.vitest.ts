@@ -292,6 +292,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       categoryId,
       nameEn: "Burger Box",
       descriptionEn: "Disposable meal box",
+      primaryImage: " companies/company-1/products/product-1/image-1.jpg ",
     });
     const storedProduct = await t.run(async (ctx) =>
       ctx.db
@@ -307,6 +308,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     );
 
     expect(product.variants).toEqual([]);
+    expect(product.primaryImage).toBe("companies/company-1/products/product-1/image-1.jpg");
+    expect(storedProduct[0]?.primaryImage).toBe("companies/company-1/products/product-1/image-1.jpg");
     expect(embeddings).toHaveLength(2);
     expect(embeddings.map((embedding) => embedding.language).sort()).toEqual(["ar", "en"]);
     expect(embeddings.every((embedding) => embedding.embedding.length === 768)).toBe(true);
