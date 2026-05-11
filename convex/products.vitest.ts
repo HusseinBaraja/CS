@@ -712,6 +712,52 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(storedProduct?.productNo).toBe("fresh");
   });
 
+  it("patches and clears a product primary image", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000623",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+        version: 1,
+      });
+
+      return {
+        companyId,
+        productId,
+      };
+    });
+
+    const updated = await t.mutation(internal.products.patchProductWithEmbeddings, {
+      companyId,
+      productId,
+      expectedRevision: 1,
+      primaryImage: " companies/company-1/products/product-1/image-1.jpg ",
+    });
+
+    expect(updated?.primaryImage).toBe("companies/company-1/products/product-1/image-1.jpg");
+
+    const cleared = await t.mutation(internal.products.patchProductWithEmbeddings, {
+      companyId,
+      productId,
+      expectedRevision: 2,
+      primaryImage: null,
+    });
+
+    expect(cleared?.primaryImage).toBeUndefined();
+    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
+    expect(storedProduct?.primaryImage).toBeUndefined();
+  });
+
   it("creates a variant and replaces embeddings with variant content", async () => {
     installGeminiStub();
     const t = convexTest(schema, modules);

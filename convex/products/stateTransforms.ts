@@ -207,5 +207,9 @@ export const createProductPatch = (args: ProductUpdateArgs): ProductPatch => {
     patch.currency = normalizeOptionalString(args.currency);
   }
 
+  if (args.primaryImage !== undefined) {
+    patch.primaryImage = normalizeOptionalString(args.primaryImage);
+  }
+
   return patch;
 };

@@ -42,11 +42,13 @@ describe('products normalization helpers', () => {
       productId: PRODUCT_ID,
       nameAr: null,
       price: null,
+      primaryImage: null,
     });
 
     expect(patch).toEqual({
       nameAr: undefined,
       price: undefined,
+      primaryImage: undefined,
     });
   });
 

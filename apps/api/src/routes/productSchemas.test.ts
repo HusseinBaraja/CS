@@ -69,15 +69,26 @@ describe('product schema parsers', () => {
         descriptionAr: null,
         price: null,
         currency: 'SAR',
+        primaryImage: null,
       },
     });
   });
 
-  test('parseUpdateProductBody rejects payloads with only removed or media fields', () => {
+  test('parseUpdateProductBody accepts primary image updates', () => {
+    expect(parseUpdateProductBody({
+      primaryImage: ' products/image.jpg ',
+    })).toEqual({
+      ok: true,
+      value: {
+        primaryImage: 'products/image.jpg',
+      },
+    });
+  });
+
+  test('parseUpdateProductBody rejects payloads with only removed fields', () => {
     expect(parseUpdateProductBody({
       specifications: { material: 'paper' },
       basePrice: 12,
-      primaryImage: null,
     })).toEqual({
       ok: false,
       message: 'Request body must include at least one recognized updatable field',
