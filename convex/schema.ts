@@ -285,6 +285,10 @@ export default defineSchema({
     .index("by_role_delivery_state_time", ["role", "deliveryState", "timestamp"])
     .index("by_role_delivery_ack_time", ["role", "deliveryState", "providerAcknowledgedAt"]),
 
+  // Dead-letter rows keep original IDs as strings because the source records may
+  // already be gone. Do not switch these fields to v.id(...): Convex ID
+  // validation would break re-ingestion and lookup flows, and callers must avoid
+  // treating these string IDs as safe cross-tenant join keys.
   deletedMessages: defineTable({
     originalMessageId: v.string(),
     originalMessageCreationTime: v.optional(v.number()),
