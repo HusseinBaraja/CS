@@ -20,7 +20,7 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex companySettings'
     const settings = await t.query(internal.companySettings.get, { companyId });
 
     expect(settings).toEqual({
-      id: '',
+      id: null,
       companyId,
       missingPricePolicy: 'reply_unavailable',
     });

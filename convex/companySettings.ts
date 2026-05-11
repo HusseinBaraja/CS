@@ -10,7 +10,7 @@ const missingPricePolicyValidator = v.union(
 );
 
 export type CompanySettingsDto = {
-  id: string;
+  id: Id<'companySettings'> | null;
   companyId: string;
   missingPricePolicy: MissingPricePolicy;
 };
@@ -111,7 +111,7 @@ export const getSettingsForCompany = async (
 
   if (!settings) {
     return {
-      id: '',
+      id: null,
       companyId,
       missingPricePolicy: DEFAULT_MISSING_PRICE_POLICY,
     };
