@@ -60,6 +60,11 @@ export const run = internalMutation({
         result.nextCursor = batch.nextCursor;
         return result;
       }
+      if (remaining === 0 && index + 1 < CLEANUP_TABLES.length) {
+        result.nextTable = CLEANUP_TABLES[index + 1];
+        result.nextCursor = null;
+        return result;
+      }
     }
 
     return result;
