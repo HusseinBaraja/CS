@@ -97,6 +97,63 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     ).rejects.toThrow("Conversation not found for company");
   });
 
+  it("rejects message creation when company does not own the referenced conversation", async () => {
+    const t = convexTest(schema, modules);
+    const companyA = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const companyB = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant B",
+        ownerPhone: "966500000001",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId: companyA,
+        phoneNumber: "967700000001",
+        muted: true,
+      })
+    );
+
+    await expect(
+      t.mutation(internal.conversations.appendMutedCustomerMessage, {
+        companyId: companyB,
+        conversationId,
+        content: "hello",
+        timestamp: 1_000,
+      }),
+    ).rejects.toThrow("Conversation not found for company");
+    await expect(
+      t.mutation(internal.conversations.appendInboundCustomerMessageToConversation, {
+        companyId: companyB,
+        conversationId,
+        content: "hello",
+        timestamp: 1_000,
+      }),
+    ).rejects.toThrow("Conversation not found for company");
+    await expect(
+      t.mutation(internal.conversations.appendPendingAssistantMessage, {
+        companyId: companyB,
+        conversationId,
+        content: "hello",
+        timestamp: 1_000,
+      }),
+    ).rejects.toThrow("Conversation not found for company");
+    await expect(
+      t.mutation(internal.conversations.appendAssistantMessageAndStartHandoff, {
+        companyId: companyB,
+        conversationId,
+        content: "hello",
+        timestamp: 1_000,
+        source: "assistant_action",
+      }),
+    ).rejects.toThrow("Conversation not found for company");
+  });
+
   it("rejects empty message content", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
