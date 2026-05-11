@@ -3,17 +3,10 @@ import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import { internal } from '../../_generated/api';
 import { buildProductEmbeddingPayload } from '../../productEmbeddingRuntime';
-import { NOT_FOUND_PREFIX, createTaggedError } from '../errors';
+import { createTaggedError, NOT_FOUND_PREFIX } from '../errors';
 import { sortVariants, toVariantWriteState } from '../mapping';
-import {
-  mergeVariantUpdateState,
-  normalizeOptionalNumber,
-  normalizeVariantCreateState,
-} from '../normalization';
-import type {
-  DeleteProductVariantResult,
-  ProductVariantDto,
-} from '../types';
+import { mergeVariantUpdateState, normalizeOptionalNumber, normalizeVariantCreateState } from '../normalization';
+import type { DeleteProductVariantResult, ProductVariantDto } from '../types';
 
 const hasText = (value: string | null | undefined): boolean =>
   value !== undefined && value !== null && value.trim().length > 0;
@@ -188,7 +181,7 @@ export const removeVariantDefinition = {
     const embeddings = hasSearchableTextAfterVariantDelete(snapshot, remainingVariants)
       ? await buildProductEmbeddingPayload(
         snapshot,
-        remainingVariants.map(toVariantWriteState),
+        sortVariants(remainingVariants.map(toVariantWriteState)),
       )
       : { clearEmbeddings: true };
 
