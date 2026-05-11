@@ -38,7 +38,6 @@ Reda (رضا) is a multi-tenant WhatsApp customer service platform for small and
 - General code tasks: targeted tests, `bun lint`, and `bun check` must pass before completion.
 - Convex schema changes: run `bun generate`, `bun test:convex`, `bun lint`, and `bun check`.
 - Root script or policy changes: run the relevant focused test plus `bun run check:root`.
-- Modularity-sensitive changes: run `bun run check:modularity`.
 - If a required check fails, fix it or report the exact failure and why it remains.
 
 ## Testing Discipline
@@ -90,16 +89,7 @@ Reda (رضا) is a multi-tenant WhatsApp customer service platform for small and
 
 ## Modularity Guardrails
 
-- For core logic `.ts` files, do not add a new responsibility to an existing file when it should be a sibling module.
-- No new core logic `.ts` file may exceed `240` lines.
-- If a core logic file already exceeds `240` LOC, it must not grow, rather it must be handled right then and go through a splitting process.
-- Files classified as `must_split` in `modularity-policy.json` are debt containers: patches are allowed, but adding unrelated responsibilities is not.
-- Before editing a core logic file over `240` LOC, check `modularity-policy.json`.
-- Prefer extracting helper modules before adding new branches to orchestration-heavy files.
-- Any `modularity-policy.json` exception change requires:
-  1. updated rationale in the policy entry,
-  2. updated checker behavior/tests when applicable,
-  3. explicit acknowledgment in the change description that the exception is intentional.
+- Keep code modular and do not let core logic `.ts` files exceed `240` LOC; extract sibling modules before files grow too large.
 
 ## Final Response Requirements
 
