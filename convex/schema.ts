@@ -60,7 +60,7 @@ const botRuntimeSessionStateValidator = v.union(
   v.literal(failedState),
 );
 
-const missingPricePolicyValidator = v.union(
+export const missingPricePolicyValidator = v.union(
   v.literal("reply_unavailable"),
   v.literal("handoff"),
 );
