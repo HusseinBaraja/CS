@@ -2,6 +2,7 @@ import type { CleanupCounters, DocCursor } from './catalogRestructureCleanupShar
 import {
   companyExists,
   firstImageKey,
+  hasPatchChanges,
   numberOrUndefined,
   processDocs,
   stringOrUndefined,
@@ -22,7 +23,7 @@ export const processProducts = (
     }
     const price = numberOrUndefined(product.price) ?? numberOrUndefined(product.basePrice);
     const currency = stringOrUndefined(product.currency) ?? stringOrUndefined(product.baseCurrency);
-    await db.patch(product._id, {
+    const minimalPatch = {
       price: currency ? price : undefined,
       currency,
       primaryImage: stringOrUndefined(product.primaryImage) ?? firstImageKey(product.images),
@@ -31,6 +32,9 @@ export const processProducts = (
       baseCurrency: undefined,
       specifications: undefined,
       images: undefined,
-    });
-    counters.productsUpdated += 1;
+    };
+    if (hasPatchChanges(product, minimalPatch)) {
+      await db.patch(product._id, minimalPatch);
+      counters.productsUpdated += 1;
+    }
   });

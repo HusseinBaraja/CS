@@ -45,6 +45,14 @@ export const firstImageKey = (value: unknown): string | undefined => {
   return undefined;
 };
 
+export const hasPatchChanges = (doc: LooseDoc, patch: Record<string, unknown>): boolean =>
+  Object.entries(patch).some(([key, value]) => {
+    if (value === undefined) {
+      return key in doc;
+    }
+    return !Object.is(doc[key], value);
+  });
+
 const getDocs = async (
   db: any,
   table: string,

@@ -3,6 +3,7 @@ import {
   type CleanupCounters,
   type DocCursor,
   companyExists,
+  hasPatchChanges,
   numberOrUndefined,
   processDocs,
   stringOrUndefined,
@@ -97,7 +98,7 @@ export const processCleanupTable = async (
         counters.variantsDeleted += 1;
         return;
       }
-      await db.patch(variant._id, {
+      const minimalPatch = {
         companyId: product.companyId,
         label,
         price: product.currency
@@ -106,8 +107,11 @@ export const processCleanupTable = async (
         variantLabel: undefined,
         attributes: undefined,
         priceOverride: undefined,
-      });
-      counters.variantsUpdated += 1;
+      };
+      if (hasPatchChanges(variant, minimalPatch)) {
+        await db.patch(variant._id, minimalPatch);
+        counters.variantsUpdated += 1;
+      }
     });
   }
   if (table === 'messages') {
