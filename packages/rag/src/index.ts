@@ -42,6 +42,11 @@ import {
   type CatalogLanguageHintsService,
   createCatalogLanguageHintsService,
 } from './catalogLanguageHints';
+import {
+  createCompanySettingsService,
+  type CompanySettingsService,
+  type MissingPricePolicy,
+} from './companySettings';
 import { summarizePromptRetrievalProvenance } from './retrievalProvenance';
 import {
   buildRetrievalLogContext,
@@ -56,6 +61,7 @@ import {
   withCatalogChatAiTraces,
   type CatalogChatAiTrace,
 } from "./catalogChatAiTrace";
+import { hasPriceIntent, retrievalHasAnyPrice } from "./priceFallback";
 export {
   buildRetrievalQueryText,
   createProductRetrievalService,
@@ -106,6 +112,9 @@ export {
   createCatalogLanguageHintsService,
 } from './catalogLanguageHints';
 export {
+  createCompanySettingsService,
+} from './companySettings';
+export {
   summarizePromptRetrievalProvenance,
 } from './retrievalProvenance';
 export type {
@@ -117,6 +126,10 @@ export type {
 export type {
   CatalogLanguageHintsService,
 } from './catalogLanguageHints';
+export type {
+  CompanySettingsService,
+  MissingPricePolicy,
+} from './companySettings';
 
 const DEFAULT_MAX_CONTEXT_BLOCKS = 3;
 
@@ -165,6 +178,7 @@ export type CatalogChatOutcome =
   | "empty_query_fallback"
   | "no_hits_fallback"
   | "low_signal_fallback"
+  | "missing_price_fallback"
   | "provider_failure_fallback"
   | "invalid_model_output_fallback";
 
@@ -189,6 +203,7 @@ export interface CreateCatalogChatOrchestratorOptions {
   retrievalService?: ProductRetrievalService;
   rewriteService?: RetrievalRewriteService;
   catalogLanguageHintsService?: CatalogLanguageHintsService;
+  companySettingsService?: CompanySettingsService;
   chatManager?: ChatProviderManager;
   detectLanguage?: typeof detectChatLanguage;
   buildPrompt?: typeof buildGroundedChatPrompt;
@@ -217,7 +232,7 @@ const pickProviderMetadata = (
 
 const buildAssistantFallback = (
   responseLanguage: ChatLanguage,
-  type: "empty_query" | "no_hits" | "low_signal" | "handoff",
+  type: "empty_query" | "no_hits" | "low_signal" | "missing_price_unavailable" | "handoff",
 ): AssistantStructuredOutput => {
   switch (type) {
     case "empty_query":
@@ -254,6 +269,18 @@ const buildAssistantFallback = (
         : {
           schemaVersion: "v1",
           text: "I couldn't confidently match your request to the current catalog.",
+          action: { type: "none" },
+        };
+    case "missing_price_unavailable":
+      return responseLanguage === "ar"
+        ? {
+          schemaVersion: "v1",
+          text: "السعر غير متوفر في الكتالوج الحالي.",
+          action: { type: "none" },
+        }
+        : {
+          schemaVersion: "v1",
+          text: "The price is not available in the current catalog.",
           action: { type: "none" },
         };
     case "handoff":
@@ -311,6 +338,7 @@ export const createCatalogChatOrchestrator = (
   const chatManager = options.chatManager ?? createChatProviderManager();
   const rewriteService = options.rewriteService ?? createRetrievalRewriteService();
   const catalogLanguageHintsService = options.catalogLanguageHintsService ?? createCatalogLanguageHintsService();
+  const companySettingsService = options.companySettingsService ?? createCompanySettingsService();
   const detectLanguage = options.detectLanguage ?? detectChatLanguage;
   const buildPrompt = options.buildPrompt ?? buildGroundedChatPrompt;
   const parseStructuredOutput = options.parseStructuredOutput ?? parseAssistantStructuredOutput;
@@ -531,6 +559,29 @@ export const createCatalogChatOrchestrator = (
         return {
           outcome: "low_signal_fallback",
           assistant: buildAssistantFallback(language.responseLanguage, "low_signal"),
+          language,
+          retrieval,
+          retrievalMode: queryPlan.mode,
+          ...withCatalogChatAiTraces(aiTraces),
+          rewrite,
+        };
+      }
+
+      if (hasPriceIntent(input.userMessage) && !retrievalHasAnyPrice(retrieval)) {
+        let missingPricePolicy: MissingPricePolicy = "reply_unavailable";
+        try {
+          missingPricePolicy = (await companySettingsService.getSettings(input.tenant.companyId)).missingPricePolicy;
+        } catch {
+          missingPricePolicy = "reply_unavailable";
+        }
+
+        logCatalogChatCompletion("missing_price_fallback");
+        return {
+          outcome: "missing_price_fallback",
+          assistant: buildAssistantFallback(
+            language.responseLanguage,
+            missingPricePolicy === "handoff" ? "handoff" : "missing_price_unavailable",
+          ),
           language,
           retrieval,
           retrievalMode: queryPlan.mode,

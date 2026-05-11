@@ -94,7 +94,7 @@ describe("bot package scripts", () => {
     expect(botScripts.dev).toBe("node --watch --env-file-if-exists=../../.env --import tsx src/main.ts");
     expect(botScripts.start).toBe("node --env-file-if-exists=../../.env --import tsx src/main.ts");
     expect(botScripts["dev:bun-experimental"]).toBe("bun --env-file=../../.env --watch src/main.ts");
-    expect(botScripts.build).toBe("bun --env-file=../../.env build src/main.ts --outdir dist");
+    expect(botScripts.build).toBe("bun --env-file=../../.env build src/main.ts --outdir dist --target node");
     expect(botScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
     expect(botScripts.check).toBe("bun run typecheck && bun run lint");
   });

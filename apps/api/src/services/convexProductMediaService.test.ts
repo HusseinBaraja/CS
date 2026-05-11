@@ -397,4 +397,41 @@ describe("createConvexProductMediaService", () => {
       createProductMediaStorageError("Product media storage is temporarily unavailable"),
     );
   });
+
+  test("passes image identifiers to the delete mutation", async () => {
+    let receivedReference: unknown;
+    let receivedArgs: unknown;
+    const service = createService({
+      query: async () => {
+        throw new Error("query should not be called");
+      },
+      mutation: async (reference, args) => {
+        receivedReference = reference;
+        receivedArgs = args;
+        return {
+          productId: "product-1",
+          imageId: "image-1",
+          objectKey: "companies/company-1/products/product-1/image-1.jpg",
+        };
+      },
+      action: async () => {
+        throw new Error("action should not be called");
+      },
+    });
+
+    await expect(service.deleteImage("company-1", "product-1", "image-1")).resolves.toEqual({
+      productId: "product-1",
+      imageId: "image-1",
+      objectKey: "companies/company-1/products/product-1/image-1.jpg",
+    });
+    expect(getFunctionName(receivedReference as never)).toBe(
+      getFunctionName(convexInternal.productMedia.deleteImage),
+    );
+    expect(receivedArgs).toEqual({
+      companyId: "company-1",
+      productId: "product-1",
+      imageId: "image-1",
+      deletedAt: Date.UTC(2026, 2, 12, 0, 0, 0),
+    });
+  });
 });

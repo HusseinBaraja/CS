@@ -5,28 +5,13 @@ import type {
   VectorSearchHit,
 } from "./catalogRetrievalTypes";
 
-const serializeValue = (value: unknown): string => {
-  if (value === null) {
-    return "null";
-  }
-
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map((entry) => serializeValue(entry)).join(", ")}]`;
-  }
-
-  if (typeof value === "object" && value !== null) {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-      .map(([key, entryValue]) => `${key}: ${serializeValue(entryValue)}`);
-    return `{ ${entries.join(", ")} }`;
-  }
-
-  return String(value);
-};
+const getPreferredName = (
+  product: Pick<RetrievedProductContext, "nameEn" | "nameAr">,
+  language: ChatLanguage,
+): string =>
+  language === "ar"
+    ? product.nameAr ?? product.nameEn ?? ""
+    : product.nameEn ?? product.nameAr ?? "";
 
 const getPreferredDescription = (
   product: Pick<RetrievedProductContext, "descriptionEn" | "descriptionAr">,
@@ -36,25 +21,34 @@ const getPreferredDescription = (
     ? product.descriptionAr ?? product.descriptionEn
     : product.descriptionEn ?? product.descriptionAr;
 
+const getPrimaryImageLine = (primaryImage: string | undefined): string | undefined => {
+  if (!primaryImage) {
+    return undefined;
+  }
+
+  return primaryImage.startsWith("http://") || primaryImage.startsWith("https://")
+    ? `Primary image URL: ${primaryImage}`
+    : `Primary image key: ${primaryImage}`;
+};
+
 export const toRetrievedProductContext = (
   product: HydratedProductRecord,
 ): RetrievedProductContext => ({
   id: product.id,
   categoryId: product.categoryId,
-  nameEn: product.nameEn,
+  ...(product.productNo ? { productNo: product.productNo } : {}),
+  ...(product.nameEn ? { nameEn: product.nameEn } : {}),
   ...(product.nameAr ? { nameAr: product.nameAr } : {}),
   ...(product.descriptionEn ? { descriptionEn: product.descriptionEn } : {}),
   ...(product.descriptionAr ? { descriptionAr: product.descriptionAr } : {}),
-  ...(product.specifications ? { specifications: product.specifications } : {}),
-  ...(product.basePrice !== undefined ? { basePrice: product.basePrice } : {}),
-  ...(product.baseCurrency ? { baseCurrency: product.baseCurrency } : {}),
-  imageCount: product.images.length,
+  ...(product.price !== undefined ? { price: product.price } : {}),
+  ...(product.currency ? { currency: product.currency } : {}),
+  ...(product.primaryImage ? { primaryImage: product.primaryImage } : {}),
   variants: [...product.variants]
-    .sort((left, right) => left.variantLabel.localeCompare(right.variantLabel) || left.id.localeCompare(right.id))
+    .sort((left, right) => left.label.localeCompare(right.label) || left.id.localeCompare(right.id))
     .map((variant) => ({
-      variantLabel: variant.variantLabel,
-      attributes: variant.attributes,
-      ...(variant.priceOverride !== undefined ? { priceOverride: variant.priceOverride } : {}),
+      label: variant.label,
+      ...(variant.price !== undefined ? { price: variant.price } : {}),
     })),
 });
 
@@ -62,7 +56,15 @@ const buildContextBlockBody = (
   product: RetrievedProductContext,
   language: ChatLanguage,
 ): string => {
-  const lines: string[] = [`Name (EN): ${product.nameEn}`];
+  const lines: string[] = [];
+
+  if (product.productNo) {
+    lines.push(`Product number: ${product.productNo}`);
+  }
+
+  if (product.nameEn) {
+    lines.push(`Name (EN): ${product.nameEn}`);
+  }
 
   if (product.nameAr) {
     lines.push(`Name (AR): ${product.nameAr}`);
@@ -73,19 +75,8 @@ const buildContextBlockBody = (
     lines.push(`Description: ${description}`);
   }
 
-  if (product.basePrice !== undefined) {
-    lines.push(
-      `Base price: ${product.basePrice}${product.baseCurrency ? ` ${product.baseCurrency}` : ""}`,
-    );
-  }
-
-  if (product.specifications && Object.keys(product.specifications).length > 0) {
-    lines.push("Specifications:");
-    for (const [key, value] of Object.entries(product.specifications).sort(([leftKey], [rightKey]) =>
-      leftKey.localeCompare(rightKey)
-    )) {
-      lines.push(`- ${key}: ${String(value)}`);
-    }
+  if (product.price !== undefined) {
+    lines.push(`Price: ${product.price}${product.currency ? ` ${product.currency}` : ""}`);
   }
 
   if (product.variants.length > 0) {
@@ -93,9 +84,8 @@ const buildContextBlockBody = (
     for (const variant of product.variants) {
       lines.push(
         [
-          `- ${variant.variantLabel}`,
-          `attributes: ${serializeValue(variant.attributes)}`,
-          variant.priceOverride !== undefined ? `priceOverride: ${variant.priceOverride}` : undefined,
+          `- ${variant.label}`,
+          variant.price !== undefined ? `price: ${variant.price}` : undefined,
         ]
           .filter((entry): entry is string => Boolean(entry))
           .join(" | "),
@@ -103,7 +93,11 @@ const buildContextBlockBody = (
     }
   }
 
-  lines.push(`Images available: ${product.imageCount}`);
+  const primaryImageLine = getPrimaryImageLine(product.primaryImage);
+  if (primaryImageLine) {
+    lines.push(primaryImageLine);
+  }
+
   return lines.join("\n");
 };
 
@@ -112,7 +106,7 @@ export const buildContextBlock = (
   language: ChatLanguage,
 ): GroundingContextBlock => ({
   id: product.id,
-  heading: language === "ar" && product.nameAr ? product.nameAr : product.nameEn,
+  heading: getPreferredName(product, language) || product.productNo || product.id,
   body: buildContextBlockBody(product, language),
 });
 

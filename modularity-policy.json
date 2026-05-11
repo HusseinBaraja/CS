@@ -123,8 +123,8 @@
     {
       "path": "convex/companyCleanup.ts",
       "classification": "cohesive_exception",
-      "maxLines": 483,
-      "reason": "Single cursor-driven tenant cleanup flow."
+      "maxLines": 505,
+      "reason": "Single cursor-driven tenant cleanup flow; current exception retained while catalog cleanup moves to a separate migration module."
     },
     {
       "path": "convex/analytics.ts",
@@ -203,12 +203,6 @@
       "classification": "cohesive_exception",
       "maxLines": 268,
       "reason": "Single offers domain module for listing and mutation operations."
-    },
-    {
-      "path": "convex/productEmbeddingRuntime.ts",
-      "classification": "cohesive_exception",
-      "maxLines": 250,
-      "reason": "Single product embedding runtime orchestration module."
     },
     {
       "path": "packages/shared/src/accessControl.ts",

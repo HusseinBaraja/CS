@@ -1,51 +1,25 @@
 import { ERROR_CODES, type ErrorCode } from '@cs/shared';
 
-export type ProductSpecifications = Record<string, string | number | boolean>;
-
-export type ProductVariantAttributeValue =
-  | string
-  | number
-  | boolean
-  | null
-  | ProductVariantAttributeValue[]
-  | ProductVariantAttributes;
-
-export interface ProductVariantAttributes {
-  [key: string]: ProductVariantAttributeValue;
-}
-
 export interface ProductVariantDto {
   id: string;
+  companyId: string;
   productId: string;
-  variantLabel: string;
-  attributes: ProductVariantAttributes;
-  priceOverride?: number;
-}
-
-export interface ProductImageDto {
-  id: string;
-  key: string;
-  contentType: string;
-  sizeBytes: number;
-  etag?: string;
-  alt?: string;
-  uploadedAt: number;
-  downloadUrl?: string;
-  downloadUrlExpiresAt?: string;
+  label: string;
+  price?: number;
 }
 
 export interface ProductListItemDto {
   id: string;
   companyId: string;
   categoryId: string;
-  nameEn: string;
+  productNo?: string;
+  nameEn?: string;
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  specifications?: ProductSpecifications;
-  basePrice?: number;
-  baseCurrency?: string;
-  images: ProductImageDto[];
+  price?: number;
+  currency?: string;
+  primaryImage?: string;
 }
 
 export interface ProductDetailDto extends ProductListItemDto {
@@ -59,24 +33,26 @@ export interface ListProductsFilters {
 
 export interface CreateProductInput {
   categoryId: string;
-  nameEn: string;
+  productNo?: string;
+  nameEn?: string;
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  specifications?: ProductSpecifications;
-  basePrice?: number;
-  baseCurrency?: string;
+  price?: number;
+  currency?: string;
+  primaryImage?: string;
 }
 
 export interface UpdateProductInput {
   categoryId?: string;
-  nameEn?: string;
+  productNo?: string | null;
+  nameEn?: string | null;
   nameAr?: string | null;
   descriptionEn?: string | null;
   descriptionAr?: string | null;
-  specifications?: ProductSpecifications | null;
-  basePrice?: number | null;
-  baseCurrency?: string | null;
+  price?: number | null;
+  currency?: string | null;
+  primaryImage?: string | null;
 }
 
 export interface DeleteProductResult {
@@ -84,15 +60,13 @@ export interface DeleteProductResult {
 }
 
 export interface CreateProductVariantInput {
-  variantLabel: string;
-  attributes: ProductVariantAttributes;
-  priceOverride?: number;
+  label: string;
+  price?: number;
 }
 
 export interface UpdateProductVariantInput {
-  variantLabel?: string;
-  attributes?: ProductVariantAttributes;
-  priceOverride?: number | null;
+  label?: string;
+  price?: number | null;
 }
 
 export interface DeleteProductVariantResult {

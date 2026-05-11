@@ -95,27 +95,34 @@ export const toConversationDto = (conversation: Doc<'conversations'>): Conversat
   ...(conversation.nextAutoResumeAt !== undefined ? { nextAutoResumeAt: conversation.nextAutoResumeAt } : {}),
 });
 
-export const toMessageDto = (message: Doc<'messages'>): ConversationMessageDto => ({
-  id: message._id,
-  conversationId: message.conversationId,
-  role: message.role,
-  content: message.content,
-  timestamp: message.timestamp,
-  ...(message.deliveryState !== undefined ? { deliveryState: message.deliveryState } : {}),
-  ...(message.handoffSource !== undefined ? { handoffSource: message.handoffSource } : {}),
-  ...(message.providerAcknowledgedAt !== undefined
-    ? { providerAcknowledgedAt: message.providerAcknowledgedAt }
-    : {}),
-  ...(message.sideEffectsState !== undefined ? { sideEffectsState: message.sideEffectsState } : {}),
-  ...(message.ownerNotificationState !== undefined
-    ? { ownerNotificationState: message.ownerNotificationState }
-    : {}),
-  ...(message.analyticsState !== undefined ? { analyticsState: message.analyticsState } : {}),
-  ...(message.transportMessageId !== undefined ? { transportMessageId: message.transportMessageId } : {}),
-  ...(message.referencedTransportMessageId !== undefined
-    ? { referencedTransportMessageId: message.referencedTransportMessageId }
-    : {}),
-});
+export const toMessageDto = (message: Doc<'messages'>): ConversationMessageDto => {
+  if (message.companyId === undefined) {
+    throw new Error('message companyId is required');
+  }
+
+  return {
+    id: message._id,
+    companyId: message.companyId,
+    conversationId: message.conversationId,
+    role: message.role,
+    content: message.content,
+    timestamp: message.timestamp,
+    ...(message.deliveryState !== undefined ? { deliveryState: message.deliveryState } : {}),
+    ...(message.handoffSource !== undefined ? { handoffSource: message.handoffSource } : {}),
+    ...(message.providerAcknowledgedAt !== undefined
+      ? { providerAcknowledgedAt: message.providerAcknowledgedAt }
+      : {}),
+    ...(message.sideEffectsState !== undefined ? { sideEffectsState: message.sideEffectsState } : {}),
+    ...(message.ownerNotificationState !== undefined
+      ? { ownerNotificationState: message.ownerNotificationState }
+      : {}),
+    ...(message.analyticsState !== undefined ? { analyticsState: message.analyticsState } : {}),
+    ...(message.transportMessageId !== undefined ? { transportMessageId: message.transportMessageId } : {}),
+    ...(message.referencedTransportMessageId !== undefined
+      ? { referencedTransportMessageId: message.referencedTransportMessageId }
+      : {}),
+  };
+};
 
 export const toPromptHistoryTurn = (message: ConversationMessageDto): PromptHistoryTurn => ({
   role: message.role,

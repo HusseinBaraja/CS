@@ -2,15 +2,11 @@ import type {
   CreateProductInput,
   CreateProductVariantInput,
   ListProductsFilters,
-  ProductSpecifications,
-  ProductVariantAttributes,
-  ProductVariantAttributeValue,
   UpdateProductInput,
   UpdateProductVariantInput,
 } from '../services/products';
 import type { CreateProductImageUploadInput } from '../services/productMedia';
 import {
-  isRecord,
   parseObject,
   parseOptionalNumber,
   parseOptionalString,
@@ -18,165 +14,26 @@ import {
   type ParseResult,
 } from './parserUtils';
 
-const parseSpecifications = (
-  value: unknown,
-  options: { allowNull?: boolean } = {},
-): ParseResult<ProductSpecifications | null | undefined> => {
+const assignOptional = <T, K extends keyof T>(
+  target: T,
+  key: K,
+  value: T[K] | null | undefined,
+  { allowNull }: { allowNull?: boolean } = {},
+): void => {
   if (value === undefined) {
-    return {
-      ok: true,
-      value: undefined,
-    };
+    return;
   }
 
-  if (value === null) {
-    if (options.allowNull) {
-      return {
-        ok: true,
-        value: null,
-      };
-    }
-
-    return {
-      ok: false,
-      message: "specifications must be an object",
-    };
+  if (value === null && !allowNull) {
+    return;
   }
 
-  if (!isRecord(value)) {
-    return {
-      ok: false,
-      message: "specifications must be an object",
-    };
-  }
-
-  const specifications: ProductSpecifications = {};
-  for (const [key, entryValue] of Object.entries(value)) {
-    const normalizedKey = key.trim();
-    if (normalizedKey.length === 0) {
-      return {
-        ok: false,
-        message: "specifications keys must be non-empty strings",
-      };
-    }
-
-    if (normalizedKey in specifications) {
-      return {
-        ok: false,
-        message: `specifications keys must be unique after trimming: ${normalizedKey}`,
-      };
-    }
-
-    if (
-      typeof entryValue !== "string" &&
-      typeof entryValue !== "number" &&
-      typeof entryValue !== "boolean"
-    ) {
-      return {
-        ok: false,
-        message: `specifications.${normalizedKey} must be a string, number, or boolean`,
-      };
-    }
-
-    specifications[normalizedKey] = entryValue;
-  }
-
-  return {
-    ok: true,
-    value: specifications,
-  };
+  target[key] = value as T[K];
 };
 
-const parseVariantAttributeValue = (
-  value: unknown,
-  path: string,
-): ParseResult<ProductVariantAttributeValue> => {
-  if (value === null) {
-    return {
-      ok: true,
-      value: null,
-    };
-  }
-
-  if (
-    typeof value === "string" ||
-    typeof value === "boolean" ||
-    (typeof value === "number" && Number.isFinite(value))
-  ) {
-    return {
-      ok: true,
-      value,
-    };
-  }
-
-  if (Array.isArray(value)) {
-    const entries: ProductVariantAttributeValue[] = [];
-    for (const [index, entryValue] of value.entries()) {
-      const parsedEntry = parseVariantAttributeValue(entryValue, `${path}[${index}]`);
-      if (!parsedEntry.ok) {
-        return parsedEntry;
-      }
-
-      entries.push(parsedEntry.value);
-    }
-
-    return {
-      ok: true,
-      value: entries,
-    };
-  }
-
-  if (isRecord(value)) {
-    return parseVariantAttributes(value, path);
-  }
-
-  return {
-    ok: false,
-    message: `${path} must be a string, number, boolean, null, object, or array`,
-  };
-};
-
-const parseVariantAttributes = (
-  value: unknown,
-  path = "attributes",
-): ParseResult<ProductVariantAttributes> => {
-  if (!isRecord(value)) {
-    return {
-      ok: false,
-      message: `${path} must be an object`,
-    };
-  }
-
-  const attributes: ProductVariantAttributes = {};
-  for (const [key, entryValue] of Object.entries(value)) {
-    const normalizedKey = key.trim();
-    if (normalizedKey.length === 0) {
-      return {
-        ok: false,
-        message: `${path} keys must be non-empty strings`,
-      };
-    }
-
-    if (normalizedKey in attributes) {
-      return {
-        ok: false,
-        message: `${path} keys must be unique after trimming: ${normalizedKey}`,
-      };
-    }
-
-    const parsedValue = parseVariantAttributeValue(entryValue, `${path}.${normalizedKey}`);
-    if (!parsedValue.ok) {
-      return parsedValue;
-    }
-
-    attributes[normalizedKey] = parsedValue.value;
-  }
-
-  return {
-    ok: true,
-    value: attributes,
-  };
-};
+const hasAtLeastOneIdentifier = (
+  value: Pick<CreateProductInput, 'productNo' | 'nameAr' | 'nameEn'>,
+): boolean => Boolean(value.productNo || value.nameAr || value.nameEn);
 
 export const parseListProductsQuery = (
   categoryId: string | undefined,
@@ -185,7 +42,7 @@ export const parseListProductsQuery = (
   const filters: ListProductsFilters = {};
 
   if (categoryId !== undefined) {
-    const parsedCategoryId = parseRequiredString(categoryId, "categoryId");
+    const parsedCategoryId = parseRequiredString(categoryId, 'categoryId');
     if (!parsedCategoryId.ok) {
       return parsedCategoryId;
     }
@@ -194,7 +51,7 @@ export const parseListProductsQuery = (
   }
 
   if (search !== undefined) {
-    const parsedSearch = parseRequiredString(search, "search");
+    const parsedSearch = parseRequiredString(search, 'search');
     if (!parsedSearch.ok) {
       return parsedSearch;
     }
@@ -214,68 +71,73 @@ export const parseCreateProductBody = (value: unknown): ParseResult<CreateProduc
     return parsedObject;
   }
 
-  const categoryId = parseRequiredString(parsedObject.value.categoryId, "categoryId");
+  const categoryId = parseRequiredString(parsedObject.value.categoryId, 'categoryId');
   if (!categoryId.ok) {
     return categoryId;
   }
 
-  const nameEn = parseRequiredString(parsedObject.value.nameEn, "nameEn");
+  const productNo = parseOptionalString(parsedObject.value.productNo, 'productNo');
+  if (!productNo.ok) {
+    return productNo;
+  }
+
+  const nameEn = parseOptionalString(parsedObject.value.nameEn, 'nameEn');
   if (!nameEn.ok) {
     return nameEn;
   }
 
-  const nameAr = parseOptionalString(parsedObject.value.nameAr, "nameAr");
+  const nameAr = parseOptionalString(parsedObject.value.nameAr, 'nameAr');
   if (!nameAr.ok) {
     return nameAr;
   }
 
-  const descriptionEn = parseOptionalString(parsedObject.value.descriptionEn, "descriptionEn");
+  const descriptionEn = parseOptionalString(parsedObject.value.descriptionEn, 'descriptionEn');
   if (!descriptionEn.ok) {
     return descriptionEn;
   }
 
-  const descriptionAr = parseOptionalString(parsedObject.value.descriptionAr, "descriptionAr");
+  const descriptionAr = parseOptionalString(parsedObject.value.descriptionAr, 'descriptionAr');
   if (!descriptionAr.ok) {
     return descriptionAr;
   }
 
-  const specifications = parseSpecifications(parsedObject.value.specifications);
-  if (!specifications.ok) {
-    return specifications;
+  const price = parseOptionalNumber(parsedObject.value.price, 'price');
+  if (!price.ok) {
+    return price;
   }
 
-  const basePrice = parseOptionalNumber(parsedObject.value.basePrice, "basePrice");
-  if (!basePrice.ok) {
-    return basePrice;
+  const currency = parseOptionalString(parsedObject.value.currency, 'currency');
+  if (!currency.ok) {
+    return currency;
   }
 
-  const baseCurrency = parseOptionalString(parsedObject.value.baseCurrency, "baseCurrency");
-  if (!baseCurrency.ok) {
-    return baseCurrency;
+  const primaryImage = parseOptionalString(parsedObject.value.primaryImage, 'primaryImage');
+  if (!primaryImage.ok) {
+    return primaryImage;
+  }
+
+  const parsedProduct: CreateProductInput = {
+    categoryId: categoryId.value,
+  };
+  assignOptional(parsedProduct, 'productNo', productNo.value);
+  assignOptional(parsedProduct, 'nameEn', nameEn.value);
+  assignOptional(parsedProduct, 'nameAr', nameAr.value);
+  assignOptional(parsedProduct, 'descriptionEn', descriptionEn.value);
+  assignOptional(parsedProduct, 'descriptionAr', descriptionAr.value);
+  assignOptional(parsedProduct, 'price', price.value);
+  assignOptional(parsedProduct, 'currency', currency.value);
+  assignOptional(parsedProduct, 'primaryImage', primaryImage.value);
+
+  if (!hasAtLeastOneIdentifier(parsedProduct)) {
+    return {
+      ok: false,
+      message: 'at least one of productNo, nameEn or nameAr is required',
+    };
   }
 
   return {
     ok: true,
-    value: {
-      categoryId: categoryId.value,
-      nameEn: nameEn.value,
-      ...(nameAr.value !== undefined && nameAr.value !== null ? { nameAr: nameAr.value } : {}),
-      ...(descriptionEn.value !== undefined && descriptionEn.value !== null
-        ? { descriptionEn: descriptionEn.value }
-        : {}),
-      ...(descriptionAr.value !== undefined && descriptionAr.value !== null
-        ? { descriptionAr: descriptionAr.value }
-        : {}),
-      ...(specifications.value !== undefined && specifications.value !== null
-        ? { specifications: specifications.value }
-        : {}),
-      ...(basePrice.value !== undefined && basePrice.value !== null
-        ? { basePrice: basePrice.value }
-        : {}),
-      ...(baseCurrency.value !== undefined && baseCurrency.value !== null
-        ? { baseCurrency: baseCurrency.value }
-        : {}),
-    },
+    value: parsedProduct,
   };
 };
 
@@ -287,8 +149,8 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
 
   const updates: UpdateProductInput = {};
 
-  if ("categoryId" in parsedObject.value) {
-    const categoryId = parseRequiredString(parsedObject.value.categoryId, "categoryId");
+  if ('categoryId' in parsedObject.value) {
+    const categoryId = parseRequiredString(parsedObject.value.categoryId, 'categoryId');
     if (!categoryId.ok) {
       return categoryId;
     }
@@ -296,82 +158,90 @@ export const parseUpdateProductBody = (value: unknown): ParseResult<UpdateProduc
     updates.categoryId = categoryId.value;
   }
 
-  if ("nameEn" in parsedObject.value) {
-    const nameEn = parseRequiredString(parsedObject.value.nameEn, "nameEn");
+  if ('productNo' in parsedObject.value) {
+    const productNo = parseOptionalString(parsedObject.value.productNo, 'productNo', { allowNull: true });
+    if (!productNo.ok) {
+      return productNo;
+    }
+
+    assignOptional(updates, 'productNo', productNo.value, { allowNull: true });
+  }
+
+  if ('nameEn' in parsedObject.value) {
+    const nameEn = parseOptionalString(parsedObject.value.nameEn, 'nameEn', { allowNull: true });
     if (!nameEn.ok) {
       return nameEn;
     }
 
-    updates.nameEn = nameEn.value;
+    assignOptional(updates, 'nameEn', nameEn.value, { allowNull: true });
   }
 
-  if ("nameAr" in parsedObject.value) {
-    const nameAr = parseOptionalString(parsedObject.value.nameAr, "nameAr", { allowNull: true });
+  if ('nameAr' in parsedObject.value) {
+    const nameAr = parseOptionalString(parsedObject.value.nameAr, 'nameAr', { allowNull: true });
     if (!nameAr.ok) {
       return nameAr;
     }
 
-    updates.nameAr = nameAr.value;
+    assignOptional(updates, 'nameAr', nameAr.value, { allowNull: true });
   }
 
-  if ("descriptionEn" in parsedObject.value) {
-    const descriptionEn = parseOptionalString(parsedObject.value.descriptionEn, "descriptionEn", {
+  if ('descriptionEn' in parsedObject.value) {
+    const descriptionEn = parseOptionalString(parsedObject.value.descriptionEn, 'descriptionEn', {
       allowNull: true,
     });
     if (!descriptionEn.ok) {
       return descriptionEn;
     }
 
-    updates.descriptionEn = descriptionEn.value;
+    assignOptional(updates, 'descriptionEn', descriptionEn.value, { allowNull: true });
   }
 
-  if ("descriptionAr" in parsedObject.value) {
-    const descriptionAr = parseOptionalString(parsedObject.value.descriptionAr, "descriptionAr", {
+  if ('descriptionAr' in parsedObject.value) {
+    const descriptionAr = parseOptionalString(parsedObject.value.descriptionAr, 'descriptionAr', {
       allowNull: true,
     });
     if (!descriptionAr.ok) {
       return descriptionAr;
     }
 
-    updates.descriptionAr = descriptionAr.value;
+    assignOptional(updates, 'descriptionAr', descriptionAr.value, { allowNull: true });
   }
 
-  if ("specifications" in parsedObject.value) {
-    const specifications = parseSpecifications(parsedObject.value.specifications, { allowNull: true });
-    if (!specifications.ok) {
-      return specifications;
+  if ('price' in parsedObject.value) {
+    const price = parseOptionalNumber(parsedObject.value.price, 'price', { allowNull: true });
+    if (!price.ok) {
+      return price;
     }
 
-    updates.specifications = specifications.value;
+    assignOptional(updates, 'price', price.value, { allowNull: true });
   }
 
-  if ("basePrice" in parsedObject.value) {
-    const basePrice = parseOptionalNumber(parsedObject.value.basePrice, "basePrice", { allowNull: true });
-    if (!basePrice.ok) {
-      return basePrice;
-    }
-
-    updates.basePrice = basePrice.value;
-  }
-
-  if ("baseCurrency" in parsedObject.value) {
-    const baseCurrency = parseOptionalString(parsedObject.value.baseCurrency, "baseCurrency", {
+  if ('currency' in parsedObject.value) {
+    const currency = parseOptionalString(parsedObject.value.currency, 'currency', {
       allowNull: true,
     });
-    if (!baseCurrency.ok) {
-      return baseCurrency;
+    if (!currency.ok) {
+      return currency;
     }
 
-    updates.baseCurrency = baseCurrency.value;
+    assignOptional(updates, 'currency', currency.value, { allowNull: true });
+  }
+
+  if ('primaryImage' in parsedObject.value) {
+    const primaryImage = parseOptionalString(parsedObject.value.primaryImage, 'primaryImage', {
+      allowNull: true,
+    });
+    if (!primaryImage.ok) {
+      return primaryImage;
+    }
+
+    assignOptional(updates, 'primaryImage', primaryImage.value, { allowNull: true });
   }
 
   if (Object.keys(updates).length === 0) {
-    const hasAnyFields = Object.keys(parsedObject.value).length > 0;
     return {
       ok: false,
-      message: hasAnyFields
-        ? "Request body must include at least one recognized updatable field"
-        : "Request body must include at least one recognized updatable field",
+      message: 'Request body must include at least one recognized updatable field',
     };
   }
 
@@ -389,12 +259,12 @@ export const parseCreateProductImageUploadBody = (
     return parsedObject;
   }
 
-  const contentType = parseRequiredString(parsedObject.value.contentType, "contentType");
+  const contentType = parseRequiredString(parsedObject.value.contentType, 'contentType');
   if (!contentType.ok) {
     return contentType;
   }
 
-  const sizeBytes = parseOptionalNumber(parsedObject.value.sizeBytes, "sizeBytes");
+  const sizeBytes = parseOptionalNumber(parsedObject.value.sizeBytes, 'sizeBytes');
   if (!sizeBytes.ok) {
     return sizeBytes;
   }
@@ -402,11 +272,11 @@ export const parseCreateProductImageUploadBody = (
   if (sizeBytes.value === undefined || sizeBytes.value === null) {
     return {
       ok: false,
-      message: "sizeBytes is required",
+      message: 'sizeBytes is required',
     };
   }
 
-  const alt = parseOptionalString(parsedObject.value.alt, "alt");
+  const alt = parseOptionalString(parsedObject.value.alt, 'alt');
   if (!alt.ok) {
     return alt;
   }
@@ -427,29 +297,21 @@ export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProduc
     return parsedObject;
   }
 
-  const variantLabel = parseRequiredString(parsedObject.value.variantLabel, "variantLabel");
-  if (!variantLabel.ok) {
-    return variantLabel;
+  const label = parseRequiredString(parsedObject.value.label, 'label');
+  if (!label.ok) {
+    return label;
   }
 
-  const attributes = parseVariantAttributes(parsedObject.value.attributes);
-  if (!attributes.ok) {
-    return attributes;
-  }
-
-  const priceOverride = parseOptionalNumber(parsedObject.value.priceOverride, "priceOverride");
-  if (!priceOverride.ok) {
-    return priceOverride;
+  const price = parseOptionalNumber(parsedObject.value.price, 'price');
+  if (!price.ok) {
+    return price;
   }
 
   return {
     ok: true,
     value: {
-      variantLabel: variantLabel.value,
-      attributes: attributes.value,
-      ...(priceOverride.value !== undefined && priceOverride.value !== null
-        ? { priceOverride: priceOverride.value }
-        : {}),
+      label: label.value,
+      ...(price.value !== undefined && price.value !== null ? { price: price.value } : {}),
     },
   };
 };
@@ -463,45 +325,36 @@ export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProduc
   if (Object.keys(parsedObject.value).length === 0) {
     return {
       ok: false,
-      message: "Request body must include at least one updatable field",
+      message: 'Request body must include at least one updatable field',
     };
   }
 
   const updates: UpdateProductVariantInput = {};
 
-  if ("variantLabel" in parsedObject.value) {
-    const variantLabel = parseRequiredString(parsedObject.value.variantLabel, "variantLabel");
-    if (!variantLabel.ok) {
-      return variantLabel;
+  if ('label' in parsedObject.value) {
+    const label = parseRequiredString(parsedObject.value.label, 'label');
+    if (!label.ok) {
+      return label;
     }
 
-    updates.variantLabel = variantLabel.value;
+    updates.label = label.value;
   }
 
-  if ("attributes" in parsedObject.value) {
-    const attributes = parseVariantAttributes(parsedObject.value.attributes);
-    if (!attributes.ok) {
-      return attributes;
-    }
-
-    updates.attributes = attributes.value;
-  }
-
-  if ("priceOverride" in parsedObject.value) {
-    const priceOverride = parseOptionalNumber(parsedObject.value.priceOverride, "priceOverride", {
+  if ('price' in parsedObject.value) {
+    const price = parseOptionalNumber(parsedObject.value.price, 'price', {
       allowNull: true,
     });
-    if (!priceOverride.ok) {
-      return priceOverride;
+    if (!price.ok) {
+      return price;
     }
 
-    updates.priceOverride = priceOverride.value;
+    updates.price = price.value;
   }
 
   if (Object.keys(updates).length === 0) {
     return {
       ok: false,
-      message: "Request body must include at least one updatable field",
+      message: 'Request body must include at least one updatable field',
     };
   }
 

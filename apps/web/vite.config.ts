@@ -20,6 +20,23 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
   },
+  build: {
+    chunkSizeWarningLimit: 1800,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const normalizedId = id.replace(/\\/g, '/');
+          if (normalizedId.includes('/node_modules/exceljs/')) {
+            return 'vendor-exceljs';
+          }
+
+          if (normalizedId.includes('/node_modules/gsap/') || normalizedId.includes('/node_modules/@gsap/react/')) {
+            return 'vendor-gsap';
+          }
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     include: ['src/**/*.vitest.tsx'],

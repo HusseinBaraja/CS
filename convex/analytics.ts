@@ -386,7 +386,7 @@ export const summary = internalQuery({
         latestTimestamp: stats.latestTimestamp,
         topProduct: {
           productId,
-          nameEn: product.nameEn,
+          ...(product.nameEn ? { nameEn: product.nameEn } : {}),
           ...(product.nameAr ? { nameAr: product.nameAr } : {}),
           interactionCount: stats.interactionCount,
         } satisfies AnalyticsTopProductDto,

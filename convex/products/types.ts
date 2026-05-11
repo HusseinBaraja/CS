@@ -1,57 +1,39 @@
-import { v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type {
-  ProductEmbeddingSpecifications as ProductSpecifications,
-  ProductEmbeddingVariantAttributeValue as ProductVariantAttributeValue,
-  ProductEmbeddingVariantAttributes as ProductVariantAttributes,
   ProductEmbeddingVariantState as ProductVariantWriteState,
   ProductEmbeddingProductState as ProductWriteState,
 } from '../productEmbeddingRuntime';
 
 export type {
-  ProductSpecifications,
-  ProductVariantAttributeValue,
-  ProductVariantAttributes,
   ProductVariantWriteState,
   ProductWriteState,
 };
 
-const flexValue = v.union(v.string(), v.number(), v.boolean());
-
-export const flexRecord = v.record(v.string(), flexValue);
-export const variantAttributesValidator = v.record(v.string(), v.any());
+export type ProductCreateState = ProductWriteState & {
+  primaryImage?: string;
+};
 
 export type ProductVariantDto = {
   id: string;
+  companyId: string;
   productId: string;
-  variantLabel: string;
-  attributes: ProductVariantAttributes;
-  priceOverride?: number;
-};
-
-export type ProductImageDto = {
-  id: string;
-  key: string;
-  contentType: string;
-  sizeBytes: number;
-  etag?: string;
-  alt?: string;
-  uploadedAt: number;
+  label: string;
+  price?: number;
 };
 
 export type ProductListItemDto = {
   id: string;
   companyId: string;
   categoryId: string;
-  nameEn: string;
+  productNo?: string;
+  nameEn?: string;
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  specifications?: ProductSpecifications;
-  basePrice?: number;
-  baseCurrency?: string;
-  images: ProductImageDto[];
+  price?: number;
+  currency?: string;
+  primaryImage?: string;
 };
 
 export type ProductDetailDto = ProductListItemDto & {
@@ -71,35 +53,35 @@ export type ProductUpdateArgs = {
   companyId: Id<'companies'>;
   productId: Id<'products'>;
   categoryId?: Id<'categories'>;
-  nameEn?: string;
+  productNo?: string | null;
+  nameEn?: string | null;
   nameAr?: string | null;
   descriptionEn?: string | null;
   descriptionAr?: string | null;
-  specifications?: ProductSpecifications | null;
-  basePrice?: number | null;
-  baseCurrency?: string | null;
+  price?: number | null;
+  currency?: string | null;
+  primaryImage?: string | null;
 };
 
 export type ProductWriteSnapshot = ProductWriteState & {
   productId: Id<'products'>;
-  expectedRevision: number;
+  revision: number;
+  primaryImage?: string;
 };
 
 export type ProductVariantCreateArgs = {
   companyId: Id<'companies'>;
   productId: Id<'products'>;
-  variantLabel: string;
-  attributes: ProductVariantAttributes;
-  priceOverride?: number;
+  label: string;
+  price?: number;
 };
 
 export type ProductVariantUpdateArgs = {
   companyId: Id<'companies'>;
   productId: Id<'products'>;
   variantId: Id<'productVariants'>;
-  variantLabel?: string;
-  attributes?: ProductVariantAttributes;
-  priceOverride?: number | null;
+  label?: string;
+  price?: number | null;
 };
 
 export type ProductVariantCreateSnapshot = ProductWriteSnapshot & {
@@ -116,19 +98,20 @@ export type ProductReader = {
 
 export type ProductPatch = {
   categoryId?: Id<'categories'>;
-  nameEn?: string;
+  productNo?: string | undefined;
+  nameEn?: string | undefined;
   nameAr?: string | undefined;
   descriptionEn?: string | undefined;
   descriptionAr?: string | undefined;
-  specifications?: ProductSpecifications | undefined;
-  basePrice?: number | undefined;
-  baseCurrency?: string | undefined;
+  price?: number | undefined;
+  currency?: string | undefined;
+  primaryImage?: string | undefined;
+  version?: number;
 };
 
 export type ProductVariantPatch = {
-  variantLabel?: string;
-  attributes?: ProductVariantAttributes;
-  priceOverride?: number | undefined;
+  label?: string;
+  price?: number | undefined;
 };
 
 export type ProductEmbeddingReplacementInput = {

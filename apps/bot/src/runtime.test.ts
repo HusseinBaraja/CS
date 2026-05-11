@@ -1,9 +1,19 @@
 import { describe, expect, test } from 'bun:test';
 import type { AuthenticationState, BaileysEventMap, UserFacingSocketConfig } from './baileys';
-import { type BotConnectionUpdate, type BotPairingStatus, type BotSocket, startBot } from './runtime';
+import { type BotConnectionUpdate, type BotPairingStatus, type BotSocket, startBot as startRuntimeBot } from './runtime';
 import { createBotRuntimeConfig } from './runtimeConfig';
 
 type RegisteredHandler = () => void | Promise<void>;
+
+const TEST_SOCKET_VERSION = [2, 3001, 999999999] as [number, number, number];
+
+const startBot = (
+  options: Parameters<typeof startRuntimeBot>[0] = {},
+): ReturnType<typeof startRuntimeBot> =>
+  startRuntimeBot({
+    resolveSocketVersion: async () => TEST_SOCKET_VERSION,
+    ...options,
+  });
 
 const flushPromises = async (): Promise<void> => {
   await Promise.resolve();

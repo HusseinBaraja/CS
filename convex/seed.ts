@@ -3,7 +3,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { internalAction, internalMutation, internalQuery, type MutationCtx } from './_generated/server';
 import { v } from 'convex/values';
 import type { CleanupBatchResult, CleanupCursor } from './companyCleanup';
-import { buildProductEmbeddingPayload, type ProductEmbeddingVariantAttributes } from './productEmbeddingRuntime';
+import { buildProductEmbeddingPayload } from './productEmbeddingRuntime';
 import {
   buildSeedCompany,
   seedCategories,
@@ -36,19 +36,17 @@ type SeedProductEmbeddingSnapshot = {
   productId: Id<"products">;
   companyId: Id<"companies">;
   categoryId: Id<"categories">;
-  nameEn: string;
+  nameEn?: string;
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  specifications?: Record<string, string | number | boolean>;
-  basePrice?: number;
-  baseCurrency?: string;
+  price?: number;
+  currency?: string;
   variants: Array<{
     id: Id<"productVariants">;
     productId: Id<"products">;
-    variantLabel: string;
-    attributes: ProductEmbeddingVariantAttributes;
-    priceOverride?: number;
+    label: string;
+    price?: number;
   }>;
 };
 
@@ -209,34 +207,34 @@ export const listSeedProductsForEmbedding = internalQuery({
           .collect();
 
         const sortedVariants = [...variants].sort((left, right) =>
-          left.variantLabel.localeCompare(right.variantLabel) || left._id.localeCompare(right._id),
+          left.label.localeCompare(right.label) || left._id.localeCompare(right._id),
         );
 
         return {
           productId: product._id,
           companyId: product.companyId,
           categoryId: product.categoryId,
-          nameEn: product.nameEn,
+          ...(product.nameEn ? { nameEn: product.nameEn } : {}),
           ...(product.nameAr ? { nameAr: product.nameAr } : {}),
           ...(product.descriptionEn ? { descriptionEn: product.descriptionEn } : {}),
           ...(product.descriptionAr ? { descriptionAr: product.descriptionAr } : {}),
-          ...(product.specifications ? { specifications: product.specifications } : {}),
-          ...(product.basePrice !== undefined ? { basePrice: product.basePrice } : {}),
-          ...(product.baseCurrency ? { baseCurrency: product.baseCurrency } : {}),
+          ...(product.price !== undefined ? { price: product.price } : {}),
+          ...(product.currency ? { currency: product.currency } : {}),
           variants: sortedVariants.map((variant) => ({
             id: variant._id,
             productId: variant.productId,
-            variantLabel: variant.variantLabel,
-            attributes: variant.attributes,
-            ...(variant.priceOverride !== undefined ? { priceOverride: variant.priceOverride } : {}),
+            label: variant.label,
+            ...(variant.price !== undefined ? { price: variant.price } : {}),
           })),
         };
       }),
     );
 
-    return results.sort((left, right) =>
-      left.nameEn.localeCompare(right.nameEn) || left.productId.localeCompare(right.productId),
-    );
+    return results.sort((left, right) => {
+      const leftName = left.nameEn ?? left.nameAr ?? '';
+      const rightName = right.nameEn ?? right.nameAr ?? '';
+      return leftName.localeCompare(rightName) || left.productId.localeCompare(right.productId);
+    });
   },
 });
 
@@ -355,10 +353,8 @@ export const insertSeedSampleData = internalMutation({
         nameAr: product.nameAr,
         descriptionEn: product.descriptionEn,
         descriptionAr: product.descriptionAr,
-        specifications: product.specifications,
-        basePrice: product.basePrice,
-        baseCurrency: product.baseCurrency,
-        images: [],
+        ...(product.price !== undefined ? { price: product.price } : {}),
+        ...(product.currency !== undefined ? { currency: product.currency } : {}),
       });
       productIds.set(product.key, productId);
     }
@@ -366,14 +362,14 @@ export const insertSeedSampleData = internalMutation({
     for (const variant of seedVariants) {
       const productId = productIds.get(variant.productKey);
       if (!productId) {
-        throw new Error(`Missing product for variant ${variant.variantLabel}`);
+        throw new Error(`Missing product for variant ${variant.label}`);
       }
 
       await ctx.db.insert("productVariants", {
+        companyId: args.companyId,
         productId,
-        variantLabel: variant.variantLabel,
-        attributes: variant.attributes,
-        priceOverride: variant.priceOverride,
+        label: variant.label,
+        ...(variant.price !== undefined ? { price: variant.price } : {}),
       });
     }
 
@@ -464,20 +460,18 @@ export const syncSeedEmbeddings = internalAction({
         {
           companyId: product.companyId,
           categoryId: product.categoryId,
-          nameEn: product.nameEn,
+          ...(product.nameEn ? { nameEn: product.nameEn } : {}),
           ...(product.nameAr ? { nameAr: product.nameAr } : {}),
           ...(product.descriptionEn ? { descriptionEn: product.descriptionEn } : {}),
           ...(product.descriptionAr ? { descriptionAr: product.descriptionAr } : {}),
-          ...(product.specifications ? { specifications: product.specifications } : {}),
-          ...(product.basePrice !== undefined ? { basePrice: product.basePrice } : {}),
-          ...(product.baseCurrency ? { baseCurrency: product.baseCurrency } : {}),
+          ...(product.price !== undefined ? { price: product.price } : {}),
+          ...(product.currency ? { currency: product.currency } : {}),
         },
         product.variants.map((variant: SeedProductEmbeddingSnapshot["variants"][number]) => ({
             id: variant.id,
             productId: variant.productId,
-            variantLabel: variant.variantLabel,
-            attributes: variant.attributes,
-            ...(variant.priceOverride !== undefined ? { priceOverride: variant.priceOverride } : {}),
+            label: variant.label,
+            ...(variant.price !== undefined ? { price: variant.price } : {}),
           })),
       );
 

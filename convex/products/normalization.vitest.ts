@@ -4,9 +4,10 @@ import type { Id } from '../_generated/dataModel';
 import { getEmbeddingReplacementArgs } from './embedding';
 import {
   createProductPatch,
+  mergeUpdateState,
   mergeVariantUpdateState,
   normalizeCreateState,
-  normalizeVariantAttributes,
+  normalizeVariantCreateState,
 } from './normalization';
 
 const COMPANY_ID = 'company_1' as Id<'companies'>;
@@ -21,7 +22,8 @@ describe('products normalization helpers', () => {
       nameEn: '  Burger Box  ',
       nameAr: '   ',
       descriptionEn: '  Disposable  ',
-      baseCurrency: '  USD  ',
+      currency: '  USD  ',
+      primaryImage: '  raw-object-key.jpg  ',
     });
 
     expect(state).toEqual({
@@ -29,17 +31,9 @@ describe('products normalization helpers', () => {
       categoryId: 'category_1',
       nameEn: 'Burger Box',
       descriptionEn: 'Disposable',
-      baseCurrency: 'USD',
+      currency: 'USD',
+      primaryImage: 'raw-object-key.jpg',
     });
-  });
-
-  it('rejects duplicate variant attribute keys after trimming', () => {
-    expect(() =>
-      normalizeVariantAttributes({
-        color: 'red',
-        ' color ': 'blue',
-      }),
-    ).toThrowError('VALIDATION_FAILED: attributes keys must be unique after trimming: color');
   });
 
   it('builds product patch and supports explicit null clearing for optional fields', () => {
@@ -47,12 +41,65 @@ describe('products normalization helpers', () => {
       companyId: COMPANY_ID,
       productId: PRODUCT_ID,
       nameAr: null,
-      basePrice: null,
+      price: null,
+      primaryImage: null,
     });
 
     expect(patch).toEqual({
       nameAr: undefined,
-      basePrice: undefined,
+      price: undefined,
+      primaryImage: undefined,
+    });
+  });
+
+  it('keeps product update normalization focused on generic product fields', () => {
+    const next = mergeUpdateState(
+      {
+        companyId: COMPANY_ID,
+        productId: PRODUCT_ID,
+        categoryId: CATEGORY_ID,
+        revision: 1,
+        nameEn: 'Burger Box',
+        primaryImage: 'companies/company_1/products/product_1/current.jpg',
+      },
+      {
+        companyId: COMPANY_ID,
+        productId: PRODUCT_ID,
+        descriptionEn: '  Fresh box  ',
+      },
+    );
+
+    expect(next).toEqual({
+      companyId: COMPANY_ID,
+      categoryId: CATEGORY_ID,
+      nameEn: 'Burger Box',
+      descriptionEn: 'Fresh box',
+    });
+  });
+
+  it('allows product updates to rely on non-name identifiers', () => {
+    const next = mergeUpdateState(
+      {
+        companyId: COMPANY_ID,
+        productId: PRODUCT_ID,
+        categoryId: CATEGORY_ID,
+        revision: 1,
+        productNo: 'BOX-1',
+        nameEn: 'Burger Box',
+        nameAr: 'علبة برجر',
+      },
+      {
+        companyId: COMPANY_ID,
+        productId: PRODUCT_ID,
+        nameEn: null,
+        nameAr: '   ',
+      },
+    );
+
+    expect(next).toEqual({
+      companyId: COMPANY_ID,
+      categoryId: CATEGORY_ID,
+      productNo: 'BOX-1',
     });
   });
 
@@ -61,21 +108,47 @@ describe('products normalization helpers', () => {
       {
         id: 'variant_1',
         productId: 'product_1',
-        variantLabel: 'Large',
-        attributes: { size: 'L' },
-        priceOverride: 12,
+        label: 'Large',
+        price: 12,
       },
       {
-        priceOverride: null,
+        price: null,
       },
+      undefined,
     );
 
     expect(next).toEqual({
       id: 'variant_1',
       productId: 'product_1',
-      variantLabel: 'Large',
-      attributes: { size: 'L' },
+      label: 'Large',
     });
+  });
+
+  it('rejects priced variants when the parent product has no currency', () => {
+    expect(() =>
+      normalizeVariantCreateState(
+        {
+          productId: PRODUCT_ID,
+          label: 'Large',
+          price: 12,
+        },
+        undefined,
+      ),
+    ).toThrowError('VALIDATION_FAILED: currency is required when a price is set');
+
+    expect(() =>
+      mergeVariantUpdateState(
+        {
+          id: 'variant_1',
+          productId: PRODUCT_ID,
+          label: 'Large',
+        },
+        {
+          price: 12,
+        },
+        undefined,
+      ),
+    ).toThrowError('VALIDATION_FAILED: currency is required when a price is set');
   });
 });
 
@@ -87,7 +160,7 @@ describe('products embedding payload helper', () => {
         productId: PRODUCT_ID,
         englishText: 'partial',
       }),
-    ).toThrowError('All embedding fields must be provided together');
+    ).toThrowError('VALIDATION_FAILED: Embedding replacement payload must be all-or-none');
   });
 
   it('returns null for no replacement and structured args for complete replacement', () => {
@@ -96,7 +169,7 @@ describe('products embedding payload helper', () => {
         companyId: COMPANY_ID,
         productId: PRODUCT_ID,
       }),
-    ).toBeUndefined();
+    ).toBeNull();
 
     expect(
       getEmbeddingReplacementArgs({
@@ -117,3 +190,4 @@ describe('products embedding payload helper', () => {
     });
   });
 });
+

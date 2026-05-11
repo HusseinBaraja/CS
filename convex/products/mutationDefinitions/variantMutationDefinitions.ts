@@ -5,23 +5,34 @@ import { refreshCompanyCatalogLanguageHintsInMutation } from '../../catalogLangu
 import { replaceProductEmbeddingsInMutation } from '../../productEmbeddingRuntime';
 import { CONFLICT_PREFIX, NOT_FOUND_PREFIX, createTaggedError } from '../errors';
 import { mapVariant } from '../mapping';
-import { createVariantPatch, normalizeVariantCreateState } from '../normalization';
-import { getScopedProduct, getScopedVariant } from '../readers';
 import {
-  type DeleteProductVariantResult,
-  type ProductVariantAttributes,
-  type ProductVariantDto,
-  variantAttributesValidator,
+  assertCurrencyIfPriced,
+  createVariantPatch,
+  normalizeVariantCreateState,
+} from '../normalization';
+import { getScopedProduct, getScopedVariant } from '../readers';
+import type {
+  DeleteProductVariantResult,
+  ProductVariantDto,
 } from '../types';
+import { applyVariantEmbeddingMutation } from './variantEmbeddingMutations';
+
+const assertExpectedRevision = (
+  currentRevision: number,
+  expectedRevision: number,
+): void => {
+  if (currentRevision !== expectedRevision) {
+    throw createTaggedError(CONFLICT_PREFIX, 'Product was modified concurrently; retry the update');
+  }
+};
 
 export const insertVariantWithEmbeddingsDefinition = {
   args: {
     companyId: v.id('companies'),
     productId: v.id('products'),
-    variantLabel: v.string(),
-    attributes: variantAttributesValidator,
-    priceOverride: v.optional(v.number()),
     expectedRevision: v.number(),
+    label: v.string(),
+    price: v.optional(v.number()),
     englishEmbedding: v.array(v.float64()),
     arabicEmbedding: v.array(v.float64()),
     englishText: v.string(),
@@ -32,10 +43,9 @@ export const insertVariantWithEmbeddingsDefinition = {
     args: {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
-      variantLabel: string;
-      attributes: ProductVariantAttributes;
-      priceOverride?: number;
       expectedRevision: number;
+      label: string;
+      price?: number;
       englishEmbedding: number[];
       arabicEmbedding: number[];
       englishText: string;
@@ -46,27 +56,25 @@ export const insertVariantWithEmbeddingsDefinition = {
     if (!product) {
       return null;
     }
+    const currentRevision = product.version ?? 0;
+    assertExpectedRevision(currentRevision, args.expectedRevision);
 
-    if ((product.revision ?? 0) !== args.expectedRevision) {
-      throw createTaggedError(CONFLICT_PREFIX, 'Product was modified concurrently; retry the update');
-    }
+    const variantState = normalizeVariantCreateState(
+      {
+        productId: args.productId,
+        label: args.label,
+        price: args.price,
+      },
+      product.currency,
+    );
 
-    const variantState = normalizeVariantCreateState({
-      productId: args.productId,
-      variantLabel: args.variantLabel,
-      attributes: args.attributes,
-      priceOverride: args.priceOverride,
-    });
     const variantId = await ctx.db.insert('productVariants', {
+      companyId: args.companyId,
       productId: args.productId,
-      variantLabel: variantState.variantLabel,
-      attributes: variantState.attributes,
-      ...(variantState.priceOverride !== undefined ? { priceOverride: variantState.priceOverride } : {}),
+      label: variantState.label,
+      ...(variantState.price !== undefined ? { price: variantState.price } : {}),
     });
-
-    await ctx.db.patch(args.productId, {
-      revision: args.expectedRevision + 1,
-    });
+    await ctx.db.patch(args.productId, { version: currentRevision + 1 });
 
     await replaceProductEmbeddingsInMutation(ctx, {
       companyId: args.companyId,
@@ -92,10 +100,9 @@ export const patchVariantWithEmbeddingsDefinition = {
     companyId: v.id('companies'),
     productId: v.id('products'),
     variantId: v.id('productVariants'),
-    variantLabel: v.optional(v.string()),
-    attributes: v.optional(variantAttributesValidator),
-    priceOverride: v.optional(v.union(v.number(), v.null())),
     expectedRevision: v.number(),
+    label: v.optional(v.string()),
+    price: v.optional(v.union(v.number(), v.null())),
     englishEmbedding: v.array(v.float64()),
     arabicEmbedding: v.array(v.float64()),
     englishText: v.string(),
@@ -107,10 +114,9 @@ export const patchVariantWithEmbeddingsDefinition = {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
       variantId: Id<'productVariants'>;
-      variantLabel?: string;
-      attributes?: ProductVariantAttributes;
-      priceOverride?: number | null;
       expectedRevision: number;
+      label?: string;
+      price?: number | null;
       englishEmbedding: number[];
       arabicEmbedding: number[];
       englishText: string;
@@ -121,25 +127,32 @@ export const patchVariantWithEmbeddingsDefinition = {
     if (!product) {
       return null;
     }
+    const currentRevision = product.version ?? 0;
+    assertExpectedRevision(currentRevision, args.expectedRevision);
 
-    if ((product.revision ?? 0) !== args.expectedRevision) {
-      throw createTaggedError(CONFLICT_PREFIX, 'Product was modified concurrently; retry the update');
-    }
-
-    const existingVariant = await getScopedVariant(ctx, args.productId, args.variantId);
+    const existingVariant = await getScopedVariant(ctx, args.companyId, args.productId, args.variantId);
     if (!existingVariant) {
       throw createTaggedError(NOT_FOUND_PREFIX, 'Variant not found');
     }
 
     const patch = createVariantPatch({
-      variantLabel: args.variantLabel,
-      attributes: args.attributes,
-      priceOverride: args.priceOverride,
+      label: args.label,
+      price: args.price,
     });
+    if (Object.keys(patch).length === 0) {
+      return mapVariant(existingVariant);
+    }
+
+    const effectivePrice: number | undefined =
+      args.price === null
+        ? undefined
+        : patch.price !== undefined
+          ? patch.price
+          : existingVariant.price;
+    assertCurrencyIfPriced(effectivePrice, product.currency);
+
     await ctx.db.patch(args.variantId, patch);
-    await ctx.db.patch(args.productId, {
-      revision: args.expectedRevision + 1,
-    });
+    await ctx.db.patch(args.productId, { version: currentRevision + 1 });
 
     await replaceProductEmbeddingsInMutation(ctx, {
       companyId: args.companyId,
@@ -166,10 +179,11 @@ export const removeVariantWithEmbeddingsDefinition = {
     productId: v.id('products'),
     variantId: v.id('productVariants'),
     expectedRevision: v.number(),
-    englishEmbedding: v.array(v.float64()),
-    arabicEmbedding: v.array(v.float64()),
-    englishText: v.string(),
-    arabicText: v.string(),
+    clearEmbeddings: v.optional(v.boolean()),
+    englishEmbedding: v.optional(v.array(v.float64())),
+    arabicEmbedding: v.optional(v.array(v.float64())),
+    englishText: v.optional(v.string()),
+    arabicText: v.optional(v.string()),
   },
   handler: async (
     ctx: MutationCtx,
@@ -178,39 +192,29 @@ export const removeVariantWithEmbeddingsDefinition = {
       productId: Id<'products'>;
       variantId: Id<'productVariants'>;
       expectedRevision: number;
-      englishEmbedding: number[];
-      arabicEmbedding: number[];
-      englishText: string;
-      arabicText: string;
+      clearEmbeddings?: boolean;
+      englishEmbedding?: number[];
+      arabicEmbedding?: number[];
+      englishText?: string;
+      arabicText?: string;
     },
   ): Promise<DeleteProductVariantResult | null> => {
     const product = await getScopedProduct(ctx, args.companyId, args.productId);
     if (!product) {
       return null;
     }
+    const currentRevision = product.version ?? 0;
+    assertExpectedRevision(currentRevision, args.expectedRevision);
 
-    if ((product.revision ?? 0) !== args.expectedRevision) {
-      throw createTaggedError(CONFLICT_PREFIX, 'Product was modified concurrently; retry the update');
-    }
-
-    const existingVariant = await getScopedVariant(ctx, args.productId, args.variantId);
+    const existingVariant = await getScopedVariant(ctx, args.companyId, args.productId, args.variantId);
     if (!existingVariant) {
       throw createTaggedError(NOT_FOUND_PREFIX, 'Variant not found');
     }
 
     await ctx.db.delete(args.variantId);
-    await ctx.db.patch(args.productId, {
-      revision: args.expectedRevision + 1,
-    });
+    await ctx.db.patch(args.productId, { version: currentRevision + 1 });
 
-    await replaceProductEmbeddingsInMutation(ctx, {
-      companyId: args.companyId,
-      productId: args.productId,
-      englishEmbedding: args.englishEmbedding,
-      arabicEmbedding: args.arabicEmbedding,
-      englishText: args.englishText,
-      arabicText: args.arabicText,
-    });
+    await applyVariantEmbeddingMutation(ctx, args);
     await refreshCompanyCatalogLanguageHintsInMutation(ctx, args.companyId);
 
     return {

@@ -3,38 +3,69 @@ import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import { internal } from '../../_generated/api';
 import { buildProductEmbeddingPayload } from '../../productEmbeddingRuntime';
-import { NOT_FOUND_PREFIX, createTaggedError } from '../errors';
+import { NOT_FOUND_PREFIX, VALIDATION_PREFIX, createTaggedError } from '../errors';
 import { hasEmbeddingRelevantChanges, toVariantWriteState } from '../mapping';
 import { mergeUpdateState, normalizeCreateState } from '../normalization';
-import {
-  flexRecord,
-  type ProductDetailDto,
+import type {
+  ProductDetailDto,
 } from '../types';
+
+const hasIdentifyingField = (product: {
+  productNo?: string;
+  nameEn?: string;
+  nameAr?: string;
+  descriptionEn?: string;
+  descriptionAr?: string;
+}): boolean =>
+  Boolean(
+    product.productNo
+      || product.nameEn
+      || product.nameAr
+      || product.descriptionEn
+      || product.descriptionAr,
+  );
+
+const assertHasIdentifyingField = (product: {
+  productNo?: string;
+  nameEn?: string;
+  nameAr?: string;
+  descriptionEn?: string;
+  descriptionAr?: string;
+}): void => {
+  if (!hasIdentifyingField(product)) {
+    throw createTaggedError(
+      VALIDATION_PREFIX,
+      'at least one product identifier is required',
+    );
+  }
+};
 
 export const createDefinition = {
   args: {
     companyId: v.id('companies'),
     categoryId: v.id('categories'),
-    nameEn: v.string(),
+    productNo: v.optional(v.string()),
+    nameEn: v.optional(v.string()),
     nameAr: v.optional(v.string()),
     descriptionEn: v.optional(v.string()),
     descriptionAr: v.optional(v.string()),
-    specifications: v.optional(flexRecord),
-    basePrice: v.optional(v.number()),
-    baseCurrency: v.optional(v.string()),
+    price: v.optional(v.number()),
+    currency: v.optional(v.string()),
+    primaryImage: v.optional(v.string()),
   },
   handler: async (
     ctx: ActionCtx,
     args: {
       companyId: Id<'companies'>;
       categoryId: Id<'categories'>;
-      nameEn: string;
+      productNo?: string;
+      nameEn?: string;
       nameAr?: string;
       descriptionEn?: string;
       descriptionAr?: string;
-      specifications?: Record<string, string | number | boolean>;
-      basePrice?: number;
-      baseCurrency?: string;
+      price?: number;
+      currency?: string;
+      primaryImage?: string;
     },
   ): Promise<ProductDetailDto> => {
     const createContext = await ctx.runQuery(internal.products.getCreateContext, {
@@ -51,6 +82,7 @@ export const createDefinition = {
     }
 
     const productState = normalizeCreateState(args);
+    assertHasIdentifyingField(productState);
     const embeddings = await buildProductEmbeddingPayload(productState);
 
     return ctx.runMutation(internal.products.insertProductWithEmbeddings, {
@@ -65,13 +97,14 @@ export const updateDefinition = {
     companyId: v.id('companies'),
     productId: v.id('products'),
     categoryId: v.optional(v.id('categories')),
-    nameEn: v.optional(v.string()),
+    productNo: v.optional(v.union(v.string(), v.null())),
+    nameEn: v.optional(v.union(v.string(), v.null())),
     nameAr: v.optional(v.union(v.string(), v.null())),
     descriptionEn: v.optional(v.union(v.string(), v.null())),
     descriptionAr: v.optional(v.union(v.string(), v.null())),
-    specifications: v.optional(v.union(flexRecord, v.null())),
-    basePrice: v.optional(v.union(v.number(), v.null())),
-    baseCurrency: v.optional(v.union(v.string(), v.null())),
+    price: v.optional(v.union(v.number(), v.null())),
+    currency: v.optional(v.union(v.string(), v.null())),
+    primaryImage: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (
     ctx: ActionCtx,
@@ -79,13 +112,14 @@ export const updateDefinition = {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
       categoryId?: Id<'categories'>;
-      nameEn?: string;
+      productNo?: string | null;
+      nameEn?: string | null;
       nameAr?: string | null;
       descriptionEn?: string | null;
       descriptionAr?: string | null;
-      specifications?: Record<string, string | number | boolean> | null;
-      basePrice?: number | null;
-      baseCurrency?: string | null;
+      price?: number | null;
+      currency?: string | null;
+      primaryImage?: string | null;
     },
   ): Promise<ProductDetailDto | null> => {
     const existingProduct = await ctx.runQuery(internal.products.getUpdateSnapshot, {
@@ -109,6 +143,7 @@ export const updateDefinition = {
     }
 
     const nextState = mergeUpdateState(existingProduct, args);
+    assertHasIdentifyingField(nextState);
     const shouldRefreshEmbeddings = hasEmbeddingRelevantChanges(existingProduct, nextState);
     const variants = shouldRefreshEmbeddings
       ? await ctx.runQuery(internal.products.listVariants, {
@@ -120,17 +155,12 @@ export const updateDefinition = {
       ? await buildProductEmbeddingPayload(nextState, (variants ?? []).map(toVariantWriteState))
       : null;
 
-    if (!embeddings) {
-      return ctx.runMutation(internal.products.patchProductWithEmbeddings, {
-        ...args,
-        expectedRevision: existingProduct.expectedRevision,
-      });
-    }
-
-    return ctx.runMutation(internal.products.patchProductWithEmbeddings, {
+    const payload = {
       ...args,
-      expectedRevision: existingProduct.expectedRevision,
-      ...embeddings,
-    });
+      expectedRevision: existingProduct.revision,
+      ...(embeddings ? embeddings : {}),
+    };
+
+    return ctx.runMutation(internal.products.patchProductWithEmbeddings, payload);
   },
 };

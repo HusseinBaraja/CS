@@ -1,5 +1,16 @@
 import { ERROR_CODES, type ErrorCode } from '@cs/shared';
-import type { ProductImageDto } from './products';
+
+export interface ProductImageDto {
+  id: string;
+  key: string;
+  contentType: string;
+  sizeBytes: number;
+  etag?: string;
+  alt?: string;
+  uploadedAt: number;
+  downloadUrl?: string;
+  downloadUrlExpiresAt?: string;
+}
 
 export interface CreateProductImageUploadInput {
   contentType: string;

@@ -2,11 +2,10 @@ export {
   normalizeOptionalNumber,
   normalizeOptionalString,
   normalizeRequiredString,
-  normalizeSpecifications,
-  normalizeVariantAttributes,
 } from './normalizationPrimitives';
 
 export {
+  assertCurrencyIfPriced,
   createProductPatch,
   createVariantPatch,
   mergeUpdateState,
@@ -14,3 +13,5 @@ export {
   normalizeCreateState,
   normalizeVariantCreateState,
 } from './stateTransforms';
+
+export type { ProductCreateState } from './types';

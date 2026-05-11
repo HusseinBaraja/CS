@@ -56,7 +56,7 @@ export interface AnalyticsSummaryCounts {
 
 export interface AnalyticsTopProductDto {
   productId: string;
-  nameEn: string;
+  nameEn?: string;
   nameAr?: string;
   interactionCount: number;
 }

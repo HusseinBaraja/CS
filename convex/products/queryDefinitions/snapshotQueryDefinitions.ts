@@ -52,8 +52,9 @@ export const getUpdateSnapshotDefinition = {
 
     return {
       productId: product._id,
-      expectedRevision: product.revision ?? 0,
+      revision: product.version ?? 0,
       ...toWriteState(product),
+      ...(product.primaryImage ? { primaryImage: product.primaryImage } : {}),
     };
   },
 };

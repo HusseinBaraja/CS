@@ -1,7 +1,7 @@
 import type { Id } from '../_generated/dataModel';
 import type {
+  ProductCreateState,
   ProductPatch,
-  ProductSpecifications,
   ProductUpdateArgs,
   ProductVariantCreateArgs,
   ProductVariantPatch,
@@ -14,65 +14,81 @@ import {
   normalizeOptionalNumber,
   normalizeOptionalString,
   normalizeRequiredString,
-  normalizeSpecifications,
-  normalizeVariantAttributes,
 } from './normalizationPrimitives';
+import { VALIDATION_PREFIX, createTaggedError } from './errors';
+
+/**
+ * Validates that currency is present whenever a price is set.
+ * This applies to both product-level price and variant prices.
+ */
+export const assertCurrencyIfPriced = (price: number | undefined, currency: string | undefined): void => {
+  if (price !== undefined && !currency) {
+    throw createTaggedError(VALIDATION_PREFIX, 'currency is required when a price is set');
+  }
+};
+
+/**
+ * Validates that at least one of nameEn or nameAr is present.
+ */
+const assertAtLeastOneName = (nameEn: string | undefined, nameAr: string | undefined): void => {
+  if (!nameEn && !nameAr) {
+    throw createTaggedError(VALIDATION_PREFIX, 'at least one of nameEn or nameAr is required');
+  }
+};
 
 export const normalizeVariantCreateState = (
-  args: Pick<ProductVariantCreateArgs, 'productId' | 'variantLabel' | 'attributes' | 'priceOverride'>,
+  args: Pick<ProductVariantCreateArgs, 'productId' | 'label' | 'price'>,
+  productCurrency: string | undefined,
 ): ProductVariantWriteState => {
-  const normalizedPriceOverride = normalizeOptionalNumber(args.priceOverride, 'priceOverride');
+  const normalizedPrice = normalizeOptionalNumber(args.price, 'price');
+  assertCurrencyIfPriced(normalizedPrice, productCurrency);
 
   return {
     id: '~new',
     productId: args.productId,
-    variantLabel: normalizeRequiredString(args.variantLabel, 'variantLabel'),
-    attributes: normalizeVariantAttributes(args.attributes),
-    ...(normalizedPriceOverride !== undefined ? { priceOverride: normalizedPriceOverride } : {}),
+    label: normalizeRequiredString(args.label, 'label'),
+    ...(normalizedPrice !== undefined ? { price: normalizedPrice } : {}),
   };
 };
 
 export const mergeVariantUpdateState = (
   existingVariant: ProductVariantWriteState,
-  patch: Pick<ProductVariantUpdateArgs, 'variantLabel' | 'attributes' | 'priceOverride'>,
+  patch: Pick<ProductVariantUpdateArgs, 'label' | 'price'>,
+  productCurrency: string | undefined,
 ): ProductVariantWriteState => {
-  const normalizedPriceOverride =
-    patch.priceOverride !== undefined
-      ? normalizeOptionalNumber(patch.priceOverride, 'priceOverride')
+  const normalizedPrice =
+    patch.price !== undefined
+      ? normalizeOptionalNumber(patch.price, 'price')
       : undefined;
+
+  const nextPrice =
+    patch.price !== undefined
+      ? normalizedPrice
+      : existingVariant.price;
+  assertCurrencyIfPriced(nextPrice, productCurrency);
 
   return {
     id: existingVariant.id,
     productId: existingVariant.productId,
-    variantLabel:
-      patch.variantLabel !== undefined
-        ? normalizeRequiredString(patch.variantLabel, 'variantLabel')
-        : existingVariant.variantLabel,
-    attributes:
-      patch.attributes !== undefined
-        ? normalizeVariantAttributes(patch.attributes)
-        : existingVariant.attributes,
-    ...(patch.priceOverride !== undefined
-      ? (normalizedPriceOverride !== undefined ? { priceOverride: normalizedPriceOverride } : {})
-      : (existingVariant.priceOverride !== undefined ? { priceOverride: existingVariant.priceOverride } : {})),
+    label:
+      patch.label !== undefined
+        ? normalizeRequiredString(patch.label, 'label')
+        : existingVariant.label,
+    ...(nextPrice !== undefined ? { price: nextPrice } : {}),
   };
 };
 
 export const createVariantPatch = (
-  args: Pick<ProductVariantUpdateArgs, 'variantLabel' | 'attributes' | 'priceOverride'>,
+  args: Pick<ProductVariantUpdateArgs, 'label' | 'price'>,
 ): ProductVariantPatch => {
   const patch: ProductVariantPatch = {};
 
-  if (args.variantLabel !== undefined) {
-    patch.variantLabel = normalizeRequiredString(args.variantLabel, 'variantLabel');
+  if (args.label !== undefined) {
+    patch.label = normalizeRequiredString(args.label, 'label');
   }
 
-  if (args.attributes !== undefined) {
-    patch.attributes = normalizeVariantAttributes(args.attributes);
-  }
-
-  if (args.priceOverride !== undefined) {
-    patch.priceOverride = normalizeOptionalNumber(args.priceOverride, 'priceOverride');
+  if (args.price !== undefined) {
+    patch.price = normalizeOptionalNumber(args.price, 'price');
   }
 
   return patch;
@@ -81,31 +97,38 @@ export const createVariantPatch = (
 export const normalizeCreateState = (args: {
   companyId: Id<'companies'>;
   categoryId: Id<'categories'>;
-  nameEn: string;
+  productNo?: string;
+  nameEn?: string;
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  specifications?: ProductSpecifications;
-  basePrice?: number;
-  baseCurrency?: string;
-}): ProductWriteState => {
+  price?: number;
+  currency?: string;
+  primaryImage?: string;
+}): ProductCreateState => {
+  const productNo = normalizeOptionalString(args.productNo);
+  const nameEn = normalizeOptionalString(args.nameEn);
   const nameAr = normalizeOptionalString(args.nameAr);
   const descriptionEn = normalizeOptionalString(args.descriptionEn);
   const descriptionAr = normalizeOptionalString(args.descriptionAr);
-  const specifications = normalizeSpecifications(args.specifications);
-  const basePrice = normalizeOptionalNumber(args.basePrice, 'basePrice');
-  const baseCurrency = normalizeOptionalString(args.baseCurrency);
+  const price = normalizeOptionalNumber(args.price, 'price');
+  const currency = normalizeOptionalString(args.currency);
+  const primaryImage = normalizeOptionalString(args.primaryImage);
+
+  assertAtLeastOneName(nameEn, nameAr);
+  assertCurrencyIfPriced(price, currency);
 
   return {
     companyId: args.companyId,
     categoryId: args.categoryId,
-    nameEn: normalizeRequiredString(args.nameEn, 'nameEn'),
+    ...(productNo ? { productNo } : {}),
+    ...(nameEn ? { nameEn } : {}),
     ...(nameAr ? { nameAr } : {}),
     ...(descriptionEn ? { descriptionEn } : {}),
     ...(descriptionAr ? { descriptionAr } : {}),
-    ...(specifications ? { specifications } : {}),
-    ...(basePrice !== undefined ? { basePrice } : {}),
-    ...(baseCurrency ? { baseCurrency } : {}),
+    ...(price !== undefined ? { price } : {}),
+    ...(currency ? { currency } : {}),
+    ...(primaryImage ? { primaryImage } : {}),
   };
 };
 
@@ -113,6 +136,9 @@ export const mergeUpdateState = (
   existingProduct: ProductWriteSnapshot,
   patch: ProductUpdateArgs,
 ): ProductWriteState => {
+  const productNo =
+    patch.productNo !== undefined ? normalizeOptionalString(patch.productNo) : existingProduct.productNo;
+  const nameEn = patch.nameEn !== undefined ? normalizeOptionalString(patch.nameEn) : existingProduct.nameEn;
   const nameAr = patch.nameAr !== undefined ? normalizeOptionalString(patch.nameAr) : existingProduct.nameAr;
   const descriptionEn =
     patch.descriptionEn !== undefined
@@ -122,32 +148,27 @@ export const mergeUpdateState = (
     patch.descriptionAr !== undefined
       ? normalizeOptionalString(patch.descriptionAr)
       : existingProduct.descriptionAr;
-  const specifications =
-    patch.specifications !== undefined
-      ? normalizeSpecifications(patch.specifications)
-      : existingProduct.specifications;
-  const basePrice =
-    patch.basePrice !== undefined
-      ? normalizeOptionalNumber(patch.basePrice, 'basePrice')
-      : existingProduct.basePrice;
-  const baseCurrency =
-    patch.baseCurrency !== undefined
-      ? normalizeOptionalString(patch.baseCurrency)
-      : existingProduct.baseCurrency;
+  const price =
+    patch.price !== undefined
+      ? normalizeOptionalNumber(patch.price, 'price')
+      : existingProduct.price;
+  const currency =
+    patch.currency !== undefined
+      ? normalizeOptionalString(patch.currency)
+      : existingProduct.currency;
+
+  assertCurrencyIfPriced(price, currency);
 
   return {
     companyId: existingProduct.companyId,
     categoryId: patch.categoryId ?? existingProduct.categoryId,
-    nameEn:
-      patch.nameEn !== undefined
-        ? normalizeRequiredString(patch.nameEn, 'nameEn')
-        : existingProduct.nameEn,
+    ...(productNo ? { productNo } : {}),
+    ...(nameEn ? { nameEn } : {}),
     ...(nameAr ? { nameAr } : {}),
     ...(descriptionEn ? { descriptionEn } : {}),
     ...(descriptionAr ? { descriptionAr } : {}),
-    ...(specifications ? { specifications } : {}),
-    ...(basePrice !== undefined ? { basePrice } : {}),
-    ...(baseCurrency ? { baseCurrency } : {}),
+    ...(price !== undefined ? { price } : {}),
+    ...(currency ? { currency } : {}),
   };
 };
 
@@ -158,8 +179,12 @@ export const createProductPatch = (args: ProductUpdateArgs): ProductPatch => {
     patch.categoryId = args.categoryId;
   }
 
+  if (args.productNo !== undefined) {
+    patch.productNo = normalizeOptionalString(args.productNo);
+  }
+
   if (args.nameEn !== undefined) {
-    patch.nameEn = normalizeRequiredString(args.nameEn, 'nameEn');
+    patch.nameEn = normalizeOptionalString(args.nameEn);
   }
 
   if (args.nameAr !== undefined) {
@@ -174,16 +199,16 @@ export const createProductPatch = (args: ProductUpdateArgs): ProductPatch => {
     patch.descriptionAr = normalizeOptionalString(args.descriptionAr);
   }
 
-  if (args.specifications !== undefined) {
-    patch.specifications = normalizeSpecifications(args.specifications);
+  if (args.price !== undefined) {
+    patch.price = normalizeOptionalNumber(args.price, 'price');
   }
 
-  if (args.basePrice !== undefined) {
-    patch.basePrice = normalizeOptionalNumber(args.basePrice, 'basePrice');
+  if (args.currency !== undefined) {
+    patch.currency = normalizeOptionalString(args.currency);
   }
 
-  if (args.baseCurrency !== undefined) {
-    patch.baseCurrency = normalizeOptionalString(args.baseCurrency);
+  if (args.primaryImage !== undefined) {
+    patch.primaryImage = normalizeOptionalString(args.primaryImage);
   }
 
   return patch;

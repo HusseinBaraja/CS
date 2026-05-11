@@ -81,9 +81,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         categoryId,
         nameEn: "Burger Box",
         descriptionEn: "Paper meal packaging",
-        specifications: {
-          material: "paper",
-        },
       });
       await ctx.db.insert("products", {
         companyId,
@@ -115,15 +112,22 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       search: "PaPeR",
     });
 
-    expect(allProducts?.map((product: { nameEn: string }) => product.nameEn)).toEqual(["Burger Box", "Soup Cup"]);
-    expect(categoryProducts?.map((product: { nameEn: string }) => product.nameEn)).toEqual(["Soup Cup"]);
-    expect(searchedProducts?.map((product: { nameEn: string }) => product.nameEn)).toEqual(["Burger Box"]);
+    expect(allProducts?.map((product: { nameEn?: string }) => product.nameEn)).toEqual(["Burger Box", "Soup Cup"]);
+    expect(categoryProducts?.map((product: { nameEn?: string }) => product.nameEn)).toEqual(["Soup Cup"]);
+    expect(searchedProducts?.map((product: { nameEn?: string }) => product.nameEn)).toEqual(["Burger Box"]);
   });
 
   it("gets a product with variants nested and hides out-of-scope products", async () => {
     const t = convexTest(schema, modules);
 
-    const { companyId, otherCompanyId, categoryId, productId, variantId } = await t.run(async (ctx) => {
+    const {
+      companyId,
+      otherCompanyId,
+      categoryId,
+      productId,
+      variantId,
+      otherVariantId,
+    } = await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", {
         name: "Tenant One",
         ownerPhone: "966500000602",
@@ -140,15 +144,20 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         companyId,
         categoryId,
         nameEn: "Burger Box",
+        currency: "SAR",
       });
 
       const variantId = await ctx.db.insert("productVariants", {
+        companyId,
         productId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-        priceOverride: 1.45,
+        label: "Large",
+        price: 1.45,
+      });
+      const otherVariantId = await ctx.db.insert("productVariants", {
+        companyId: otherCompanyId,
+        productId,
+        label: "Other Tenant",
+        price: 9.99,
       });
 
       return {
@@ -157,6 +166,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         categoryId,
         productId,
         variantId,
+        otherVariantId,
       };
     });
 
@@ -174,26 +184,27 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       companyId,
       categoryId,
       nameEn: "Burger Box",
-      images: [],
+      currency: "SAR",
       variants: [
         {
+          companyId,
           id: variantId,
           productId,
-          variantLabel: "Large",
-          attributes: {
-            size: "L",
-          },
-          priceOverride: 1.45,
+          label: "Large",
+          price: 1.45,
         },
       ],
     });
+    expect(product?.variants.map((variant: { id: string }) => variant.id)).not.toContain(
+      otherVariantId,
+    );
     expect(hiddenProduct).toBeNull();
   });
 
   it("lists scoped variants for a product in stable order", async () => {
     const t = convexTest(schema, modules);
 
-    const { companyId, otherCompanyId, productId } = await t.run(async (ctx) => {
+    const { companyId, otherCompanyId, productId, otherVariantId } = await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", {
         name: "Tenant One",
         ownerPhone: "966500000612",
@@ -210,23 +221,30 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         companyId,
         categoryId,
         nameEn: "Burger Box",
+        currency: "SAR",
       });
 
       await ctx.db.insert("productVariants", {
+        companyId,
         productId,
-        variantLabel: "Large",
-        attributes: { size: "L" },
+        label: "Large",
       });
       await ctx.db.insert("productVariants", {
+        companyId,
         productId,
-        variantLabel: "Family Pack",
-        attributes: { size: "XL" },
+        label: "Family Pack",
+      });
+      const otherVariantId = await ctx.db.insert("productVariants", {
+        companyId: otherCompanyId,
+        productId,
+        label: "Other Tenant",
       });
 
       return {
         companyId,
         otherCompanyId,
         productId,
+        otherVariantId,
       };
     });
 
@@ -239,7 +257,13 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       productId,
     });
 
-    expect(variants?.map((variant: { variantLabel: string }) => variant.variantLabel)).toEqual(["Family Pack", "Large"]);
+    expect(variants?.map((variant: { label: string }) => variant.label)).toEqual([
+      "Family Pack",
+      "Large",
+    ]);
+    expect(variants?.map((variant: { id: string }) => variant.id)).not.toContain(
+      otherVariantId,
+    );
     expect(hiddenVariants).toBeNull();
   });
 
@@ -268,9 +292,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       categoryId,
       nameEn: "Burger Box",
       descriptionEn: "Disposable meal box",
-      specifications: {
-        material: "paper",
-      },
+      primaryImage: " companies/company-1/products/product-1/image-1.jpg ",
     });
     const storedProduct = await t.run(async (ctx) =>
       ctx.db
@@ -286,45 +308,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     );
 
     expect(product.variants).toEqual([]);
-    expect(storedProduct[0]?.revision).toBe(1);
+    expect(product.primaryImage).toBe("companies/company-1/products/product-1/image-1.jpg");
+    expect(storedProduct[0]?.primaryImage).toBe("companies/company-1/products/product-1/image-1.jpg");
     expect(embeddings).toHaveLength(2);
     expect(embeddings.map((embedding) => embedding.language).sort()).toEqual(["ar", "en"]);
     expect(embeddings.every((embedding) => embedding.embedding.length === 768)).toBe(true);
-  });
-
-  it("rejects specifications keys that collide after trimming", async () => {
-    installGeminiStub();
-    const t = convexTest(schema, modules);
-
-    const { companyId, categoryId } = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
-        name: "Tenant",
-        ownerPhone: "966500000700",
-      });
-      const categoryId = await ctx.db.insert("categories", {
-        companyId,
-        nameEn: "Containers",
-      });
-
-      return {
-        companyId,
-        categoryId,
-      };
-    });
-
-    await expect(
-      t.action(internal.products.create, {
-        companyId,
-        categoryId,
-        nameEn: "Burger Box",
-        specifications: {
-          size: "Large",
-          " size ": "Medium",
-        },
-      }),
-    ).rejects.toThrow(
-      "VALIDATION_FAILED: specifications keys must be non-empty strings and unique after trimming",
-    );
   });
 
   it("refreshes company catalog language hints after product create, update, and delete", async () => {
@@ -478,6 +466,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         companyId,
         categoryId,
         nameEn: "Burger Box",
+        price: 1.25,
+        currency: "SAR",
       });
 
       for (const language of ["en", "ar"] as const) {
@@ -512,15 +502,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         .withIndex("by_product", (q) => q.eq("productId", productId))
         .collect(),
     );
-    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
-
     expect(updatedProduct).toMatchObject({
       id: productId,
       categoryId: nextCategoryId,
       nameEn: "Updated Burger Box",
       descriptionEn: "Updated description",
     });
-    expect(storedProduct?.revision).toBe(1);
     expect(embeddings).toHaveLength(2);
     expect(embeddings.every((embedding) => embedding.textContent.includes("Updated"))).toBe(true);
 
@@ -531,6 +518,80 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         categoryId: foreignCategoryId,
       }),
     ).rejects.toThrow("NOT_FOUND: Category not found");
+  });
+
+  it("rejects product updates that would remove all identifying fields before refreshing embeddings", async () => {
+    installGeminiStub();
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000616",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        productNo: "BOX-1",
+        nameEn: "Burger Box",
+        nameAr: "علبة برجر",
+        descriptionEn: "Disposable box",
+        descriptionAr: "علبة للاستعمال مرة واحدة",
+        primaryImage: "https://example.com/box.png",
+      });
+
+      for (const language of ["en", "ar"] as const) {
+        await ctx.db.insert("embeddings", {
+          companyId,
+          productId,
+          embedding: createEmbedding(language === "en" ? 30 : 40),
+          textContent: `${language} text before rejected update`,
+          language,
+          companyLanguage: `${companyId}:${language}`,
+        });
+      }
+
+      return {
+        companyId,
+        productId,
+      };
+    });
+
+    await expect(
+      t.action(internal.products.update, {
+        companyId,
+        productId,
+        productNo: null,
+        nameEn: null,
+        nameAr: null,
+        descriptionEn: null,
+        descriptionAr: null,
+      }),
+    ).rejects.toThrow("VALIDATION_FAILED: at least one product identifier is required");
+    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
+    const embeddings = await t.run(async (ctx) =>
+      ctx.db
+        .query("embeddings")
+        .withIndex("by_product", (q) => q.eq("productId", productId))
+        .collect(),
+    );
+
+    expect(storedProduct).toMatchObject({
+      productNo: "BOX-1",
+      nameEn: "Burger Box",
+      nameAr: "علبة برجر",
+      descriptionEn: "Disposable box",
+      descriptionAr: "علبة للاستعمال مرة واحدة",
+      primaryImage: "https://example.com/box.png",
+    });
+    expect(embeddings).toHaveLength(2);
+    expect(embeddings.every((embedding) =>
+      embedding.textContent.includes("before rejected update"),
+    )).toBe(true);
   });
 
   it("updates non-embedding fields without replacing embeddings", async () => {
@@ -555,6 +616,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         companyId,
         categoryId,
         nameEn: "Burger Box",
+        price: 1.25,
+        currency: "SAR",
       });
 
       for (const language of ["en", "ar"] as const) {
@@ -584,8 +647,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     const updatedProduct = await t.action(internal.products.update, {
       companyId,
       productId,
-      basePrice: 2.5,
-      baseCurrency: "SAR",
+      productNo: "123",
     });
     const embeddingsAfter = await t.run(async (ctx) =>
       ctx.db
@@ -593,26 +655,217 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         .withIndex("by_product", (q) => q.eq("productId", productId))
         .collect(),
     );
-    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
-
     expect(updatedProduct).toMatchObject({
       id: productId,
-      basePrice: 2.5,
-      baseCurrency: "SAR",
+      productNo: "123",
     });
-    expect(storedProduct?.revision).toBe(1);
     expect(embeddingsAfter.map((embedding) => embedding._id)).toEqual(
       embeddingsBefore.map((embedding) => embedding._id),
     );
     expect(embeddingsAfter.map((embedding) => embedding.textContent)).toEqual(
       embeddingsBefore.map((embedding) => embedding.textContent),
     );
+    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
     expect(storedProduct?.companyId).toBe(companyId);
     const storedCompany = await t.run(async (ctx) => ctx.db.get(companyId));
     expect(storedCompany?.catalogLanguageHints).toEqual(originalCatalogLanguageHints);
   });
 
-  it("creates a variant, preserves nested attributes, and replaces embeddings with variant content", async () => {
+  it("rejects stale product update snapshots before patching", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId, staleRevision } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000622",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+      });
+      const product = await ctx.db.get(productId);
+      await ctx.db.patch(productId, {
+        productNo: "fresh",
+        version: (product!.version ?? 0) + 1,
+      });
+
+      return {
+        companyId,
+        productId,
+        staleRevision: product!.version ?? 0,
+      };
+    });
+
+    await expect(
+      t.mutation(internal.products.patchProductWithEmbeddings, {
+        companyId,
+        productId,
+        expectedRevision: staleRevision,
+        productNo: "stale",
+      }),
+    ).rejects.toThrow("CONFLICT: Product was modified concurrently; retry the update");
+
+    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
+    expect(storedProduct?.productNo).toBe("fresh");
+  });
+
+  it("rejects direct product patches that clear all product names", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000624",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        productNo: "BOX-1",
+        nameEn: "Burger Box",
+        nameAr: "علبة برجر",
+        version: 1,
+      });
+
+      return {
+        companyId,
+        productId,
+      };
+    });
+
+    await expect(
+      t.mutation(internal.products.patchProductWithEmbeddings, {
+        companyId,
+        productId,
+        expectedRevision: 1,
+        nameEn: null,
+        nameAr: null,
+      }),
+    ).rejects.toThrow("VALIDATION_FAILED: at least one of nameEn or nameAr is required");
+
+    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
+    expect(storedProduct).toMatchObject({
+      productNo: "BOX-1",
+      nameEn: "Burger Box",
+      nameAr: "علبة برجر",
+      version: 1,
+    });
+  });
+
+  it("rejects direct product patches that leave price and currency incomplete", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, pricedProductId, currencyOnlyProductId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000625",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const pricedProductId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+        price: 10,
+        currency: "SAR",
+        version: 1,
+      });
+      const currencyOnlyProductId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Soup Cup",
+        version: 1,
+      });
+
+      return {
+        companyId,
+        pricedProductId,
+        currencyOnlyProductId,
+      };
+    });
+
+    await expect(
+      t.mutation(internal.products.patchProductWithEmbeddings, {
+        companyId,
+        productId: pricedProductId,
+        expectedRevision: 1,
+        currency: null,
+      }),
+    ).rejects.toThrow("VALIDATION_FAILED: currency is required when a price is set");
+
+    await expect(
+      t.mutation(internal.products.patchProductWithEmbeddings, {
+        companyId,
+        productId: currencyOnlyProductId,
+        expectedRevision: 1,
+        currency: "SAR",
+      }),
+    ).rejects.toThrow("VALIDATION_FAILED: price is required when a currency is set");
+
+    const pricedProduct = await t.run(async (ctx) => ctx.db.get(pricedProductId));
+    const currencyOnlyProduct = await t.run(async (ctx) => ctx.db.get(currencyOnlyProductId));
+    expect(pricedProduct).toMatchObject({ price: 10, currency: "SAR", version: 1 });
+    expect(currencyOnlyProduct).toMatchObject({ nameEn: "Soup Cup", version: 1 });
+    expect(currencyOnlyProduct?.currency).toBeUndefined();
+  });
+
+  it("patches and clears a product primary image", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000623",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+        version: 1,
+      });
+
+      return {
+        companyId,
+        productId,
+      };
+    });
+
+    const updated = await t.mutation(internal.products.patchProductWithEmbeddings, {
+      companyId,
+      productId,
+      expectedRevision: 1,
+      primaryImage: " companies/company-1/products/product-1/image-1.jpg ",
+    });
+
+    expect(updated?.primaryImage).toBe("companies/company-1/products/product-1/image-1.jpg");
+
+    const cleared = await t.mutation(internal.products.patchProductWithEmbeddings, {
+      companyId,
+      productId,
+      expectedRevision: 2,
+      primaryImage: null,
+    });
+
+    expect(cleared?.primaryImage).toBeUndefined();
+    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
+    expect(storedProduct?.primaryImage).toBeUndefined();
+  });
+
+  it("creates a variant and replaces embeddings with variant content", async () => {
     installGeminiStub();
     const t = convexTest(schema, modules);
 
@@ -628,8 +881,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const productId = await ctx.db.insert("products", {
         companyId,
         categoryId,
-        revision: 1,
         nameEn: "Burger Box",
+        currency: "SAR",
       });
 
       for (const language of ["en", "ar"] as const) {
@@ -659,18 +912,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     const variant = await t.action(internal.products.createVariant, {
       companyId,
       productId,
-      variantLabel: "Family Pack",
-      attributes: {
-        size: "XL",
-        nested: {
-          finish: ["matte", "gloss"],
-          metadata: {
-            recyclable: true,
-            notes: null,
-          },
-        },
-      },
-      priceOverride: 2.1,
+      label: "Family Pack",
+      price: 2.1,
     });
     const embeddingsAfter = await t.run(async (ctx) =>
       ctx.db
@@ -678,7 +921,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         .withIndex("by_product", (q) => q.eq("productId", productId))
         .collect(),
     );
-    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
     const storedVariants = await t.run(async (ctx) =>
       ctx.db
         .query("productVariants")
@@ -687,22 +929,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     );
 
     expect(variant).toEqual({
+      companyId,
       id: storedVariants[0]!._id,
       productId,
-      variantLabel: "Family Pack",
-      attributes: {
-        size: "XL",
-        nested: {
-          finish: ["matte", "gloss"],
-          metadata: {
-            recyclable: true,
-            notes: null,
-          },
-        },
-      },
-      priceOverride: 2.1,
+      label: "Family Pack",
+      price: 2.1,
     });
-    expect(storedProduct?.revision).toBe(2);
     expect(storedVariants).toHaveLength(1);
     expect(embeddingsAfter).toHaveLength(2);
     expect(embeddingsAfter.map((embedding) => embedding._id)).not.toEqual(
@@ -711,12 +943,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(embeddingsAfter.every((embedding) => embedding.textContent.includes("Family Pack"))).toBe(
       true,
     );
-    expect(embeddingsAfter.some((embedding) => embedding.textContent.includes("finish: [matte, gloss]"))).toBe(
-      true,
-    );
   });
 
-  it("updates a variant, clears priceOverride, and refreshes embeddings", async () => {
+  it("updates a variant, clears price, and refreshes embeddings", async () => {
     installGeminiStub();
     const t = convexTest(schema, modules);
 
@@ -732,16 +961,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const productId = await ctx.db.insert("products", {
         companyId,
         categoryId,
-        revision: 1,
         nameEn: "Burger Box",
+        currency: "SAR",
       });
       const variantId = await ctx.db.insert("productVariants", {
+        companyId,
         productId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-        priceOverride: 1.45,
+        label: "Large",
+        price: 1.45,
       });
 
       for (const language of ["en", "ar"] as const) {
@@ -766,16 +993,9 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       companyId,
       productId,
       variantId,
-      variantLabel: "Extra Large",
-      attributes: {
-        size: "XL",
-        nested: {
-          palette: ["white", "kraft"],
-        },
-      },
-      priceOverride: null,
+      label: "Extra Large",
+      price: null,
     });
-    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
     const storedVariant = await t.run(async (ctx) => ctx.db.get(variantId));
     const embeddings = await t.run(async (ctx) =>
       ctx.db
@@ -785,31 +1005,19 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     );
 
     expect(updatedVariant).toEqual({
+      companyId,
       id: variantId,
       productId,
-      variantLabel: "Extra Large",
-      attributes: {
-        size: "XL",
-        nested: {
-          palette: ["white", "kraft"],
-        },
-      },
+      label: "Extra Large",
     });
     expect(storedVariant).toMatchObject({
-      variantLabel: "Extra Large",
-      attributes: {
-        size: "XL",
-        nested: {
-          palette: ["white", "kraft"],
-        },
-      },
+      label: "Extra Large",
     });
-    expect(storedVariant?.priceOverride).toBeUndefined();
-    expect(storedProduct?.revision).toBe(2);
+    expect(storedVariant?.price).toBeUndefined();
     expect(embeddings.every((embedding) => embedding.textContent.includes("Extra Large"))).toBe(true);
   });
 
-  it("updates a variant without priceOverride and preserves the existing override", async () => {
+  it("updates a variant without price and preserves the existing override", async () => {
     installGeminiStub();
     const t = convexTest(schema, modules);
 
@@ -825,16 +1033,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const productId = await ctx.db.insert("products", {
         companyId,
         categoryId,
-        revision: 1,
         nameEn: "Burger Box",
+        currency: "SAR",
       });
       const variantId = await ctx.db.insert("productVariants", {
+        companyId,
         productId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-        priceOverride: 1.45,
+        label: "Large",
+        price: 1.45,
       });
 
       for (const language of ["en", "ar"] as const) {
@@ -859,12 +1065,8 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       companyId,
       productId,
       variantId,
-      variantLabel: "Extra Large",
-      attributes: {
-        size: "XL",
-      },
-    });
-    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
+      label: "Extra Large",
+      });
     const storedVariant = await t.run(async (ctx) => ctx.db.get(variantId));
     const embeddings = await t.run(async (ctx) =>
       ctx.db
@@ -874,22 +1076,16 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     );
 
     expect(updatedVariant).toEqual({
+      companyId,
       id: variantId,
       productId,
-      variantLabel: "Extra Large",
-      attributes: {
-        size: "XL",
-      },
-      priceOverride: 1.45,
+      label: "Extra Large",
+      price: 1.45,
     });
     expect(storedVariant).toMatchObject({
-      variantLabel: "Extra Large",
-      attributes: {
-        size: "XL",
-      },
-      priceOverride: 1.45,
+      label: "Extra Large",
+      price: 1.45,
     });
-    expect(storedProduct?.revision).toBe(2);
     expect(embeddings.every((embedding) => embedding.textContent.includes("Extra Large"))).toBe(true);
   });
 
@@ -909,23 +1105,19 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const productId = await ctx.db.insert("products", {
         companyId,
         categoryId,
-        revision: 1,
         nameEn: "Burger Box",
+        currency: "SAR",
       });
       const variantId = await ctx.db.insert("productVariants", {
+        companyId,
         productId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-      });
+        label: "Large",
+        });
       const retainedVariantId = await ctx.db.insert("productVariants", {
+        companyId,
         productId,
-        variantLabel: "Small",
-        attributes: {
-          size: "S",
-        },
-      });
+        label: "Small",
+        });
 
       for (const language of ["en", "ar"] as const) {
         await ctx.db.insert("embeddings", {
@@ -951,7 +1143,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       productId,
       variantId,
     });
-    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
     const remainingVariants = await t.run(async (ctx) =>
       ctx.db
         .query("productVariants")
@@ -969,188 +1160,10 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       productId,
       variantId,
     });
-    expect(storedProduct?.revision).toBe(2);
     expect(remainingVariants.map((variant) => variant._id)).toEqual([retainedVariantId]);
     expect(embeddings).toHaveLength(2);
     expect(embeddings.every((embedding) => !embedding.textContent.includes("Large"))).toBe(true);
     expect(embeddings.every((embedding) => embedding.textContent.includes("Small"))).toBe(true);
-  });
-
-  it("rejects stale variant mutations when the product revision changed after snapshot read", async () => {
-    installGeminiStub();
-    const t = convexTest(schema, modules);
-
-    const { companyId, productId, variantId } = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
-        name: "Tenant",
-        ownerPhone: "966500000617",
-      });
-      const categoryId = await ctx.db.insert("categories", {
-        companyId,
-        nameEn: "Containers",
-      });
-      const productId = await ctx.db.insert("products", {
-        companyId,
-        categoryId,
-        revision: 1,
-        nameEn: "Burger Box",
-      });
-      const variantId = await ctx.db.insert("productVariants", {
-        productId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-      });
-
-      for (const language of ["en", "ar"] as const) {
-        await ctx.db.insert("embeddings", {
-          companyId,
-          productId,
-          embedding: createEmbedding(language === "en" ? 86 : 87),
-          textContent: `${language} text`,
-          language,
-          companyLanguage: `${companyId}:${language}`,
-        });
-      }
-
-      return {
-        companyId,
-        productId,
-        variantId,
-      };
-    });
-
-    const createSnapshot = await t.query(internal.products.getVariantCreateSnapshot, {
-      companyId,
-      productId,
-    });
-    const updateSnapshot = await t.query(internal.products.getVariantUpdateSnapshot, {
-      companyId,
-      productId,
-      variantId,
-    });
-    const deleteSnapshot = await t.query(internal.products.getVariantUpdateSnapshot, {
-      companyId,
-      productId,
-      variantId,
-    });
-
-    await t.run(async (ctx) => {
-      await ctx.db.patch(productId, {
-        revision: 2,
-        nameEn: "Concurrent change",
-      });
-    });
-
-    await expect(
-      t.mutation(internal.products.insertVariantWithEmbeddings, {
-        companyId,
-        productId,
-        expectedRevision: createSnapshot!.expectedRevision,
-        variantLabel: "Family Pack",
-        attributes: {
-          size: "XL",
-        },
-        englishEmbedding: createEmbedding(90),
-        arabicEmbedding: createEmbedding(91),
-        englishText: "english text",
-        arabicText: "arabic text",
-      }),
-    ).rejects.toThrow("CONFLICT: Product was modified concurrently; retry the update");
-
-    await expect(
-      t.mutation(internal.products.patchVariantWithEmbeddings, {
-        companyId,
-        productId,
-        variantId,
-        expectedRevision: updateSnapshot!.expectedRevision,
-        variantLabel: "Updated",
-        englishEmbedding: createEmbedding(92),
-        arabicEmbedding: createEmbedding(93),
-        englishText: "english text",
-        arabicText: "arabic text",
-      }),
-    ).rejects.toThrow("CONFLICT: Product was modified concurrently; retry the update");
-
-    await expect(
-      t.mutation(internal.products.removeVariantWithEmbeddings, {
-        companyId,
-        productId,
-        variantId,
-        expectedRevision: deleteSnapshot!.expectedRevision,
-        englishEmbedding: createEmbedding(94),
-        arabicEmbedding: createEmbedding(95),
-        englishText: "english text",
-        arabicText: "arabic text",
-      }),
-    ).rejects.toThrow("CONFLICT: Product was modified concurrently; retry the update");
-  });
-
-  it("rejects stale updates when the product changed after the snapshot was read", async () => {
-    installGeminiStub();
-    const t = convexTest(schema, modules);
-
-    const { companyId, productId } = await t.run(async (ctx) => {
-      const companyId = await ctx.db.insert("companies", {
-        name: "Tenant",
-        ownerPhone: "966500000611",
-      });
-      const categoryId = await ctx.db.insert("categories", {
-        companyId,
-        nameEn: "Containers",
-      });
-      const productId = await ctx.db.insert("products", {
-        companyId,
-        categoryId,
-        nameEn: "Burger Box",
-      });
-
-      for (const language of ["en", "ar"] as const) {
-        await ctx.db.insert("embeddings", {
-          companyId,
-          productId,
-          embedding: createEmbedding(language === "en" ? 60 : 70),
-          textContent: `${language} text`,
-          language,
-          companyLanguage: `${companyId}:${language}`,
-        });
-      }
-
-      return {
-        companyId,
-        productId,
-      };
-    });
-
-    const snapshot = await t.query(internal.products.getUpdateSnapshot, {
-      companyId,
-      productId,
-    });
-
-    expect(snapshot?.expectedRevision).toBe(0);
-
-    await t.run(async (ctx) => {
-      await ctx.db.patch(productId, {
-        nameEn: "Concurrent change",
-        revision: 1,
-      });
-    });
-
-    await expect(
-      t.mutation(internal.products.patchProductWithEmbeddings, {
-        companyId,
-        productId,
-        nameEn: "Stale action update",
-        expectedRevision: snapshot!.expectedRevision,
-      }),
-    ).rejects.toThrow("CONFLICT: Product was modified concurrently; retry the update");
-
-    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
-    expect(storedProduct).toMatchObject({
-      nameEn: "Concurrent change",
-      revision: 1,
-    });
   });
 
   it("deletes a product with its variants and embeddings", async () => {
@@ -1169,15 +1182,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         companyId,
         categoryId,
         nameEn: "Burger Box",
+        currency: "SAR",
       });
 
       await ctx.db.insert("productVariants", {
+        companyId,
         productId,
-        variantLabel: "Large",
-        attributes: {
-          size: "L",
-        },
-      });
+        label: "Large",
+        });
       await ctx.db.insert("embeddings", {
         companyId,
         productId,
@@ -1232,6 +1244,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         companyId,
         categoryId,
         nameEn: "Burger Box",
+        currency: "SAR",
       });
 
       return {
@@ -1256,3 +1269,5 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     expect(deletedProduct).toBeNull();
   });
 });
+
+

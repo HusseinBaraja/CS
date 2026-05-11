@@ -122,28 +122,17 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
           nameEn: "Paper Cup 8oz",
           nameAr: "كوب ورقي 8 أونس",
           descriptionEn: "Standard paper cup",
-          specifications: { size: "8oz", material: "paper" },
-          basePrice: 0.15,
-          baseCurrency: "SAR",
-          images: [
-            {
-              id: "image-1",
-              key: "companies/company-1/products/product-1/image-1.jpg",
-              contentType: "image/jpeg",
-              sizeBytes: 1024,
-              uploadedAt: Date.UTC(2026, 2, 12, 0, 0, 0),
-            },
-          ],
+          price: 0.15,
+          currency: "SAR",
         }).then(({ productId }) => productId),
       );
 
       const doc = await t.run(async (ctx) => ctx.db.get(productId));
       expect(doc).toMatchObject({
         nameEn: "Paper Cup 8oz",
-        basePrice: 0.15,
-        baseCurrency: "SAR",
+        price: 0.15,
+        currency: "SAR",
       });
-      expect(doc?.images).toHaveLength(1);
     });
   });
 
@@ -168,67 +157,51 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
       );
 
       const variantId = await t.run(async (ctx) =>
-        createVariant(ctx, {
-          productId,
-          variantLabel: "Large White",
-          attributes: { size: "L", color: "White" },
-          priceOverride: 0.2,
+        createVariant(ctx, { companyId, productId,
+          label: "Large White",
+          price: 0.2,
         }).then(({ variantId }) => variantId),
       );
 
       const doc = await t.run(async (ctx) => ctx.db.get(variantId));
       expect(doc).toMatchObject({
-        variantLabel: "Large White",
-        attributes: { size: "L", color: "White" },
+        label: "Large White",
+        price: 0.2,
       });
     });
 
-    it("accepts nested object and array attribute values", async () => {
+    it("rejects a variant companyId that does not match the product", async () => {
       const t = convexTest(schema, modules);
       const companyId = await t.run(async (ctx) =>
         createCompany(ctx, {
-          name: "Nested Test Co",
+          name: "Product Company",
+        }).then(({ companyId }) => companyId),
+      );
+      const otherCompanyId = await t.run(async (ctx) =>
+        createCompany(ctx, {
+          name: "Other Company",
         }).then(({ companyId }) => companyId),
       );
       const catId = await t.run(async (ctx) =>
-        createCategory(ctx, { companyId, nameEn: "Containers" }).then(({ categoryId }) => categoryId),
+        createCategory(ctx, { companyId, nameEn: "Cups" }).then(({ categoryId }) => categoryId),
       );
       const productId = await t.run(async (ctx) =>
         createProduct(ctx, {
           companyId,
           categoryId: catId,
-          nameEn: "Meal Box",
+          nameEn: "Paper Cup",
         }).then(({ productId }) => productId),
       );
 
-      const variantId = await t.run(async (ctx) =>
-        createVariant(ctx, {
-          productId,
-          variantLabel: "Family Pack",
-          attributes: {
-            size: "XL",
-            nested: {
-              materials: ["paper", "kraft"],
-              metadata: {
-                recyclable: true,
-                notes: null,
-              },
-            },
-          },
-        }).then(({ variantId }) => variantId),
-      );
-
-      const doc = await t.run(async (ctx) => ctx.db.get(variantId));
-      expect(doc?.attributes).toEqual({
-        size: "XL",
-        nested: {
-          materials: ["paper", "kraft"],
-          metadata: {
-            recyclable: true,
-            notes: null,
-          },
-        },
-      });
+      await expect(
+        t.run(async (ctx) =>
+          createVariant(ctx, {
+            companyId: otherCompanyId,
+            productId,
+            label: "Large White",
+          }),
+        ),
+      ).rejects.toThrow("Variant companyId must match the product companyId");
     });
   });
 
@@ -253,12 +226,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
 
       await t.run(async (ctx) => {
         await ctx.db.insert("messages", {
+          companyId,
           conversationId: convId,
           role: "user",
           content: "Do you have burger boxes?",
           timestamp: Date.now(),
         });
         await ctx.db.insert("messages", {
+          companyId,
           conversationId: convId,
           role: "assistant",
           content: "Yes! We have 3 sizes.",
@@ -274,6 +249,34 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
       );
       expect(messages).toHaveLength(2);
       expect(messages[0]?.role).toBe("user");
+    });
+
+    it("rejects messages without company ownership", async () => {
+      const t = convexTest(schema, modules);
+      const companyId = await t.run(async (ctx) =>
+        ctx.db.insert("companies", {
+          name: "Test Co",
+          ownerPhone: "966500000000",
+        }),
+      );
+      const convId = await t.run(async (ctx) =>
+        ctx.db.insert("conversations", {
+          companyId,
+          phoneNumber: "967771234567",
+          muted: false,
+        }),
+      );
+
+      await expect(
+        t.run(async (ctx) =>
+          ctx.db.insert("messages", {
+            conversationId: convId,
+            role: "user",
+            content: "Missing company",
+            timestamp: Date.now(),
+          } as any),
+        ),
+      ).rejects.toThrow();
     });
 
     it("queries conversations by the new index", async () => {
@@ -656,3 +659,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
     });
   });
 });
+
+
+

@@ -3,18 +3,19 @@ import { ERROR_CODES, type ErrorCode } from '@cs/shared';
 export interface CategoryDto {
   id: string;
   companyId: string;
-  nameEn: string;
+  nameEn?: string;
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
 }
 
-export interface CreateCategoryInput {
-  nameEn: string;
-  nameAr?: string;
+export type CreateCategoryInput = (
+  | { nameEn: string; nameAr?: string }
+  | { nameAr: string; nameEn?: string }
+) & {
   descriptionEn?: string;
   descriptionAr?: string;
-}
+};
 
 export interface UpdateCategoryInput {
   nameEn?: string;

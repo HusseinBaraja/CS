@@ -37,6 +37,7 @@ export const appendPendingAssistantMessageDefinition = {
     const actorPhoneNumber = normalizeOptionalString(args.actorPhoneNumber, 'actorPhoneNumber');
 
     const messageId = await ctx.db.insert('messages', {
+      companyId: args.companyId,
       conversationId: args.conversationId,
       role: 'assistant',
       content,

@@ -3,37 +3,61 @@ import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import { internal } from '../../_generated/api';
 import { buildProductEmbeddingPayload } from '../../productEmbeddingRuntime';
-import { NOT_FOUND_PREFIX, createTaggedError } from '../errors';
+import { createTaggedError, NOT_FOUND_PREFIX } from '../errors';
 import { sortVariants, toVariantWriteState } from '../mapping';
-import {
-  mergeVariantUpdateState,
-  normalizeVariantCreateState,
-} from '../normalization';
-import {
-  type DeleteProductVariantResult,
-  type ProductVariantAttributes,
-  type ProductVariantDto,
-  variantAttributesValidator,
-} from '../types';
+import { mergeVariantUpdateState, normalizeOptionalNumber, normalizeVariantCreateState } from '../normalization';
+import type { DeleteProductVariantResult, ProductVariantDto } from '../types';
+
+const hasText = (value: string | null | undefined): boolean =>
+  value !== undefined && value !== null && value.trim().length > 0;
+
+const hasSearchableProductText = (snapshot: {
+  productNo?: string;
+  nameEn?: string;
+  nameAr?: string;
+  descriptionEn?: string;
+  descriptionAr?: string;
+}): boolean =>
+  [
+    snapshot.productNo,
+    snapshot.nameEn,
+    snapshot.nameAr,
+    snapshot.descriptionEn,
+    snapshot.descriptionAr,
+  ].some(hasText);
+
+const hasSearchableTextAfterVariantDelete = (
+  snapshot: {
+    productNo?: string;
+    nameEn?: string;
+    nameAr?: string;
+    descriptionEn?: string;
+    descriptionAr?: string;
+    variants: ProductVariantDto[];
+  },
+  remainingVariants: ProductVariantDto[],
+): boolean =>
+  hasSearchableProductText(snapshot) ||
+  remainingVariants.some((variant) => hasText(variant.label));
 
 export const createVariantDefinition = {
   args: {
     companyId: v.id('companies'),
     productId: v.id('products'),
-    variantLabel: v.string(),
-    attributes: variantAttributesValidator,
-    priceOverride: v.optional(v.number()),
+    label: v.string(),
+    price: v.optional(v.number()),
   },
   handler: async (
     ctx: ActionCtx,
     args: {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
-      variantLabel: string;
-      attributes: ProductVariantAttributes;
-      priceOverride?: number;
+      label: string;
+      price?: number;
     },
   ): Promise<ProductVariantDto | null> => {
+    normalizeOptionalNumber(args.price, 'price');
+
     const snapshot = await ctx.runQuery(internal.products.getVariantCreateSnapshot, {
       companyId: args.companyId,
       productId: args.productId,
@@ -43,20 +67,25 @@ export const createVariantDefinition = {
       return null;
     }
 
-    const nextVariant = normalizeVariantCreateState({
-      productId: args.productId,
-      variantLabel: args.variantLabel,
-      attributes: args.attributes,
-      priceOverride: args.priceOverride,
-    });
-    const embeddings = await buildProductEmbeddingPayload(snapshot, sortVariants([
-      ...snapshot.variants.map(toVariantWriteState),
-      nextVariant,
-    ]));
+    const nextVariant = normalizeVariantCreateState(
+      {
+        productId: args.productId,
+        label: args.label,
+        price: args.price,
+      },
+      snapshot.currency,
+    );
+    const embeddings = await buildProductEmbeddingPayload(
+      snapshot,
+      sortVariants([
+        ...snapshot.variants.map(toVariantWriteState),
+        nextVariant,
+      ]),
+    );
 
     return ctx.runMutation(internal.products.insertVariantWithEmbeddings, {
       ...args,
-      expectedRevision: snapshot.expectedRevision,
+      expectedRevision: snapshot.revision,
       ...embeddings,
     });
   },
@@ -67,9 +96,8 @@ export const updateVariantDefinition = {
     companyId: v.id('companies'),
     productId: v.id('products'),
     variantId: v.id('productVariants'),
-    variantLabel: v.optional(v.string()),
-    attributes: v.optional(variantAttributesValidator),
-    priceOverride: v.optional(v.union(v.number(), v.null())),
+    label: v.optional(v.string()),
+    price: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (
     ctx: ActionCtx,
@@ -77,11 +105,12 @@ export const updateVariantDefinition = {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
       variantId: Id<'productVariants'>;
-      variantLabel?: string;
-      attributes?: ProductVariantAttributes;
-      priceOverride?: number | null;
+      label?: string;
+      price?: number | null;
     },
   ): Promise<ProductVariantDto | null> => {
+    normalizeOptionalNumber(args.price, 'price');
+
     const snapshot = await ctx.runQuery(internal.products.getVariantUpdateSnapshot, {
       companyId: args.companyId,
       productId: args.productId,
@@ -96,7 +125,11 @@ export const updateVariantDefinition = {
       throw createTaggedError(NOT_FOUND_PREFIX, 'Variant not found');
     }
 
-    const nextVariant = mergeVariantUpdateState(toVariantWriteState(snapshot.targetVariant), args);
+    const nextVariant = mergeVariantUpdateState(
+      toVariantWriteState(snapshot.targetVariant),
+      args,
+      snapshot.currency,
+    );
     const embeddings = await buildProductEmbeddingPayload(
       snapshot,
       sortVariants(
@@ -108,7 +141,7 @@ export const updateVariantDefinition = {
 
     return ctx.runMutation(internal.products.patchVariantWithEmbeddings, {
       ...args,
-      expectedRevision: snapshot.expectedRevision,
+      expectedRevision: snapshot.revision,
       ...embeddings,
     });
   },
@@ -142,16 +175,19 @@ export const removeVariantDefinition = {
       throw createTaggedError(NOT_FOUND_PREFIX, 'Variant not found');
     }
 
-    const embeddings = await buildProductEmbeddingPayload(
-      snapshot,
-      snapshot.variants
-        .filter((variant: ProductVariantDto) => variant.id !== args.variantId)
-        .map(toVariantWriteState),
+    const remainingVariants = snapshot.variants.filter(
+      (variant: ProductVariantDto) => variant.id !== args.variantId,
     );
+    const embeddings = hasSearchableTextAfterVariantDelete(snapshot, remainingVariants)
+      ? await buildProductEmbeddingPayload(
+        snapshot,
+        sortVariants(remainingVariants.map(toVariantWriteState)),
+      )
+      : { clearEmbeddings: true };
 
     return ctx.runMutation(internal.products.removeVariantWithEmbeddings, {
       ...args,
-      expectedRevision: snapshot.expectedRevision,
+      expectedRevision: snapshot.revision,
       ...embeddings,
     });
   },

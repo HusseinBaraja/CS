@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { UploadDataPage } from './UploadDataPage';
+import { buildCatalogTemplateHeaders, defaultCatalogTemplateOptions } from '../features/catalog-import/catalogTemplate';
 import { downloadCatalogTemplate } from '../features/catalog-import/downloadCatalogTemplate';
 
 vi.mock('../features/catalog-import/downloadCatalogTemplate', () => ({
@@ -50,8 +51,9 @@ describe('UploadDataPage', () => {
     expect(screen.getByRole('group', { name: 'اختيار العملة' })).toBeDefined();
     expect(screen.getByRole('group', { name: 'تضمين السعر' })).toBeDefined();
     expect(screen.getByRole('group', { name: 'اختيار اللغة' })).toBeDefined();
-    expect(screen.getByRole('group', { name: 'تضمين المعلومات الإضافية' })).toBeDefined();
+    expect(screen.getByRole('group', { name: 'تضمين الصورة الرئيسية' })).toBeDefined();
     expect(screen.getByRole('group', { name: 'تضمين الوصف' })).toBeDefined();
+    expect(screen.getByRole('group', { name: 'تضمين المتغيرات' })).toBeDefined();
     expect(screen.getByRole('button', { name: /تحميل ملف Excel/ })).toBeDefined();
     expect(downloadCatalogTemplate).not.toHaveBeenCalled();
   });
@@ -67,22 +69,26 @@ describe('UploadDataPage', () => {
     expect(priceGroup.compareDocumentPosition(currencyGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('passes selected template options to the download action', () => {
+  it('passes selected template options to the download action', async () => {
     render(<UploadDataPage />);
 
     fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
     fireEvent.click(screen.getByRole('radio', { name: 'YER' }));
     fireEvent.click(screen.getByRole('radio', { name: 'English' }));
-    fireEvent.click(within(screen.getByRole('group', { name: 'تضمين المعلومات الإضافية' })).getByRole('radio', { name: 'لا' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'تضمين الصورة الرئيسية' })).getByRole('radio', { name: 'لا' }));
     fireEvent.click(within(screen.getByRole('group', { name: 'تضمين الوصف' })).getByRole('radio', { name: 'لا' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'تضمين المتغيرات' })).getByRole('radio', { name: 'لا' }));
     fireEvent.click(screen.getByRole('button', { name: /تحميل ملف Excel/ }));
 
-    expect(downloadCatalogTemplate).toHaveBeenCalledWith({
-      currency: 'YER',
-      includePrice: true,
-      language: 'en',
-      includeSpecifications: false,
-      includeDescription: false,
+    await waitFor(() => {
+      expect(downloadCatalogTemplate).toHaveBeenCalledWith({
+        currency: 'YER',
+        includePrice: true,
+        language: 'en',
+        includeDescription: false,
+        includePrimaryImage: false,
+        includeVariants: false,
+      });
     });
   });
 
@@ -104,9 +110,11 @@ describe('UploadDataPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /رفع الملف/ }));
 
+    const expectedLabel = `${buildCatalogTemplateHeaders(defaultCatalogTemplateOptions).length} أعمدة`;
+
     expect(screen.getByText('reda-catalog-template.xlsx')).toBeDefined();
     expect(screen.getByText('28 أبريل 2026')).toBeDefined();
-    expect(screen.getByText('7 أعمدة')).toBeDefined();
+    expect(screen.getByText(expectedLabel)).toBeDefined();
     expect(screen.getByText('124 صف')).toBeDefined();
     expect(screen.getByText('86 KB')).toBeDefined();
     expect(screen.getByText('جاهز')).toBeDefined();

@@ -101,6 +101,7 @@ export const appendAssistantMessageAndStartHandoffDefinition = {
     const transportMessageId = normalizeOptionalMessageId(args.transportMessageId, 'transportMessageId');
 
     const messageId = await ctx.db.insert('messages', {
+      companyId: args.companyId,
       conversationId: args.conversationId,
       role: 'assistant',
       content,

@@ -97,6 +97,66 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     ).rejects.toThrow("Conversation not found for company");
   });
 
+  it("rejects message creation when company does not own the referenced conversation", async () => {
+    const t = convexTest(schema, modules);
+    const companyA = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant A",
+        ownerPhone: "966500000000",
+      })
+    );
+    const companyB = await t.run(async (ctx) =>
+      ctx.db.insert("companies", {
+        name: "Tenant B",
+        ownerPhone: "966500000001",
+      })
+    );
+    const conversationId = await t.run(async (ctx) =>
+      ctx.db.insert("conversations", {
+        companyId: companyA,
+        phoneNumber: "967700000001",
+        muted: true,
+      })
+    );
+
+    await expect(
+      t.mutation(internal.conversations.appendMutedCustomerMessage, {
+        companyId: companyB,
+        conversationId,
+        content: "hello",
+        timestamp: 1_000,
+      }),
+    ).rejects.toThrow("Conversation not found for company");
+    await expect(
+      t.mutation(internal.conversations.appendInboundCustomerMessageToConversation, {
+        companyId: companyB,
+        conversationId,
+        content: "hello",
+        timestamp: 1_000,
+      }),
+    ).rejects.toThrow("Conversation not found for company");
+    await expect(
+      t.mutation(internal.conversations.appendPendingAssistantMessage, {
+        companyId: companyB,
+        conversationId,
+        content: "hello",
+        timestamp: 1_000,
+      }),
+    ).rejects.toThrow("Conversation not found for company");
+    await expect(
+      t.mutation(internal.conversations.appendAssistantMessageAndStartHandoff, {
+        companyId: companyB,
+        conversationId,
+        content: "hello",
+        timestamp: 1_000,
+        source: "assistant_action",
+      }),
+    ).rejects.toThrow("Conversation not found for company");
+
+    const messages = await t.run(async (ctx) => ctx.db.query("messages").collect());
+    expect(messages).toEqual([]);
+  });
+
   it("rejects empty message content", async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
@@ -247,6 +307,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     });
     await t.run(async (ctx) =>
       ctx.db.insert("messages", {
+        companyId,
         conversationId,
         role: "assistant",
         content: "invisible-middle",
@@ -256,6 +317,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     for (let index = 0; index < 101; index += 1) {
       await t.run(async (ctx) =>
         ctx.db.insert("messages", {
+          companyId,
           conversationId,
           role: "assistant",
           content: `invisible-${index}`,
@@ -305,6 +367,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     for (let index = 0; index < 105; index += 1) {
       await t.run(async (ctx) =>
         ctx.db.insert("messages", {
+          companyId,
           conversationId,
           role: "assistant",
           content: `invisible-${index}`,
@@ -872,6 +935,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId,
+      companyId,
       role: "assistant",
       content: "Connecting you with the team.",
       timestamp: 2_000,
@@ -962,6 +1026,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: pending.id,
       conversationId,
+      companyId,
       role: "assistant",
       content: "Assistant reply",
       timestamp: 2_000,
@@ -1031,6 +1096,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       {
         id: expect.any(String),
         conversationId,
+        companyId,
         role: "user",
         content: "Customer message",
         timestamp: 2_100,
@@ -1038,6 +1104,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       {
         id: visibleAssistant.id,
         conversationId,
+        companyId,
         role: "assistant",
         content: "Visible assistant reply",
         timestamp: 2_200,
@@ -1115,6 +1182,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       {
         id: expect.any(String),
         conversationId,
+        companyId,
         role: "assistant",
         content: "visible-2",
         timestamp: 1_100,
@@ -1124,6 +1192,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
       {
         id: expect.any(String),
         conversationId,
+        companyId,
         role: "user",
         content: "visible-3",
         timestamp: 1_200,
@@ -1752,6 +1821,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId,
+      companyId,
       role: "user",
       content: "hello again",
       timestamp: 5_000,
@@ -1805,6 +1875,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId,
+      companyId,
       role: "user",
       content: "hello again",
       timestamp: 5_000,
@@ -1842,6 +1913,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId: result.conversation.id,
+      companyId,
       role: "user",
       content: "hello",
       timestamp: 2_000,
@@ -1873,6 +1945,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId: result.conversation.id,
+      companyId,
       role: "user",
       content: "hello",
       timestamp: 2_000,
@@ -1918,6 +1991,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId: first.conversation.id,
+      companyId,
       role: "user",
       content: "hello",
       timestamp: 2_000,
@@ -1979,6 +2053,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     expect(messages).toEqual([{
       id: expect.any(String),
       conversationId,
+      companyId,
       role: "user",
       content: "hello again",
       timestamp: 5_000,
@@ -2141,6 +2216,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     for (let index = 0; index < 120; index += 1) {
       await t.run(async (ctx) =>
         ctx.db.insert("messages", {
+          companyId,
           conversationId,
           role: "assistant",
           content: `invisible-${index}`,
@@ -2297,6 +2373,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("conversations", () => {
     for (let index = 0; index < 120; index += 1) {
       await t.run(async (ctx) =>
         ctx.db.insert("messages", {
+          companyId,
           conversationId,
           role: "assistant",
           content: `invisible-stale-${index}`,

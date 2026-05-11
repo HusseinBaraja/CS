@@ -42,7 +42,8 @@ const groundedRetrievalResult = (
         id: "product-1",
         categoryId: "category-1",
         nameEn: "Burger Box",
-        imageCount: 0,
+        price: 1.25,
+        currency: "SAR",
         variants: [],
       },
     },
@@ -281,6 +282,57 @@ describe("createCatalogChatOrchestrator", () => {
     });
     expect(chatCalls).toHaveLength(1);
   }, 10_000);
+
+  test("uses missingPricePolicy when a price is requested but catalog has no price", async () => {
+    const chatCalls: unknown[] = [];
+    const settingsCalls: string[] = [];
+    const noPriceRetrieval = groundedRetrievalResult({
+      candidates: [
+        {
+          ...groundedRetrievalResult().candidates[0]!,
+          product: {
+            id: "product-1",
+            categoryId: "category-1",
+            nameEn: "Burger Box",
+            variants: [],
+          },
+        },
+      ],
+    });
+    const orchestrator = createCatalogChatOrchestrator({
+      retrievalService: createRetrievalService(noPriceRetrieval),
+      rewriteService: createRewriteService(highConfidenceRewriteAttempt()),
+      companySettingsService: {
+        async getSettings(companyId: string) {
+          settingsCalls.push(companyId);
+          return { missingPricePolicy: "handoff" };
+        },
+      },
+      chatManager: createChatManagerStub(async () => {
+        chatCalls.push("called");
+        throw new Error("chat should not be called");
+      }),
+    });
+
+    const result = await orchestrator.respond({
+      tenant: {
+        companyId: COMPANY_ID,
+      },
+      userMessage: "How much is the Burger Box?",
+    });
+
+    expect(result).toMatchObject({
+      outcome: "missing_price_fallback",
+      assistant: {
+        text: "I can't help safely right now, so I'll connect you with the team.",
+        action: {
+          type: "handoff",
+        },
+      },
+    });
+    expect(settingsCalls).toEqual([COMPANY_ID]);
+    expect(chatCalls).toHaveLength(0);
+  });
 
   test("preserves detected Arabic response language through retrieval and prompt assembly", async () => {
     const retrievalCalls: Array<Record<string, unknown>> = [];

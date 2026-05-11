@@ -12,7 +12,7 @@ export const parseCreateCategoryBody = (value: unknown): ParseResult<CreateCateg
     return parsedObject;
   }
 
-  const nameEn = parseRequiredString(parsedObject.value.nameEn, "nameEn");
+  const nameEn = parseOptionalString(parsedObject.value.nameEn, "nameEn");
   if (!nameEn.ok) {
     return nameEn;
   }
@@ -20,6 +20,16 @@ export const parseCreateCategoryBody = (value: unknown): ParseResult<CreateCateg
   const nameAr = parseOptionalString(parsedObject.value.nameAr, "nameAr");
   if (!nameAr.ok) {
     return nameAr;
+  }
+
+  const nameEnValue = typeof nameEn.value === "string" ? nameEn.value : undefined;
+  const nameArValue = typeof nameAr.value === "string" ? nameAr.value : undefined;
+
+  if (nameEnValue === undefined && nameArValue === undefined) {
+    return {
+      ok: false,
+      message: "Request body must include nameEn or nameAr",
+    };
   }
 
   const descriptionEn = parseOptionalString(parsedObject.value.descriptionEn, "descriptionEn");
@@ -32,18 +42,36 @@ export const parseCreateCategoryBody = (value: unknown): ParseResult<CreateCateg
     return descriptionAr;
   }
 
+  const descriptions = {
+    ...(descriptionEn.value !== undefined && descriptionEn.value !== null
+      ? { descriptionEn: descriptionEn.value }
+      : {}),
+    ...(descriptionAr.value !== undefined && descriptionAr.value !== null
+      ? { descriptionAr: descriptionAr.value }
+      : {}),
+  };
+  let input: CreateCategoryInput;
+  if (nameEnValue !== undefined) {
+    input = {
+      nameEn: nameEnValue,
+      ...(nameArValue !== undefined ? { nameAr: nameArValue } : {}),
+      ...descriptions,
+    };
+  } else if (nameArValue !== undefined) {
+    input = {
+      nameAr: nameArValue,
+      ...descriptions,
+    };
+  } else {
+    return {
+      ok: false,
+      message: "Request body must include nameEn or nameAr",
+    };
+  }
+
   return {
     ok: true,
-    value: {
-      nameEn: nameEn.value,
-      ...(nameAr.value !== undefined && nameAr.value !== null ? { nameAr: nameAr.value } : {}),
-      ...(descriptionEn.value !== undefined && descriptionEn.value !== null
-        ? { descriptionEn: descriptionEn.value }
-        : {}),
-      ...(descriptionAr.value !== undefined && descriptionAr.value !== null
-        ? { descriptionAr: descriptionAr.value }
-        : {}),
-    },
+    value: input,
   };
 };
 

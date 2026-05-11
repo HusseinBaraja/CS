@@ -6,6 +6,7 @@ export const CLEANUP_BATCH_SIZE = 64;
 
 export const CLEANUP_COUNT_KEYS = [
   "companies",
+  "companySettings",
   "botRuntimeSessions",
   "botRuntimePairingArtifacts",
   "categories",
@@ -14,6 +15,7 @@ export const CLEANUP_COUNT_KEYS = [
   "productVariants",
   "embeddings",
   "conversations",
+  "conversationStateEvents",
   "messages",
   "mediaCleanupJobs",
   "offers",
@@ -273,6 +275,7 @@ const deleteBatchIfAny = async <T extends TableNames>(
 
 export const createEmptyCleanupCounts = (): CleanupCounts => ({
   companies: 0,
+  companySettings: 0,
   botRuntimeSessions: 0,
   botRuntimePairingArtifacts: 0,
   categories: 0,
@@ -281,6 +284,7 @@ export const createEmptyCleanupCounts = (): CleanupCounts => ({
   productVariants: 0,
   embeddings: 0,
   conversations: 0,
+  conversationStateEvents: 0,
   messages: 0,
   mediaCleanupJobs: 0,
   offers: 0,
@@ -313,6 +317,15 @@ export const clearCompanyDataBatch = internalMutation({
         stage: "done",
         nextCursor: null,
       };
+    }
+
+    const companySettingsBatch = await takeDocumentIds(
+      ctx.db.query("companySettings").withIndex("by_company", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const companySettingsResult = await deleteBatchIfAny(ctx, "companySettings", companySettingsBatch);
+    if (companySettingsResult) {
+      return companySettingsResult;
     }
 
     const embeddingsBatch = await takeDocumentIds(
@@ -451,6 +464,15 @@ export const clearCompanyDataBatch = internalMutation({
     const currencyRatesResult = await deleteBatchIfAny(ctx, "currencyRates", currencyRatesBatch);
     if (currencyRatesResult) {
       return currencyRatesResult;
+    }
+
+    const conversationStateEventsBatch = await takeDocumentIds(
+      ctx.db.query("conversationStateEvents").withIndex("by_company_time", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const conversationStateEventsResult = await deleteBatchIfAny(ctx, "conversationStateEvents", conversationStateEventsBatch);
+    if (conversationStateEventsResult) {
+      return conversationStateEventsResult;
     }
 
     const conversationsBatch = await takeDocumentIds(
