@@ -17,6 +17,22 @@ export type CompanySettingsDto = {
 
 const DEFAULT_MISSING_PRICE_POLICY: MissingPricePolicy = 'reply_unavailable';
 
+const listSettingsForCompany = async (
+  ctx: Pick<QueryCtx | MutationCtx, 'db'>,
+  companyId: Id<'companies'>,
+) =>
+  ctx.db
+    .query('companySettings')
+    .withIndex('by_company', (q) => q.eq('companyId', companyId))
+    .collect();
+
+const chooseCanonicalSettings = (
+  settings: Awaited<ReturnType<typeof listSettingsForCompany>>,
+) =>
+  [...settings].sort((left, right) =>
+    left._creationTime - right._creationTime || left._id.localeCompare(right._id),
+  )[0];
+
 export const getSettingsForCompany = async (
   ctx: Pick<QueryCtx | MutationCtx, 'db'>,
   companyId: Id<'companies'>,
@@ -26,10 +42,7 @@ export const getSettingsForCompany = async (
     return null;
   }
 
-  const settings = await ctx.db
-    .query('companySettings')
-    .withIndex('by_company', (q) => q.eq('companyId', companyId))
-    .unique();
+  const settings = chooseCanonicalSettings(await listSettingsForCompany(ctx, companyId));
 
   if (!settings) {
     return {
@@ -65,15 +78,18 @@ export const upsert = internalMutation({
       return null;
     }
 
-    const existing = await ctx.db
-      .query('companySettings')
-      .withIndex('by_company', (q) => q.eq('companyId', args.companyId))
-      .unique();
+    const settingsRows = await listSettingsForCompany(ctx, args.companyId);
+    const existing = chooseCanonicalSettings(settingsRows);
 
     if (existing) {
       await ctx.db.patch(existing._id, {
         missingPricePolicy: args.missingPricePolicy,
       });
+      await Promise.all(
+        settingsRows
+          .filter((settings) => settings._id !== existing._id)
+          .map((settings) => ctx.db.delete(settings._id)),
+      );
       return {
         id: existing._id,
         companyId: existing.companyId,
