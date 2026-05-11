@@ -10,6 +10,7 @@ import { mapProductDetail } from '../mapping';
 import { createProductPatch, normalizeCreateState } from '../normalization';
 import { getCompany, getProductVariants, getScopedCategory, getScopedProduct } from '../readers';
 import type { DeleteProductResult, ProductDetailDto } from '../types';
+import { assertValidMergedProduct } from '../validation';
 
 export const insertProductWithEmbeddingsDefinition = {
   args: {
@@ -148,6 +149,12 @@ export const patchProductWithEmbeddingsDefinition = {
     }
 
     const patch = createProductPatch(args);
+    const mergedProduct = {
+      ...existingProduct,
+      ...patch,
+    };
+    assertValidMergedProduct(mergedProduct);
+
     patch.version = currentRevision + 1;
     await ctx.db.patch(args.productId, patch);
 

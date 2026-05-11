@@ -466,6 +466,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         companyId,
         categoryId,
         nameEn: "Burger Box",
+        price: 1.25,
         currency: "SAR",
       });
 
@@ -615,6 +616,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
         companyId,
         categoryId,
         nameEn: "Burger Box",
+        price: 1.25,
         currency: "SAR",
       });
 
@@ -710,6 +712,111 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
 
     const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
     expect(storedProduct?.productNo).toBe("fresh");
+  });
+
+  it("rejects direct product patches that clear all product names", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, productId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000624",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        productNo: "BOX-1",
+        nameEn: "Burger Box",
+        nameAr: "علبة برجر",
+        version: 1,
+      });
+
+      return {
+        companyId,
+        productId,
+      };
+    });
+
+    await expect(
+      t.mutation(internal.products.patchProductWithEmbeddings, {
+        companyId,
+        productId,
+        expectedRevision: 1,
+        nameEn: null,
+        nameAr: null,
+      }),
+    ).rejects.toThrow("VALIDATION_FAILED: at least one of nameEn or nameAr is required");
+
+    const storedProduct = await t.run(async (ctx) => ctx.db.get(productId));
+    expect(storedProduct).toMatchObject({
+      productNo: "BOX-1",
+      nameEn: "Burger Box",
+      nameAr: "علبة برجر",
+      version: 1,
+    });
+  });
+
+  it("rejects direct product patches that leave price and currency incomplete", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, pricedProductId, currencyOnlyProductId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant",
+        ownerPhone: "966500000625",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const pricedProductId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+        price: 10,
+        currency: "SAR",
+        version: 1,
+      });
+      const currencyOnlyProductId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Soup Cup",
+        version: 1,
+      });
+
+      return {
+        companyId,
+        pricedProductId,
+        currencyOnlyProductId,
+      };
+    });
+
+    await expect(
+      t.mutation(internal.products.patchProductWithEmbeddings, {
+        companyId,
+        productId: pricedProductId,
+        expectedRevision: 1,
+        currency: null,
+      }),
+    ).rejects.toThrow("VALIDATION_FAILED: currency is required when a price is set");
+
+    await expect(
+      t.mutation(internal.products.patchProductWithEmbeddings, {
+        companyId,
+        productId: currencyOnlyProductId,
+        expectedRevision: 1,
+        currency: "SAR",
+      }),
+    ).rejects.toThrow("VALIDATION_FAILED: price is required when a currency is set");
+
+    const pricedProduct = await t.run(async (ctx) => ctx.db.get(pricedProductId));
+    const currencyOnlyProduct = await t.run(async (ctx) => ctx.db.get(currencyOnlyProductId));
+    expect(pricedProduct).toMatchObject({ price: 10, currency: "SAR", version: 1 });
+    expect(currencyOnlyProduct).toMatchObject({ nameEn: "Soup Cup", version: 1 });
+    expect(currencyOnlyProduct?.currency).toBeUndefined();
   });
 
   it("patches and clears a product primary image", async () => {
