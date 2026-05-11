@@ -125,6 +125,26 @@ export const processCleanupTable = async (
         counters.messagesUpdated += 1;
         return;
       }
+      const deletionMetadata = {
+        originalMessageId: String(message._id),
+        reason: 'missing_company',
+        deletedAt: Date.now(),
+      } as Record<string, string | number>;
+      const optionalMetadata = {
+        originalMessageCreationTime: numberOrUndefined(message._creationTime),
+        originalCompanyId: stringOrUndefined(message.companyId),
+        originalConversationId: stringOrUndefined(message.conversationId),
+        conversationCompanyId: stringOrUndefined(conversation?.companyId),
+        role: stringOrUndefined(message.role),
+        timestamp: numberOrUndefined(message.timestamp),
+        deliveryState: stringOrUndefined(message.deliveryState),
+      };
+      for (const [key, value] of Object.entries(optionalMetadata)) {
+        if (value !== undefined) {
+          deletionMetadata[key] = value;
+        }
+      }
+      await db.insert('deletedMessages', deletionMetadata);
       await db.delete(message._id);
       counters.messagesDeleted += 1;
     });

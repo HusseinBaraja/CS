@@ -26,6 +26,7 @@ const makeCounters = (): CleanupCounters => ({
 
 const makeCleanupDb = (docsByTable: Record<string, Array<Record<string, unknown>>>) => {
   const patches: Array<{ id: unknown; patch: Record<string, unknown> }> = [];
+  const inserts: Array<{ table: string; doc: Record<string, unknown> }> = [];
   const docsById = new Map<unknown, Record<string, unknown>>();
   for (const docs of Object.values(docsByTable)) {
     for (const doc of docs) {
@@ -51,12 +52,17 @@ const makeCleanupDb = (docsByTable: Record<string, Array<Record<string, unknown>
         patches.push({ id, patch });
       },
       delete: async () => {},
+      insert: async (table: string, doc: Record<string, unknown>) => {
+        inserts.push({ table, doc });
+        return `${table}-${inserts.length}`;
+      },
       query: (table: string) => ({
         order: () => ({
           take: async (limit: number) => docsByTable[table]?.slice(0, limit) ?? [],
         }),
       }),
     },
+    inserts,
   };
 };
 
@@ -225,5 +231,41 @@ describe("catalog restructure cleanup patching", () => {
     ]);
     expect(counters.productsUpdated).toBe(1);
     expect(counters.variantsUpdated).toBe(1);
+  });
+
+  it("records dead-letter metadata before deleting orphaned messages", async () => {
+    const message = {
+      _id: "message-1",
+      _creationTime: 1,
+      conversationId: "missing-conversation",
+      role: "user",
+      content: "hello",
+      timestamp: 123,
+      deliveryState: "sent",
+    };
+    const { db, inserts } = makeCleanupDb({
+      messages: [message],
+    });
+    const counters = makeCounters();
+
+    await processCleanupTable(db, "messages", 10, counters);
+
+    expect(inserts).toEqual([
+      {
+        table: "deletedMessages",
+        doc: expect.objectContaining({
+          originalMessageId: message._id,
+          originalMessageCreationTime: message._creationTime,
+          originalConversationId: message.conversationId,
+          role: message.role,
+          timestamp: message.timestamp,
+          deliveryState: message.deliveryState,
+          reason: "missing_company",
+          deletedAt: expect.any(Number),
+        }),
+      },
+    ]);
+    expect(inserts[0]?.doc).not.toHaveProperty("content");
+    expect(counters.messagesDeleted).toBe(1);
   });
 });

@@ -285,6 +285,21 @@ export default defineSchema({
     .index("by_role_delivery_state_time", ["role", "deliveryState", "timestamp"])
     .index("by_role_delivery_ack_time", ["role", "deliveryState", "providerAcknowledgedAt"]),
 
+  deletedMessages: defineTable({
+    originalMessageId: v.string(),
+    originalMessageCreationTime: v.optional(v.number()),
+    originalCompanyId: v.optional(v.string()),
+    originalConversationId: v.optional(v.string()),
+    conversationCompanyId: v.optional(v.string()),
+    role: v.optional(v.string()),
+    timestamp: v.optional(v.number()),
+    deliveryState: v.optional(v.string()),
+    reason: v.string(),
+    deletedAt: v.number(),
+  })
+    .index("by_original_message", ["originalMessageId"])
+    .index("by_deleted_at", ["deletedAt"]),
+
   // ── Offers ──────────────────────────────────────────────────────────────
   offers: defineTable({
     companyId: v.id("companies"),

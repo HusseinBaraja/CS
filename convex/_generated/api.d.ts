@@ -11,6 +11,9 @@
 import type * as analytics from "../analytics.js";
 import type * as catalogLanguageHints from "../catalogLanguageHints.js";
 import type * as catalogRestructureCleanup from "../catalogRestructureCleanup.js";
+import type * as catalogRestructureCleanupProcessors from "../catalogRestructureCleanupProcessors.js";
+import type * as catalogRestructureCleanupProducts from "../catalogRestructureCleanupProducts.js";
+import type * as catalogRestructureCleanupShared from "../catalogRestructureCleanupShared.js";
 import type * as categories from "../categories.js";
 import type * as categoriesShared from "../categoriesShared.js";
 import type * as companies from "../companies.js";
@@ -74,6 +77,9 @@ declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   catalogLanguageHints: typeof catalogLanguageHints;
   catalogRestructureCleanup: typeof catalogRestructureCleanup;
+  catalogRestructureCleanupProcessors: typeof catalogRestructureCleanupProcessors;
+  catalogRestructureCleanupProducts: typeof catalogRestructureCleanupProducts;
+  catalogRestructureCleanupShared: typeof catalogRestructureCleanupShared;
   categories: typeof categories;
   categoriesShared: typeof categoriesShared;
   companies: typeof companies;
