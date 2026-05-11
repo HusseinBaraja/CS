@@ -95,4 +95,47 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex companySettings'
       }),
     ]);
   });
+
+  it('serializes upsert with a company settings lock and releases it', async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      createCompany(ctx).then(({ companyId }) => companyId),
+    );
+
+    await t.mutation(internal.companySettings.upsert, {
+      companyId,
+      missingPricePolicy: 'handoff',
+    });
+
+    const locks = await t.run(async (ctx) =>
+      ctx.db
+        .query('jobLocks')
+        .withIndex('by_key', (q) => q.eq('key', `companySettings:${companyId}`))
+        .collect(),
+    );
+
+    expect(locks).toEqual([]);
+  });
+
+  it('rejects upsert while a company settings lock is active', async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      createCompany(ctx).then(({ companyId }) => companyId),
+    );
+    await t.run(async (ctx) =>
+      ctx.db.insert('jobLocks', {
+        key: `companySettings:${companyId}`,
+        ownerToken: 'existing-owner',
+        acquiredAt: Date.now(),
+        expiresAt: Date.now() + 15_000,
+      }),
+    );
+
+    await expect(
+      t.mutation(internal.companySettings.upsert, {
+        companyId,
+        missingPricePolicy: 'handoff',
+      }),
+    ).rejects.toThrow(`Company settings upsert already in progress for companyId=${companyId}`);
+  });
 });
