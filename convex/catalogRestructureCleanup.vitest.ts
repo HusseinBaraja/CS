@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { internal } from './_generated/api';
 import { processCleanupTable } from './catalogRestructureCleanupProcessors';
 import { processProducts } from './catalogRestructureCleanupProducts';
-import type { CleanupCounters } from './catalogRestructureCleanupShared';
+import type { CleanupCounters, CleanupDb } from './catalogRestructureCleanupShared';
 import schema from './schema';
 
 const modules =
@@ -61,7 +61,7 @@ const makeCleanupDb = (docsByTable: Record<string, Array<Record<string, unknown>
           take: async (limit: number) => docsByTable[table]?.slice(0, limit) ?? [],
         }),
       }),
-    },
+    } as unknown as CleanupDb,
     inserts,
   };
 };

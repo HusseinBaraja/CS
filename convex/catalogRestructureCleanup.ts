@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { internalMutation } from './_generated/server';
+import { internalMutation, type MutationCtx } from './_generated/server';
 import {
   CLEANUP_TABLES,
   type CleanupTable,
@@ -19,8 +19,8 @@ export const run = internalMutation({
       }),
     ),
   },
-  handler: async (ctx, args) => {
-    const db = ctx.db as any;
+  handler: async (ctx: MutationCtx, args) => {
+    const db = ctx.db;
     const limit = normalizeBatchLimit(args.limit);
     const startTable = args.table ?? CLEANUP_TABLES[0];
     const startIndex = CLEANUP_TABLES.indexOf(startTable as CleanupTable);

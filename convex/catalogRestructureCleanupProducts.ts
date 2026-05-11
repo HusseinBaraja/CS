@@ -1,23 +1,25 @@
-import type { CleanupCounters, DocCursor } from './catalogRestructureCleanupShared';
+import type { CleanupCounters, CleanupDb, DocCursor } from './catalogRestructureCleanupShared';
 import {
   companyExists,
+  deleteCleanupDoc,
   firstImageKey,
   hasPatchChanges,
   numberOrUndefined,
+  patchCleanupDoc,
   processDocs,
   stringOrUndefined,
 } from './catalogRestructureCleanupShared';
 
 export const processProducts = (
-  db: any,
-  table: string,
+  db: CleanupDb,
+  table: 'products',
   limit: number,
   counters: CleanupCounters,
   cursor?: DocCursor,
 ) =>
   processDocs(db, table, limit, cursor, async (product) => {
     if (!(await companyExists(db, product.companyId))) {
-      await db.delete(product._id);
+      await deleteCleanupDoc(db, product._id);
       counters.productsDeleted += 1;
       return;
     }
@@ -34,7 +36,7 @@ export const processProducts = (
       images: undefined,
     };
     if (hasPatchChanges(product, minimalPatch)) {
-      await db.patch(product._id, minimalPatch);
+      await patchCleanupDoc(db, product._id, minimalPatch);
       counters.productsUpdated += 1;
     }
   });

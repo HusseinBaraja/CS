@@ -1,10 +1,14 @@
 import { processProducts } from './catalogRestructureCleanupProducts';
 import {
+  type CleanupDb,
   type CleanupCounters,
   type DocCursor,
   companyExists,
+  deleteCleanupDoc,
+  getCleanupDoc,
   hasPatchChanges,
   numberOrUndefined,
+  patchCleanupDoc,
   processDocs,
   stringOrUndefined,
 } from './catalogRestructureCleanupShared';
@@ -24,19 +28,12 @@ const TENANT_TABLES = [
   'companySettings',
 ] as const;
 
-const LEGACY_TABLES = [
-  'assistantSemanticRecords',
-  'conversationCanonicalStates',
-  'conversationSummaries',
-] as const;
-
 export const CLEANUP_TABLES = [
   'categories',
   'products',
   'productVariants',
   'messages',
   ...TENANT_TABLES,
-  ...LEGACY_TABLES,
 ] as const;
 
 export type CleanupTable = (typeof CLEANUP_TABLES)[number];
@@ -59,7 +56,7 @@ export const normalizeBatchLimit = (value: number | undefined): number => {
 };
 
 export const processCleanupTable = async (
-  db: any,
+  db: CleanupDb,
   table: CleanupTable,
   limit: number,
   counters: CleanupCounters,
@@ -68,14 +65,14 @@ export const processCleanupTable = async (
   if (table === 'categories') {
     return processDocs(db, table, limit, cursor, async (category) => {
       if (!(await companyExists(db, category.companyId))) {
-        await db.delete(category._id);
+        await deleteCleanupDoc(db, category._id);
         counters.orphanDeleted += 1;
         return;
       }
       if (!category.nameKey) {
         const nameKey = normalizeNameKey(category.nameAr) ?? normalizeNameKey(category.nameEn);
         if (nameKey) {
-          await db.patch(category._id, { nameKey });
+          await patchCleanupDoc(db, category._id, { nameKey });
           counters.categoriesUpdated += 1;
         }
       }
@@ -86,15 +83,15 @@ export const processCleanupTable = async (
   }
   if (table === 'productVariants') {
     return processDocs(db, table, limit, cursor, async (variant) => {
-      const product = variant.productId ? await db.get(variant.productId) : null;
+      const product = variant.productId ? await getCleanupDoc(db, variant.productId) : null;
       if (!product || !(await companyExists(db, product.companyId))) {
-        await db.delete(variant._id);
+        await deleteCleanupDoc(db, variant._id);
         counters.variantsDeleted += 1;
         return;
       }
       const label = stringOrUndefined(variant.label) ?? stringOrUndefined(variant.variantLabel);
       if (!label) {
-        await db.delete(variant._id);
+        await deleteCleanupDoc(db, variant._id);
         counters.variantsDeleted += 1;
         return;
       }
@@ -109,7 +106,7 @@ export const processCleanupTable = async (
         priceOverride: undefined,
       };
       if (hasPatchChanges(variant, minimalPatch)) {
-        await db.patch(variant._id, minimalPatch);
+        await patchCleanupDoc(db, variant._id, minimalPatch);
         counters.variantsUpdated += 1;
       }
     });
@@ -119,9 +116,9 @@ export const processCleanupTable = async (
       if (message.companyId && (await companyExists(db, message.companyId))) {
         return;
       }
-      const conversation = message.conversationId ? await db.get(message.conversationId) : null;
+      const conversation = message.conversationId ? await getCleanupDoc(db, message.conversationId) : null;
       if (conversation?.companyId && (await companyExists(db, conversation.companyId))) {
-        await db.patch(message._id, { companyId: conversation.companyId });
+        await patchCleanupDoc(db, message._id, { companyId: conversation.companyId });
         counters.messagesUpdated += 1;
         return;
       }
@@ -144,20 +141,25 @@ export const processCleanupTable = async (
           deletionMetadata[key] = value;
         }
       }
-      await db.insert('deletedMessages', deletionMetadata);
-      await db.delete(message._id);
+      await db.insert('deletedMessages', {
+        reason: String(deletionMetadata.reason),
+        originalMessageId: String(deletionMetadata.originalMessageId),
+        deletedAt: Number(deletionMetadata.deletedAt),
+        originalMessageCreationTime: numberOrUndefined(deletionMetadata.originalMessageCreationTime),
+        originalCompanyId: stringOrUndefined(deletionMetadata.originalCompanyId),
+        originalConversationId: stringOrUndefined(deletionMetadata.originalConversationId),
+        conversationCompanyId: stringOrUndefined(deletionMetadata.conversationCompanyId),
+        role: stringOrUndefined(deletionMetadata.role),
+        timestamp: numberOrUndefined(deletionMetadata.timestamp),
+        deliveryState: stringOrUndefined(deletionMetadata.deliveryState),
+      });
+      await deleteCleanupDoc(db, message._id);
       counters.messagesDeleted += 1;
-    });
-  }
-  if ((LEGACY_TABLES as readonly string[]).includes(table)) {
-    return processDocs(db, table, limit, cursor, async (doc) => {
-      await db.delete(doc._id);
-      counters.legacyDeleted += 1;
     });
   }
   return processDocs(db, table, limit, cursor, async (doc) => {
     if (!(await companyExists(db, doc.companyId))) {
-      await db.delete(doc._id);
+      await deleteCleanupDoc(db, doc._id);
       counters.orphanDeleted += 1;
     }
   });

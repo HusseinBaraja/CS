@@ -1,3 +1,6 @@
+import type { DatabaseWriter } from './_generated/server';
+import type { Id, TableNames } from './_generated/dataModel';
+
 export type LooseDoc = Record<string, unknown> & {
   _id: unknown;
   _creationTime: unknown;
@@ -53,15 +56,28 @@ export const hasPatchChanges = (doc: LooseDoc, patch: Record<string, unknown>): 
     return !Object.is(doc[key], value);
   });
 
+export type CleanupDb = DatabaseWriter;
+export type CleanupId = Id<TableNames>;
+
+export const cleanupId = (value: unknown): CleanupId => value as CleanupId;
+
+export const getCleanupDoc = async (db: CleanupDb, id: unknown): Promise<LooseDoc | null> =>
+  (await db.get(cleanupId(id))) as LooseDoc | null;
+
+export const patchCleanupDoc = (db: CleanupDb, id: unknown, patch: Record<string, unknown>): Promise<void> =>
+  db.patch(cleanupId(id), patch as never);
+
+export const deleteCleanupDoc = (db: CleanupDb, id: unknown): Promise<void> => db.delete(cleanupId(id));
+
 const getDocs = async (
-  db: any,
-  table: string,
+  db: CleanupDb,
+  table: TableNames,
   limit: number,
   cursor?: DocCursor,
 ): Promise<LooseDoc[]> => {
   const query = db.query(table).order('asc');
   const pagedQuery = cursor
-    ? query.filter((q: any) =>
+    ? query.filter((q) =>
         q.or(
           q.gt(q.field('_creationTime'), cursor.creationTime),
           q.and(
@@ -71,12 +87,12 @@ const getDocs = async (
         ),
       )
     : query;
-  return pagedQuery.take(limit);
+  return (await pagedQuery.take(limit)) as LooseDoc[];
 };
 
 export const processDocs = async (
-  db: any,
-  table: string,
+  db: CleanupDb,
+  table: TableNames,
   limit: number,
   cursor: DocCursor,
   processDoc: (doc: LooseDoc) => Promise<void>,
@@ -96,5 +112,5 @@ export const processDocs = async (
   };
 };
 
-export const companyExists = async (db: any, companyId: unknown): Promise<boolean> =>
-  typeof companyId === 'string' && Boolean(await db.get(companyId));
+export const companyExists = async (db: CleanupDb, companyId: unknown): Promise<boolean> =>
+  typeof companyId === 'string' && Boolean(await db.get(companyId as Id<'companies'>));
