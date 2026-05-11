@@ -34,7 +34,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("catalog restructure cle
     expect(categories).toHaveLength(0);
   });
 
-  it("continues cleanup across one-document pages", async () => {
+  it("returns continuations across one-document pages", async () => {
     const t = convexTest(schema, modules);
 
     await t.run(async (ctx) => {
@@ -57,12 +57,29 @@ describe.skipIf(typeof import.meta.glob !== "function")("catalog restructure cle
       await ctx.db.delete(companyId);
     });
 
-    const result = await t.mutation(internal.catalogRestructureCleanup.run, {
+    const firstResult = await t.mutation(internal.catalogRestructureCleanup.run, {
       limit: 1,
+    });
+    expect(firstResult).toMatchObject({
+      processed: 1,
+      orphanDeleted: 1,
+      nextTable: "categories",
+    });
+
+    const secondResult = await t.mutation(internal.catalogRestructureCleanup.run, {
+      limit: 1,
+      table: firstResult.nextTable ?? undefined,
+      cursor: firstResult.nextCursor ?? undefined,
+    });
+    const thirdResult = await t.mutation(internal.catalogRestructureCleanup.run, {
+      limit: 1,
+      table: secondResult.nextTable ?? undefined,
+      cursor: secondResult.nextCursor ?? undefined,
     });
     const categories = await t.run(async (ctx) => ctx.db.query("categories").collect());
 
-    expect(result.orphanDeleted).toBe(3);
+    expect(secondResult.orphanDeleted).toBe(1);
+    expect(thirdResult.orphanDeleted).toBe(1);
     expect(categories).toHaveLength(0);
   });
 });
