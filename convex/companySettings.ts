@@ -68,6 +68,12 @@ const acquireCompanySettingsLock = async (
     .query('jobLocks')
     .withIndex('by_key', (q) => q.eq('key', key))
     .collect();
+  const conflictingLock = locks.find(
+    (row) => row.ownerToken !== ownerToken && row.expiresAt > now,
+  );
+  if (conflictingLock) {
+    throw new Error(`Company settings upsert already in progress for companyId=${companyId}`);
+  }
   const lock = chooseCanonicalByCreation(locks);
 
   if (!lock) {
@@ -78,10 +84,6 @@ const acquireCompanySettingsLock = async (
       expiresAt: now + COMPANY_SETTINGS_LOCK_LEASE_MS,
     });
     return key;
-  }
-
-  if (lock.ownerToken !== ownerToken && lock.expiresAt > now) {
-    throw new Error(`Company settings upsert already in progress for companyId=${companyId}`);
   }
 
   await ctx.db.patch(lock._id, {
