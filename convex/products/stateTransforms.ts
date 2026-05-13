@@ -13,7 +13,6 @@ import type {
 import {
   normalizeOptionalNumber,
   normalizeOptionalString,
-  normalizeRequiredString,
 } from './normalizationPrimitives';
 import { VALIDATION_PREFIX, createTaggedError } from './errors';
 
@@ -37,23 +36,29 @@ const assertAtLeastOneName = (nameEn: string | undefined, nameAr: string | undef
 };
 
 export const normalizeVariantCreateState = (
-  args: Pick<ProductVariantCreateArgs, 'productId' | 'label' | 'price'>,
+  args: Pick<ProductVariantCreateArgs, 'productId' | 'labelEn' | 'labelAr' | 'price'>,
   productCurrency: string | undefined,
 ): ProductVariantWriteState => {
   const normalizedPrice = normalizeOptionalNumber(args.price, 'price');
+  const labelEn = normalizeOptionalString(args.labelEn);
+  const labelAr = normalizeOptionalString(args.labelAr);
+  if (!labelEn && !labelAr) {
+    throw createTaggedError(VALIDATION_PREFIX, 'at least one of labelEn or labelAr is required');
+  }
   assertCurrencyIfPriced(normalizedPrice, productCurrency);
 
   return {
     id: '~new',
     productId: args.productId,
-    label: normalizeRequiredString(args.label, 'label'),
+    ...(labelEn ? { labelEn } : {}),
+    ...(labelAr ? { labelAr } : {}),
     ...(normalizedPrice !== undefined ? { price: normalizedPrice } : {}),
   };
 };
 
 export const mergeVariantUpdateState = (
   existingVariant: ProductVariantWriteState,
-  patch: Pick<ProductVariantUpdateArgs, 'label' | 'price'>,
+  patch: Pick<ProductVariantUpdateArgs, 'labelEn' | 'labelAr' | 'price'>,
   productCurrency: string | undefined,
 ): ProductVariantWriteState => {
   const normalizedPrice =
@@ -65,26 +70,37 @@ export const mergeVariantUpdateState = (
     patch.price !== undefined
       ? normalizedPrice
       : existingVariant.price;
+  const labelEn = patch.labelEn !== undefined
+    ? normalizeOptionalString(patch.labelEn)
+    : existingVariant.labelEn;
+  const labelAr = patch.labelAr !== undefined
+    ? normalizeOptionalString(patch.labelAr)
+    : existingVariant.labelAr;
+  if (!labelEn && !labelAr) {
+    throw createTaggedError(VALIDATION_PREFIX, 'at least one of labelEn or labelAr is required');
+  }
   assertCurrencyIfPriced(nextPrice, productCurrency);
 
   return {
     id: existingVariant.id,
     productId: existingVariant.productId,
-    label:
-      patch.label !== undefined
-        ? normalizeRequiredString(patch.label, 'label')
-        : existingVariant.label,
+    ...(labelEn ? { labelEn } : {}),
+    ...(labelAr ? { labelAr } : {}),
     ...(nextPrice !== undefined ? { price: nextPrice } : {}),
   };
 };
 
 export const createVariantPatch = (
-  args: Pick<ProductVariantUpdateArgs, 'label' | 'price'>,
+  args: Pick<ProductVariantUpdateArgs, 'labelEn' | 'labelAr' | 'price'>,
 ): ProductVariantPatch => {
   const patch: ProductVariantPatch = {};
 
-  if (args.label !== undefined) {
-    patch.label = normalizeRequiredString(args.label, 'label');
+  if (args.labelEn !== undefined) {
+    patch.labelEn = normalizeOptionalString(args.labelEn);
+  }
+
+  if (args.labelAr !== undefined) {
+    patch.labelAr = normalizeOptionalString(args.labelAr);
   }
 
   if (args.price !== undefined) {

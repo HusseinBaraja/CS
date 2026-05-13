@@ -24,7 +24,8 @@ export type ProductVariantRecord = {
   id: string;
   companyId: string;
   productId: string;
-  label: string;
+  labelEn?: string;
+  labelAr?: string;
   price?: number;
 };
 
@@ -66,7 +67,8 @@ export interface RetrievedProductContext {
   currency?: string;
   primaryImage?: string;
   variants: Array<{
-    label: string;
+    labelEn?: string;
+    labelAr?: string;
     price?: number;
   }>;
 }

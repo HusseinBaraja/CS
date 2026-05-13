@@ -134,7 +134,7 @@ export const createVariant = async (
   const {
     companyId,
     productId,
-    label = "Variant",
+    labelEn = "Variant",
     ...rest
   } = input;
 
@@ -149,7 +149,7 @@ export const createVariant = async (
   const variant = {
     companyId: product.companyId,
     productId,
-    label,
+    labelEn,
     ...rest,
   };
   const variantId = await ctx.db.insert("productVariants", variant) as Id<"productVariants">;

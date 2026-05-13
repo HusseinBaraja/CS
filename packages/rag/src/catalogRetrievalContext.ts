@@ -31,6 +31,14 @@ const getPrimaryImageLine = (primaryImage: string | undefined): string | undefin
     : `Primary image key: ${primaryImage}`;
 };
 
+const getPreferredVariantLabel = (
+  variant: { labelEn?: string; labelAr?: string },
+  language: ChatLanguage,
+): string =>
+  language === "ar"
+    ? variant.labelAr ?? variant.labelEn ?? ""
+    : variant.labelEn ?? variant.labelAr ?? "";
+
 export const toRetrievedProductContext = (
   product: HydratedProductRecord,
 ): RetrievedProductContext => ({
@@ -45,9 +53,13 @@ export const toRetrievedProductContext = (
   ...(product.currency ? { currency: product.currency } : {}),
   ...(product.primaryImage ? { primaryImage: product.primaryImage } : {}),
   variants: [...product.variants]
-    .sort((left, right) => left.label.localeCompare(right.label) || left.id.localeCompare(right.id))
+    .sort((left, right) =>
+      (left.labelEn ?? left.labelAr ?? "").localeCompare(right.labelEn ?? right.labelAr ?? "") ||
+      left.id.localeCompare(right.id)
+    )
     .map((variant) => ({
-      label: variant.label,
+      ...(variant.labelEn ? { labelEn: variant.labelEn } : {}),
+      ...(variant.labelAr ? { labelAr: variant.labelAr } : {}),
       ...(variant.price !== undefined ? { price: variant.price } : {}),
     })),
 });
@@ -82,9 +94,10 @@ const buildContextBlockBody = (
   if (product.variants.length > 0) {
     lines.push("Variants:");
     for (const variant of product.variants) {
+      const label = getPreferredVariantLabel(variant, language);
       lines.push(
         [
-          `- ${variant.label}`,
+          label ? `- ${label}` : undefined,
           variant.price !== undefined ? `price: ${variant.price}` : undefined,
         ]
           .filter((entry): entry is string => Boolean(entry))

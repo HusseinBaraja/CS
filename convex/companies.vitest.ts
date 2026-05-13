@@ -103,7 +103,7 @@ const createTenantFixture = async (
       await ctx.db.insert("productVariants", {
         companyId,
           productId: productIds[index % productIds.length]!,
-        label: `Variant ${index}`,
+        labelEn: `Variant ${index}`,
         });
     }
 
@@ -654,7 +654,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
         await ctx.db.insert("productVariants", {
           companyId,
           productId,
-          label: `Variant ${index}`,
+          labelEn: `Variant ${index}`,
           });
         await ctx.db.insert("messages", {
           companyId,
@@ -727,14 +727,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
         await ctx.db.insert("productVariants", {
           companyId,
           productId: firstProductId,
-          label: `Variant ${index}`,
+          labelEn: `Variant ${index}`,
           });
       }
 
       const trailingVariantId = await ctx.db.insert("productVariants", {
         companyId,
           productId: secondProductId,
-        label: "Trailing Variant",
+        labelEn: "Trailing Variant",
         });
 
       return {

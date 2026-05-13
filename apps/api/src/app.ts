@@ -11,6 +11,7 @@ import { createCategoriesRoutes } from './routes/categories';
 import { createConversationsRoutes } from './routes/conversations';
 import { createAnalyticsRoutes } from './routes/analytics';
 import { createCompaniesRoutes } from './routes/companies';
+import { createCatalogImportsRoutes } from './routes/catalogImports';
 import { createBotRuntimeRoutes, renderBotRuntimeShell } from './routes/botRuntime';
 import { createCurrencyRatesRoutes } from './routes/currencyRates';
 import { createOffersRoutes } from './routes/offers';
@@ -32,6 +33,8 @@ import type { OffersService } from './services/offers';
 import { createConvexOffersService } from './services/convexOffersService';
 import type { ProductsService } from './services/products';
 import { createConvexProductsService } from './services/convexProductsService';
+import type { CatalogImportsService } from './services/catalogImports';
+import { createConvexCatalogImportsService } from './services/convexCatalogImportsService';
 import type { ProductMediaService } from './services/productMedia';
 import { createConvexProductMediaService } from './services/convexProductMediaService';
 
@@ -44,6 +47,7 @@ interface ApiAppOptions {
   categoriesService?: CategoriesService;
   conversationsService?: ConversationsService;
   productsService?: ProductsService;
+  catalogImportsService?: CatalogImportsService;
   productMediaService?: ProductMediaService;
   offersService?: OffersService;
   currencyRatesService?: CurrencyRatesService;
@@ -196,6 +200,7 @@ export const createApp = (options: ApiAppOptions = {}) => {
   const categoriesService = options.categoriesService ?? createConvexCategoriesService();
   const conversationsService = options.conversationsService ?? createConvexConversationsService();
   const productsService = options.productsService ?? createConvexProductsService();
+  const catalogImportsService = options.catalogImportsService ?? createConvexCatalogImportsService();
   const productMediaService = options.productMediaService ?? createConvexProductMediaService({
     logger: withLogBindings(appLogger, {
       surface: "product_media",
@@ -421,6 +426,13 @@ export const createApp = (options: ApiAppOptions = {}) => {
     createProductsRoutes({
       productsService,
       productMediaService
+    })
+  );
+
+  app.route(
+    "/api/companies/:companyId/catalog-imports",
+    createCatalogImportsRoutes({
+      catalogImportsService,
     })
   );
 

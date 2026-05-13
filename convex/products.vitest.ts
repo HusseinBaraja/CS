@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { afterEach, describe, expect, it } from 'vitest';
 import { convexTest } from 'convex-test';
-import { setGeminiClientFactoryForTests } from '../packages/ai/src/testUtils';
+import { setGeminiClientFactoryForTests } from '@cs/ai';
 import { internal } from './_generated/api';
 import schema from './schema';
 
@@ -150,13 +150,13 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const variantId = await ctx.db.insert("productVariants", {
         companyId,
         productId,
-        label: "Large",
+        labelEn: "Large",
         price: 1.45,
       });
       const otherVariantId = await ctx.db.insert("productVariants", {
         companyId: otherCompanyId,
         productId,
-        label: "Other Tenant",
+        labelEn: "Other Tenant",
         price: 9.99,
       });
 
@@ -190,7 +190,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
           companyId,
           id: variantId,
           productId,
-          label: "Large",
+          labelEn: "Large",
           price: 1.45,
         },
       ],
@@ -227,17 +227,17 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       await ctx.db.insert("productVariants", {
         companyId,
         productId,
-        label: "Large",
+        labelEn: "Large",
       });
       await ctx.db.insert("productVariants", {
         companyId,
         productId,
-        label: "Family Pack",
+        labelEn: "Family Pack",
       });
       const otherVariantId = await ctx.db.insert("productVariants", {
         companyId: otherCompanyId,
         productId,
-        label: "Other Tenant",
+        labelEn: "Other Tenant",
       });
 
       return {
@@ -257,7 +257,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       productId,
     });
 
-    expect(variants?.map((variant: { label: string }) => variant.label)).toEqual([
+    expect(variants?.map((variant) => variant.labelEn)).toEqual([
       "Family Pack",
       "Large",
     ]);
@@ -912,7 +912,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
     const variant = await t.action(internal.products.createVariant, {
       companyId,
       productId,
-      label: "Family Pack",
+      labelEn: "Family Pack",
       price: 2.1,
     });
     const embeddingsAfter = await t.run(async (ctx) =>
@@ -932,7 +932,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       companyId,
       id: storedVariants[0]!._id,
       productId,
-      label: "Family Pack",
+      labelEn: "Family Pack",
       price: 2.1,
     });
     expect(storedVariants).toHaveLength(1);
@@ -967,7 +967,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const variantId = await ctx.db.insert("productVariants", {
         companyId,
         productId,
-        label: "Large",
+        labelEn: "Large",
         price: 1.45,
       });
 
@@ -993,7 +993,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       companyId,
       productId,
       variantId,
-      label: "Extra Large",
+      labelEn: "Extra Large",
       price: null,
     });
     const storedVariant = await t.run(async (ctx) => ctx.db.get(variantId));
@@ -1008,10 +1008,10 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       companyId,
       id: variantId,
       productId,
-      label: "Extra Large",
+      labelEn: "Extra Large",
     });
     expect(storedVariant).toMatchObject({
-      label: "Extra Large",
+      labelEn: "Extra Large",
     });
     expect(storedVariant?.price).toBeUndefined();
     expect(embeddings.every((embedding) => embedding.textContent.includes("Extra Large"))).toBe(true);
@@ -1039,7 +1039,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const variantId = await ctx.db.insert("productVariants", {
         companyId,
         productId,
-        label: "Large",
+        labelEn: "Large",
         price: 1.45,
       });
 
@@ -1065,7 +1065,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       companyId,
       productId,
       variantId,
-      label: "Extra Large",
+      labelEn: "Extra Large",
       });
     const storedVariant = await t.run(async (ctx) => ctx.db.get(variantId));
     const embeddings = await t.run(async (ctx) =>
@@ -1079,11 +1079,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       companyId,
       id: variantId,
       productId,
-      label: "Extra Large",
+      labelEn: "Extra Large",
       price: 1.45,
     });
     expect(storedVariant).toMatchObject({
-      label: "Extra Large",
+      labelEn: "Extra Large",
       price: 1.45,
     });
     expect(embeddings.every((embedding) => embedding.textContent.includes("Extra Large"))).toBe(true);
@@ -1111,12 +1111,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       const variantId = await ctx.db.insert("productVariants", {
         companyId,
         productId,
-        label: "Large",
+        labelEn: "Large",
         });
       const retainedVariantId = await ctx.db.insert("productVariants", {
         companyId,
         productId,
-        label: "Small",
+        labelEn: "Small",
         });
 
       for (const language of ["en", "ar"] as const) {
@@ -1188,7 +1188,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       await ctx.db.insert("productVariants", {
         companyId,
         productId,
-        label: "Large",
+        labelEn: "Large",
         });
       await ctx.db.insert("embeddings", {
         companyId,

@@ -94,27 +94,27 @@ describe('variant mutation definitions', () => {
     getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
     normalizeVariantCreateState.mockReturnValue({
       productId: PRODUCT_ID,
-      label: 'Large',
+      labelEn: 'Large',
       price: 10,
     });
     (ctx.db.insert as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(VARIANT_ID);
     (ctx.db.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       _id: VARIANT_ID,
       productId: PRODUCT_ID,
-      label: 'Large',
+      labelEn: 'Large',
       price: 10,
     });
     mapVariant.mockReturnValue({ id: VARIANT_ID });
 
     await insertVariantWithEmbeddingsDefinition.handler(ctx, {
       ...MUTATION_BASE_ARGS,
-      label: 'Large',
+      labelEn: 'Large',
     });
 
     expect(normalizeVariantCreateState).toHaveBeenCalledWith(
       {
         productId: PRODUCT_ID,
-        label: 'Large',
+        labelEn: 'Large',
         price: undefined,
       },
       'SAR',
@@ -131,19 +131,19 @@ describe('variant mutation definitions', () => {
     getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
     getScopedVariant.mockResolvedValue({ _id: VARIANT_ID });
     createVariantPatch.mockReturnValue({
-      label: 'XL',
+      labelEn: 'XL',
       });
     (ctx.db.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       _id: VARIANT_ID,
       productId: PRODUCT_ID,
-      label: 'XL',
+      labelEn: 'XL',
       });
     mapVariant.mockReturnValue({ id: VARIANT_ID });
 
     await patchVariantWithEmbeddingsDefinition.handler(ctx, {
       ...MUTATION_BASE_ARGS,
       variantId: VARIANT_ID,
-      label: 'XL',
+      labelEn: 'XL',
     });
 
     expect(assertCurrencyIfPriced).toHaveBeenCalledWith(undefined, 'SAR');
@@ -164,7 +164,7 @@ describe('variant mutation definitions', () => {
     (ctx.db.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       _id: VARIANT_ID,
       productId: PRODUCT_ID,
-      label: 'Large',
+      labelEn: 'Large',
     });
     mapVariant.mockReturnValue({ id: VARIANT_ID });
 
@@ -183,7 +183,7 @@ describe('variant mutation definitions', () => {
     const existingVariant = {
       _id: VARIANT_ID,
       productId: PRODUCT_ID,
-      label: 'Large',
+      labelEn: 'Large',
     };
     getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
     getScopedVariant.mockResolvedValue(existingVariant);
@@ -193,12 +193,12 @@ describe('variant mutation definitions', () => {
     const result = await patchVariantWithEmbeddingsDefinition.handler(ctx, {
       ...MUTATION_BASE_ARGS,
       variantId: VARIANT_ID,
-      label: '  Large  ',
+      labelEn: '  Large  ',
     });
 
     expect(result).toEqual({ id: VARIANT_ID });
     expect(createVariantPatch).toHaveBeenCalledWith({
-      label: '  Large  ',
+      labelEn: '  Large  ',
       price: undefined,
     });
     expect(mapVariant).toHaveBeenCalledWith(existingVariant);
@@ -257,7 +257,7 @@ describe('variant mutation definitions', () => {
     await expect(
       insertVariantWithEmbeddingsDefinition.handler(ctx, {
         ...MUTATION_BASE_ARGS,
-        label: 'Large',
+        labelEn: 'Large',
       }),
     ).rejects.toThrow('CONFLICT: Product was modified concurrently; retry the update');
 
@@ -273,7 +273,7 @@ describe('variant mutation definitions', () => {
       patchVariantWithEmbeddingsDefinition.handler(ctx, {
         ...MUTATION_BASE_ARGS,
         variantId: VARIANT_ID,
-        label: 'XL',
+        labelEn: 'XL',
       }),
     ).rejects.toThrow('CONFLICT: Product was modified concurrently; retry the update');
 

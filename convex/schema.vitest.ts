@@ -158,14 +158,14 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
 
       const variantId = await t.run(async (ctx) =>
         createVariant(ctx, { companyId, productId,
-          label: "Large White",
+          labelEn: "Large White",
           price: 0.2,
         }).then(({ variantId }) => variantId),
       );
 
       const doc = await t.run(async (ctx) => ctx.db.get(variantId));
       expect(doc).toMatchObject({
-        label: "Large White",
+        labelEn: "Large White",
         price: 0.2,
       });
     });
@@ -198,7 +198,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex schema", () => {
           createVariant(ctx, {
             companyId: otherCompanyId,
             productId,
-            label: "Large White",
+            labelEn: "Large White",
           }),
         ),
       ).rejects.toThrow("Variant companyId must match the product companyId");

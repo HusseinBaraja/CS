@@ -176,7 +176,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
       await ctx.db.insert("productVariants", {
         companyId,
         productId: secondProductId,
-        label: "Large",
+        labelEn: "Large",
       });
 
       return {
@@ -203,7 +203,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
             companyId,
             id: expect.any(String),
             productId: secondProductId,
-            label: "Large",
+            labelEn: "Large",
           },
         ],
       },

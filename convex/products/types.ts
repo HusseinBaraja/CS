@@ -18,7 +18,8 @@ export type ProductVariantDto = {
   id: string;
   companyId: string;
   productId: string;
-  label: string;
+  labelEn?: string;
+  labelAr?: string;
   price?: number;
 };
 
@@ -72,7 +73,8 @@ export type ProductWriteSnapshot = ProductWriteState & {
 export type ProductVariantCreateArgs = {
   companyId: Id<'companies'>;
   productId: Id<'products'>;
-  label: string;
+  labelEn?: string;
+  labelAr?: string;
   price?: number;
 };
 
@@ -80,7 +82,8 @@ export type ProductVariantUpdateArgs = {
   companyId: Id<'companies'>;
   productId: Id<'products'>;
   variantId: Id<'productVariants'>;
-  label?: string;
+  labelEn?: string | null;
+  labelAr?: string | null;
   price?: number | null;
 };
 
@@ -110,7 +113,8 @@ export type ProductPatch = {
 };
 
 export type ProductVariantPatch = {
-  label?: string;
+  labelEn?: string | undefined;
+  labelAr?: string | undefined;
   price?: number | undefined;
 };
 

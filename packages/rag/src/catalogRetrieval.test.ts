@@ -43,7 +43,7 @@ const createProduct = (overrides: Partial<{
   price?: number;
   currency?: string;
   primaryImage?: string;
-  variants: Array<{ id: string; companyId: string; productId: string; label: string; price?: number }>;
+  variants: Array<{ id: string; companyId: string; productId: string; labelEn: string; price?: number }>;
 }> = {}) => ({
   id: overrides.id ?? "product-1",
   companyId: COMPANY_ID,
@@ -206,14 +206,14 @@ describe("@cs/rag", () => {
               id: "variant-2",
               companyId: COMPANY_ID,
               productId: "product-1",
-              label: "Large",
+              labelEn: "Large",
               price: 13.5,
             },
             {
               id: "variant-1",
               companyId: COMPANY_ID,
               productId: "product-1",
-              label: "Family Pack",
+              labelEn: "Family Pack",
             },
           ],
         }),

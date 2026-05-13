@@ -19,6 +19,20 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    proxy: {
+      '/api': {
+        target: process.env.API_PROXY_TARGET ?? 'http://localhost:3000',
+        changeOrigin: true,
+        configure(proxy) {
+          proxy.on('proxyReq', (proxyReq) => {
+            const apiKey = process.env.API_KEY;
+            if (apiKey) {
+              proxyReq.setHeader('X-API-Key', apiKey);
+            }
+          });
+        },
+      },
+    },
   },
   build: {
     chunkSizeWarningLimit: 1800,

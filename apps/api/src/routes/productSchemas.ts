@@ -297,9 +297,14 @@ export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProduc
     return parsedObject;
   }
 
-  const label = parseRequiredString(parsedObject.value.label, 'label');
-  if (!label.ok) {
-    return label;
+  const labelEn = parseOptionalString(parsedObject.value.labelEn, 'labelEn');
+  if (!labelEn.ok) {
+    return labelEn;
+  }
+
+  const labelAr = parseOptionalString(parsedObject.value.labelAr, 'labelAr');
+  if (!labelAr.ok) {
+    return labelAr;
   }
 
   const price = parseOptionalNumber(parsedObject.value.price, 'price');
@@ -307,10 +312,18 @@ export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProduc
     return price;
   }
 
+  if (!labelEn.value && !labelAr.value) {
+    return {
+      ok: false,
+      message: 'at least one of labelEn or labelAr is required',
+    };
+  }
+
   return {
     ok: true,
     value: {
-      label: label.value,
+      ...(labelEn.value !== undefined && labelEn.value !== null ? { labelEn: labelEn.value } : {}),
+      ...(labelAr.value !== undefined && labelAr.value !== null ? { labelAr: labelAr.value } : {}),
       ...(price.value !== undefined && price.value !== null ? { price: price.value } : {}),
     },
   };
@@ -331,13 +344,22 @@ export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProduc
 
   const updates: UpdateProductVariantInput = {};
 
-  if ('label' in parsedObject.value) {
-    const label = parseRequiredString(parsedObject.value.label, 'label');
-    if (!label.ok) {
-      return label;
+  if ('labelEn' in parsedObject.value) {
+    const labelEn = parseOptionalString(parsedObject.value.labelEn, 'labelEn', { allowNull: true });
+    if (!labelEn.ok) {
+      return labelEn;
     }
 
-    updates.label = label.value;
+    updates.labelEn = labelEn.value;
+  }
+
+  if ('labelAr' in parsedObject.value) {
+    const labelAr = parseOptionalString(parsedObject.value.labelAr, 'labelAr', { allowNull: true });
+    if (!labelAr.ok) {
+      return labelAr;
+    }
+
+    updates.labelAr = labelAr.value;
   }
 
   if ('price' in parsedObject.value) {

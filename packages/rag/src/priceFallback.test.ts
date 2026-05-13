@@ -52,10 +52,10 @@ describe("priceFallback", () => {
     expect(retrievalHasAnyPrice(buildRetrieval([buildCandidate({ price: 12 })]))).toBe(true);
     expect(
       retrievalHasAnyPrice(
-        buildRetrieval([buildCandidate({ variants: [{ label: "Large", price: 13 }] })]),
+        buildRetrieval([buildCandidate({ variants: [{ labelEn: "Large", price: 13 }] })]),
       ),
     ).toBe(true);
-    expect(retrievalHasAnyPrice(buildRetrieval([buildCandidate({ variants: [{ label: "Large" }] })]))).toBe(
+    expect(retrievalHasAnyPrice(buildRetrieval([buildCandidate({ variants: [{ labelEn: "Large" }] })]))).toBe(
       false,
     );
   });

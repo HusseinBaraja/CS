@@ -39,7 +39,7 @@ describe('variant action definitions', () => {
       createVariantDefinition.handler(ctx, {
         companyId: COMPANY_ID,
         productId: PRODUCT_ID,
-        label: 'Large',
+        labelEn: 'Large',
         price: -1,
       }),
     ).rejects.toThrow('VALIDATION_FAILED: price must be a non-negative number');
@@ -73,13 +73,13 @@ describe('variant action definitions', () => {
       targetVariant: {
         id: VARIANT_ID,
         productId: PRODUCT_ID,
-        label: 'Large',
+        labelEn: 'Large',
       },
       variants: [
         {
           id: VARIANT_ID,
           productId: PRODUCT_ID,
-          label: 'Large',
+          labelEn: 'Large',
         },
       ],
     });
@@ -110,13 +110,13 @@ describe('variant action definitions', () => {
       targetVariant: {
         id: VARIANT_ID,
         productId: PRODUCT_ID,
-        label: 'Large',
+        labelEn: 'Large',
       },
       variants: [
         {
           id: VARIANT_ID,
           productId: PRODUCT_ID,
-          label: 'Large',
+          labelEn: 'Large',
         },
       ],
     };
