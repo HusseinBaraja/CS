@@ -19,7 +19,7 @@
     "@cs/storage": "*",
     "@hono/node-server": "1.19.13",
     "exceljs": "^4.4.0",
-    "hono": "4.12.14",
+    "hono": "4.12.19",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {

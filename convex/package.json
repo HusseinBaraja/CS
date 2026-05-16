@@ -16,6 +16,6 @@
   },
   "devDependencies": {
     "convex-test": "^0.0.41",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.6"
   }
 }
