@@ -146,6 +146,13 @@ export const patchVariantWithEmbeddingsDefinition = {
       labelAr: args.labelAr,
       price: args.price,
     });
+
+    const mergedLabelEn = args.labelEn !== undefined ? args.labelEn : existingVariant.labelEn;
+    const mergedLabelAr = args.labelAr !== undefined ? args.labelAr : existingVariant.labelAr;
+    if (!mergedLabelEn?.trim() && !mergedLabelAr?.trim()) {
+      throw new Error('Variant must have at least one label');
+    }
+
     if (Object.keys(patch).length === 0) {
       return mapVariant(existingVariant);
     }

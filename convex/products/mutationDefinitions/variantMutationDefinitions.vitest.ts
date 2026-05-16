@@ -157,7 +157,7 @@ describe('variant mutation definitions', () => {
   it('allows clearing a variant price when the product has no currency', async () => {
     const ctx = buildCtx();
     getScopedProduct.mockResolvedValue({ version: 1 });
-    getScopedVariant.mockResolvedValue({ _id: VARIANT_ID, price: 10 });
+    getScopedVariant.mockResolvedValue({ _id: VARIANT_ID, labelEn: 'Large', price: 10 });
     createVariantPatch.mockReturnValue({
       price: undefined,
     });
@@ -176,6 +176,33 @@ describe('variant mutation definitions', () => {
 
     expect(ctx.db.patch).toHaveBeenCalledWith(VARIANT_ID, { price: undefined });
     expect(replaceProductEmbeddingsInMutation).toHaveBeenCalledWith(ctx, EMBEDDING_ARGS);
+  });
+
+  it('rejects clearing both variant labels', async () => {
+    const ctx = buildCtx();
+    getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
+    getScopedVariant.mockResolvedValue({
+      _id: VARIANT_ID,
+      productId: PRODUCT_ID,
+      labelEn: 'Large',
+    });
+    createVariantPatch.mockReturnValue({
+      labelEn: undefined,
+      labelAr: undefined,
+    });
+
+    await expect(
+      patchVariantWithEmbeddingsDefinition.handler(ctx, {
+        ...MUTATION_BASE_ARGS,
+        variantId: VARIANT_ID,
+        labelEn: null,
+        labelAr: null,
+      }),
+    ).rejects.toThrow('Variant must have at least one label');
+
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+    expect(replaceProductEmbeddingsInMutation).not.toHaveBeenCalled();
+    expect(refreshCompanyCatalogLanguageHintsInMutation).not.toHaveBeenCalled();
   });
 
   it('treats an empty normalized variant patch as a no-op', async () => {
