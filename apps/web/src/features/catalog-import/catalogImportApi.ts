@@ -96,8 +96,9 @@ export const previewCatalogImport = async (
   file: File,
   sourceLanguage: SourceLanguage,
 ): Promise<CatalogImportPreview> => {
+  const encodedCompanyId = encodeURIComponent(companyId);
   const payload = await parseJsonResponse<{ ok: true; preview: CatalogImportPreview }>(
-    await fetch(`/api/companies/${companyId}/catalog-imports/preview`, {
+    await fetch(`/api/companies/${encodedCompanyId}/catalog-imports/preview`, {
       method: 'POST',
       body: catalogImportFormData(file, sourceLanguage),
     }),
@@ -110,8 +111,9 @@ export const applyCatalogImport = async (
   file: File,
   sourceLanguage: SourceLanguage,
 ): Promise<CatalogImportApplyResult> => {
+  const encodedCompanyId = encodeURIComponent(companyId);
   const payload = await parseJsonResponse<{ ok: true; result: CatalogImportApplyResult }>(
-    await fetch(`/api/companies/${companyId}/catalog-imports/apply`, {
+    await fetch(`/api/companies/${encodedCompanyId}/catalog-imports/apply`, {
       method: 'POST',
       body: catalogImportFormData(file, sourceLanguage),
     }),
