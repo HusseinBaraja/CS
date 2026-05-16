@@ -41,6 +41,17 @@ const parseTaggedError = (message: string): CatalogImportsServiceError | null =>
   return null;
 };
 
+const CONVEX_ARGUMENT_VALIDATION_ERROR_PATTERN = /\bArgumentValidationError\b/;
+const CONVEX_VALIDATION_MESSAGES = new Set([
+  'Value does not match validator',
+  'Unable to decode',
+]);
+
+const isConvexValidationError = (error: Error): boolean =>
+  error.name === 'ArgumentValidationError' ||
+  CONVEX_ARGUMENT_VALIDATION_ERROR_PATTERN.test(error.message) ||
+  CONVEX_VALIDATION_MESSAGES.has(error.message);
+
 const normalizeServiceError = (error: unknown): CatalogImportsServiceError => {
   if (error instanceof CatalogImportsServiceError) {
     return error;
@@ -56,11 +67,7 @@ const normalizeServiceError = (error: unknown): CatalogImportsServiceError => {
       return taggedError;
     }
 
-    if (
-      error.message.includes('ArgumentValidationError') ||
-      error.message.includes('Value does not match validator') ||
-      error.message.includes('Unable to decode')
-    ) {
+    if (isConvexValidationError(error)) {
       return createCatalogImportValidationError('Invalid catalog import payload');
     }
   }
