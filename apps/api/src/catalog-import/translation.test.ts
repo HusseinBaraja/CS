@@ -25,6 +25,18 @@ const groups: ParsedCatalogImportGroup[] = [
   },
 ];
 
+const makeGroups = (count: number, rowsPerGroup = 1): ParsedCatalogImportGroup[] =>
+  Array.from({ length: count }, (_, groupIndex) => ({
+    productNo: `P-${groupIndex + 1}`,
+    rows: Array.from({ length: rowsPerGroup }, (_, rowIndex) => ({
+      row: groupIndex * rowsPerGroup + rowIndex + 2,
+      productNo: `P-${groupIndex + 1}`,
+      categoryName: `Category ${groupIndex + 1}`,
+      productName: `Product ${groupIndex + 1}`,
+      variantLabel: `Variant ${rowIndex + 1}`,
+    })),
+  }));
+
 describe('catalog import translation', () => {
   test('translates product groups concurrently', async () => {
     let active = 0;
@@ -42,6 +54,43 @@ describe('catalog import translation', () => {
     expect(maxActive).toBeGreaterThan(1);
     expect(result.groups[0]?.category).toEqual({ en: 'Cups', ar: 'Cups ar' });
     expect(result.translatedFieldCount).toBe(6);
+  });
+
+  test('limits concurrently translated groups', async () => {
+    const activeGroups = new Set<string>();
+    let maxActiveGroups = 0;
+    const translateText: TranslateText = async (text, input) => {
+      activeGroups.add(input.productNo);
+      maxActiveGroups = Math.max(maxActiveGroups, activeGroups.size);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      activeGroups.delete(input.productNo);
+      return `${text} ar`;
+    };
+
+    await createCatalogImportTranslator({ translateText }).translateGroups(makeGroups(6), 'en');
+
+    expect(maxActiveGroups).toBeLessThanOrEqual(4);
+  });
+
+  test('limits concurrently translated variants per group', async () => {
+    let activeVariants = 0;
+    let maxActiveVariants = 0;
+    const translateText: TranslateText = async (text, input) => {
+      if (input.field !== 'variantLabel') {
+        return `${text} ar`;
+      }
+
+      activeVariants += 1;
+      maxActiveVariants = Math.max(maxActiveVariants, activeVariants);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      activeVariants -= 1;
+      return `${text} ar`;
+    };
+
+    await createCatalogImportTranslator({ translateText }).translateGroups(makeGroups(1, 10), 'en');
+
+    expect(maxActiveVariants).toBeLessThanOrEqual(8);
+    expect(maxActiveVariants).toBeGreaterThan(1);
   });
 
   test('stores not_translated when translation fails', async () => {

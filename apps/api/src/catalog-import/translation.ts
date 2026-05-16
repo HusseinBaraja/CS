@@ -37,6 +37,42 @@ export interface CatalogImportTranslator {
   translateGroups(groups: ParsedCatalogImportGroup[], sourceLanguage: CatalogImportSourceLanguage): Promise<TranslationResult>;
 }
 
+const createAsyncLimiter = (maxConcurrency: number): (<T>(task: () => Promise<T>) => Promise<T>) => {
+  let active = 0;
+  const queue: Array<() => void> = [];
+
+  const acquire = async (): Promise<void> => {
+    if (active < maxConcurrency) {
+      active += 1;
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      queue.push(() => {
+        active += 1;
+        resolve();
+      });
+    });
+  };
+
+  const release = (): void => {
+    active -= 1;
+    const next = queue.shift();
+    if (next) {
+      next();
+    }
+  };
+
+  return async <T>(task: () => Promise<T>): Promise<T> => {
+    await acquire();
+    try {
+      return await task();
+    } finally {
+      release();
+    }
+  };
+};
+
 const oppositeLanguage = (language: CatalogImportSourceLanguage): CatalogImportSourceLanguage =>
   language === 'en' ? 'ar' : 'en';
 
@@ -108,6 +144,7 @@ export const createCatalogImportTranslator = (
     let notTranslatedFallbackCount = 0;
     const warnings: CatalogImportTranslationWarning[] = [];
     const targetLanguage = oppositeLanguage(sourceLanguage);
+    const limitGroup = createAsyncLimiter(4);
 
     const translate = async (text: string, field: string, productNo: string): Promise<string> => {
       try {
@@ -130,11 +167,12 @@ export const createCatalogImportTranslator = (
       }
     };
 
-    const translatedGroups = await Promise.all(groups.map(async (group): Promise<TranslatedImportGroup> => {
+    const translatedGroups = await Promise.all(groups.map((group) => limitGroup(async (): Promise<TranslatedImportGroup> => {
       const firstRow = group.rows[0];
       if (!firstRow) {
         throw new Error(`Empty product group: ${group.productNo}`);
       }
+      const limitVariant = createAsyncLimiter(8);
 
       const [category, productName, description] = await Promise.all([
         translate(firstRow.categoryName, 'categoryName', group.productNo),
@@ -142,7 +180,7 @@ export const createCatalogImportTranslator = (
         firstRow.description ? translate(firstRow.description, 'description', group.productNo) : undefined,
       ]);
 
-      const variants = await Promise.all(group.rows.map(async (row) => {
+      const variants = await Promise.all(group.rows.map((row) => limitVariant(async () => {
         const label = row.variantLabel ?? row.productName;
         const translatedLabel = await translate(label, 'variantLabel', group.productNo);
         return {
@@ -151,7 +189,7 @@ export const createCatalogImportTranslator = (
             : { labelEn: translatedLabel, labelAr: label }),
           ...(row.variantPrice !== undefined ? { price: row.variantPrice } : {}),
         };
-      }));
+      })));
 
       return {
         productNo: group.productNo,
@@ -162,7 +200,7 @@ export const createCatalogImportTranslator = (
         ...(firstRow.currency ? { currency: firstRow.currency } : {}),
         variants,
       };
-    }));
+    })));
 
     return {
       groups: translatedGroups,
