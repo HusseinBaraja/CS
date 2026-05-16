@@ -43,7 +43,7 @@ const createProduct = (overrides: Partial<{
   price?: number;
   currency?: string;
   primaryImage?: string;
-  variants: Array<{ id: string; companyId: string; productId: string; labelEn: string; price?: number }>;
+  variants: Array<{ id: string; companyId: string; productId: string; labelEn?: string; price?: number }>;
 }> = {}) => ({
   id: overrides.id ?? "product-1",
   companyId: COMPANY_ID,
@@ -255,6 +255,54 @@ describe("@cs/rag", () => {
       companyId: COMPANY_ID,
       productIds: ["product-1"],
     });
+  });
+
+  test("omits empty variant lines from context blocks", async () => {
+    const { client } = createClientStub({
+      action: async () => [
+        {
+          _id: "embedding-variant",
+          _score: 0.9,
+          productId: "product-variant",
+          textContent: "Variant embedding",
+          language: "en",
+        },
+      ],
+      query: async () => [
+        createProduct({
+          id: "product-variant",
+          nameEn: "Variant Product",
+          variants: [
+            {
+              id: "variant-empty",
+              companyId: COMPANY_ID,
+              productId: "product-variant",
+            },
+            {
+              id: "variant-priced",
+              companyId: COMPANY_ID,
+              productId: "product-variant",
+              price: 9,
+            },
+          ],
+        }),
+      ],
+    });
+
+    const service = createProductRetrievalService({
+      createClient: () => client,
+      generateEmbedding: async () => Array.from({ length: 768 }, () => 2),
+    });
+
+    const result = await service.retrieveCatalogContext({
+      companyId: COMPANY_ID,
+      query: "Variant Product",
+      language: "en",
+    });
+
+    expect(result.contextBlocks[0]?.body).toBe(
+      ["Name (EN): Variant Product", "Variants:", "price: 9"].join("\n"),
+    );
   });
 
   test("returns grounded Arabic retrieval and prefers Arabic copy with English fallback", async () => {

@@ -95,14 +95,15 @@ const buildContextBlockBody = (
     lines.push("Variants:");
     for (const variant of product.variants) {
       const label = getPreferredVariantLabel(variant, language);
-      lines.push(
-        [
-          label ? `- ${label}` : undefined,
-          variant.price !== undefined ? `price: ${variant.price}` : undefined,
-        ]
-          .filter((entry): entry is string => Boolean(entry))
-          .join(" | "),
-      );
+      const variantLine = [
+        label ? `- ${label}` : undefined,
+        variant.price !== undefined ? `price: ${variant.price}` : undefined,
+      ]
+        .filter((entry): entry is string => Boolean(entry))
+        .join(" | ");
+      if (variantLine) {
+        lines.push(variantLine);
+      }
     }
   }
 
