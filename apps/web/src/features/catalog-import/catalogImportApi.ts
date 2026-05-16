@@ -40,10 +40,22 @@ export interface CatalogImportApplyResult {
 }
 
 const parseJsonResponse = async <T>(response: Response): Promise<T> => {
-  const payload = await response.json() as T | { error?: { message?: string } };
+  const rawText = await response.text();
+  let payload: T | { error?: { message?: string }; message?: string } | string | undefined;
+  if (rawText.length > 0) {
+    try {
+      payload = JSON.parse(rawText) as T | { error?: { message?: string }; message?: string };
+    } catch {
+      payload = rawText;
+    }
+  }
+
   if (!response.ok) {
-    const maybeError = payload as { error?: { message?: string } };
-    throw new Error(maybeError.error?.message ?? 'Request failed');
+    const maybeError = payload as { error?: { message?: string }; message?: string };
+    const message = typeof payload === 'string'
+      ? payload
+      : maybeError?.error?.message ?? maybeError?.message;
+    throw new Error(message ?? response.statusText ?? 'Request failed');
   }
 
   return payload as T;
