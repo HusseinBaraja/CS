@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import {
   parseCreateProductBody,
-  parseCreateVariantBody,
   parseUpdateProductBody,
-  parseUpdateVariantBody,
 } from './productSchemas';
+import {
+  parseCreateVariantBody,
+  parseUpdateVariantBody,
+} from './productVariantParsers';
 
 describe('product schema parsers', () => {
   test('parseCreateProductBody accepts the fixed product contract', () => {
