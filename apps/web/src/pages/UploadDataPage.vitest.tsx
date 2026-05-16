@@ -180,6 +180,27 @@ describe('UploadDataPage', () => {
     expect(calls.some(([url]) => String(url).includes('/apply'))).toBe(true);
   });
 
+  it('clears the generated preview when source language changes', async () => {
+    render(<UploadDataPage />);
+    await waitFor(() => expect(screen.getByText('YAS_Trading')).toBeDefined());
+
+    const file = new File(['fake'], 'catalog.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    fireEvent.change(screen.getByLabelText('ملف الكتالوج'), {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /معاينة/ }));
+
+    await waitFor(() => expect(screen.getByText('P-1')).toBeDefined());
+    expect(screen.getByRole('button', { name: /تطبيق الاستيراد/ }).hasAttribute('disabled')).toBe(false);
+
+    fireEvent.change(screen.getByLabelText('لغة مصدر الملف'), {
+      target: { value: 'en' },
+    });
+
+    expect(screen.getByText('لم تتم معاينة أي ملف بعد.')).toBeDefined();
+    expect(screen.getByRole('button', { name: /تطبيق الاستيراد/ }).hasAttribute('disabled')).toBe(true);
+  });
+
   it('blocks when YAS_Trading is missing', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, companies: [] }))));
     render(<UploadDataPage />);

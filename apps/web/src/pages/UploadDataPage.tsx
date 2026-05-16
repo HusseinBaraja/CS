@@ -157,7 +157,11 @@ export function UploadDataPage() {
                       aria-label="لغة مصدر الملف"
                       className="rounded-lg border border-[#cdd8d2] bg-white px-3 py-2 text-sm"
                       value={sourceLanguage}
-                      onChange={(event) => setSourceLanguage(event.target.value as SourceLanguage)}
+                      onChange={(event) => {
+                        setSourceLanguage(event.target.value as SourceLanguage);
+                        setPreview(null);
+                        setResult(null);
+                      }}
                     >
                       <option value="ar">العربية</option>
                       <option value="en">English</option>
