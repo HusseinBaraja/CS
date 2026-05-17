@@ -8,6 +8,7 @@ import { buildProductEmbeddingPayload } from './productEmbeddingRuntime';
 
 const NOT_FOUND_PREFIX = 'NOT_FOUND';
 const VALIDATION_PREFIX = 'VALIDATION_FAILED';
+const VARIANT_DELETE_BATCH_SIZE = 50;
 
 const bilingualTextValidator = {
   en: v.string(),
@@ -113,8 +114,10 @@ export const applyTranslatedGroup = internalMutation({
         .query('productVariants')
         .withIndex('by_product', (q) => q.eq('productId', existingProduct._id))
         .collect();
-      for (const variant of existingVariants) {
-        await ctx.db.delete(variant._id);
+      const existingVariantIds = existingVariants.map((variant) => variant._id);
+      for (let index = 0; index < existingVariantIds.length; index += VARIANT_DELETE_BATCH_SIZE) {
+        const batch = existingVariantIds.slice(index, index + VARIANT_DELETE_BATCH_SIZE);
+        await Promise.all(batch.map((variantId) => ctx.db.delete(variantId)));
       }
 
       await ctx.db.patch(existingProduct._id, {
