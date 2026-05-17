@@ -198,7 +198,9 @@ describe('variant mutation definitions', () => {
         labelEn: null,
         labelAr: null,
       }),
-    ).rejects.toThrow('Variant must have at least one label');
+    ).rejects.toThrow(
+      'VALIDATION_FAILED: VARIANT_MISSING_LABEL: Variant must have at least one label',
+    );
 
     expect(ctx.db.patch).not.toHaveBeenCalled();
     expect(replaceProductEmbeddingsInMutation).not.toHaveBeenCalled();

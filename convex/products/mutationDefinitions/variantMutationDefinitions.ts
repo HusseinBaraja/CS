@@ -3,7 +3,7 @@ import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { refreshCompanyCatalogLanguageHintsInMutation } from '../../catalogLanguageHints';
 import { replaceProductEmbeddingsInMutation } from '../../productEmbeddingRuntime';
-import { CONFLICT_PREFIX, NOT_FOUND_PREFIX, createTaggedError } from '../errors';
+import { CONFLICT_PREFIX, NOT_FOUND_PREFIX, VALIDATION_PREFIX, createTaggedError } from '../errors';
 import { mapVariant } from '../mapping';
 import {
   assertCurrencyIfPriced,
@@ -150,7 +150,10 @@ export const patchVariantWithEmbeddingsDefinition = {
     const mergedLabelEn = args.labelEn !== undefined ? args.labelEn : existingVariant.labelEn;
     const mergedLabelAr = args.labelAr !== undefined ? args.labelAr : existingVariant.labelAr;
     if (!mergedLabelEn?.trim() && !mergedLabelAr?.trim()) {
-      throw new Error('Variant must have at least one label');
+      throw createTaggedError(
+        VALIDATION_PREFIX,
+        'VARIANT_MISSING_LABEL: Variant must have at least one label',
+      );
     }
 
     if (Object.keys(patch).length === 0) {
