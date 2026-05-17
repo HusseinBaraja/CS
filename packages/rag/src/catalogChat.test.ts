@@ -324,7 +324,7 @@ describe("createCatalogChatOrchestrator", () => {
     expect(result).toMatchObject({
       outcome: "missing_price_fallback",
       assistant: {
-        text: "I can't help safely right now, so I'll connect you with the team.",
+        text: "Let me connect you with the team so they can help better.",
         action: {
           type: "handoff",
         },
@@ -792,7 +792,7 @@ describe("createCatalogChatOrchestrator", () => {
       outcome: "provider_failure_fallback",
       assistant: {
         schemaVersion: "v1",
-        text: "I can't help safely right now, so I'll connect you with the team.",
+        text: "Let me connect you with the team so they can help better.",
         action: {
           type: "handoff",
         },
@@ -854,7 +854,7 @@ describe("createCatalogChatOrchestrator", () => {
       outcome: "invalid_model_output_fallback",
       assistant: {
         schemaVersion: "v1",
-        text: "I can't help safely right now, so I'll connect you with the team.",
+        text: "Let me connect you with the team so they can help better.",
         action: {
           type: "handoff",
         },

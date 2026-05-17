@@ -5,6 +5,7 @@ import { runPendingHandoffSideEffects, type NormalizedInboundMessage } from '@cs
 import type { InboundRouteContext } from './sessionManager';
 import { toCompanyId } from '@cs/db';
 import type { ConversationStore } from './conversationStore';
+import type { CustomerRoutingOutcome } from './customerRoutingOutcome';
 type CustomerConversationLogger = StructuredLogger;
 interface CustomerConversationRouterOptions {
   catalogChatOrchestrator: CatalogChatOrchestrator;
@@ -15,10 +16,10 @@ interface CustomerConversationRouterOptions {
   now?: () => number;
 }
 const DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES = 20;
-export const createCustomerConversationRouter = (options: CustomerConversationRouterOptions): ((message: NormalizedInboundMessage, context: InboundRouteContext) => Promise<void>) => {
+export const createCustomerConversationRouter = (options: CustomerConversationRouterOptions): ((message: NormalizedInboundMessage, context: InboundRouteContext) => Promise<CustomerRoutingOutcome>) => {
   const now = options.now ?? Date.now;
   const conversationHistoryWindowMessages = options.conversationHistoryWindowMessages ?? DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES;
-  return async (message, context): Promise<void> => {
+  return async (message, context): Promise<CustomerRoutingOutcome> => {
     let routeLogger = withLogBindings(options.logger, {
       companyId: message.companyId,
       requestId: message.messageId,
@@ -43,7 +44,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
         },
         "customer conversation outbound messenger unavailable",
       );
-      return;
+      return "error_no_reply";
     }
     const outbound = context.outbound;
     const userMessage = serializeInboundMessage(message);
@@ -105,7 +106,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
           },
           "customer conversation inbound message recorded",
         );
-        return;
+        return inboundAppend.wasDuplicate ? "duplicate_no_reply" : "muted_no_reply";
       }
       logEvent(
         routeLogger,
@@ -159,7 +160,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
         },
         "customer conversation persistence failed",
       );
-      return;
+      return "error_no_reply";
     }
 
     let assistantText: string;
@@ -207,7 +208,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
         },
         "customer conversation orchestration failed",
       );
-      return;
+      return "error_no_reply";
     }
 
     const assistantTimestamp = now();
@@ -268,7 +269,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
         },
         "customer conversation assistant persistence failed",
       );
-      return;
+      return "error_no_reply";
     }
 
     let outboundMessageId: string | undefined;
@@ -325,7 +326,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
           "customer conversation pending assistant failure persistence failed",
         );
       }
-      return;
+      return "error_no_reply";
     }
 
     try {
@@ -356,7 +357,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
         },
         "customer conversation assistant acknowledgement persistence failed",
       );
-      return;
+      return "error_no_reply";
     }
 
     try {
@@ -385,7 +386,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
         },
         "customer conversation assistant persistence failed",
       );
-      return;
+      return "error_no_reply";
     }
 
     logEvent(
@@ -534,5 +535,6 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
         "customer conversation history trimming failed",
       );
     }
+    return handoffSource ? "handoff_reply_sent" : "reply_sent";
   };
 };

@@ -43,6 +43,7 @@ import {
 import { logIgnoredInboundEvent } from './ignoredInbound';
 import { createInboundReadReceiptScheduler } from './readReceipts';
 import { retryInitialSessionReconcile } from './sessionManagerStartupRetry';
+import { shouldMarkCustomerInboundRead, type CustomerRoutingOutcome } from './customerRoutingOutcome';
 
 const HEARTBEAT_INTERVAL_MS = 20_000;
 const SESSION_LEASE_MS = 60_000;
@@ -95,7 +96,7 @@ interface StartTenantSessionManagerOptions {
 
 export interface InboundMessageRouter {
   handleOwnerCommand(message: NormalizedInboundMessage, context: InboundRouteContext): Promise<void>;
-  handleCustomerConversation(message: NormalizedInboundMessage, context: InboundRouteContext): Promise<void>;
+  handleCustomerConversation(message: NormalizedInboundMessage, context: InboundRouteContext): Promise<CustomerRoutingOutcome>;
   handleIgnored(event: IgnoredInboundEvent, context: InboundRouteContext): Promise<void> | void;
 }
 
@@ -115,7 +116,7 @@ const defaultTimer: SessionManagerTimer = {
 const OPERATOR_SHELL_PATH = "/runtime/bot";
 
 const defaultInboundRouter: InboundMessageRouter = {
-  handleCustomerConversation: async () => undefined,
+  handleCustomerConversation: async () => "error_no_reply",
   handleIgnored: async () => undefined,
   handleOwnerCommand: async () => undefined,
 };
@@ -335,7 +336,7 @@ export const startTenantSessionManager = async (
     profile: CompanyRuntimeProfile,
     event: IgnoredInboundEvent | NormalizedInboundMessage,
     route?: "owner_command" | "customer_conversation",
-  ): Promise<void> => {
+  ): Promise<CustomerRoutingOutcome | void> => {
     const currentProfile = getCurrentProfile(profile.companyId, profile);
     if (stopping || isSessionStopping(currentProfile.companyId)) {
       return;
@@ -363,8 +364,7 @@ export const startTenantSessionManager = async (
       }
 
       if (route === "customer_conversation") {
-        await inboundRouter.handleCustomerConversation(event as NormalizedInboundMessage, context);
-        return;
+        return await inboundRouter.handleCustomerConversation(event as NormalizedInboundMessage, context);
       }
 
       logIgnoredInboundEvent(botLogger, currentProfile, event as IgnoredInboundEvent);
@@ -384,6 +384,9 @@ export const startTenantSessionManager = async (
         },
         "tenant inbound message routing failed",
       );
+      if (route === "customer_conversation") {
+        return "error_no_reply";
+      }
     }
   };
 
@@ -419,10 +422,14 @@ export const startTenantSessionManager = async (
         continue;
       }
 
-      if (dispatch.route === "customer_conversation") {
+      const outcome = await routeInboundEvent(currentProfile, dispatch.message, dispatch.route);
+      if (
+        dispatch.route === "customer_conversation" &&
+        outcome !== undefined &&
+        shouldMarkCustomerInboundRead(outcome)
+      ) {
         inboundReadReceiptScheduler.schedule(currentProfile, dispatch.message);
       }
-      await routeInboundEvent(currentProfile, dispatch.message, dispatch.route);
     }
   };
 

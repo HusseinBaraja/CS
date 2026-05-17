@@ -287,12 +287,12 @@ const buildAssistantFallback = (
       return responseLanguage === "ar"
         ? {
           schemaVersion: "v1",
-          text: "لا أستطيع المساعدة بأمان الآن، لذا سأحوّلك إلى الفريق.",
+          text: "خليني أوصلك بالفريق عشان يساعدوك أفضل.",
           action: { type: "handoff" },
         }
         : {
           schemaVersion: "v1",
-          text: "I can't help safely right now, so I'll connect you with the team.",
+          text: "Let me connect you with the team so they can help better.",
           action: { type: "handoff" },
         };
   }

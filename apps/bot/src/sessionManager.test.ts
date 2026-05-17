@@ -583,6 +583,7 @@ describe("startTenantSessionManager", () => {
       inboundRouter: {
         handleCustomerConversation: async (message) => {
           routedMessages.push(message.messageId);
+          return "reply_sent";
         },
         handleIgnored: async () => undefined,
         handleOwnerCommand: async () => undefined,
@@ -1447,6 +1448,7 @@ describe("startTenantSessionManager", () => {
     const router: InboundMessageRouter = {
       handleCustomerConversation: async (message) => {
         routedConversations.push(message);
+        return "reply_sent";
       },
       handleIgnored: async (event) => {
         ignoredEvents.push(event);
@@ -1547,7 +1549,7 @@ describe("startTenantSessionManager", () => {
       store,
       timer,
       inboundRouter: {
-        handleCustomerConversation: async () => undefined,
+        handleCustomerConversation: async () => "reply_sent" as const,
         handleIgnored: async () => undefined,
         handleOwnerCommand: async () => undefined,
       },
@@ -1608,6 +1610,121 @@ describe("startTenantSessionManager", () => {
     }]);
   });
 
+  test("schedules a delayed read receipt after a visible handoff reply", async () => {
+    const profile = createProfile("company-1", {
+      config: {
+        accessControlMode: "ALL",
+      },
+    });
+    const store = createStoreStub([profile]);
+    const { timer, timeouts } = createIntervalTimerStub();
+    const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+    const readReceipts: Array<{ id: string; remoteJid: string }> = [];
+
+    await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      inboundRouter: {
+        handleCustomerConversation: async () => "handoff_reply_sent",
+        handleIgnored: async () => undefined,
+        handleOwnerCommand: async () => undefined,
+      },
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }), {
+          markRead: async (message) => {
+            readReceipts.push(message);
+          },
+        });
+      },
+    });
+
+    await messageCallbacks.get(profile.sessionKey)?.({
+      type: "notify",
+      messages: [{
+        key: {
+          id: "customer-handoff",
+          remoteJid: "967700000001@s.whatsapp.net",
+          fromMe: false,
+        },
+        messageTimestamp: 1_700_000_001,
+        message: {
+          conversation: "human please",
+        },
+      }],
+    });
+
+    const readReceiptTimeout = timeouts.find((entry) => entry.delayMs >= 2_000 && entry.delayMs <= 4_000);
+    expect(readReceiptTimeout).toBeDefined();
+
+    await readReceiptTimeout?.callback();
+
+    expect(readReceipts).toEqual([{
+      id: "customer-handoff",
+      remoteJid: "967700000001@s.whatsapp.net",
+    }]);
+  });
+
+  for (const outcome of ["muted_no_reply", "duplicate_no_reply", "error_no_reply"] as const) {
+    test(`does not schedule a read receipt for ${outcome}`, async () => {
+      const profile = createProfile("company-1", {
+        config: {
+          accessControlMode: "ALL",
+        },
+      });
+      const store = createStoreStub([profile]);
+      const { timer, timeouts } = createIntervalTimerStub();
+      const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+
+      await startTenantSessionManager({
+        runtimeOwnerId: "runtime-owner-1",
+        store,
+        timer,
+        inboundRouter: {
+          handleCustomerConversation: async () => outcome,
+          handleIgnored: async () => undefined,
+          handleOwnerCommand: async () => undefined,
+        },
+        startBot: async (options) => {
+          const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+          messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+          return createRuntimeHandle(() => ({
+            sessionKey,
+            state: "open",
+            attempt: 0,
+            hasQr: false,
+          }));
+        },
+      });
+
+      await messageCallbacks.get(profile.sessionKey)?.({
+        type: "notify",
+        messages: [{
+          key: {
+            id: `customer-${outcome}`,
+            remoteJid: "967700000001@s.whatsapp.net",
+            fromMe: false,
+          },
+          messageTimestamp: 1_700_000_001,
+          message: {
+            conversation: "hello",
+          },
+        }],
+      });
+
+      expect(timeouts).toHaveLength(0);
+    });
+  }
+
   test("clears pending read receipt timers during shutdown", async () => {
     const profile = createProfile("company-1", {
       config: {
@@ -1623,7 +1740,7 @@ describe("startTenantSessionManager", () => {
       store,
       timer,
       inboundRouter: {
-        handleCustomerConversation: async () => undefined,
+        handleCustomerConversation: async () => "reply_sent" as const,
         handleIgnored: async () => undefined,
         handleOwnerCommand: async () => undefined,
       },
@@ -1694,6 +1811,7 @@ describe("startTenantSessionManager", () => {
           }
 
           routedMessages.push(message.messageId);
+          return "reply_sent";
         },
         handleIgnored: () => undefined,
         handleOwnerCommand: async (message) => {
@@ -1827,6 +1945,7 @@ describe("startTenantSessionManager", () => {
             sessionKey: (loggerCall?.payload as Record<string, unknown> | undefined)?.sessionKey as string | undefined,
             surface: (loggerCall?.payload as Record<string, unknown> | undefined)?.surface as string | undefined,
           });
+          return "reply_sent";
         },
         handleIgnored: async (event, context) => {
           context.logger.info({}, "inspect");
@@ -1977,6 +2096,7 @@ describe("startTenantSessionManager", () => {
       inboundRouter: {
         handleCustomerConversation: async (message) => {
           routedConversations.push(message);
+          return "reply_sent";
         },
         handleIgnored: async (event) => {
           ignoredEvents.push(event);
@@ -2043,7 +2163,7 @@ describe("startTenantSessionManager", () => {
       runtimeOwnerId: "runtime-owner-1",
       store,
       inboundRouter: {
-        handleCustomerConversation: async () => undefined,
+        handleCustomerConversation: async () => "reply_sent" as const,
         handleIgnored: async (event) => {
           ignoredEvents.push(event);
         },
@@ -2111,6 +2231,7 @@ describe("startTenantSessionManager", () => {
       inboundRouter: {
         handleCustomerConversation: async (message) => {
           routedConversations.push(`${message.companyId}:${message.messageId}`);
+          return "reply_sent";
         },
         handleIgnored: async (event) => {
           ignoredEvents.push(event);
@@ -2238,7 +2359,7 @@ describe("startTenantSessionManager", () => {
       runtimeOwnerId: "runtime-owner-1",
       store,
       inboundRouter: {
-        handleCustomerConversation: async () => undefined,
+        handleCustomerConversation: async () => "reply_sent" as const,
         handleIgnored: async (event) => {
           ignoredEvents.push(event);
         },
