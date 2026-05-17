@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { convexTest } from 'convex-test';
-import { setGeminiClientFactoryForTests } from '../packages/ai/src/testUtils';
+import { setGeminiClientFactoryForTests } from '@cs/ai';
 import { internal } from './_generated/api';
 import schema from './schema';
 import { runWithSeedLockHeartbeat } from './seed';
@@ -510,7 +510,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
         await ctx.db.insert("productVariants", {
           companyId: seededCompany._id,
           productId: products[0]._id,
-          label: `seed cleanup variant ${index}`,
+          labelEn: `seed cleanup variant ${index}`,
         });
       }
     });

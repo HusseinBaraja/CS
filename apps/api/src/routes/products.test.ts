@@ -39,7 +39,7 @@ const baseVariant: ProductVariantDto = {
   id: 'variant-1',
   companyId: 'company-1',
   productId: 'product-1',
-  label: 'Large',
+  labelEn: 'Large',
   price: 1.5,
 };
 
@@ -108,7 +108,7 @@ const createStubProductsService = (
     ...baseVariant,
     id: variantId,
     productId,
-    label: patch.label ?? baseVariant.label,
+    labelEn: patch.labelEn ?? baseVariant.labelEn,
     ...(patch.price !== null && patch.price !== undefined ? { price: patch.price } : {}),
   }),
   deleteVariant: async (_companyId: string, productId: string, variantId: string) => ({
@@ -280,6 +280,7 @@ describe('product routes', () => {
       nameEn: 'Updated',
       price: null,
       currency: null,
+      primaryImage: null,
     });
   });
 
@@ -326,7 +327,8 @@ describe('product routes', () => {
             && variant
             ? {
               ...variant,
-              ...patch,
+              labelEn: patch.labelEn === null ? undefined : patch.labelEn ?? variant.labelEn,
+              labelAr: patch.labelAr === null ? undefined : patch.labelAr ?? variant.labelAr,
               price: patch.price === null ? undefined : patch.price ?? variant.price,
             }
             : null;
@@ -364,7 +366,7 @@ describe('product routes', () => {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify({
-        label: 'Large',
+        labelEn: 'Large',
       }),
     });
     const updateVariantResponse = await app.request(
@@ -373,7 +375,7 @@ describe('product routes', () => {
         method: 'PUT',
         headers: authHeaders,
         body: JSON.stringify({
-          label: 'Small',
+          labelEn: 'Small',
         }),
       },
     );
@@ -439,7 +441,7 @@ describe('product routes', () => {
           id: variantId,
           companyId: 'company-1',
           productId,
-          label: patch.label ?? 'Large',
+          labelEn: patch.labelEn ?? 'Large',
         };
       },
     }));
@@ -448,7 +450,7 @@ describe('product routes', () => {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify({
-        label: ' Large ',
+        labelEn: ' Large ',
         price: 1.5,
       }),
     });
@@ -456,7 +458,7 @@ describe('product routes', () => {
       method: 'PUT',
       headers: authHeaders,
       body: JSON.stringify({
-        label: ' Small ',
+        labelEn: ' Small ',
         price: null,
       }),
     });
@@ -464,11 +466,11 @@ describe('product routes', () => {
     expect(createResponse.status).toBe(201);
     expect(updateResponse.status).toBe(200);
     expect(createInput).toEqual({
-      label: 'Large',
+      labelEn: 'Large',
       price: 1.5,
     });
     expect(updatePatch).toEqual({
-      label: 'Small',
+      labelEn: 'Small',
       price: null,
     });
   });

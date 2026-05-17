@@ -3,7 +3,7 @@ import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { refreshCompanyCatalogLanguageHintsInMutation } from '../../catalogLanguageHints';
 import { replaceProductEmbeddingsInMutation } from '../../productEmbeddingRuntime';
-import { CONFLICT_PREFIX, NOT_FOUND_PREFIX, createTaggedError } from '../errors';
+import { CONFLICT_PREFIX, NOT_FOUND_PREFIX, VALIDATION_PREFIX, createTaggedError } from '../errors';
 import { mapVariant } from '../mapping';
 import {
   assertCurrencyIfPriced,
@@ -31,7 +31,8 @@ export const insertVariantWithEmbeddingsDefinition = {
     companyId: v.id('companies'),
     productId: v.id('products'),
     expectedRevision: v.number(),
-    label: v.string(),
+    labelEn: v.optional(v.string()),
+    labelAr: v.optional(v.string()),
     price: v.optional(v.number()),
     englishEmbedding: v.array(v.float64()),
     arabicEmbedding: v.array(v.float64()),
@@ -44,7 +45,8 @@ export const insertVariantWithEmbeddingsDefinition = {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
       expectedRevision: number;
-      label: string;
+      labelEn?: string;
+      labelAr?: string;
       price?: number;
       englishEmbedding: number[];
       arabicEmbedding: number[];
@@ -62,7 +64,8 @@ export const insertVariantWithEmbeddingsDefinition = {
     const variantState = normalizeVariantCreateState(
       {
         productId: args.productId,
-        label: args.label,
+        labelEn: args.labelEn,
+        labelAr: args.labelAr,
         price: args.price,
       },
       product.currency,
@@ -71,7 +74,8 @@ export const insertVariantWithEmbeddingsDefinition = {
     const variantId = await ctx.db.insert('productVariants', {
       companyId: args.companyId,
       productId: args.productId,
-      label: variantState.label,
+      ...(variantState.labelEn ? { labelEn: variantState.labelEn } : {}),
+      ...(variantState.labelAr ? { labelAr: variantState.labelAr } : {}),
       ...(variantState.price !== undefined ? { price: variantState.price } : {}),
     });
     await ctx.db.patch(args.productId, { version: currentRevision + 1 });
@@ -101,7 +105,8 @@ export const patchVariantWithEmbeddingsDefinition = {
     productId: v.id('products'),
     variantId: v.id('productVariants'),
     expectedRevision: v.number(),
-    label: v.optional(v.string()),
+    labelEn: v.optional(v.union(v.string(), v.null())),
+    labelAr: v.optional(v.union(v.string(), v.null())),
     price: v.optional(v.union(v.number(), v.null())),
     englishEmbedding: v.array(v.float64()),
     arabicEmbedding: v.array(v.float64()),
@@ -115,7 +120,8 @@ export const patchVariantWithEmbeddingsDefinition = {
       productId: Id<'products'>;
       variantId: Id<'productVariants'>;
       expectedRevision: number;
-      label?: string;
+      labelEn?: string | null;
+      labelAr?: string | null;
       price?: number | null;
       englishEmbedding: number[];
       arabicEmbedding: number[];
@@ -136,9 +142,20 @@ export const patchVariantWithEmbeddingsDefinition = {
     }
 
     const patch = createVariantPatch({
-      label: args.label,
+      labelEn: args.labelEn,
+      labelAr: args.labelAr,
       price: args.price,
     });
+
+    const mergedLabelEn = args.labelEn !== undefined ? args.labelEn : existingVariant.labelEn;
+    const mergedLabelAr = args.labelAr !== undefined ? args.labelAr : existingVariant.labelAr;
+    if (!mergedLabelEn?.trim() && !mergedLabelAr?.trim()) {
+      throw createTaggedError(
+        VALIDATION_PREFIX,
+        'VARIANT_MISSING_LABEL: Variant must have at least one label',
+      );
+    }
+
     if (Object.keys(patch).length === 0) {
       return mapVariant(existingVariant);
     }

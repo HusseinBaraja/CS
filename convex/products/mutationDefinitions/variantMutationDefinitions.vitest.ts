@@ -94,27 +94,27 @@ describe('variant mutation definitions', () => {
     getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
     normalizeVariantCreateState.mockReturnValue({
       productId: PRODUCT_ID,
-      label: 'Large',
+      labelEn: 'Large',
       price: 10,
     });
     (ctx.db.insert as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(VARIANT_ID);
     (ctx.db.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       _id: VARIANT_ID,
       productId: PRODUCT_ID,
-      label: 'Large',
+      labelEn: 'Large',
       price: 10,
     });
     mapVariant.mockReturnValue({ id: VARIANT_ID });
 
     await insertVariantWithEmbeddingsDefinition.handler(ctx, {
       ...MUTATION_BASE_ARGS,
-      label: 'Large',
+      labelEn: 'Large',
     });
 
     expect(normalizeVariantCreateState).toHaveBeenCalledWith(
       {
         productId: PRODUCT_ID,
-        label: 'Large',
+        labelEn: 'Large',
         price: undefined,
       },
       'SAR',
@@ -131,19 +131,19 @@ describe('variant mutation definitions', () => {
     getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
     getScopedVariant.mockResolvedValue({ _id: VARIANT_ID });
     createVariantPatch.mockReturnValue({
-      label: 'XL',
+      labelEn: 'XL',
       });
     (ctx.db.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       _id: VARIANT_ID,
       productId: PRODUCT_ID,
-      label: 'XL',
+      labelEn: 'XL',
       });
     mapVariant.mockReturnValue({ id: VARIANT_ID });
 
     await patchVariantWithEmbeddingsDefinition.handler(ctx, {
       ...MUTATION_BASE_ARGS,
       variantId: VARIANT_ID,
-      label: 'XL',
+      labelEn: 'XL',
     });
 
     expect(assertCurrencyIfPriced).toHaveBeenCalledWith(undefined, 'SAR');
@@ -157,14 +157,14 @@ describe('variant mutation definitions', () => {
   it('allows clearing a variant price when the product has no currency', async () => {
     const ctx = buildCtx();
     getScopedProduct.mockResolvedValue({ version: 1 });
-    getScopedVariant.mockResolvedValue({ _id: VARIANT_ID, price: 10 });
+    getScopedVariant.mockResolvedValue({ _id: VARIANT_ID, labelEn: 'Large', price: 10 });
     createVariantPatch.mockReturnValue({
       price: undefined,
     });
     (ctx.db.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       _id: VARIANT_ID,
       productId: PRODUCT_ID,
-      label: 'Large',
+      labelEn: 'Large',
     });
     mapVariant.mockReturnValue({ id: VARIANT_ID });
 
@@ -178,12 +178,41 @@ describe('variant mutation definitions', () => {
     expect(replaceProductEmbeddingsInMutation).toHaveBeenCalledWith(ctx, EMBEDDING_ARGS);
   });
 
+  it('rejects clearing both variant labels', async () => {
+    const ctx = buildCtx();
+    getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
+    getScopedVariant.mockResolvedValue({
+      _id: VARIANT_ID,
+      productId: PRODUCT_ID,
+      labelEn: 'Large',
+    });
+    createVariantPatch.mockReturnValue({
+      labelEn: undefined,
+      labelAr: undefined,
+    });
+
+    await expect(
+      patchVariantWithEmbeddingsDefinition.handler(ctx, {
+        ...MUTATION_BASE_ARGS,
+        variantId: VARIANT_ID,
+        labelEn: null,
+        labelAr: null,
+      }),
+    ).rejects.toThrow(
+      'VALIDATION_FAILED: VARIANT_MISSING_LABEL: Variant must have at least one label',
+    );
+
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+    expect(replaceProductEmbeddingsInMutation).not.toHaveBeenCalled();
+    expect(refreshCompanyCatalogLanguageHintsInMutation).not.toHaveBeenCalled();
+  });
+
   it('treats an empty normalized variant patch as a no-op', async () => {
     const ctx = buildCtx();
     const existingVariant = {
       _id: VARIANT_ID,
       productId: PRODUCT_ID,
-      label: 'Large',
+      labelEn: 'Large',
     };
     getScopedProduct.mockResolvedValue({ currency: 'SAR', version: 1 });
     getScopedVariant.mockResolvedValue(existingVariant);
@@ -193,12 +222,12 @@ describe('variant mutation definitions', () => {
     const result = await patchVariantWithEmbeddingsDefinition.handler(ctx, {
       ...MUTATION_BASE_ARGS,
       variantId: VARIANT_ID,
-      label: '  Large  ',
+      labelEn: '  Large  ',
     });
 
     expect(result).toEqual({ id: VARIANT_ID });
     expect(createVariantPatch).toHaveBeenCalledWith({
-      label: '  Large  ',
+      labelEn: '  Large  ',
       price: undefined,
     });
     expect(mapVariant).toHaveBeenCalledWith(existingVariant);
@@ -257,7 +286,7 @@ describe('variant mutation definitions', () => {
     await expect(
       insertVariantWithEmbeddingsDefinition.handler(ctx, {
         ...MUTATION_BASE_ARGS,
-        label: 'Large',
+        labelEn: 'Large',
       }),
     ).rejects.toThrow('CONFLICT: Product was modified concurrently; retry the update');
 
@@ -273,7 +302,7 @@ describe('variant mutation definitions', () => {
       patchVariantWithEmbeddingsDefinition.handler(ctx, {
         ...MUTATION_BASE_ARGS,
         variantId: VARIANT_ID,
-        label: 'XL',
+        labelEn: 'XL',
       }),
     ).rejects.toThrow('CONFLICT: Product was modified concurrently; retry the update');
 

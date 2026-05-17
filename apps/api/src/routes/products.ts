@@ -4,11 +4,13 @@ import { createErrorResponse } from '../responses';
 import {
   parseCreateProductBody,
   parseCreateProductImageUploadBody,
-  parseCreateVariantBody,
   parseListProductsQuery,
   parseUpdateProductBody,
-  parseUpdateVariantBody,
 } from './productSchemas';
+import {
+  parseCreateVariantBody,
+  parseUpdateVariantBody,
+} from './productVariantParsers';
 import type { ProductMediaService } from '../services/productMedia';
 import { ProductMediaServiceError } from '../services/productMedia';
 import type { ProductsService } from '../services/products';

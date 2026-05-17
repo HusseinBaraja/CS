@@ -256,6 +256,7 @@ export const createConfig = (
   return createEnv({
     server: envSchema,
     runtimeEnv: normalizedRuntimeEnv,
+    isServer: true,
     onValidationError: (issues) => {
       throw new ConfigError(formatValidationIssues(issues), {
         code: inferConfigErrorCode(issues, normalizedRuntimeEnv),

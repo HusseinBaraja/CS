@@ -13,7 +13,8 @@ export const mapVariant = (variant: ProductVariantDoc): ProductVariantDto => ({
   id: variant._id,
   companyId: variant.companyId,
   productId: variant.productId,
-  label: variant.label,
+  ...(variant.labelEn ? { labelEn: variant.labelEn } : {}),
+  ...(variant.labelAr ? { labelAr: variant.labelAr } : {}),
   ...(variant.price !== undefined ? { price: variant.price } : {}),
 });
 
@@ -44,7 +45,8 @@ export const toWriteState = mapProductDocToEmbeddingState;
 export const toVariantWriteState = (variant: ProductVariantDto): ProductVariantWriteState => ({
   id: variant.id,
   productId: variant.productId,
-  label: variant.label,
+  ...(variant.labelEn ? { labelEn: variant.labelEn } : {}),
+  ...(variant.labelAr ? { labelAr: variant.labelAr } : {}),
   ...(variant.price !== undefined ? { price: variant.price } : {}),
 });
 
@@ -55,14 +57,17 @@ export const sortProducts = <T extends ProductListItemDto>(products: T[]): T[] =
     return leftName.localeCompare(rightName) || left.id.localeCompare(right.id);
   });
 
-export const sortVariantDocs = <T extends { label: string; _id: string }>(variants: T[]): T[] =>
+const getVariantSortLabel = (variant: { labelEn?: string; labelAr?: string }): string =>
+  variant.labelEn ?? variant.labelAr ?? '';
+
+export const sortVariantDocs = <T extends { labelEn?: string; labelAr?: string; _id: string }>(variants: T[]): T[] =>
   variants.sort((left, right) =>
-    left.label.localeCompare(right.label) || left._id.localeCompare(right._id)
+    getVariantSortLabel(left).localeCompare(getVariantSortLabel(right)) || left._id.localeCompare(right._id)
   );
 
 export const sortVariants = <T extends ProductVariantWriteState | ProductVariantDto>(variants: T[]): T[] =>
   variants.sort((left, right) =>
-    left.label.localeCompare(right.label) || left.id.localeCompare(right.id)
+    getVariantSortLabel(left).localeCompare(getVariantSortLabel(right)) || left.id.localeCompare(right.id)
   );
 
 export const buildSearchText = (product: ProductListItemDto): string =>

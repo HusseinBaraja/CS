@@ -38,13 +38,14 @@ const hasSearchableTextAfterVariantDelete = (
   remainingVariants: ProductVariantDto[],
 ): boolean =>
   hasSearchableProductText(snapshot) ||
-  remainingVariants.some((variant) => hasText(variant.label));
+  remainingVariants.some((variant) => hasText(variant.labelEn) || hasText(variant.labelAr));
 
 export const createVariantDefinition = {
   args: {
     companyId: v.id('companies'),
     productId: v.id('products'),
-    label: v.string(),
+    labelEn: v.optional(v.string()),
+    labelAr: v.optional(v.string()),
     price: v.optional(v.number()),
   },
   handler: async (
@@ -52,7 +53,8 @@ export const createVariantDefinition = {
     args: {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
-      label: string;
+      labelEn?: string;
+      labelAr?: string;
       price?: number;
     },
   ): Promise<ProductVariantDto | null> => {
@@ -70,7 +72,8 @@ export const createVariantDefinition = {
     const nextVariant = normalizeVariantCreateState(
       {
         productId: args.productId,
-        label: args.label,
+        labelEn: args.labelEn,
+        labelAr: args.labelAr,
         price: args.price,
       },
       snapshot.currency,
@@ -96,7 +99,8 @@ export const updateVariantDefinition = {
     companyId: v.id('companies'),
     productId: v.id('products'),
     variantId: v.id('productVariants'),
-    label: v.optional(v.string()),
+    labelEn: v.optional(v.union(v.string(), v.null())),
+    labelAr: v.optional(v.union(v.string(), v.null())),
     price: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (
@@ -105,7 +109,8 @@ export const updateVariantDefinition = {
       companyId: Id<'companies'>;
       productId: Id<'products'>;
       variantId: Id<'productVariants'>;
-      label?: string;
+      labelEn?: string | null;
+      labelAr?: string | null;
       price?: number | null;
     },
   ): Promise<ProductVariantDto | null> => {

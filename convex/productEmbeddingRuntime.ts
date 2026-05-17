@@ -18,7 +18,8 @@ export type ProductEmbeddingProductState = {
 export type ProductEmbeddingVariantState = {
   id: string;
   productId: string;
-  label: string;
+  labelEn?: string;
+  labelAr?: string;
   price?: number;
 };
 
@@ -43,14 +44,22 @@ const normalizeOptionalString = (value: string | null | undefined): string | und
 
 const sortVariants = <T extends ProductEmbeddingVariantState>(variants: T[]): T[] =>
   variants.sort((left, right) =>
-    left.label.localeCompare(right.label) || left.id.localeCompare(right.id),
+    (left.labelEn ?? left.labelAr ?? "").localeCompare(right.labelEn ?? right.labelAr ?? "") || left.id.localeCompare(right.id),
   );
 
-const serializeVariants = (variants: ProductEmbeddingVariantState[]): string =>
+const getVariantLabel = (
+  variant: ProductEmbeddingVariantState,
+  language: "en" | "ar",
+): string | undefined =>
+  language === "en"
+    ? normalizeOptionalString(variant.labelEn) ?? normalizeOptionalString(variant.labelAr)
+    : normalizeOptionalString(variant.labelAr) ?? normalizeOptionalString(variant.labelEn);
+
+const serializeVariants = (variants: ProductEmbeddingVariantState[], language: "en" | "ar"): string =>
   sortVariants([...variants])
     .map((variant) =>
       [
-        `label:${variant.label}`,
+        getVariantLabel(variant, language) ? `label:${getVariantLabel(variant, language)}` : undefined,
         variant.price !== undefined ? `price:${variant.price}` : undefined,
       ]
         .filter((value): value is string => Boolean(value))
@@ -69,7 +78,10 @@ const hasMeaningfulEmbeddingText = (
     product.descriptionAr,
     product.productNo,
   ].some((value) => normalizeOptionalString(value) !== undefined) ||
-  variants.some((variant) => normalizeOptionalString(variant.label) !== undefined);
+  variants.some((variant) =>
+    normalizeOptionalString(variant.labelEn) !== undefined ||
+    normalizeOptionalString(variant.labelAr) !== undefined
+  );
 
 const buildLanguageEmbeddingText = (
   product: ProductEmbeddingProductState,
@@ -96,7 +108,7 @@ const buildLanguageEmbeddingText = (
     description ? `description:${description}` : undefined,
     product.price !== undefined ? `price:${product.price}` : undefined,
     product.currency ? `currency:${product.currency}` : undefined,
-    variants.length > 0 ? `variants:\n${serializeVariants(variants)}` : undefined,
+    variants.length > 0 ? `variants:\n${serializeVariants(variants, language)}` : undefined,
   ]
     .filter((value): value is string => Boolean(value))
     .join("\n");
@@ -230,6 +242,7 @@ export const mapVariantDocToEmbeddingState = (
 ): ProductEmbeddingVariantState => ({
   id: variant._id,
   productId: variant.productId,
-  label: variant.label,
+  ...(variant.labelEn ? { labelEn: variant.labelEn } : {}),
+  ...(variant.labelAr ? { labelAr: variant.labelAr } : {}),
   ...(variant.price !== undefined ? { price: variant.price } : {}),
 });

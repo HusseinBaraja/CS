@@ -90,9 +90,3 @@ Reda (رضا) is a multi-tenant WhatsApp customer service platform for small and
 ## Modularity Guardrails
 
 - Keep code modular and do not let core logic `.ts` files exceed `240` LOC; extract sibling modules before files grow too large.
-
-## Final Response Requirements
-
-- State the files changed.
-- State the tests and checks run.
-- State any required checks skipped and why.

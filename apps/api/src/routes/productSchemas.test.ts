@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import {
   parseCreateProductBody,
-  parseCreateVariantBody,
   parseUpdateProductBody,
-  parseUpdateVariantBody,
 } from './productSchemas';
+import {
+  parseCreateVariantBody,
+  parseUpdateVariantBody,
+} from './productVariantParsers';
 
 describe('product schema parsers', () => {
   test('parseCreateProductBody accepts the fixed product contract', () => {
@@ -97,23 +99,23 @@ describe('product schema parsers', () => {
 
   test('variant parsers use label and price only', () => {
     expect(parseCreateVariantBody({
-      label: ' Large ',
+      labelEn: ' Large ',
       price: 1.5,
     })).toEqual({
       ok: true,
       value: {
-        label: 'Large',
+        labelEn: 'Large',
         price: 1.5,
       },
     });
 
     expect(parseUpdateVariantBody({
-      label: ' Small ',
+      labelEn: ' Small ',
       price: null,
     })).toEqual({
       ok: true,
       value: {
-        label: 'Small',
+        labelEn: 'Small',
         price: null,
       },
     });

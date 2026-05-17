@@ -41,7 +41,7 @@ An assistant response based only on retrieved catalog records and allowed busine
 _Avoid_: AI answer, generated answer
 
 **Catalog Import**:
-The dashboard workflow where an owner or operator uploads a spreadsheet of company catalog records for later validation and storage.
+The dashboard workflow where an owner or operator uploads a spreadsheet of company catalog records for validation and storage. Repeated rows with the same product number represent one product with one or more variants, not duplicate products. When an imported product number already exists, the import replaces that whole product group, including its variants. Each uploaded file declares one source language for all rows. Category names, product names, variant labels, and optional descriptions may be supplied in that one language only; Reda derives the missing Arabic or English text during import. If automatic translation cannot produce the missing text, the stored value becomes `not_translated`.
 _Avoid_: Upload data, business settings import
 
 ## Relationships
@@ -54,6 +54,8 @@ _Avoid_: Upload data, business settings import
 - A **Runtime Session** belongs to exactly one **Company**.
 - A **Grounded Answer** may be sent only when retrieved company catalog data is sufficient.
 - A **Catalog Import** belongs to exactly one **Company** and must not include business settings or cross-company data.
+- A **Catalog Import** may contain multiple rows with the same product number when those rows describe variants of the same product.
+- A **Catalog Import** replaces the full stored product group for a product number instead of merging variant rows field-by-field.
 
 ## Example dialogue
 

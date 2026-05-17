@@ -45,7 +45,8 @@ type SeedProductEmbeddingSnapshot = {
   variants: Array<{
     id: Id<"productVariants">;
     productId: Id<"products">;
-    label: string;
+    labelEn?: string;
+    labelAr?: string;
     price?: number;
   }>;
 };
@@ -207,7 +208,8 @@ export const listSeedProductsForEmbedding = internalQuery({
           .collect();
 
         const sortedVariants = [...variants].sort((left, right) =>
-          left.label.localeCompare(right.label) || left._id.localeCompare(right._id),
+          (left.labelEn ?? left.labelAr ?? '').localeCompare(right.labelEn ?? right.labelAr ?? '') ||
+          left._id.localeCompare(right._id),
         );
 
         return {
@@ -223,7 +225,8 @@ export const listSeedProductsForEmbedding = internalQuery({
           variants: sortedVariants.map((variant) => ({
             id: variant._id,
             productId: variant.productId,
-            label: variant.label,
+            ...(variant.labelEn ? { labelEn: variant.labelEn } : {}),
+            ...(variant.labelAr ? { labelAr: variant.labelAr } : {}),
             ...(variant.price !== undefined ? { price: variant.price } : {}),
           })),
         };
@@ -362,13 +365,14 @@ export const insertSeedSampleData = internalMutation({
     for (const variant of seedVariants) {
       const productId = productIds.get(variant.productKey);
       if (!productId) {
-        throw new Error(`Missing product for variant ${variant.label}`);
+        throw new Error(`Missing product for variant ${variant.labelEn}`);
       }
 
       await ctx.db.insert("productVariants", {
         companyId: args.companyId,
         productId,
-        label: variant.label,
+        ...(variant.labelEn !== undefined ? { labelEn: variant.labelEn } : {}),
+        ...(variant.labelAr !== undefined ? { labelAr: variant.labelAr } : {}),
         ...(variant.price !== undefined ? { price: variant.price } : {}),
       });
     }
@@ -470,7 +474,8 @@ export const syncSeedEmbeddings = internalAction({
         product.variants.map((variant: SeedProductEmbeddingSnapshot["variants"][number]) => ({
             id: variant.id,
             productId: variant.productId,
-            label: variant.label,
+            ...(variant.labelEn ? { labelEn: variant.labelEn } : {}),
+            ...(variant.labelAr ? { labelAr: variant.labelAr } : {}),
             ...(variant.price !== undefined ? { price: variant.price } : {}),
           })),
       );

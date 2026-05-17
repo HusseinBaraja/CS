@@ -108,7 +108,7 @@ describe('products normalization helpers', () => {
       {
         id: 'variant_1',
         productId: 'product_1',
-        label: 'Large',
+        labelEn: 'Large',
         price: 12,
       },
       {
@@ -120,7 +120,7 @@ describe('products normalization helpers', () => {
     expect(next).toEqual({
       id: 'variant_1',
       productId: 'product_1',
-      label: 'Large',
+      labelEn: 'Large',
     });
   });
 
@@ -129,7 +129,7 @@ describe('products normalization helpers', () => {
       normalizeVariantCreateState(
         {
           productId: PRODUCT_ID,
-          label: 'Large',
+          labelEn: 'Large',
           price: 12,
         },
         undefined,
@@ -141,7 +141,7 @@ describe('products normalization helpers', () => {
         {
           id: 'variant_1',
           productId: PRODUCT_ID,
-          label: 'Large',
+          labelEn: 'Large',
         },
         {
           price: 12,

@@ -123,24 +123,24 @@ describe('createConvexProductsService', () => {
           id: 'variant-1',
           companyId: 'company-1',
           productId: 'product-1',
-          label: 'Large',
+          labelEn: 'Large',
           price: 1.5,
         };
       },
     });
 
     await expect(service.createVariant('company-1', 'product-1', {
-      label: 'Large',
+      labelEn: 'Large',
       price: 1.5,
     })).resolves.toEqual({
       id: 'variant-1',
       companyId: 'company-1',
       productId: 'product-1',
-      label: 'Large',
+      labelEn: 'Large',
       price: 1.5,
     });
     await service.updateVariant('company-1', 'product-1', 'variant-1', {
-      label: 'Small',
+      labelEn: 'Small',
       price: null,
     });
 
@@ -150,7 +150,7 @@ describe('createConvexProductsService', () => {
     expect(calls[0]?.args).toEqual({
       companyId: 'company-1',
       productId: 'product-1',
-      label: 'Large',
+      labelEn: 'Large',
       price: 1.5,
     });
     expect(getFunctionName(calls[1]?.reference as never)).toBe(
@@ -160,7 +160,7 @@ describe('createConvexProductsService', () => {
       companyId: 'company-1',
       productId: 'product-1',
       variantId: 'variant-1',
-      label: 'Small',
+      labelEn: 'Small',
       price: null,
     });
   });

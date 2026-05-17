@@ -4,7 +4,8 @@ export interface ProductVariantDto {
   id: string;
   companyId: string;
   productId: string;
-  label: string;
+  labelEn?: string;
+  labelAr?: string;
   price?: number;
 }
 
@@ -60,12 +61,14 @@ export interface DeleteProductResult {
 }
 
 export interface CreateProductVariantInput {
-  label: string;
+  labelEn?: string;
+  labelAr?: string;
   price?: number;
 }
 
 export interface UpdateProductVariantInput {
-  label?: string;
+  labelEn?: string | null;
+  labelAr?: string | null;
   price?: number | null;
 }
 

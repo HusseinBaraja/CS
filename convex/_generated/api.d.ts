@@ -9,6 +9,7 @@
  */
 
 import type * as analytics from "../analytics.js";
+import type * as catalogImports from "../catalogImports.js";
 import type * as catalogLanguageHints from "../catalogLanguageHints.js";
 import type * as catalogRestructureCleanup from "../catalogRestructureCleanup.js";
 import type * as catalogRestructureCleanupProcessors from "../catalogRestructureCleanupProcessors.js";
@@ -62,6 +63,7 @@ import type * as products_queryDefinitions_snapshotQueryDefinitions from "../pro
 import type * as products_readers from "../products/readers.js";
 import type * as products_stateTransforms from "../products/stateTransforms.js";
 import type * as products_types from "../products/types.js";
+import type * as products_validation from "../products/validation.js";
 import type * as seed from "../seed.js";
 import type * as seedData from "../seedData.js";
 import type * as testFixtures from "../testFixtures.js";
@@ -75,6 +77,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
+  catalogImports: typeof catalogImports;
   catalogLanguageHints: typeof catalogLanguageHints;
   catalogRestructureCleanup: typeof catalogRestructureCleanup;
   catalogRestructureCleanupProcessors: typeof catalogRestructureCleanupProcessors;
@@ -128,6 +131,7 @@ declare const fullApi: ApiFromModules<{
   "products/readers": typeof products_readers;
   "products/stateTransforms": typeof products_stateTransforms;
   "products/types": typeof products_types;
+  "products/validation": typeof products_validation;
   seed: typeof seed;
   seedData: typeof seedData;
   testFixtures: typeof testFixtures;

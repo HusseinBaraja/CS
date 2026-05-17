@@ -61,7 +61,7 @@ describe('product embedding runtime', () => {
         {
           id: 'variant_1',
           productId: 'product_1',
-          label: ' ',
+          labelEn: ' ',
           price: 10,
         },
       ]),
@@ -85,7 +85,7 @@ describe('product embedding runtime', () => {
       {
         id: 'variant_1',
         productId: 'product_1',
-        label: 'Large',
+        labelEn: 'Large',
         price: 10,
       },
     ]);

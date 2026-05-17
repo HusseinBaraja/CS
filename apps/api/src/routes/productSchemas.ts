@@ -1,9 +1,7 @@
 import type {
   CreateProductInput,
-  CreateProductVariantInput,
   ListProductsFilters,
   UpdateProductInput,
-  UpdateProductVariantInput,
 } from '../services/products';
 import type { CreateProductImageUploadInput } from '../services/productMedia';
 import {
@@ -291,75 +289,3 @@ export const parseCreateProductImageUploadBody = (
   };
 };
 
-export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProductVariantInput> => {
-  const parsedObject = parseObject(value);
-  if (!parsedObject.ok) {
-    return parsedObject;
-  }
-
-  const label = parseRequiredString(parsedObject.value.label, 'label');
-  if (!label.ok) {
-    return label;
-  }
-
-  const price = parseOptionalNumber(parsedObject.value.price, 'price');
-  if (!price.ok) {
-    return price;
-  }
-
-  return {
-    ok: true,
-    value: {
-      label: label.value,
-      ...(price.value !== undefined && price.value !== null ? { price: price.value } : {}),
-    },
-  };
-};
-
-export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProductVariantInput> => {
-  const parsedObject = parseObject(value);
-  if (!parsedObject.ok) {
-    return parsedObject;
-  }
-
-  if (Object.keys(parsedObject.value).length === 0) {
-    return {
-      ok: false,
-      message: 'Request body must include at least one updatable field',
-    };
-  }
-
-  const updates: UpdateProductVariantInput = {};
-
-  if ('label' in parsedObject.value) {
-    const label = parseRequiredString(parsedObject.value.label, 'label');
-    if (!label.ok) {
-      return label;
-    }
-
-    updates.label = label.value;
-  }
-
-  if ('price' in parsedObject.value) {
-    const price = parseOptionalNumber(parsedObject.value.price, 'price', {
-      allowNull: true,
-    });
-    if (!price.ok) {
-      return price;
-    }
-
-    updates.price = price.value;
-  }
-
-  if (Object.keys(updates).length === 0) {
-    return {
-      ok: false,
-      message: 'Request body must include at least one updatable field',
-    };
-  }
-
-  return {
-    ok: true,
-    value: updates,
-  };
-};
