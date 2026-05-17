@@ -371,7 +371,8 @@ export const insertSeedSampleData = internalMutation({
       await ctx.db.insert("productVariants", {
         companyId: args.companyId,
         productId,
-        labelEn: variant.labelEn,
+        ...(variant.labelEn !== undefined ? { labelEn: variant.labelEn } : {}),
+        ...(variant.labelAr !== undefined ? { labelAr: variant.labelAr } : {}),
         ...(variant.price !== undefined ? { price: variant.price } : {}),
       });
     }

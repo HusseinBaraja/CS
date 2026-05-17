@@ -27,7 +27,8 @@ export interface SeedProduct {
 
 export interface SeedVariant {
   productKey: string;
-  labelEn: string;
+  labelEn?: string;
+  labelAr?: string;
   price?: number;
 }
 
