@@ -161,7 +161,7 @@ export const createCatalogImportTranslator = (
         warnings.push({
           productNo,
           field,
-          message: 'Gemini and DeepSeek translation failed; stored not_translated',
+          message: 'Translation failed; stored not_translated',
         });
         return 'not_translated';
       }
