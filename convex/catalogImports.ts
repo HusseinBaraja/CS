@@ -162,9 +162,7 @@ export const applyTranslatedGroup = internalMutation({
       .query('embeddings')
       .withIndex('by_product', (q) => q.eq('productId', productId))
       .collect();
-    for (const embedding of embeddings) {
-      await ctx.db.delete(embedding._id);
-    }
+    await Promise.all(embeddings.map((embedding) => ctx.db.delete(embedding._id)));
 
     await ctx.db.insert('embeddings', {
       companyId: args.companyId,
