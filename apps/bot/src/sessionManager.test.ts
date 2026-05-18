@@ -1673,6 +1673,69 @@ describe("startTenantSessionManager", () => {
     }]);
   });
 
+  test("schedules a delayed read receipt after a visible post-send error", async () => {
+    const profile = createProfile("company-1", {
+      config: {
+        accessControlMode: "ALL",
+      },
+    });
+    const store = createStoreStub([profile]);
+    const { timer, timeouts } = createIntervalTimerStub();
+    const messageCallbacks = new Map<string, NonNullable<StartBotOptions["onMessagesUpsert"]>>();
+    const readReceipts: Array<{ id: string; remoteJid: string }> = [];
+
+    await startTenantSessionManager({
+      runtimeOwnerId: "runtime-owner-1",
+      store,
+      timer,
+      inboundRouter: {
+        handleCustomerConversation: async () => "post_send_error_visible_reply",
+        handleIgnored: async () => undefined,
+        handleOwnerCommand: async () => undefined,
+      },
+      startBot: async (options) => {
+        const sessionKey = options.runtimeConfig?.sessionKey ?? "missing";
+        messageCallbacks.set(sessionKey, options.onMessagesUpsert ?? (() => undefined));
+
+        return createRuntimeHandle(() => ({
+          sessionKey,
+          state: "open",
+          attempt: 0,
+          hasQr: false,
+        }), {
+          markRead: async (message) => {
+            readReceipts.push(message);
+          },
+        });
+      },
+    });
+
+    await messageCallbacks.get(profile.sessionKey)?.({
+      type: "notify",
+      messages: [{
+        key: {
+          id: "customer-post-send-error",
+          remoteJid: "967700000001@s.whatsapp.net",
+          fromMe: false,
+        },
+        messageTimestamp: 1_700_000_001,
+        message: {
+          conversation: "hello",
+        },
+      }],
+    });
+
+    const readReceiptTimeout = timeouts.find((entry) => entry.delayMs >= 2_000 && entry.delayMs <= 4_000);
+    expect(readReceiptTimeout).toBeDefined();
+
+    await readReceiptTimeout?.callback();
+
+    expect(readReceipts).toEqual([{
+      id: "customer-post-send-error",
+      remoteJid: "967700000001@s.whatsapp.net",
+    }]);
+  });
+
   for (const outcome of ["muted_no_reply", "duplicate_no_reply", "error_no_reply"] as const) {
     test(`does not schedule a read receipt for ${outcome}`, async () => {
       const profile = createProfile("company-1", {

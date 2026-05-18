@@ -357,7 +357,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
         },
         "customer conversation assistant acknowledgement persistence failed",
       );
-      return "error_no_reply";
+      return "post_send_error_visible_reply";
     }
 
     try {
@@ -386,7 +386,7 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
         },
         "customer conversation assistant persistence failed",
       );
-      return "error_no_reply";
+      return "post_send_error_visible_reply";
     }
 
     logEvent(

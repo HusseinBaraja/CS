@@ -1398,12 +1398,13 @@ describe("createCustomerConversationRouter", () => {
       logger,
     });
 
-    await router(createMessage(), createContext(outbound));
+    const outcome = await router(createMessage(), createContext(outbound));
 
     expect(sent).toEqual([{
       recipientJid: "967700000001@s.whatsapp.net",
       text: "Assistant reply",
     }]);
+    expect(outcome).toBe("post_send_error_visible_reply");
     expect(errorCalls[0]?.message).toBe("customer conversation assistant persistence failed");
     expect(errorCalls[0]?.payload).toMatchObject({
       pendingMessageId: "pending-message-1",
@@ -1454,12 +1455,13 @@ describe("createCustomerConversationRouter", () => {
       logger,
     });
 
-    await router(createMessage(), createContext(outbound));
+    const outcome = await router(createMessage(), createContext(outbound));
 
     expect(sent).toEqual([{
       recipientJid: "967700000001@s.whatsapp.net",
       text: "Assistant reply",
     }]);
+    expect(outcome).toBe("post_send_error_visible_reply");
     expect(commitCalled).toBe(false);
     expect(errorCalls[0]?.message).toBe("customer conversation assistant acknowledgement persistence failed");
     expect(errorCalls[0]?.payload).toMatchObject({
