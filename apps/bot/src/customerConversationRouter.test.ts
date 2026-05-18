@@ -378,7 +378,7 @@ describe("createCustomerConversationRouter", () => {
       now: () => 2_000,
     });
 
-    await router(createMessage(), createContext(outbound));
+    const outcome = await router(createMessage(), createContext(outbound));
 
     expect(calls).toEqual([
       "inbound:hello:1700000000000:message-1:none",
@@ -391,6 +391,7 @@ describe("createCustomerConversationRouter", () => {
       recipientJid: "967700000001@s.whatsapp.net",
       text: "Assistant reply",
     }]);
+    expect(outcome).toBe("reply_sent");
     expect(errorCalls).toEqual([]);
   });
 
@@ -720,11 +721,12 @@ describe("createCustomerConversationRouter", () => {
       logger,
     });
 
-    await router(createMessage(), createContext(outbound));
+    const outcome = await router(createMessage(), createContext(outbound));
 
     expect(historyCalled).toBe(false);
     expect(orchestratorCalled).toBe(false);
     expect(sent).toEqual([]);
+    expect(outcome).toBe("duplicate_no_reply");
   });
 
   test("passes bounded lifecycle-aware prompt history into orchestration", async () => {
@@ -909,11 +911,12 @@ describe("createCustomerConversationRouter", () => {
       logger,
     });
 
-    await router(createMessage(), createContext(outbound));
+    const outcome = await router(createMessage(), createContext(outbound));
 
     expect(orchestratorCalled).toBe(false);
     expect(sent).toEqual([]);
     expect(operations).toEqual(["muted:hello:1700000000000"]);
+    expect(outcome).toBe("muted_no_reply");
   });
 
   test("starts handoff, records analytics, and notifies the owner when the assistant requests handoff", async () => {
@@ -1057,7 +1060,7 @@ describe("createCustomerConversationRouter", () => {
       now: () => 2_000,
     });
 
-    await router(createMessage(), createContext(outbound));
+    const outcome = await router(createMessage(), createContext(outbound));
 
     expect(operations).toEqual([
       "inbound:hello",
@@ -1078,6 +1081,7 @@ describe("createCustomerConversationRouter", () => {
     });
     expect(sent[1]?.recipientJid).toBe("966500000000@s.whatsapp.net");
     expect(sent[1]?.text).toContain("Trigger: assistant handoff action");
+    expect(outcome).toBe("handoff_reply_sent");
     expect(errorCalls).toEqual([]);
   });
 
@@ -1138,11 +1142,12 @@ describe("createCustomerConversationRouter", () => {
       logger,
     });
 
-    await router(createMessage(), createContext(outbound));
+    const outcome = await router(createMessage(), createContext(outbound));
 
     expect(orchestratorCalled).toBe(false);
     expect(sent).toEqual([]);
     expect(errorCalls[0]?.message).toBe("customer conversation persistence failed");
+    expect(outcome).toBe("error_no_reply");
   });
 
   test("logs trim failures without suppressing the outbound reply", async () => {
@@ -1393,12 +1398,13 @@ describe("createCustomerConversationRouter", () => {
       logger,
     });
 
-    await router(createMessage(), createContext(outbound));
+    const outcome = await router(createMessage(), createContext(outbound));
 
     expect(sent).toEqual([{
       recipientJid: "967700000001@s.whatsapp.net",
       text: "Assistant reply",
     }]);
+    expect(outcome).toBe("post_send_error_visible_reply");
     expect(errorCalls[0]?.message).toBe("customer conversation assistant persistence failed");
     expect(errorCalls[0]?.payload).toMatchObject({
       pendingMessageId: "pending-message-1",
@@ -1449,12 +1455,13 @@ describe("createCustomerConversationRouter", () => {
       logger,
     });
 
-    await router(createMessage(), createContext(outbound));
+    const outcome = await router(createMessage(), createContext(outbound));
 
     expect(sent).toEqual([{
       recipientJid: "967700000001@s.whatsapp.net",
       text: "Assistant reply",
     }]);
+    expect(outcome).toBe("post_send_error_visible_reply");
     expect(commitCalled).toBe(false);
     expect(errorCalls[0]?.message).toBe("customer conversation assistant acknowledgement persistence failed");
     expect(errorCalls[0]?.payload).toMatchObject({
