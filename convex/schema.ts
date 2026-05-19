@@ -34,6 +34,7 @@ const MESSAGE_HANDOFF_SOURCES = [
   "assistant_action",
   "provider_failure_fallback",
   "invalid_model_output_fallback",
+  "message_too_long",
 ] as const;
 const messageHandoffSourceValidator = v.union(
   ...MESSAGE_HANDOFF_SOURCES.map((source) => v.literal(source)),
@@ -86,6 +87,7 @@ export default defineSchema({
   companySettings: defineTable({
     companyId: v.id("companies"),
     missingPricePolicy: missingPricePolicyValidator,
+    maxAutomatedMessageChars: v.optional(v.number()),
   })
     .index("by_company", ["companyId"]),
 

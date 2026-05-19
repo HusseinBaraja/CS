@@ -5,6 +5,8 @@ import {
   ANALYTICS_COUNTED_EVENT_TYPES,
   ANALYTICS_PRODUCT_LINKED_EVENT_TYPES,
   type AnalyticsEventType,
+  type AnalyticsHandoffSource,
+  type AnalyticsHandoffSourceBreakdown,
   type AnalyticsPeriod,
   type AnalyticsSummaryCounts,
   type AnalyticsSummaryDto,
@@ -51,6 +53,14 @@ const createEmptyCounts = (): AnalyticsSummaryCounts => ({
   successfulResponses: 0,
 });
 
+const createEmptyHandoffSourceBreakdown = (): AnalyticsHandoffSourceBreakdown => ({
+  assistant_action: 0,
+  provider_failure_fallback: 0,
+  invalid_model_output_fallback: 0,
+  message_too_long: 0,
+  unknown: 0,
+});
+
 const createEmptySummary = (
   companyId: string,
   period: AnalyticsPeriod,
@@ -65,6 +75,7 @@ const createEmptySummary = (
     endAtExclusive: window.endAtExclusive,
   },
   counts: createEmptyCounts(),
+  handoffsBySource: createEmptyHandoffSourceBreakdown(),
   performance: {
     averageResponseTimeMs: 0,
   },
@@ -238,6 +249,16 @@ const getResponseTimeMs = (payload: AnalyticsEventDoc["payload"]): number | null
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 };
 
+const getHandoffSourceFromPayload = (payload: AnalyticsEventDoc["payload"]): AnalyticsHandoffSource => {
+  const value = payload?.source;
+  return value === "assistant_action" ||
+    value === "provider_failure_fallback" ||
+    value === "invalid_model_output_fallback" ||
+    value === "message_too_long"
+    ? value
+    : "unknown";
+};
+
 const getCandidateEventsForType = async (
   ctx: QueryCtx,
   companyId: Id<"companies">,
@@ -300,6 +321,7 @@ export const summary = internalQuery({
     }
 
     const counts = createEmptyCounts();
+    const handoffsBySource = createEmptyHandoffSourceBreakdown();
     const responseTimes: number[] = [];
     const productInteractionStats = new Map<string, { interactionCount: number; latestTimestamp: number }>();
 
@@ -325,6 +347,7 @@ export const summary = internalQuery({
           break;
         case "handoff_started":
           counts.handoffs += 1;
+          handoffsBySource[getHandoffSourceFromPayload(event.payload)] += 1;
           break;
         case "ai_response_sent":
           counts.successfulResponses += 1;
@@ -414,6 +437,7 @@ export const summary = internalQuery({
     return {
       ...zeroSummary,
       counts,
+      handoffsBySource,
       performance: {
         averageResponseTimeMs,
       },

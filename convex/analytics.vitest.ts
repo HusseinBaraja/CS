@@ -24,6 +24,14 @@ const ZERO_COUNTS = {
   successfulResponses: 0,
 };
 
+const ZERO_HANDOFFS_BY_SOURCE = {
+  assistant_action: 0,
+  provider_failure_fallback: 0,
+  invalid_model_output_fallback: 0,
+  message_too_long: 0,
+  unknown: 0,
+};
+
 const freezeNow = () => {
   vi.spyOn(Date, "now").mockReturnValue(FIXED_NOW);
 };
@@ -66,6 +74,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
         endAtExclusive: "2026-03-12T21:00:00.000Z",
       },
       counts: ZERO_COUNTS,
+      handoffsBySource: ZERO_HANDOFFS_BY_SOURCE,
       performance: {
         averageResponseTimeMs: 0,
       },
@@ -230,7 +239,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
         companyId,
         eventType: "handoff_started",
         timestamp: Date.parse("2026-03-12T09:06:00.000Z"),
-        payload: { reason: "sales" },
+        payload: { source: "message_too_long" },
       });
       await ctx.db.insert("analyticsEvents", {
         companyId,
@@ -263,6 +272,10 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex analytics", () =
       imageSends: 1,
       handoffs: 1,
       successfulResponses: 2,
+    });
+    expect(summary?.handoffsBySource).toEqual({
+      ...ZERO_HANDOFFS_BY_SOURCE,
+      message_too_long: 1,
     });
     expect(summary?.performance.averageResponseTimeMs).toBe(1500);
   });

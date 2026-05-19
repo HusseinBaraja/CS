@@ -63,6 +63,7 @@ describe("normalizeInboundMessages", () => {
         content: {
           kind: "text",
           text: "Hello\nworld",
+          rawTextLength: 16,
           hasMedia: false,
         },
         source: {
@@ -109,6 +110,7 @@ describe("normalizeInboundMessages", () => {
         content: {
           kind: "text",
           text: "Need catalog",
+          rawTextLength: 12,
           hasMedia: false,
         },
         source: {
@@ -202,6 +204,29 @@ describe("normalizeInboundMessages", () => {
     expect(wrapped).toEqual(direct);
   });
 
+  test("keeps raw text length before trimming and CRLF normalization", () => {
+    const result = normalizeSingle({
+      type: "notify",
+      messages: [
+        createMessage({
+          message: {
+            conversation: ` ${"a".repeat(2498)}\r\n`,
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "dispatch",
+      message: {
+        content: {
+          text: "a".repeat(2498),
+          rawTextLength: 2_501,
+        },
+      },
+    });
+  });
+
   test("extracts quoted reply metadata from text messages", () => {
     const result = normalizeSingle({
       type: "notify",
@@ -265,6 +290,7 @@ describe("normalizeInboundMessages", () => {
         content: {
           kind: "image",
           text: "Product photo",
+          rawTextLength: 16,
           hasMedia: true,
         },
       },

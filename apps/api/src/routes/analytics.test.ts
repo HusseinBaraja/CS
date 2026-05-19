@@ -24,6 +24,13 @@ const baseSummary: AnalyticsSummaryDto = {
     handoffs: 8,
     successfulResponses: 9,
   },
+  handoffsBySource: {
+    assistant_action: 3,
+    provider_failure_fallback: 2,
+    invalid_model_output_fallback: 1,
+    message_too_long: 1,
+    unknown: 1,
+  },
   performance: {
     averageResponseTimeMs: 1200,
   },

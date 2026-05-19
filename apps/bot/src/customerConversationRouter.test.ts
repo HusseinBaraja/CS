@@ -51,6 +51,7 @@ const createMessage = (
   content: {
     kind: "text",
     text: "hello",
+    rawTextLength: 5,
     hasMedia: false,
   },
   source: {
@@ -1085,6 +1086,93 @@ describe("createCustomerConversationRouter", () => {
     expect(errorCalls).toEqual([]);
   });
 
+  test("hands off oversized inbound messages after persistence and before orchestration", async () => {
+    const operations: string[] = [];
+    let orchestratorCalled = false;
+    const store = createStore({
+      appendInboundCustomerMessage: async (input) => {
+        operations.push(`inbound:${input.content.length}`);
+        return {
+          conversation: {
+            id: "conversation-1",
+            companyId: input.companyId,
+            phoneNumber: input.phoneNumber,
+            muted: false,
+          },
+          wasMuted: false,
+          wasDuplicate: false,
+        };
+      },
+      getPromptHistorySelectionForInbound: async () => {
+        operations.push("history");
+        return {
+          history: [],
+          historySelection: { reason: "empty" },
+        };
+      },
+      appendPendingAssistantMessage: async (input) => {
+        operations.push(`${input.source}:${input.reason}:${input.metadata?.rawTextLength}:${input.metadata?.maxAutomatedMessageChars}`);
+        return {
+          id: "pending-too-long",
+          companyId: input.companyId,
+          conversationId: input.conversationId,
+          role: "assistant",
+          content: input.content,
+          timestamp: input.timestamp,
+          deliveryState: "pending",
+          handoffSource: input.source,
+          handoffReason: input.reason,
+          handoffMetadata: input.metadata,
+        };
+      },
+      recordAnalyticsEvent: async (input) => {
+        operations.push(`analytics:${input.payload?.source}`);
+      },
+      trimConversationMessages: async () => ({ deletedCount: 0, remainingCount: 20 }),
+    });
+    const orchestrator: CatalogChatOrchestrator = {
+      respond: async () => {
+        orchestratorCalled = true;
+        return createCatalogChatResult("should not send");
+      },
+    };
+    const { logger } = createLogger();
+    const { outbound, sent } = createOutbound();
+    const router = createCustomerConversationRouter({
+      catalogChatOrchestrator: orchestrator,
+      conversationStore: store,
+      companySettingsService: {
+        getSettings: async () => ({
+          missingPricePolicy: "reply_unavailable",
+          maxAutomatedMessageChars: 2_500,
+        }),
+      },
+      logger,
+      now: () => 2_000,
+    });
+
+    const outcome = await router(
+      createMessage({
+        content: {
+          kind: "text",
+          text: "a".repeat(2_501),
+          rawTextLength: 2_501,
+          hasMedia: false,
+        },
+      }),
+      createContext(outbound),
+    );
+
+    expect(orchestratorCalled).toBe(false);
+    expect(operations).toContain("inbound:2501");
+    expect(operations).not.toContain("history");
+    expect(operations).toContain("message_too_long:message_too_long:2501:2500");
+    expect(operations).toContain("analytics:message_too_long");
+    expect(sent[0]?.text).toContain("too detailed");
+    expect(sent[1]?.text).toContain("raw inbound text exceeded the configured automation threshold");
+    expect(outcome).toBe("handoff_reply_sent");
+  });
+
   test("does not start handoff for low-signal fallback responses", async () => {
     let handoffStarted = false;
     const store = createStore({
@@ -1217,14 +1305,14 @@ describe("createCustomerConversationRouter", () => {
     });
 
     await router(createMessage({
-      content: { kind: "image", text: "catalog photo", hasMedia: true },
+      content: { kind: "image", text: "catalog photo", rawTextLength: 13, hasMedia: true },
     }), createContext(outbound));
     await router(createMessage({
-      content: { kind: "audio", text: "", hasMedia: true },
+      content: { kind: "audio", text: "", rawTextLength: 0, hasMedia: true },
       messageId: "message-2",
     }), createContext(outbound));
     await router(createMessage({
-      content: { kind: "sticker", text: "", hasMedia: true },
+      content: { kind: "sticker", text: "", rawTextLength: 0, hasMedia: true },
       messageId: "message-3",
     }), createContext(outbound));
 
