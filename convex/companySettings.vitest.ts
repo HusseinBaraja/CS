@@ -116,6 +116,77 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex companySettings'
     ]);
   });
 
+  it('falls back to the default max automated message chars for invalid upsert values', async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      createCompany(ctx).then(({ companyId }) => companyId),
+    );
+
+    const settings = await t.mutation(internal.companySettings.upsert, {
+      companyId,
+      missingPricePolicy: 'handoff',
+      maxAutomatedMessageChars: 0,
+    });
+    const rows = await t.run(async (ctx) =>
+      ctx.db
+        .query('companySettings')
+        .withIndex('by_company', (q) => q.eq('companyId', companyId))
+        .collect(),
+    );
+
+    expect(settings).toEqual({
+      id: expect.any(String),
+      companyId,
+      missingPricePolicy: 'handoff',
+      maxAutomatedMessageChars: 2_500,
+    });
+    expect(rows).toEqual([
+      expect.objectContaining({
+        _id: settings?.id,
+        maxAutomatedMessageChars: 2_500,
+      }),
+    ]);
+  });
+
+  it('sanitizes invalid stored max automated message chars when reading and upserting', async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      createCompany(ctx).then(({ companyId }) => companyId),
+    );
+    const settingsId = await t.run(async (ctx) =>
+      ctx.db.insert('companySettings', {
+        companyId,
+        missingPricePolicy: 'reply_unavailable',
+        maxAutomatedMessageChars: -1,
+      }),
+    );
+
+    const readSettings = await t.query(internal.companySettings.get, { companyId });
+    const upsertedSettings = await t.mutation(internal.companySettings.upsert, {
+      companyId,
+      missingPricePolicy: 'handoff',
+    });
+    const storedSettings = await t.run(async (ctx) => ctx.db.get(settingsId));
+
+    expect(readSettings).toEqual({
+      id: settingsId,
+      companyId,
+      missingPricePolicy: 'reply_unavailable',
+      maxAutomatedMessageChars: 2_500,
+    });
+    expect(upsertedSettings).toEqual({
+      id: settingsId,
+      companyId,
+      missingPricePolicy: 'handoff',
+      maxAutomatedMessageChars: 2_500,
+    });
+    expect(storedSettings).toEqual(
+      expect.objectContaining({
+        maxAutomatedMessageChars: 2_500,
+      }),
+    );
+  });
+
   it('inserts settings when a company has no settings row during upsert', async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>
