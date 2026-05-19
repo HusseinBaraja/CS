@@ -46,12 +46,28 @@ export interface DeleteCompanyResult {
   counts: DeleteCompanyCounts;
 }
 
+export type MissingPricePolicy = "reply_unavailable" | "handoff";
+
+export interface CompanySettingsDto {
+  id: string | null;
+  companyId: string;
+  missingPricePolicy: MissingPricePolicy;
+  maxAutomatedMessageChars: number;
+}
+
+export interface UpdateCompanySettingsInput {
+  missingPricePolicy: MissingPricePolicy;
+  maxAutomatedMessageChars: number;
+}
+
 export interface CompaniesService {
   list(): Promise<CompanyDto[]>;
   get(companyId: string): Promise<CompanyDto | null>;
   create(input: CreateCompanyInput): Promise<CompanyDto>;
   update(companyId: string, patch: UpdateCompanyInput): Promise<CompanyDto | null>;
   delete(companyId: string): Promise<DeleteCompanyResult | null>;
+  getSettings(companyId: string): Promise<CompanySettingsDto | null>;
+  updateSettings(companyId: string, input: UpdateCompanySettingsInput): Promise<CompanySettingsDto | null>;
 }
 
 export class CompaniesServiceError extends Error {

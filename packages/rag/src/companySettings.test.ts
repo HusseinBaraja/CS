@@ -17,7 +17,10 @@ describe('createCompanySettingsService', () => {
 
     const settings = await service.getSettings(COMPANY_ID);
 
-    expect(settings).toEqual({ missingPricePolicy: 'reply_unavailable' });
+    expect(settings).toEqual({
+      missingPricePolicy: 'reply_unavailable',
+      maxAutomatedMessageChars: 2_500,
+    });
   });
 
   test('returns a fresh default settings object for each fallback', async () => {

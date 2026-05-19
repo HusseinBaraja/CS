@@ -10,6 +10,7 @@ export const CONVERSATION_STATE_EVENT_SOURCES = [
   "assistant_action",
   "provider_failure_fallback",
   "invalid_model_output_fallback",
+  "message_too_long",
   "api_manual",
   "worker_auto",
 ] as const;
@@ -35,6 +36,8 @@ export interface ConversationMessageDto {
   timestamp: number;
   deliveryState?: "pending" | "sent" | "failed";
   handoffSource?: ConversationStateEventSource;
+  handoffReason?: string;
+  handoffMetadata?: Record<string, string | number | boolean>;
   providerAcknowledgedAt?: number;
   sideEffectsState?: "pending" | "completed";
   ownerNotificationState?: "pending" | "sent" | "completed" | "not_applicable";

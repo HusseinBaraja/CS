@@ -54,6 +54,15 @@ export interface AnalyticsSummaryCounts {
   successfulResponses: number;
 }
 
+export type AnalyticsHandoffSource =
+  | "assistant_action"
+  | "provider_failure_fallback"
+  | "invalid_model_output_fallback"
+  | "message_too_long"
+  | "unknown";
+
+export type AnalyticsHandoffSourceBreakdown = Record<AnalyticsHandoffSource, number>;
+
 export interface AnalyticsTopProductDto {
   productId: string;
   nameEn?: string;
@@ -70,6 +79,7 @@ export interface AnalyticsSummaryDto {
     endAtExclusive: string;
   };
   counts: AnalyticsSummaryCounts;
+  handoffsBySource: AnalyticsHandoffSourceBreakdown;
   performance: {
     averageResponseTimeMs: number;
   };

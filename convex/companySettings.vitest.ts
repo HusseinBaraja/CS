@@ -39,6 +39,7 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex companySettings'
       id: null,
       companyId,
       missingPricePolicy: 'reply_unavailable',
+      maxAutomatedMessageChars: 2_500,
     });
   });
 
@@ -66,6 +67,7 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex companySettings'
       id: firstSettingsId,
       companyId,
       missingPricePolicy: 'handoff',
+      maxAutomatedMessageChars: 2_500,
     });
   });
 
@@ -102,12 +104,14 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex companySettings'
       id: firstSettingsId,
       companyId,
       missingPricePolicy: 'handoff',
+      maxAutomatedMessageChars: 2_500,
     });
     expect(rows).toEqual([
       expect.objectContaining({
         _id: firstSettingsId,
         companyId,
         missingPricePolicy: 'handoff',
+        maxAutomatedMessageChars: 2_500,
       }),
     ]);
   });
@@ -121,6 +125,7 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex companySettings'
     const settings = await t.mutation(internal.companySettings.upsert, {
       companyId,
       missingPricePolicy: 'handoff',
+      maxAutomatedMessageChars: 2_500,
     });
     const rows = await t.run(async (ctx) =>
       ctx.db
@@ -133,6 +138,7 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex companySettings'
       id: expect.any(String),
       companyId,
       missingPricePolicy: 'handoff',
+      maxAutomatedMessageChars: 2_500,
     });
     expect(settings?.id).not.toHaveLength(0);
     expect(rows).toEqual([
@@ -140,6 +146,7 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex companySettings'
         _id: settings?.id,
         companyId,
         missingPricePolicy: 'handoff',
+        maxAutomatedMessageChars: 2_500,
       }),
     ]);
   });

@@ -52,6 +52,7 @@ export interface NormalizedInboundMessage {
   content: {
     kind: InboundMessageContentKind;
     text: string;
+    rawTextLength: number;
     hasMedia: boolean;
   };
   source: {
