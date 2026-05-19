@@ -74,7 +74,13 @@ export const createCompaniesRoutes = (
   });
 
   app.put("/:companyId/settings", async (c) => {
-    const body = await c.req.json();
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, "Invalid JSON payload"), 400);
+    }
+
     const parsedBody = parseUpdateCompanySettingsBody(body);
 
     if (!parsedBody.ok) {

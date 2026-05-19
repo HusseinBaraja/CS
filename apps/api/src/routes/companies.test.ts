@@ -206,6 +206,26 @@ describe("company routes", () => {
     });
   });
 
+  test("PUT /api/companies/:companyId/settings rejects malformed JSON", async () => {
+    const app = createTestApp(createStubCompaniesService());
+
+    const response = await app.request("/api/companies/company-1/settings", {
+      method: "PUT",
+      headers: authHeaders,
+      body: "{",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: "Invalid JSON payload",
+      },
+    });
+  });
+
   test("POST /api/companies creates a company", async () => {
     let receivedInput: CreateCompanyInput | undefined;
     const app = createTestApp(createStubCompaniesService({
