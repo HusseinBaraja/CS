@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  isAssistantHandoffSource,
   runPendingHandoffSideEffects,
   type PendingHandoffSideEffectFailure,
 } from "./pendingHandoffSideEffects";
@@ -14,6 +15,15 @@ const baseInput = {
 };
 
 describe("runPendingHandoffSideEffects", () => {
+  test("identifies assistant handoff sources", () => {
+    expect(isAssistantHandoffSource("assistant_action")).toBe(true);
+    expect(isAssistantHandoffSource("provider_failure_fallback")).toBe(true);
+    expect(isAssistantHandoffSource("invalid_model_output_fallback")).toBe(true);
+    expect(isAssistantHandoffSource("message_too_long")).toBe(true);
+    expect(isAssistantHandoffSource("api_manual")).toBe(false);
+    expect(isAssistantHandoffSource("worker_auto")).toBe(false);
+  });
+
   test("records and completes pending handoff analytics and owner notification", async () => {
     const operations: string[] = [];
 
