@@ -3,6 +3,11 @@ import type { AnalyticsPeriod } from '@cs/shared';
 
 type AnalyticsEventDoc = Doc<'analyticsEvents'>;
 
+type ResponseTimeStats = {
+  sum: number;
+  count: number;
+};
+
 type LocalDateTime = {
   year: number;
   month: number;
@@ -182,18 +187,18 @@ const getResponseTimeMs = (payload: AnalyticsEventDoc['payload']): number | null
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 };
 
-export const createResponseTimeStats = (): number[] => [];
+export const createResponseTimeStats = (): ResponseTimeStats => ({
+  sum: 0,
+  count: 0,
+});
 
-export const updateResponseTimeStats = (responseTimes: number[], event: AnalyticsEventDoc): void => {
+export const updateResponseTimeStats = (responseTimes: ResponseTimeStats, event: AnalyticsEventDoc): void => {
   const responseTimeMs = getResponseTimeMs(event.payload);
   if (event.eventType === 'ai_response_sent' && responseTimeMs !== null) {
-    responseTimes.push(responseTimeMs);
+    responseTimes.sum += responseTimeMs;
+    responseTimes.count += 1;
   }
 };
 
-export const getAverageResponseTimeMs = (responseTimes: number[]): number =>
-  responseTimes.length === 0
-    ? 0
-    : Math.round(
-      responseTimes.reduce((sum, value) => sum + value, 0) / responseTimes.length,
-    );
+export const getAverageResponseTimeMs = (responseTimes: ResponseTimeStats): number =>
+  responseTimes.count === 0 ? 0 : Math.round(responseTimes.sum / responseTimes.count);
