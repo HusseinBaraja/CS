@@ -1,5 +1,5 @@
 import { getAnalyticsIdempotencyKey } from "./analytics";
-import type { ConversationMessageDto, ConversationStateEventSource } from "./conversations";
+import type { ConversationMessageDto } from "./conversations";
 import { canonicalizePhoneNumber } from "./inbound";
 import { formatOwnerNotification } from "./ownerNotifications";
 
@@ -17,10 +17,17 @@ export type OwnerNotificationHandoffState =
   | "completed"
   | "not_applicable";
 
-export type AssistantHandoffSource = Extract<
-  ConversationStateEventSource,
-  "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback" | "message_too_long"
->;
+export type AssistantHandoffSource =
+  | "assistant_action"
+  | "provider_failure_fallback"
+  | "invalid_model_output_fallback"
+  | "message_too_long";
+
+export const isAssistantHandoffSource = (value: string): value is AssistantHandoffSource =>
+  value === "assistant_action"
+  || value === "provider_failure_fallback"
+  || value === "invalid_model_output_fallback"
+  || value === "message_too_long";
 
 export interface PendingHandoffSideEffectFailure {
   sideEffect: "analytics" | "owner_notification";

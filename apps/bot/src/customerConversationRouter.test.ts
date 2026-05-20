@@ -1138,14 +1138,18 @@ describe("createCustomerConversationRouter", () => {
     };
     const { logger } = createLogger();
     const { outbound, sent } = createOutbound();
+    let settingsReadCount = 0;
     const router = createCustomerConversationRouter({
       catalogChatOrchestrator: orchestrator,
       conversationStore: store,
       companySettingsService: {
-        getSettings: async () => ({
-          missingPricePolicy: "reply_unavailable",
-          maxAutomatedMessageChars: 2_500,
-        }),
+        getSettings: async () => {
+          settingsReadCount += 1;
+          return {
+            missingPricePolicy: "reply_unavailable",
+            maxAutomatedMessageChars: 2_500,
+          };
+        },
       },
       logger,
       now: () => 2_000,
@@ -1164,6 +1168,7 @@ describe("createCustomerConversationRouter", () => {
     );
 
     expect(orchestratorCalled).toBe(false);
+    expect(settingsReadCount).toBe(1);
     expect(operations).toContain("inbound:2501");
     expect(operations).not.toContain("history");
     expect(operations).toContain("message_too_long:message_too_long:2501:2500");

@@ -4,8 +4,12 @@ import {
   type ConvexAdminClient,
   type Id,
 } from '@cs/db';
+import {
+  DEFAULT_COMPANY_SETTINGS,
+  type MissingPricePolicy,
+} from '@cs/shared';
 
-export type MissingPricePolicy = 'reply_unavailable' | 'handoff';
+export type { MissingPricePolicy } from '@cs/shared';
 
 export interface CompanySettings {
   missingPricePolicy: MissingPricePolicy;
@@ -21,8 +25,8 @@ export interface CompanySettingsServiceOptions {
 }
 
 const DEFAULT_SETTINGS: CompanySettings = {
-  missingPricePolicy: 'reply_unavailable',
-  maxAutomatedMessageChars: 2_500,
+  missingPricePolicy: DEFAULT_COMPANY_SETTINGS.missingPricePolicy,
+  maxAutomatedMessageChars: DEFAULT_COMPANY_SETTINGS.maxAutomatedMessageChars,
 };
 
 const createDefaultSettings = (): CompanySettings => ({ ...DEFAULT_SETTINGS });

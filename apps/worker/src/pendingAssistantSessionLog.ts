@@ -1,16 +1,7 @@
 import type { ConversationSessionLogWriter } from "@cs/core";
+import { isAssistantHandoffSource, type AssistantHandoffSource } from "@cs/shared";
 
-type AssistantHandoffSource =
-  | "assistant_action"
-  | "provider_failure_fallback"
-  | "invalid_model_output_fallback"
-  | "message_too_long";
-
-export const isAssistantHandoffSource = (value: string): value is AssistantHandoffSource =>
-  value === "assistant_action"
-  || value === "provider_failure_fallback"
-  || value === "invalid_model_output_fallback"
-  || value === "message_too_long";
+export { isAssistantHandoffSource, type AssistantHandoffSource };
 
 const appendPendingAssistantSessionLog = async (
   log: ConversationSessionLogWriter | undefined,

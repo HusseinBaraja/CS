@@ -9,13 +9,13 @@ import {
 import {
   type AnalyticsHandoffState,
   type ConversationMessageDto,
+  isAssistantHandoffSource,
   type OwnerNotificationHandoffState,
   runPendingHandoffSideEffects,
 } from "@cs/shared";
 import {
   appendAssistantAnalyticsReplayedSessionLog,
   appendAssistantOwnerNotificationReplayedSessionLog,
-  isAssistantHandoffSource,
 } from "./pendingAssistantSessionLog";
 
 type OwnerNotificationSender = (input: { recipientJid: string; text: string }) => Promise<void>;

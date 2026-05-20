@@ -61,6 +61,17 @@ export type AnalyticsHandoffSource =
   | "message_too_long"
   | "unknown";
 
+export const ANALYTICS_HANDOFF_SOURCES = [
+  "assistant_action",
+  "provider_failure_fallback",
+  "invalid_model_output_fallback",
+  "message_too_long",
+  "unknown",
+] as const satisfies readonly AnalyticsHandoffSource[];
+
+export const isValidHandoffSource = (value: string): value is AnalyticsHandoffSource =>
+  ANALYTICS_HANDOFF_SOURCES.includes(value as AnalyticsHandoffSource);
+
 export type AnalyticsHandoffSourceBreakdown = Record<AnalyticsHandoffSource, number>;
 
 export interface AnalyticsTopProductDto {

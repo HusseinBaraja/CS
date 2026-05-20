@@ -83,6 +83,8 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
       );
     };
     let promptHistorySelection: Awaited<ReturnType<ConversationStore["getPromptHistorySelectionForInbound"]>>;
+    let isOversizedInbound = false;
+    let maxAutomatedMessageChars = 0;
     try {
       const inboundAppend = await options.conversationStore.appendInboundCustomerMessage({
         companyId: message.companyId,
@@ -144,7 +146,9 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
       }, onSessionLogAppendFailed);
 
       const settings = await companySettingsService.getSettings(toCompanyId(message.companyId));
-      promptHistorySelection = message.content.rawTextLength > settings.maxAutomatedMessageChars
+      maxAutomatedMessageChars = settings.maxAutomatedMessageChars;
+      isOversizedInbound = message.content.rawTextLength > maxAutomatedMessageChars;
+      promptHistorySelection = isOversizedInbound
         ? {
             history: [],
             historySelection: {
@@ -186,14 +190,13 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
     let handoffReason: string | undefined;
     let handoffMetadata: Record<string, string | number | boolean> | undefined;
     try {
-      const settings = await companySettingsService.getSettings(toCompanyId(message.companyId));
-      if (message.content.rawTextLength > settings.maxAutomatedMessageChars) {
+      if (isOversizedInbound) {
         assistantText = buildOversizedMessageReply(userMessage);
         handoffSource = "message_too_long";
         handoffReason = MESSAGE_TOO_LONG_REASON;
         handoffMetadata = {
           rawTextLength: message.content.rawTextLength,
-          maxAutomatedMessageChars: settings.maxAutomatedMessageChars,
+          maxAutomatedMessageChars,
         };
       } else {
         const response = await options.catalogChatOrchestrator.respond({

@@ -1,9 +1,8 @@
 import { v } from 'convex/values';
+import { DEFAULT_COMPANY_SETTINGS, type MissingPricePolicy } from '@cs/shared';
 import type { Id } from './_generated/dataModel';
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from './_generated/server';
 import { missingPricePolicyValidator } from './schema';
-
-export type MissingPricePolicy = 'reply_unavailable' | 'handoff';
 
 export type CompanySettingsDto = {
   id: Id<'companySettings'> | null;
@@ -12,9 +11,16 @@ export type CompanySettingsDto = {
   maxAutomatedMessageChars: number;
 };
 
-const DEFAULT_MISSING_PRICE_POLICY: MissingPricePolicy = 'reply_unavailable';
-const DEFAULT_MAX_AUTOMATED_MESSAGE_CHARS = 2_500;
+const MAX_AUTOMATED_MESSAGE_CHARS = 10_000;
 const COMPANY_SETTINGS_LOCK_LEASE_MS = 15_000;
+
+const sanitizeMaxAutomatedMessageChars = (value: unknown): number =>
+  typeof value === 'number' &&
+  Number.isInteger(value) &&
+  value >= 1 &&
+  value <= MAX_AUTOMATED_MESSAGE_CHARS
+    ? value
+    : DEFAULT_COMPANY_SETTINGS.maxAutomatedMessageChars;
 
 const getCompanySettingsLockKey = (companyId: Id<'companies'>): string =>
   `companySettings:${companyId}`;
@@ -134,8 +140,8 @@ export const getSettingsForCompany = async (
     return {
       id: null,
       companyId,
-      missingPricePolicy: DEFAULT_MISSING_PRICE_POLICY,
-      maxAutomatedMessageChars: DEFAULT_MAX_AUTOMATED_MESSAGE_CHARS,
+      missingPricePolicy: DEFAULT_COMPANY_SETTINGS.missingPricePolicy,
+      maxAutomatedMessageChars: DEFAULT_COMPANY_SETTINGS.maxAutomatedMessageChars,
     };
   }
 
@@ -143,7 +149,9 @@ export const getSettingsForCompany = async (
     id: settings._id,
     companyId: settings.companyId,
     missingPricePolicy: settings.missingPricePolicy,
-    maxAutomatedMessageChars: settings.maxAutomatedMessageChars ?? DEFAULT_MAX_AUTOMATED_MESSAGE_CHARS,
+    maxAutomatedMessageChars: sanitizeMaxAutomatedMessageChars(
+      settings.maxAutomatedMessageChars,
+    ),
   };
 };
 
@@ -173,8 +181,9 @@ export const upsert = internalMutation({
 
       const settingsRows = await listSettingsForCompany(ctx, args.companyId);
       const existing = chooseCanonicalSettings(settingsRows);
-      const maxAutomatedMessageChars =
-        args.maxAutomatedMessageChars ?? existing?.maxAutomatedMessageChars ?? DEFAULT_MAX_AUTOMATED_MESSAGE_CHARS;
+      const maxAutomatedMessageChars = sanitizeMaxAutomatedMessageChars(
+        args.maxAutomatedMessageChars ?? existing?.maxAutomatedMessageChars,
+      );
 
       if (existing) {
         await collapseSettingsRows(ctx, settingsRows, args.missingPricePolicy, maxAutomatedMessageChars);
