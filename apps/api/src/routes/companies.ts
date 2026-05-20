@@ -12,6 +12,22 @@ interface CompaniesRoutesOptions {
 const isServiceError = (error: unknown): error is CompaniesServiceError =>
   error instanceof CompaniesServiceError;
 
+const parseRequestJson = async (
+  request: { json: () => Promise<unknown> },
+) => {
+  try {
+    return {
+      ok: true as const,
+      value: await request.json(),
+    };
+  } catch {
+    return {
+      ok: false as const,
+      response: createErrorResponse(ERROR_CODES.VALIDATION_FAILED, "Invalid JSON payload"),
+    };
+  }
+};
+
 export const createCompaniesRoutes = (
   options: CompaniesRoutesOptions,
 ) => {
@@ -74,14 +90,12 @@ export const createCompaniesRoutes = (
   });
 
   app.put("/:companyId/settings", async (c) => {
-    let body: unknown;
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, "Invalid JSON payload"), 400);
+    const parsedJson = await parseRequestJson(c.req);
+    if (!parsedJson.ok) {
+      return c.json(parsedJson.response, 400);
     }
 
-    const parsedBody = parseUpdateCompanySettingsBody(body);
+    const parsedBody = parseUpdateCompanySettingsBody(parsedJson.value);
 
     if (!parsedBody.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);
@@ -111,8 +125,12 @@ export const createCompaniesRoutes = (
   });
 
   app.post("/", async (c) => {
-    const body = await c.req.json();
-    const parsedBody = parseCreateCompanyBody(body);
+    const parsedJson = await parseRequestJson(c.req);
+    if (!parsedJson.ok) {
+      return c.json(parsedJson.response, 400);
+    }
+
+    const parsedBody = parseCreateCompanyBody(parsedJson.value);
 
     if (!parsedBody.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);
@@ -134,8 +152,12 @@ export const createCompaniesRoutes = (
   });
 
   app.put("/:companyId", async (c) => {
-    const body = await c.req.json();
-    const parsedBody = parseUpdateCompanyBody(body);
+    const parsedJson = await parseRequestJson(c.req);
+    if (!parsedJson.ok) {
+      return c.json(parsedJson.response, 400);
+    }
+
+    const parsedBody = parseUpdateCompanyBody(parsedJson.value);
 
     if (!parsedBody.ok) {
       return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);

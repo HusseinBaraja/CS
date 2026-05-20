@@ -306,6 +306,26 @@ describe("company routes", () => {
     });
   });
 
+  test("POST /api/companies rejects malformed JSON", async () => {
+    const app = createTestApp(createStubCompaniesService());
+
+    const response = await app.request("/api/companies", {
+      method: "POST",
+      headers: authHeaders,
+      body: "{",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: "Invalid JSON payload",
+      },
+    });
+  });
+
   test("POST /api/companies maps duplicate owner conflicts to 409", async () => {
     const app = createTestApp(createStubCompaniesService({
       create: async () => {
@@ -431,6 +451,26 @@ describe("company routes", () => {
       error: {
         code: ERROR_CODES.VALIDATION_FAILED,
         message: "Request body must include at least one updatable field",
+      },
+    });
+  });
+
+  test("PUT /api/companies/:companyId rejects malformed JSON", async () => {
+    const app = createTestApp(createStubCompaniesService());
+
+    const response = await app.request("/api/companies/company-1", {
+      method: "PUT",
+      headers: authHeaders,
+      body: "{",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: "Invalid JSON payload",
       },
     });
   });
