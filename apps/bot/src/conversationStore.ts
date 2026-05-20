@@ -2,6 +2,7 @@ import type { PromptHistoryTurn } from '@cs/ai';
 import type { CatalogChatConversationHistorySelection } from '@cs/rag';
 import type {
   AnalyticsEventType,
+  AssistantHandoffSource,
   ConversationMessageDto,
   ConversationStateDto,
   ConversationStateEventSource,
@@ -18,10 +19,6 @@ import {
 
 export type ConversationRecord = ConversationStateDto;
 export type ConversationMessageRecord = ConversationMessageDto;
-export type AssistantHandoffSource = Extract<
-  ConversationStateEventSource,
-  "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback" | "message_too_long"
->;
 
 export interface PromptHistorySelectionResult {
   history: PromptHistoryTurn[];
