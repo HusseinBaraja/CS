@@ -33,7 +33,7 @@ export type PromptHistorySelectionResult = {
 
 export type AssistantHandoffSource = Extract<
   ConversationStateEventSource,
-  'assistant_action' | 'provider_failure_fallback' | 'invalid_model_output_fallback' | 'message_too_long'
+  'assistant_action' | 'provider_failure_fallback' | 'invalid_model_output_fallback'
 >;
 
 export type PendingAssistantMessageCandidate = {

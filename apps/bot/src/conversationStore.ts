@@ -59,7 +59,7 @@ export interface ConversationStore {
     conversationId: string;
     content: string;
     timestamp: number;
-    source?: Extract<ConversationStateEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback" | "message_too_long">;
+    source?: Extract<ConversationStateEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback">;
     reason?: string;
     actorPhoneNumber?: string;
     metadata?: Record<string, string | number | boolean>;
@@ -102,7 +102,7 @@ export interface ConversationStore {
     conversationId: string;
     content: string;
     timestamp: number;
-    source: Extract<ConversationStateEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback" | "message_too_long">;
+    source: Extract<ConversationStateEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback">;
     reason?: string;
     actorPhoneNumber?: string;
     metadata?: Record<string, string | number | boolean>;
@@ -112,7 +112,7 @@ export interface ConversationStore {
     companyId: string;
     conversationId: string;
     triggerTimestamp: number;
-    source: Extract<ConversationStateEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback" | "message_too_long">;
+    source: Extract<ConversationStateEventSource, "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback">;
     reason?: string;
     actorPhoneNumber?: string;
     metadata?: Record<string, string | number | boolean>;

@@ -9,11 +9,9 @@ export type CompanySettingsDto = {
   id: Id<'companySettings'> | null;
   companyId: string;
   missingPricePolicy: MissingPricePolicy;
-  maxAutomatedMessageChars: number;
 };
 
 const DEFAULT_MISSING_PRICE_POLICY: MissingPricePolicy = 'reply_unavailable';
-const DEFAULT_MAX_AUTOMATED_MESSAGE_CHARS = 2_500;
 const COMPANY_SETTINGS_LOCK_LEASE_MS = 15_000;
 
 const getCompanySettingsLockKey = (companyId: Id<'companies'>): string =>
@@ -43,14 +41,13 @@ const collapseSettingsRows = async (
   ctx: Pick<MutationCtx, 'db'>,
   settingsRows: Awaited<ReturnType<typeof listSettingsForCompany>>,
   missingPricePolicy: MissingPricePolicy,
-  maxAutomatedMessageChars: number,
 ) => {
   const canonical = chooseCanonicalSettings(settingsRows);
   if (!canonical) {
     return null;
   }
 
-  await ctx.db.patch(canonical._id, { missingPricePolicy, maxAutomatedMessageChars });
+  await ctx.db.patch(canonical._id, { missingPricePolicy });
   await Promise.all(
     settingsRows
       .filter((settings) => settings._id !== canonical._id)
@@ -135,7 +132,6 @@ export const getSettingsForCompany = async (
       id: null,
       companyId,
       missingPricePolicy: DEFAULT_MISSING_PRICE_POLICY,
-      maxAutomatedMessageChars: DEFAULT_MAX_AUTOMATED_MESSAGE_CHARS,
     };
   }
 
@@ -143,7 +139,6 @@ export const getSettingsForCompany = async (
     id: settings._id,
     companyId: settings.companyId,
     missingPricePolicy: settings.missingPricePolicy,
-    maxAutomatedMessageChars: settings.maxAutomatedMessageChars ?? DEFAULT_MAX_AUTOMATED_MESSAGE_CHARS,
   };
 };
 
@@ -159,7 +154,6 @@ export const upsert = internalMutation({
   args: {
     companyId: v.id('companies'),
     missingPricePolicy: missingPricePolicyValidator,
-    maxAutomatedMessageChars: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<CompanySettingsDto | null> => {
     const ownerToken = crypto.randomUUID();
@@ -173,37 +167,31 @@ export const upsert = internalMutation({
 
       const settingsRows = await listSettingsForCompany(ctx, args.companyId);
       const existing = chooseCanonicalSettings(settingsRows);
-      const maxAutomatedMessageChars =
-        args.maxAutomatedMessageChars ?? existing?.maxAutomatedMessageChars ?? DEFAULT_MAX_AUTOMATED_MESSAGE_CHARS;
 
       if (existing) {
-        await collapseSettingsRows(ctx, settingsRows, args.missingPricePolicy, maxAutomatedMessageChars);
+        await collapseSettingsRows(ctx, settingsRows, args.missingPricePolicy);
         return {
           id: existing._id,
           companyId: existing.companyId,
           missingPricePolicy: args.missingPricePolicy,
-          maxAutomatedMessageChars,
         };
       }
 
       const settingsId = await ctx.db.insert('companySettings', {
         companyId: args.companyId,
         missingPricePolicy: args.missingPricePolicy,
-        maxAutomatedMessageChars,
       });
 
       const canonical = await collapseSettingsRows(
         ctx,
         await listSettingsForCompany(ctx, args.companyId),
         args.missingPricePolicy,
-        maxAutomatedMessageChars,
       );
 
       return {
         id: canonical?._id ?? settingsId,
         companyId: args.companyId,
         missingPricePolicy: args.missingPricePolicy,
-        maxAutomatedMessageChars,
       };
     } finally {
       await releaseCompanySettingsLock(ctx, lockKey, ownerToken);

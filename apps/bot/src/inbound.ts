@@ -54,9 +54,6 @@ const normalizeText = (text: string | null | undefined): string =>
     ? text.replace(/\r\n?/g, "\n").trim()
     : "";
 
-const getRawTextLength = (text: string | null | undefined): number =>
-  typeof text === "string" ? text.length : 0;
-
 const normalizeDisplayName = (value: string | null | undefined): string | undefined => {
   const normalized = typeof value === "string" ? value.trim() : "";
   return normalized.length > 0 ? normalized : undefined;
@@ -137,7 +134,7 @@ const coerceTimestampToMs = (value: WAMessage["messageTimestamp"]): number | nul
 
 const getContent = (
   message: WAMessage,
-): Pick<NormalizedInboundMessage["content"], "kind" | "text" | "rawTextLength"> | null | "empty_payload" => {
+): Pick<NormalizedInboundMessage["content"], "kind" | "text"> | null | "empty_payload" => {
   const normalizedContent = normalizeMessageContent(message.message);
   if (!normalizedContent) {
     return "empty_payload";
@@ -153,43 +150,36 @@ const getContent = (
       return {
         kind: "text",
         text: normalizeText(normalizedContent.conversation),
-        rawTextLength: getRawTextLength(normalizedContent.conversation),
       };
     case "extendedTextMessage":
       return {
         kind: "text",
         text: normalizeText(normalizedContent.extendedTextMessage?.text),
-        rawTextLength: getRawTextLength(normalizedContent.extendedTextMessage?.text),
       };
     case "imageMessage":
       return {
         kind: "image",
         text: normalizeText(normalizedContent.imageMessage?.caption),
-        rawTextLength: getRawTextLength(normalizedContent.imageMessage?.caption),
       };
     case "videoMessage":
       return {
         kind: "video",
         text: normalizeText(normalizedContent.videoMessage?.caption),
-        rawTextLength: getRawTextLength(normalizedContent.videoMessage?.caption),
       };
     case "audioMessage":
       return {
         kind: "audio",
         text: "",
-        rawTextLength: 0,
       };
     case "documentMessage":
       return {
         kind: "document",
         text: normalizeText(normalizedContent.documentMessage?.caption),
-        rawTextLength: getRawTextLength(normalizedContent.documentMessage?.caption),
       };
     case "stickerMessage":
       return {
         kind: "sticker",
         text: "",
-        rawTextLength: 0,
       };
     default:
       return null;
@@ -328,7 +318,6 @@ export const normalizeInboundMessages = (
     content: {
       kind: content.kind,
       text: content.text,
-      rawTextLength: content.rawTextLength,
       hasMedia: content.kind !== "text",
     },
     source: {

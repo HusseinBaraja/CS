@@ -1,4 +1,4 @@
-import type { CompanyConfig, CreateCompanyInput, UpdateCompanyInput, UpdateCompanySettingsInput } from '../services/companies';
+import type { CompanyConfig, CreateCompanyInput, UpdateCompanyInput } from '../services/companies';
 import {
   isRecord,
   parseObject,
@@ -187,55 +187,5 @@ export const parseUpdateCompanyBody = (value: unknown): ParseResult<UpdateCompan
   return {
     ok: true,
     value: updates,
-  };
-};
-
-const parseMissingPricePolicy = (value: unknown): ParseResult<UpdateCompanySettingsInput["missingPricePolicy"]> => {
-  if (value === "reply_unavailable" || value === "handoff") {
-    return { ok: true, value };
-  }
-
-  return {
-    ok: false,
-    message: "missingPricePolicy must be reply_unavailable or handoff",
-  };
-};
-
-const parsePositiveInteger = (value: unknown, fieldName: string): ParseResult<number> => {
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-    return {
-      ok: false,
-      message: `${fieldName} must be a positive integer`,
-    };
-  }
-
-  return { ok: true, value };
-};
-
-export const parseUpdateCompanySettingsBody = (value: unknown): ParseResult<UpdateCompanySettingsInput> => {
-  const parsedObject = parseObject(value);
-  if (!parsedObject.ok) {
-    return parsedObject;
-  }
-
-  const missingPricePolicy = parseMissingPricePolicy(parsedObject.value.missingPricePolicy);
-  if (!missingPricePolicy.ok) {
-    return missingPricePolicy;
-  }
-
-  const maxAutomatedMessageChars = parsePositiveInteger(
-    parsedObject.value.maxAutomatedMessageChars,
-    "maxAutomatedMessageChars",
-  );
-  if (!maxAutomatedMessageChars.ok) {
-    return maxAutomatedMessageChars;
-  }
-
-  return {
-    ok: true,
-    value: {
-      missingPricePolicy: missingPricePolicy.value,
-      maxAutomatedMessageChars: maxAutomatedMessageChars.value,
-    },
   };
 };

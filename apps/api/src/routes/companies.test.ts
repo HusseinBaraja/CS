@@ -5,7 +5,6 @@ import {
   type CompaniesService,
   CompaniesServiceError,
   type CompanyDto,
-  type CompanySettingsDto,
   type CreateCompanyInput,
   type DeleteCompanyResult,
   type UpdateCompanyInput,
@@ -43,13 +42,6 @@ const baseDeleteResult: DeleteCompanyResult = {
   },
 };
 
-const baseSettings: CompanySettingsDto = {
-  id: "settings-1",
-  companyId: "company-1",
-  missingPricePolicy: "reply_unavailable",
-  maxAutomatedMessageChars: 2_500,
-};
-
 const authHeaders = {
   "x-api-key": API_KEY,
   "content-type": "application/json",
@@ -71,11 +63,6 @@ const createStubCompaniesService = (
     config: patch.config === null ? undefined : patch.config ?? baseCompany.config,
   }),
   delete: async () => baseDeleteResult,
-  getSettings: async () => null,
-  updateSettings: async (_companyId, input) => ({
-    ...baseSettings,
-    ...input,
-  }),
   ...overrides,
 });
 
@@ -137,71 +124,6 @@ describe("company routes", () => {
       error: {
         code: ERROR_CODES.NOT_FOUND,
         message: "Company not found",
-      },
-    });
-  });
-
-  test("GET /api/companies/:companyId/settings returns company settings", async () => {
-    const app = createTestApp(createStubCompaniesService({
-      getSettings: async () => baseSettings,
-    }));
-
-    const response = await app.request("/api/companies/company-1/settings", {
-      headers: authHeaders,
-    });
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      ok: true,
-      settings: baseSettings,
-    });
-  });
-
-  test("PUT /api/companies/:companyId/settings updates both settings fields", async () => {
-    let received: unknown;
-    const app = createTestApp(createStubCompaniesService({
-      updateSettings: async (_companyId, input) => {
-        received = input;
-        return {
-          ...baseSettings,
-          ...input,
-        };
-      },
-    }));
-
-    const response = await app.request("/api/companies/company-1/settings", {
-      method: "PUT",
-      headers: authHeaders,
-      body: JSON.stringify({
-        missingPricePolicy: "handoff",
-        maxAutomatedMessageChars: 3_000,
-      }),
-    });
-
-    expect(response.status).toBe(200);
-    expect(received).toEqual({
-      missingPricePolicy: "handoff",
-      maxAutomatedMessageChars: 3_000,
-    });
-  });
-
-  test("PUT /api/companies/:companyId/settings rejects invalid thresholds", async () => {
-    const app = createTestApp(createStubCompaniesService());
-
-    const response = await app.request("/api/companies/company-1/settings", {
-      method: "PUT",
-      headers: authHeaders,
-      body: JSON.stringify({
-        missingPricePolicy: "handoff",
-        maxAutomatedMessageChars: 0,
-      }),
-    });
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({
-      ok: false,
-      error: {
-        code: ERROR_CODES.VALIDATION_FAILED,
       },
     });
   });

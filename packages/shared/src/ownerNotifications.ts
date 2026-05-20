@@ -5,7 +5,7 @@ export const formatOwnerNotification = (
     companyName: string;
     customerPhoneNumber: string;
     history: ConversationMessageDto[];
-    source: "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback" | "message_too_long";
+    source: "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback";
   },
 ): string => {
   const sourceLabel =
@@ -13,9 +13,7 @@ export const formatOwnerNotification = (
       ? "assistant handoff action"
       : input.source === "provider_failure_fallback"
         ? "provider failure fallback"
-        : input.source === "invalid_model_output_fallback"
-          ? "invalid model output fallback"
-          : "raw inbound text exceeded the configured automation threshold";
+        : "invalid model output fallback";
 
   const historyLines = input.history.length === 0
     ? ["- No prior conversation history available"]

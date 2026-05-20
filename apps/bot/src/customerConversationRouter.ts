@@ -1,5 +1,4 @@
-import { createCompanySettingsService, type CatalogChatOrchestrator, type CompanySettingsService } from '@cs/rag';
-import { detectChatLanguage } from '@cs/ai';
+import type { CatalogChatOrchestrator } from '@cs/rag';
 import { logEvent, redactJidForLog, redactPhoneLikeValue, serializeErrorForLog, type StructuredLogger, withLogBindings } from '@cs/core';
 import { appendConversationSessionLogAiTracesSafely, appendConversationSessionLogEntrySafely, getOwnerConversationSessionLog, serializeInboundMessage, summarizeAssistantText, summarizeUserText } from './customerConversationLogHelpers';
 import { runPendingHandoffSideEffects, type NormalizedInboundMessage } from '@cs/shared';
@@ -13,22 +12,13 @@ interface CustomerConversationRouterOptions {
   conversationHistoryWindowMessages?: number;
   conversationSessionLog?: import("@cs/core").ConversationSessionLogWriter;
   conversationStore: ConversationStore;
-  companySettingsService?: CompanySettingsService;
   logger: CustomerConversationLogger;
   now?: () => number;
 }
 const DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES = 20;
-const MESSAGE_TOO_LONG_REASON = "message_too_long";
-
-const buildOversizedMessageReply = (text: string): string =>
-  detectChatLanguage(text).responseLanguage === "en"
-    ? "Your message is too detailed for an automated reply. I will hand this conversation to the team so they can help you properly."
-    : "رسالتك طويلة وتحتاج متابعة من الفريق. سأحوّل المحادثة إلى المسؤول حتى يساعدك بشكل مناسب.";
-
 export const createCustomerConversationRouter = (options: CustomerConversationRouterOptions): ((message: NormalizedInboundMessage, context: InboundRouteContext) => Promise<CustomerRoutingOutcome>) => {
   const now = options.now ?? Date.now;
   const conversationHistoryWindowMessages = options.conversationHistoryWindowMessages ?? DEFAULT_CONVERSATION_HISTORY_WINDOW_MESSAGES;
-  const companySettingsService = options.companySettingsService ?? createCompanySettingsService();
   return async (message, context): Promise<CustomerRoutingOutcome> => {
     let routeLogger = withLogBindings(options.logger, {
       companyId: message.companyId,
@@ -143,24 +133,16 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
         text: userMessage,
       }, onSessionLogAppendFailed);
 
-      const settings = await companySettingsService.getSettings(toCompanyId(message.companyId));
-      promptHistorySelection = message.content.rawTextLength > settings.maxAutomatedMessageChars
-        ? {
-            history: [],
-            historySelection: {
-              reason: "empty",
-            },
-          }
-        : await options.conversationStore.getPromptHistorySelectionForInbound({
-            companyId: message.companyId,
-            conversationId,
-            inboundTimestamp: message.occurredAtMs,
-            currentTransportMessageId: message.messageId,
-            ...(message.replyContext?.referencedMessageId
-              ? { referencedTransportMessageId: message.replyContext.referencedMessageId }
-              : {}),
-            limit: conversationHistoryWindowMessages,
-          });
+      promptHistorySelection = await options.conversationStore.getPromptHistorySelectionForInbound({
+        companyId: message.companyId,
+        conversationId,
+        inboundTimestamp: message.occurredAtMs,
+        currentTransportMessageId: message.messageId,
+        ...(message.replyContext?.referencedMessageId
+          ? { referencedTransportMessageId: message.replyContext.referencedMessageId }
+          : {}),
+        limit: conversationHistoryWindowMessages,
+      });
     } catch (error) {
       logEvent(
         routeLogger,
@@ -182,45 +164,32 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
     }
 
     let assistantText: string;
-    let handoffSource: "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback" | "message_too_long" | null = null;
-    let handoffReason: string | undefined;
-    let handoffMetadata: Record<string, string | number | boolean> | undefined;
+    let handoffSource: "assistant_action" | "provider_failure_fallback" | "invalid_model_output_fallback" | null = null;
     try {
-      const settings = await companySettingsService.getSettings(toCompanyId(message.companyId));
-      if (message.content.rawTextLength > settings.maxAutomatedMessageChars) {
-        assistantText = buildOversizedMessageReply(userMessage);
-        handoffSource = "message_too_long";
-        handoffReason = MESSAGE_TOO_LONG_REASON;
-        handoffMetadata = {
-          rawTextLength: message.content.rawTextLength,
-          maxAutomatedMessageChars: settings.maxAutomatedMessageChars,
-        };
-      } else {
-        const response = await options.catalogChatOrchestrator.respond({
-          tenant: {
-            companyId: toCompanyId(message.companyId),
-          },
-          conversation: {
-            conversationId,
-            history: promptHistorySelection.history,
-            historySelection: promptHistorySelection.historySelection,
-          },
-          logger: routeLogger,
-          requestId: message.messageId,
-          userMessage,
-        });
-        assistantText = response.assistant.text;
-        await appendConversationSessionLogAiTracesSafely({ companyId: message.companyId, conversationId, log: conversationSessionLog, onError: onSessionLogAppendFailed, timestamp: now(), traces: response.aiTraces });
-        if (response.assistant.action.type === "handoff") {
-          handoffSource = "assistant_action";
-        } else if (
-          response.outcome === "provider_failure_fallback" ||
-          response.outcome === "invalid_model_output_fallback"
-        ) {
-          handoffSource = response.outcome === "provider_failure_fallback"
-            ? "provider_failure_fallback"
-            : "invalid_model_output_fallback";
-        }
+      const response = await options.catalogChatOrchestrator.respond({
+        tenant: {
+          companyId: toCompanyId(message.companyId),
+        },
+        conversation: {
+          conversationId,
+          history: promptHistorySelection.history,
+          historySelection: promptHistorySelection.historySelection,
+        },
+        logger: routeLogger,
+        requestId: message.messageId,
+        userMessage,
+      });
+      assistantText = response.assistant.text;
+      await appendConversationSessionLogAiTracesSafely({ companyId: message.companyId, conversationId, log: conversationSessionLog, onError: onSessionLogAppendFailed, timestamp: now(), traces: response.aiTraces });
+      if (response.assistant.action.type === "handoff") {
+        handoffSource = "assistant_action";
+      } else if (
+        response.outcome === "provider_failure_fallback" ||
+        response.outcome === "invalid_model_output_fallback"
+      ) {
+        handoffSource = response.outcome === "provider_failure_fallback"
+          ? "provider_failure_fallback"
+          : "invalid_model_output_fallback";
       }
     } catch (error) {
       logEvent(
@@ -251,8 +220,6 @@ export const createCustomerConversationRouter = (options: CustomerConversationRo
         content: assistantText,
         timestamp: assistantTimestamp,
         ...(handoffSource ? { source: handoffSource } : {}),
-        ...(handoffReason ? { reason: handoffReason } : {}),
-        ...(handoffMetadata ? { metadata: handoffMetadata } : {}),
       });
       pendingMessageId = pendingMessage.id;
       logEvent(

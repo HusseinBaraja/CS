@@ -94,19 +94,5 @@ export const createConvexCompaniesService = (
           companyId: companyId as never,
         })
       ) as Promise<DeleteCompanyResult | null>,
-    getSettings: (companyId) =>
-      withClient((client) =>
-        client.query(convexInternal.companySettings.get, {
-          companyId: companyId as never,
-        })
-      ),
-    updateSettings: (companyId, input) =>
-      withClient((client) =>
-        client.mutation(convexInternal.companySettings.upsert, {
-          companyId: companyId as never,
-          missingPricePolicy: input.missingPricePolicy,
-          maxAutomatedMessageChars: input.maxAutomatedMessageChars,
-        })
-      ),
   };
 };

@@ -305,10 +305,7 @@ describe("createCatalogChatOrchestrator", () => {
       companySettingsService: {
         async getSettings(companyId: string) {
           settingsCalls.push(companyId);
-          return {
-            missingPricePolicy: "handoff",
-            maxAutomatedMessageChars: 2_500,
-          };
+          return { missingPricePolicy: "handoff" };
         },
       },
       chatManager: createChatManagerStub(async () => {

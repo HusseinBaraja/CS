@@ -3,7 +3,7 @@ import { ERROR_CODES } from '@cs/shared';
 import { createErrorResponse } from '../responses';
 import type { CompaniesService } from '../services/companies';
 import { CompaniesServiceError } from '../services/companies';
-import { parseCreateCompanyBody, parseUpdateCompanyBody, parseUpdateCompanySettingsBody } from './companySchemas';
+import { parseCreateCompanyBody, parseUpdateCompanyBody } from './companySchemas';
 
 interface CompaniesRoutesOptions {
   companiesService: CompaniesService;
@@ -43,57 +43,6 @@ export const createCompaniesRoutes = (
       return c.json({
         ok: true,
         company,
-      });
-    } catch (error) {
-      if (isServiceError(error)) {
-        return c.json(createErrorResponse(error.code, error.message), error.status);
-      }
-
-      throw error;
-    }
-  });
-
-  app.get("/:companyId/settings", async (c) => {
-    try {
-      const settings = await options.companiesService.getSettings(c.req.param("companyId"));
-      if (!settings) {
-        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Company not found"), 404);
-      }
-
-      return c.json({
-        ok: true,
-        settings,
-      });
-    } catch (error) {
-      if (isServiceError(error)) {
-        return c.json(createErrorResponse(error.code, error.message), error.status);
-      }
-
-      throw error;
-    }
-  });
-
-  app.put("/:companyId/settings", async (c) => {
-    const body = await c.req.json();
-    const parsedBody = parseUpdateCompanySettingsBody(body);
-
-    if (!parsedBody.ok) {
-      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);
-    }
-
-    try {
-      const settings = await options.companiesService.updateSettings(
-        c.req.param("companyId"),
-        parsedBody.value,
-      );
-
-      if (!settings) {
-        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Company not found"), 404);
-      }
-
-      return c.json({
-        ok: true,
-        settings,
       });
     } catch (error) {
       if (isServiceError(error)) {

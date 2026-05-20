@@ -9,7 +9,6 @@ export type MissingPricePolicy = 'reply_unavailable' | 'handoff';
 
 export interface CompanySettings {
   missingPricePolicy: MissingPricePolicy;
-  maxAutomatedMessageChars: number;
 }
 
 export interface CompanySettingsService {
@@ -22,7 +21,6 @@ export interface CompanySettingsServiceOptions {
 
 const DEFAULT_SETTINGS: CompanySettings = {
   missingPricePolicy: 'reply_unavailable',
-  maxAutomatedMessageChars: 2_500,
 };
 
 const createDefaultSettings = (): CompanySettings => ({ ...DEFAULT_SETTINGS });
@@ -44,10 +42,7 @@ export const createCompanySettingsService = (
       }
 
       return settings
-        ? {
-            missingPricePolicy: settings.missingPricePolicy,
-            maxAutomatedMessageChars: settings.maxAutomatedMessageChars,
-          }
+        ? { missingPricePolicy: settings.missingPricePolicy }
         : createDefaultSettings();
     },
   };

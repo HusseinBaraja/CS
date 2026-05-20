@@ -109,8 +109,6 @@ export const toMessageDto = (message: Doc<'messages'>): ConversationMessageDto =
     timestamp: message.timestamp,
     ...(message.deliveryState !== undefined ? { deliveryState: message.deliveryState } : {}),
     ...(message.handoffSource !== undefined ? { handoffSource: message.handoffSource } : {}),
-    ...(message.handoffReason !== undefined ? { handoffReason: message.handoffReason } : {}),
-    ...(message.handoffMetadata !== undefined ? { handoffMetadata: message.handoffMetadata } : {}),
     ...(message.providerAcknowledgedAt !== undefined
       ? { providerAcknowledgedAt: message.providerAcknowledgedAt }
       : {}),

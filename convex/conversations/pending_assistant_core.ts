@@ -23,7 +23,6 @@ export const appendPendingAssistantMessageDefinition = {
       v.literal('assistant_action'),
       v.literal('provider_failure_fallback'),
       v.literal('invalid_model_output_fallback'),
-      v.literal('message_too_long'),
     )),
     reason: v.optional(v.string()),
     actorPhoneNumber: v.optional(v.string()),
