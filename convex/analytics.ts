@@ -8,6 +8,7 @@ import {
   getInteractedProductIds,
   updateProductInteractions,
 } from './analytics/productAggregation';
+import { getProductsByInteractedId } from './analytics/productReaders';
 import {
   createResponseTimeStats,
   getAverageResponseTimeMs,
@@ -167,19 +168,7 @@ export const summary = internalQuery({
     counts.totalMessages = counts.customerMessages + counts.assistantMessages;
 
     const interactedProductIds = getInteractedProductIds(productInteractionStats);
-    const productsById =
-      interactedProductIds.size === 0
-        ? new Map<string, Doc<"products">>()
-        : new Map(
-            (
-              await ctx.db
-                .query("products")
-                .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
-                .collect()
-            )
-              .filter((product) => interactedProductIds.has(product._id))
-              .map((product) => [product._id, product] as const),
-          );
+    const productsById = await getProductsByInteractedId(ctx, args.companyId, interactedProductIds);
 
     const validTopProducts = finalizeProductStats(productInteractionStats, productsById);
     const averageResponseTimeMs = getAverageResponseTimeMs(responseTimes);
