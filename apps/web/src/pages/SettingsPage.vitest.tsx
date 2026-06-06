@@ -67,6 +67,32 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('radio', { name: 'SAR' }).getAttribute('data-state')).toBe('on');
   });
 
+  it('loads settings for the seeded demo company alias', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/companies') {
+        return new Response(JSON.stringify({
+          ok: true,
+          companies: [{ id: 'seed-company', name: 'YAS Packaging Co' }],
+        }));
+      }
+
+      if (url === '/api/companies/seed-company/settings') {
+        return new Response(JSON.stringify({
+          ok: true,
+          settings: { ...settings, companyId: 'seed-company' },
+        }));
+      }
+
+      return new Response('{}', { status: 404 });
+    }));
+
+    render(<SettingsPage />);
+
+    await waitFor(() => expect(screen.getByText('YAS Packaging Co')).toBeDefined());
+    expect(screen.getByText('القيمة المحفوظة: SAR')).toBeDefined();
+  });
+
   it('saves the selected currency with preserved settings fields', async () => {
     render(<SettingsPage />);
     await waitFor(() => expect(screen.getByText('القيمة المحفوظة: SAR')).toBeDefined());
@@ -131,7 +157,8 @@ describe('SettingsPage', () => {
     render(<SettingsPage />);
 
     await waitFor(() => expect(screen.getByText('شركة YAS_Trading غير موجودة.')).toBeDefined());
-    expect(screen.getByRole('button', { name: /حفظ/ }).hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByRole('button', { name: /حفظ/ })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'اختيار عملة التشغيل' })).toBeNull();
   });
 
   it('blocks saving when YAS_Trading is duplicated', async () => {
@@ -146,7 +173,8 @@ describe('SettingsPage', () => {
     render(<SettingsPage />);
 
     await waitFor(() => expect(screen.getByText('يوجد أكثر من شركة باسم YAS_Trading.')).toBeDefined());
-    expect(screen.getByRole('button', { name: /حفظ/ }).hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByRole('button', { name: /حفظ/ })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'اختيار عملة التشغيل' })).toBeNull();
   });
 
   it('shows save failures', async () => {

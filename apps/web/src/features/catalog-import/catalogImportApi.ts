@@ -72,7 +72,14 @@ export const resolveYasTradingCompany = (companies: CompanyDto[]): {
   company?: CompanyDto;
   error?: string;
 } => {
-  const matches = companies.filter((company) => company.name === 'YAS_Trading');
+  const normalizedTargetNames = new Set(['yas trading', 'yas packaging co']);
+  const normalizeCompanyName = (name: string) =>
+    name.trim().replace(/_/g, ' ').replace(/\s+/g, ' ').toLocaleLowerCase();
+  const exactMatches = companies.filter((company) => company.name === 'YAS_Trading');
+  const matches = exactMatches.length > 0
+    ? exactMatches
+    : companies.filter((company) => normalizedTargetNames.has(normalizeCompanyName(company.name)));
+
   if (matches.length === 0) {
     return { error: 'شركة YAS_Trading غير موجودة.' };
   }

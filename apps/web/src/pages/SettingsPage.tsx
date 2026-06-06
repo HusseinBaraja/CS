@@ -152,37 +152,41 @@ export function SettingsPage() {
                   )}
                 </div>
 
-                <div className="flex flex-col gap-3">
-                  <p className="text-sm font-semibold text-[#44504b]">القيمة المحفوظة: {settings?.operatingCurrency ?? 'غير محددة'}</p>
-                  <ToggleGroup
-                    type="single"
-                    variant="outline"
-                    value={selectedCurrency}
-                    aria-label="اختيار عملة التشغيل"
-                    onValueChange={(value) => {
-                      if (isCurrencyChoice(value)) {
-                        setSelectedCurrency(value);
-                        setSavedMessage(null);
-                      }
-                    }}
-                  >
-                    <ToggleGroupItem value="SAR" aria-label="SAR">SAR</ToggleGroupItem>
-                    <ToggleGroupItem value="YER" aria-label="YER">YER</ToggleGroupItem>
-                  </ToggleGroup>
-                </div>
+                {companyState?.company ? (
+                  <>
+                    <div className="flex flex-col gap-3">
+                      <p className="text-sm font-semibold text-[#44504b]">القيمة المحفوظة: {settings?.operatingCurrency ?? 'غير محددة'}</p>
+                      <ToggleGroup
+                        type="single"
+                        variant="outline"
+                        value={selectedCurrency}
+                        aria-label="اختيار عملة التشغيل"
+                        onValueChange={(value) => {
+                          if (isCurrencyChoice(value)) {
+                            setSelectedCurrency(value);
+                            setSavedMessage(null);
+                          }
+                        }}
+                      >
+                        <ToggleGroupItem value="SAR" aria-label="SAR">SAR</ToggleGroupItem>
+                        <ToggleGroupItem value="YER" aria-label="YER">YER</ToggleGroupItem>
+                      </ToggleGroup>
+                    </div>
 
-                {validationError && !companyState?.error ? <StatusMessage kind="error" message={validationError} /> : null}
-                {error ? <StatusMessage kind="error" message={error} /> : null}
-                {savedMessage ? <StatusMessage kind="success" message={savedMessage} /> : null}
+                    {validationError && !companyState?.error ? <StatusMessage kind="error" message={validationError} /> : null}
+                    {error ? <StatusMessage kind="error" message={error} /> : null}
+                    {savedMessage ? <StatusMessage kind="success" message={savedMessage} /> : null}
 
-                <Button
-                  className="w-fit bg-[#0d7c47] text-white hover:bg-[#096b3b]"
-                  disabled={!canSave || isSaving}
-                  onClick={saveSettings}
-                >
-                  {isSaving ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Save data-icon="inline-start" />}
-                  حفظ
-                </Button>
+                    <Button
+                      className="w-fit bg-[#0d7c47] text-white hover:bg-[#096b3b]"
+                      disabled={!canSave || isSaving}
+                      onClick={saveSettings}
+                    >
+                      {isSaving ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Save data-icon="inline-start" />}
+                      حفظ
+                    </Button>
+                  </>
+                ) : null}
               </>
             )}
           </CardContent>

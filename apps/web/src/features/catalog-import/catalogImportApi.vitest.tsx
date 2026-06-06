@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { applyCatalogImport, previewCatalogImport } from './catalogImportApi';
+import { applyCatalogImport, previewCatalogImport, resolveYasTradingCompany } from './catalogImportApi';
 
 const okJsonResponse = (payload: unknown): Response => new Response(JSON.stringify(payload), {
   headers: { 'Content-Type': 'application/json' },
@@ -55,6 +55,23 @@ describe('catalogImportApi', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/companies/company%2Fid%20with%20spaces/catalog-imports/apply', {
       method: 'POST',
       body: expect.any(FormData),
+    });
+  });
+
+  it('resolves the current seeded demo company when YAS_Trading is absent', () => {
+    expect(resolveYasTradingCompany([
+      { id: 'seed-company', name: 'YAS Packaging Co' },
+    ])).toEqual({
+      company: { id: 'seed-company', name: 'YAS Packaging Co' },
+    });
+  });
+
+  it('prefers the exact YAS_Trading company when both aliases exist', () => {
+    expect(resolveYasTradingCompany([
+      { id: 'seed-company', name: 'YAS Packaging Co' },
+      { id: 'yas-trading', name: 'YAS_Trading' },
+    ])).toEqual({
+      company: { id: 'yas-trading', name: 'YAS_Trading' },
     });
   });
 });
