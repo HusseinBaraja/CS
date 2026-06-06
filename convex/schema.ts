@@ -202,6 +202,7 @@ export default defineSchema({
   productVariants: defineTable({
     companyId: v.id("companies"),
     productId: v.id("products"),
+    label: v.optional(v.string()),
     labelEn: v.optional(v.string()),
     labelAr: v.optional(v.string()),
     price: v.optional(v.number()),
