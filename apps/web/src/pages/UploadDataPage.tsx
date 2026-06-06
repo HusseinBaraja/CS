@@ -195,7 +195,7 @@ export function UploadDataPage() {
                     <div className="grid gap-3 sm:grid-cols-3">
                       <Badge variant="secondary">{preview.productGroupCount} منتجات</Badge>
                       <Badge variant="secondary">{preview.categoryCount} أقسام</Badge>
-                      <Badge variant="secondary">{preview.variantCount} متغيرات</Badge>
+                      <Badge variant="secondary">{preview.unitCount} وحدات</Badge>
                     </div>
                     {preview.blockingErrors.map((item) => (
                       <p key={`${item.row ?? 'file'}-${item.message}`} className="text-sm font-semibold text-[#9f2f2f]">
@@ -207,7 +207,7 @@ export function UploadDataPage() {
                         <div key={group.productNo} className="rounded-lg border border-[#dfe6e2] bg-white p-4">
                           <div className="flex flex-wrap justify-between gap-2">
                             <p className="font-bold text-[#1c2521]">{group.productNo}</p>
-                            <span className="text-sm text-[#66706c]">{group.variantCount} متغيرات</span>
+                            <span className="text-sm text-[#66706c]">{group.unitCount} وحدات</span>
                           </div>
                           <p className="text-sm text-[#4d5753]">{group.categoryName} / {group.productName}</p>
                         </div>
@@ -221,7 +221,7 @@ export function UploadDataPage() {
                 )}
                 {result ? (
                   <div className="rounded-lg border border-[#b7d7c2] bg-[#f3f8f5] p-4 text-sm text-[#244234]">
-                    تم تطبيق {result.replacedProductGroupCount} منتجات و {result.replacedVariantCount} متغيرات على {result.company.name}.
+                    تم تطبيق {result.replacedProductGroupCount} منتجات و {result.replacedUnitCount} وحدات على {result.company.name}.
                   </div>
                 ) : null}
               </CardContent>
@@ -244,7 +244,7 @@ export function UploadDataPage() {
                 <Separator className="my-1" />
                 <div className="flex gap-3 rounded-lg bg-[#f3f8f5] p-4 text-sm leading-6 text-[#44504b]">
                   <Info className="mt-1 shrink-0 text-[#0d7c47]" />
-                  <p>كل ملف يستخدم لغة مصدر واحدة، ويترجم النظام أسماء الأقسام والمنتجات والمتغيرات قبل تحديث كتالوج الواتساب.</p>
+                  <p>كل ملف يستخدم لغة مصدر واحدة، ويترجم النظام أسماء الأقسام والمنتجات والوحدات قبل تحديث كتالوج الواتساب.</p>
                 </div>
               </CardContent>
             </Card>

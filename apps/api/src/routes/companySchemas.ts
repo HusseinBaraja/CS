@@ -212,6 +212,29 @@ const parsePositiveInteger = (value: unknown, fieldName: string): ParseResult<nu
   return { ok: true, value };
 };
 
+const parseCurrencyCode = (value: unknown): ParseResult<string | undefined> => {
+  if (value === undefined) {
+    return { ok: true, value: undefined };
+  }
+
+  if (typeof value !== "string") {
+    return {
+      ok: false,
+      message: "operatingCurrency must be a 3-letter currency code",
+    };
+  }
+
+  const normalized = value.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(normalized)) {
+    return {
+      ok: false,
+      message: "operatingCurrency must be a 3-letter currency code",
+    };
+  }
+
+  return { ok: true, value: normalized };
+};
+
 export const parseUpdateCompanySettingsBody = (value: unknown): ParseResult<UpdateCompanySettingsInput> => {
   const parsedObject = parseObject(value);
   if (!parsedObject.ok) {
@@ -231,11 +254,17 @@ export const parseUpdateCompanySettingsBody = (value: unknown): ParseResult<Upda
     return maxAutomatedMessageChars;
   }
 
+  const operatingCurrency = parseCurrencyCode(parsedObject.value.operatingCurrency);
+  if (!operatingCurrency.ok) {
+    return operatingCurrency;
+  }
+
   return {
     ok: true,
     value: {
       missingPricePolicy: missingPricePolicy.value,
       maxAutomatedMessageChars: maxAutomatedMessageChars.value,
+      ...(operatingCurrency.value ? { operatingCurrency: operatingCurrency.value } : {}),
     },
   };
 };

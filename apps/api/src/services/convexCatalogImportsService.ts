@@ -81,7 +81,7 @@ const summarizeGroups = (groups: ParsedCatalogImportGroup[]) =>
     categoryName: group.rows[0]?.categoryName ?? '',
     productName: group.rows[0]?.productName ?? '',
     rowCount: group.rows.length,
-    variantCount: group.rows.length,
+    unitCount: group.rows.length,
     rows: group.rows.map((row) => row.row),
   }));
 
@@ -91,6 +91,35 @@ const ensureFile = (input: CatalogImportUploadInput): File => {
   }
 
   return input.file;
+};
+
+const normalizeCurrency = (currency: string | undefined): string | undefined => {
+  const normalized = currency?.trim().toUpperCase();
+  return normalized && /^[A-Z]{3}$/.test(normalized) ? normalized : undefined;
+};
+
+const validateCompanyCurrency = (
+  operatingCurrency: string | undefined,
+  groups: ParsedCatalogImportGroup[],
+) => {
+  const normalizedCompanyCurrency = normalizeCurrency(operatingCurrency);
+  if (!normalizedCompanyCurrency) {
+    return [createCatalogImportValidationError('Company operating currency must be configured before catalog import')];
+  }
+
+  const errors = [];
+  for (const group of groups) {
+    for (const row of group.rows) {
+      const rowCurrency = normalizeCurrency(row.currency);
+      if (rowCurrency !== normalizedCompanyCurrency) {
+        errors.push(createCatalogImportValidationError(
+          `رقم المنتج ${row.productNo} في الصف ${row.row} يستخدم العملة ${row.currency}; عملة الشركة هي ${normalizedCompanyCurrency}`,
+        ));
+      }
+    }
+  }
+
+  return errors;
 };
 
 export const createConvexCatalogImportsService = (
@@ -119,7 +148,16 @@ export const createConvexCatalogImportsService = (
         }
 
         const parsed = await parseCatalogImportWorkbook(file, input.sourceLanguage);
+        const settings = await client.query(convexInternal.companySettings.get, {
+          companyId: toCompanyId(companyId),
+        });
+        const currencyErrors = validateCompanyCurrency(settings?.operatingCurrency, parsed.groups);
+        const blockingErrors = [
+          ...parsed.blockingErrors,
+          ...currencyErrors.map((error) => ({ message: error.message })),
+        ];
         const translation = parsed.blockingErrors.length === 0
+          && currencyErrors.length === 0
           ? await translator.translateGroups(parsed.groups, input.sourceLanguage)
           : { warnings: [] };
 
@@ -129,8 +167,8 @@ export const createConvexCatalogImportsService = (
           groups: summarizeGroups(parsed.groups),
           categoryCount: new Set(parsed.groups.map((group) => group.rows[0]?.categoryName).filter(Boolean)).size,
           productGroupCount: parsed.groups.length,
-          variantCount: parsed.groups.reduce((count, group) => count + group.rows.length, 0),
-          blockingErrors: parsed.blockingErrors,
+          unitCount: parsed.groups.reduce((count, group) => count + group.rows.length, 0),
+          blockingErrors,
           translationWarnings: translation.warnings,
         };
       });
@@ -150,6 +188,13 @@ export const createConvexCatalogImportsService = (
         if (parsed.blockingErrors.length > 0) {
           throw createCatalogImportValidationError(parsed.blockingErrors[0]?.message ?? 'Invalid spreadsheet');
         }
+        const settings = await client.query(convexInternal.companySettings.get, {
+          companyId: toCompanyId(companyId),
+        });
+        const currencyErrors = validateCompanyCurrency(settings?.operatingCurrency, parsed.groups);
+        if (currencyErrors.length > 0) {
+          throw currencyErrors[0];
+        }
 
         const translation = await translator.translateGroups(parsed.groups, input.sourceLanguage);
         const result = await client.action(convexInternal.catalogImports.apply, {
@@ -164,7 +209,7 @@ export const createConvexCatalogImportsService = (
           },
           createdOrUpdatedCategoryCount: result.createdOrUpdatedCategoryCount,
           replacedProductGroupCount: result.replacedProductGroupCount,
-          replacedVariantCount: result.replacedVariantCount,
+          replacedUnitCount: result.replacedUnitCount,
           translatedFieldCount: translation.translatedFieldCount,
           notTranslatedFallbackCount: translation.notTranslatedFallbackCount,
         };

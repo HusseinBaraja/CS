@@ -11,7 +11,7 @@ import {
   seedCurrencyRate,
   seedOffers,
   seedProducts,
-  seedVariants,
+  seedUnits,
 } from './seedData';
 
 const SEED_SAMPLE_DATA_LOCK_KEY = "seedSampleData";
@@ -27,7 +27,7 @@ type SeedInsertResult = {
     embeddings: number;
     currencyRates: number;
     offers: number;
-    productVariants: number;
+    productUnits: number;
     products: number;
   };
 };
@@ -42,12 +42,12 @@ type SeedProductEmbeddingSnapshot = {
   descriptionAr?: string;
   price?: number;
   currency?: string;
-  variants: Array<{
-    id: Id<"productVariants">;
+  units: Array<{
+    id: Id<"productUnits">;
     productId: Id<"products">;
     labelEn?: string;
     labelAr?: string;
-    price?: number;
+    price: number;
   }>;
 };
 
@@ -202,12 +202,12 @@ export const listSeedProductsForEmbedding = internalQuery({
 
     const results = await Promise.all(
       products.map(async (product) => {
-        const variants = await ctx.db
-          .query("productVariants")
+        const units = await ctx.db
+          .query("productUnits")
           .withIndex("by_product", (q) => q.eq("productId", product._id))
           .collect();
 
-        const sortedVariants = [...variants].sort((left, right) =>
+        const sortedUnits = [...units].sort((left, right) =>
           (left.labelEn ?? left.labelAr ?? '').localeCompare(right.labelEn ?? right.labelAr ?? '') ||
           left._id.localeCompare(right._id),
         );
@@ -220,14 +220,12 @@ export const listSeedProductsForEmbedding = internalQuery({
           ...(product.nameAr ? { nameAr: product.nameAr } : {}),
           ...(product.descriptionEn ? { descriptionEn: product.descriptionEn } : {}),
           ...(product.descriptionAr ? { descriptionAr: product.descriptionAr } : {}),
-          ...(product.price !== undefined ? { price: product.price } : {}),
-          ...(product.currency ? { currency: product.currency } : {}),
-          variants: sortedVariants.map((variant) => ({
-            id: variant._id,
-            productId: variant.productId,
-            ...(variant.labelEn ? { labelEn: variant.labelEn } : {}),
-            ...(variant.labelAr ? { labelAr: variant.labelAr } : {}),
-            ...(variant.price !== undefined ? { price: variant.price } : {}),
+          units: sortedUnits.map((unit) => ({
+            id: unit._id,
+            productId: unit.productId,
+            ...(unit.labelEn ? { labelEn: unit.labelEn } : {}),
+            ...(unit.labelAr ? { labelAr: unit.labelAr } : {}),
+            price: unit.price,
           })),
         };
       }),
@@ -356,26 +354,31 @@ export const insertSeedSampleData = internalMutation({
         nameAr: product.nameAr,
         descriptionEn: product.descriptionEn,
         descriptionAr: product.descriptionAr,
-        ...(product.price !== undefined ? { price: product.price } : {}),
-        ...(product.currency !== undefined ? { currency: product.currency } : {}),
       });
       productIds.set(product.key, productId);
     }
 
-    for (const variant of seedVariants) {
-      const productId = productIds.get(variant.productKey);
+    for (const [index, unit] of seedUnits.entries()) {
+      const productId = productIds.get(unit.productKey);
       if (!productId) {
-        throw new Error(`Missing product for variant ${variant.labelEn}`);
+        throw new Error(`Missing product for unit ${unit.labelEn}`);
       }
 
-      await ctx.db.insert("productVariants", {
+      await ctx.db.insert("productUnits", {
         companyId: args.companyId,
         productId,
-        ...(variant.labelEn !== undefined ? { labelEn: variant.labelEn } : {}),
-        ...(variant.labelAr !== undefined ? { labelAr: variant.labelAr } : {}),
-        ...(variant.price !== undefined ? { price: variant.price } : {}),
+        ...(unit.labelEn !== undefined ? { labelEn: unit.labelEn } : {}),
+        ...(unit.labelAr !== undefined ? { labelAr: unit.labelAr } : {}),
+        price: unit.price,
+        sortOrder: index,
       });
     }
+
+    await ctx.db.insert("companySettings", {
+      companyId: args.companyId,
+      missingPricePolicy: "reply_unavailable",
+      operatingCurrency: "SAR",
+    });
 
     const now = Date.now();
     for (const offer of seedOffers) {
@@ -400,7 +403,7 @@ export const insertSeedSampleData = internalMutation({
       categories: seedCategories.length,
       embeddings: 0,
       products: seedProducts.length,
-      productVariants: seedVariants.length,
+      productUnits: seedUnits.length,
       offers: seedOffers.length,
       currencyRates: 1,
     };
@@ -471,12 +474,12 @@ export const syncSeedEmbeddings = internalAction({
           ...(product.price !== undefined ? { price: product.price } : {}),
           ...(product.currency ? { currency: product.currency } : {}),
         },
-        product.variants.map((variant: SeedProductEmbeddingSnapshot["variants"][number]) => ({
-            id: variant.id,
-            productId: variant.productId,
-            ...(variant.labelEn ? { labelEn: variant.labelEn } : {}),
-            ...(variant.labelAr ? { labelAr: variant.labelAr } : {}),
-            ...(variant.price !== undefined ? { price: variant.price } : {}),
+        product.units.map((unit: SeedProductEmbeddingSnapshot["units"][number]) => ({
+            id: unit.id,
+            productId: unit.productId,
+            ...(unit.labelEn ? { labelEn: unit.labelEn } : {}),
+            ...(unit.labelAr ? { labelAr: unit.labelAr } : {}),
+            price: unit.price,
           })),
       );
 
