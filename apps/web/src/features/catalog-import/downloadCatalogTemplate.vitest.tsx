@@ -53,17 +53,14 @@ describe('downloadCatalogTemplate', () => {
 
     await downloadCatalogTemplate({
       currency: 'YER',
-      includePrice: true,
       language: 'en',
       includeDescription: false,
-      includePrimaryImage: false,
-      includeVariants: false,
     });
 
     expect(ExcelJS.default.Workbook).toHaveBeenCalled();
     expect(mocks.addWorksheet).toHaveBeenCalledWith('Catalog Template');
     expect(mocks.addRow).toHaveBeenCalledWith(
-      ['Section Name', 'Product Number', 'Arabic Product Name', 'English Product Name', 'Product Price', 'Currency'],
+      ['Section Name', 'Product Number', 'Arabic Product Name', 'English Product Name', 'Unit', 'Currency', 'Price'],
     );
     expect(mocks.writeBuffer).toHaveBeenCalled();
     expect(document.createElement).toHaveBeenCalledWith('a');
@@ -86,11 +83,8 @@ describe('downloadCatalogTemplate', () => {
 
     await downloadCatalogTemplateWithFailedImport({
       currency: 'YER',
-      includePrice: true,
       language: 'en',
       includeDescription: false,
-      includePrimaryImage: false,
-      includeVariants: false,
     });
 
     expect(consoleError).toHaveBeenCalledWith(

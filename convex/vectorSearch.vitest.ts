@@ -198,6 +198,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
         companyId,
         categoryId: expect.any(String),
         nameEn: "Beta Cup",
+        units: [],
         variants: [
           {
             companyId,
@@ -212,6 +213,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex retrieval contra
         companyId,
         categoryId: expect.any(String),
         nameEn: "Alpha Box",
+        units: [],
         variants: [],
       },
     ]);

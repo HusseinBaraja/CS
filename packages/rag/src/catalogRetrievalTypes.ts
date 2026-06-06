@@ -29,6 +29,16 @@ export type ProductVariantRecord = {
   price?: number;
 };
 
+export type ProductUnitRecord = {
+  id: string;
+  companyId: string;
+  productId: string;
+  labelEn?: string;
+  labelAr?: string;
+  price: number;
+  sortOrder?: number;
+};
+
 export type HydratedProductRecord = {
   id: string;
   companyId: string;
@@ -41,6 +51,7 @@ export type HydratedProductRecord = {
   price?: number;
   currency?: string;
   primaryImage?: string;
+  units?: ProductUnitRecord[];
   variants: ProductVariantRecord[];
 };
 
@@ -66,6 +77,12 @@ export interface RetrievedProductContext {
   price?: number;
   currency?: string;
   primaryImage?: string;
+  units?: Array<{
+    labelEn?: string;
+    labelAr?: string;
+    price: number;
+    sortOrder?: number;
+  }>;
   variants: Array<{
     labelEn?: string;
     labelAr?: string;

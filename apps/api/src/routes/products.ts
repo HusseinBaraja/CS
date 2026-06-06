@@ -8,7 +8,9 @@ import {
   parseUpdateProductBody,
 } from './productSchemas';
 import {
+  parseCreateUnitBody,
   parseCreateVariantBody,
+  parseUpdateUnitBody,
   parseUpdateVariantBody,
 } from './productVariantParsers';
 import type { ProductMediaService } from '../services/productMedia';
@@ -265,6 +267,118 @@ export const createProductsRoutes = (
       return c.json({
         ok: true,
         variants,
+      });
+    } catch (error) {
+      if (isServiceError(error)) {
+        return c.json(createErrorResponse(error.code, error.message), error.status);
+      }
+
+      throw error;
+    }
+  });
+
+  app.get("/:id/units", async (c) => {
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
+
+    try {
+      const units = await options.productsService.listUnits(companyId, productId);
+      if (!units) {
+        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
+      }
+
+      return c.json({
+        ok: true,
+        units,
+      });
+    } catch (error) {
+      if (isServiceError(error)) {
+        return c.json(createErrorResponse(error.code, error.message), error.status);
+      }
+
+      throw error;
+    }
+  });
+
+  app.post("/:id/units", async (c) => {
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
+    const parsedJson = await parseJsonBody(c.req.raw);
+    if (!parsedJson.ok) {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
+    }
+
+    const parsedBody = parseCreateUnitBody(parsedJson.value);
+    if (!parsedBody.ok) {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);
+    }
+
+    try {
+      const unit = await options.productsService.createUnit(companyId, productId, parsedBody.value);
+      if (!unit) {
+        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
+      }
+
+      return c.json({
+        ok: true,
+        unit,
+      }, 201);
+    } catch (error) {
+      if (isServiceError(error)) {
+        return c.json(createErrorResponse(error.code, error.message), error.status);
+      }
+
+      throw error;
+    }
+  });
+
+  app.put("/:id/units/:unitId", async (c) => {
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
+    const unitId = requireRouteParam(c.req.param("unitId"), "unitId");
+    const parsedJson = await parseJsonBody(c.req.raw);
+    if (!parsedJson.ok) {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
+    }
+
+    const parsedBody = parseUpdateUnitBody(parsedJson.value);
+    if (!parsedBody.ok) {
+      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);
+    }
+
+    try {
+      const unit = await options.productsService.updateUnit(companyId, productId, unitId, parsedBody.value);
+      if (!unit) {
+        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
+      }
+
+      return c.json({
+        ok: true,
+        unit,
+      });
+    } catch (error) {
+      if (isServiceError(error)) {
+        return c.json(createErrorResponse(error.code, error.message), error.status);
+      }
+
+      throw error;
+    }
+  });
+
+  app.delete("/:id/units/:unitId", async (c) => {
+    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
+    const productId = requireRouteParam(c.req.param("id"), "id");
+    const unitId = requireRouteParam(c.req.param("unitId"), "unitId");
+
+    try {
+      const deleted = await options.productsService.deleteUnit(companyId, productId, unitId);
+      if (!deleted) {
+        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
+      }
+
+      return c.json({
+        ok: true,
+        deleted,
       });
     } catch (error) {
       if (isServiceError(error)) {

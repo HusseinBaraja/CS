@@ -4,20 +4,14 @@ export type CatalogTemplateLanguage = 'ar' | 'en';
 
 export type CatalogTemplateOptions = {
   currency?: CatalogTemplateCurrency;
-  includePrice: boolean;
   language: CatalogTemplateLanguage;
   includeDescription: boolean;
-  includePrimaryImage: boolean;
-  includeVariants: boolean;
 };
 
 export const defaultCatalogTemplateOptions: CatalogTemplateOptions = {
   currency: 'SAR',
-  includePrice: true,
   language: 'ar',
   includeDescription: true,
-  includePrimaryImage: true,
-  includeVariants: true,
 };
 
 const labels = {
@@ -28,11 +22,9 @@ const labels = {
     nameEn: 'اسم المنتج بالإنجليزية',
     descriptionAr: 'وصف المنتج بالعربية',
     descriptionEn: 'وصف المنتج بالإنجليزية',
+    unit: 'الوحدة',
     price: 'السعر',
     currency: 'العملة',
-    primaryImage: 'الصورة الرئيسية',
-    variantLabel: 'اسم المتغير',
-    variantPrice: 'سعر المتغير',
   },
   en: {
     categoryName: 'Section Name',
@@ -41,15 +33,13 @@ const labels = {
     nameEn: 'English Product Name',
     descriptionAr: 'Arabic Product Description',
     descriptionEn: 'English Product Description',
-    price: 'Product Price',
+    unit: 'Unit',
+    price: 'Price',
     currency: 'Currency',
-    primaryImage: 'Primary Image',
-    variantLabel: 'Variant Label',
-    variantPrice: 'Variant Price',
   },
 } satisfies Record<CatalogTemplateLanguage, Record<string, string>>;
 
-// Product rows map to the fixed catalog contract. Variant columns are import shape only.
+// Repeated product numbers represent sellable units, not product variants.
 export function buildCatalogTemplateHeaders(options: CatalogTemplateOptions): string[] {
   const selectedLabels = labels[options.language];
   const headers = [
@@ -63,17 +53,7 @@ export function buildCatalogTemplateHeaders(options: CatalogTemplateOptions): st
     headers.push(selectedLabels.descriptionAr, selectedLabels.descriptionEn);
   }
 
-  if (options.includePrice) {
-    headers.push(selectedLabels.price, selectedLabels.currency);
-  }
-
-  if (options.includePrimaryImage) {
-    headers.push(selectedLabels.primaryImage);
-  }
-
-  if (options.includeVariants) {
-    headers.push(selectedLabels.variantLabel, selectedLabels.variantPrice);
-  }
+  headers.push(selectedLabels.unit, selectedLabels.currency, selectedLabels.price);
 
   return headers;
 }

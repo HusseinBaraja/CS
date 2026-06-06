@@ -13,6 +13,7 @@ export const CLEANUP_COUNT_KEYS = [
   "products",
   "productImageUploads",
   "productVariants",
+  "productUnits",
   "embeddings",
   "conversations",
   "conversationStateEvents",
@@ -282,6 +283,7 @@ export const createEmptyCleanupCounts = (): CleanupCounts => ({
   products: 0,
   productImageUploads: 0,
   productVariants: 0,
+  productUnits: 0,
   embeddings: 0,
   conversations: 0,
   conversationStateEvents: 0,
@@ -351,6 +353,15 @@ export const clearCompanyDataBatch = internalMutation({
     );
     if (productVariantsResult) {
       return productVariantsResult;
+    }
+
+    const productUnitsBatch = await takeDocumentIds(
+      ctx.db.query("productUnits").withIndex("by_company", (q) => q.eq("companyId", args.companyId)),
+      CLEANUP_BATCH_SIZE,
+    );
+    const productUnitsResult = await deleteBatchIfAny(ctx, "productUnits", productUnitsBatch);
+    if (productUnitsResult) {
+      return productUnitsResult;
     }
 
     const messagesBatch = await collectMessageIdsBatch(

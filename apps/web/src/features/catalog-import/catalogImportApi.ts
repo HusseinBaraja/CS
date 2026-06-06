@@ -17,12 +17,12 @@ export interface CatalogImportPreview {
     categoryName: string;
     productName: string;
     rowCount: number;
-    variantCount: number;
+    unitCount: number;
     rows: number[];
   }>;
   categoryCount: number;
   productGroupCount: number;
-  variantCount: number;
+  unitCount: number;
   blockingErrors: Array<{ message: string; row?: number; productNo?: string }>;
   translationWarnings: Array<{ productNo: string; field: string; message: string }>;
 }
@@ -34,7 +34,7 @@ export interface CatalogImportApplyResult {
   };
   createdOrUpdatedCategoryCount: number;
   replacedProductGroupCount: number;
-  replacedVariantCount: number;
+  replacedUnitCount: number;
   translatedFieldCount: number;
   notTranslatedFallbackCount: number;
 }

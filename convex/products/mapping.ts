@@ -3,6 +3,8 @@ import { mapProductDocToEmbeddingState } from '../productEmbeddingRuntime';
 import type {
   ProductDetailDto,
   ProductListItemDto,
+  ProductUnitDoc,
+  ProductUnitDto,
   ProductVariantDoc,
   ProductVariantDto,
   ProductVariantWriteState,
@@ -16,6 +18,16 @@ export const mapVariant = (variant: ProductVariantDoc): ProductVariantDto => ({
   ...(variant.labelEn ? { labelEn: variant.labelEn } : {}),
   ...(variant.labelAr ? { labelAr: variant.labelAr } : {}),
   ...(variant.price !== undefined ? { price: variant.price } : {}),
+});
+
+export const mapUnit = (unit: ProductUnitDoc): ProductUnitDto => ({
+  id: unit._id,
+  companyId: unit.companyId,
+  productId: unit.productId,
+  ...(unit.labelEn ? { labelEn: unit.labelEn } : {}),
+  ...(unit.labelAr ? { labelAr: unit.labelAr } : {}),
+  price: unit.price,
+  ...(unit.sortOrder !== undefined ? { sortOrder: unit.sortOrder } : {}),
 });
 
 export const mapProduct = (product: Doc<'products'>): ProductListItemDto => ({
@@ -35,8 +47,10 @@ export const mapProduct = (product: Doc<'products'>): ProductListItemDto => ({
 export const mapProductDetail = (
   product: Doc<'products'>,
   variants: ProductVariantDoc[],
+  units: ProductUnitDoc[] = [],
 ): ProductDetailDto => ({
   ...mapProduct(product),
+  units: units.map(mapUnit),
   variants: variants.map(mapVariant),
 });
 

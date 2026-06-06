@@ -52,6 +52,18 @@ export const toRetrievedProductContext = (
   ...(product.price !== undefined ? { price: product.price } : {}),
   ...(product.currency ? { currency: product.currency } : {}),
   ...(product.primaryImage ? { primaryImage: product.primaryImage } : {}),
+  units: [...(product.units ?? [])]
+    .sort((left, right) =>
+      (left.sortOrder ?? 0) - (right.sortOrder ?? 0) ||
+      (left.labelEn ?? left.labelAr ?? "").localeCompare(right.labelEn ?? right.labelAr ?? "") ||
+      left.id.localeCompare(right.id)
+    )
+    .map((unit) => ({
+      ...(unit.labelEn ? { labelEn: unit.labelEn } : {}),
+      ...(unit.labelAr ? { labelAr: unit.labelAr } : {}),
+      price: unit.price,
+      ...(unit.sortOrder !== undefined ? { sortOrder: unit.sortOrder } : {}),
+    })),
   variants: [...product.variants]
     .sort((left, right) =>
       (left.labelEn ?? left.labelAr ?? "").localeCompare(right.labelEn ?? right.labelAr ?? "") ||
@@ -89,6 +101,23 @@ const buildContextBlockBody = (
 
   if (product.price !== undefined) {
     lines.push(`Price: ${product.price}${product.currency ? ` ${product.currency}` : ""}`);
+  }
+
+  const units = product.units ?? [];
+  if (units.length > 0) {
+    lines.push("Units:");
+    for (const unit of units) {
+      const label = getPreferredVariantLabel(unit, language);
+      const unitLine = [
+        label ? `- ${label}` : undefined,
+        `price: ${unit.price}${product.currency ? ` ${product.currency}` : ""}`,
+      ]
+        .filter((entry): entry is string => Boolean(entry))
+        .join(" | ");
+      if (unitLine) {
+        lines.push(unitLine);
+      }
+    }
   }
 
   if (product.variants.length > 0) {

@@ -88,6 +88,7 @@ export default defineSchema({
     companyId: v.id("companies"),
     missingPricePolicy: missingPricePolicyValidator,
     maxAutomatedMessageChars: v.optional(v.number()),
+    operatingCurrency: v.optional(v.string()),
   })
     .index("by_company", ["companyId"]),
 
@@ -204,6 +205,18 @@ export default defineSchema({
     labelEn: v.optional(v.string()),
     labelAr: v.optional(v.string()),
     price: v.optional(v.number()),
+  })
+    .index("by_company", ["companyId"])
+    .index("by_product", ["productId"]),
+
+  // ── Product Units ───────────────────────────────────────────────────────
+  productUnits: defineTable({
+    companyId: v.id("companies"),
+    productId: v.id("products"),
+    labelEn: v.optional(v.string()),
+    labelAr: v.optional(v.string()),
+    price: v.number(),
+    sortOrder: v.optional(v.number()),
   })
     .index("by_company", ["companyId"])
     .index("by_product", ["productId"]),

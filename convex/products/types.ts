@@ -23,6 +23,16 @@ export type ProductVariantDto = {
   price?: number;
 };
 
+export type ProductUnitDto = {
+  id: string;
+  companyId: string;
+  productId: string;
+  labelEn?: string;
+  labelAr?: string;
+  price: number;
+  sortOrder?: number;
+};
+
 export type ProductListItemDto = {
   id: string;
   companyId: string;
@@ -38,6 +48,7 @@ export type ProductListItemDto = {
 };
 
 export type ProductDetailDto = ProductListItemDto & {
+  units: ProductUnitDto[];
   variants: ProductVariantDto[];
 };
 
@@ -85,6 +96,30 @@ export type ProductVariantUpdateArgs = {
   labelEn?: string | null;
   labelAr?: string | null;
   price?: number | null;
+};
+
+export type ProductUnitCreateArgs = {
+  companyId: Id<'companies'>;
+  productId: Id<'products'>;
+  labelEn?: string;
+  labelAr?: string;
+  price: number;
+  sortOrder?: number;
+};
+
+export type ProductUnitUpdateArgs = {
+  companyId: Id<'companies'>;
+  productId: Id<'products'>;
+  unitId: Id<'productUnits'>;
+  labelEn?: string | null;
+  labelAr?: string | null;
+  price?: number | null;
+  sortOrder?: number | null;
+};
+
+export type DeleteProductUnitResult = {
+  productId: string;
+  unitId: string;
 };
 
 export type ProductVariantCreateSnapshot = ProductWriteSnapshot & {
@@ -138,3 +173,4 @@ export type ProductEmbeddingReplacementArgs = {
 
 export type ProductDoc = Doc<'products'>;
 export type ProductVariantDoc = Doc<'productVariants'>;
+export type ProductUnitDoc = Doc<'productUnits'>;
