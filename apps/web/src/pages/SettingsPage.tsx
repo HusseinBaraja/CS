@@ -88,6 +88,7 @@ export function SettingsPage() {
 
     return null;
   }, [companyState, selectedCurrency, settings]);
+  const canSave = Boolean(companyState?.company && settings && selectedCurrency);
 
   const saveSettings = async () => {
     if (!companyState?.company || !settings || !selectedCurrency) {
@@ -159,8 +160,8 @@ export function SettingsPage() {
                     value={selectedCurrency}
                     aria-label="اختيار عملة التشغيل"
                     onValueChange={(value) => {
-                      if (value) {
-                        setSelectedCurrency(value as CurrencyChoice);
+                      if (isCurrencyChoice(value)) {
+                        setSelectedCurrency(value);
                         setSavedMessage(null);
                       }
                     }}
@@ -174,7 +175,11 @@ export function SettingsPage() {
                 {error ? <StatusMessage kind="error" message={error} /> : null}
                 {savedMessage ? <StatusMessage kind="success" message={savedMessage} /> : null}
 
-                <Button className="w-fit" disabled={Boolean(validationError) || isSaving} onClick={saveSettings}>
+                <Button
+                  className="w-fit bg-[#0d7c47] text-white hover:bg-[#096b3b]"
+                  disabled={!canSave || isSaving}
+                  onClick={saveSettings}
+                >
                   {isSaving ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Save data-icon="inline-start" />}
                   حفظ
                 </Button>
