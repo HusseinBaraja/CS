@@ -9,9 +9,3 @@ export {
   patchVariantWithEmbeddingsDefinition,
   removeVariantWithEmbeddingsDefinition,
 } from './mutationDefinitions/variantMutationDefinitions';
-
-export {
-  insertUnitDefinition,
-  patchUnitDefinition,
-  removeUnitDefinition,
-} from './mutationDefinitions/unitMutationDefinitions';

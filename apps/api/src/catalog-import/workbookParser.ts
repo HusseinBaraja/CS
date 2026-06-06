@@ -11,9 +11,10 @@ export interface ParsedCatalogImportRow {
   categoryName: string;
   productName: string;
   description?: string;
-  unitLabel: string;
-  currency: string;
-  price: number;
+  price?: number;
+  currency?: string;
+  variantLabel?: string;
+  variantPrice?: number;
 }
 
 export interface ParsedCatalogImportGroup {
@@ -34,9 +35,10 @@ const headerAliases = {
   productNameAr: ['arabic product name', 'اسم المنتج بالعربية'],
   descriptionEn: ['english product description', 'وصف المنتج بالإنجليزية'],
   descriptionAr: ['arabic product description', 'وصف المنتج بالعربية'],
-  unitLabel: ['unit', 'unit label', 'الوحدة', 'اسم الوحدة'],
+  price: ['product price', 'السعر'],
   currency: ['currency', 'العملة'],
-  price: ['price', 'unit price', 'السعر', 'سعر الوحدة'],
+  variantLabel: ['variant label', 'اسم المتغير'],
+  variantPrice: ['variant price', 'سعر المتغير'],
 } as const;
 
 const normalizeHeader = (value: unknown): string =>
@@ -136,16 +138,14 @@ export const parseCatalogImportWorkbook = async (
     ),
     price: resolveHeader(headerMap, headerAliases.price),
     currency: resolveHeader(headerMap, headerAliases.currency),
-    unitLabel: resolveHeader(headerMap, headerAliases.unitLabel),
+    variantLabel: resolveHeader(headerMap, headerAliases.variantLabel),
+    variantPrice: resolveHeader(headerMap, headerAliases.variantPrice),
   };
 
   for (const [fieldName, columnIndex] of Object.entries({
     categoryName: columns.categoryName,
     productNo: columns.productNo,
     productName: columns.productName,
-    unitLabel: columns.unitLabel,
-    currency: columns.currency,
-    price: columns.price,
   })) {
     if (columnIndex === undefined) {
       blockingErrors.push({ message: `Missing required column: ${fieldName}` });
@@ -166,11 +166,15 @@ export const parseCatalogImportWorkbook = async (
     const productNo = readRequired(rowValues, columns.productNo, 'productNo', rowNumber, blockingErrors);
     const categoryName = readRequired(rowValues, columns.categoryName, 'categoryName', rowNumber, blockingErrors);
     const productName = readRequired(rowValues, columns.productName, 'productName', rowNumber, blockingErrors);
-    const unitLabel = readRequired(rowValues, columns.unitLabel, 'unit', rowNumber, blockingErrors);
-    const currency = readRequired(rowValues, columns.currency, 'currency', rowNumber, blockingErrors).toUpperCase();
-    const price = parseNumberCell(rowValues[columns.price ?? -1], 'price', rowNumber, blockingErrors);
-    if (!productNo || !categoryName || !productName || !unitLabel || !currency || price === undefined) {
+    if (!productNo || !categoryName || !productName) {
       return;
+    }
+
+    const price = parseNumberCell(rowValues[columns.price ?? -1], 'price', rowNumber, blockingErrors);
+    const variantPrice = parseNumberCell(rowValues[columns.variantPrice ?? -1], 'variantPrice', rowNumber, blockingErrors);
+    const currency = columns.currency === undefined ? undefined : normalizeCell(rowValues[columns.currency]);
+    if (price !== undefined && !currency) {
+      blockingErrors.push({ row: rowNumber, productNo, message: 'currency is required when price is set' });
     }
 
     const parsedRow: ParsedCatalogImportRow = {
@@ -178,59 +182,19 @@ export const parseCatalogImportWorkbook = async (
       productNo,
       categoryName,
       productName,
-      unitLabel,
-      currency,
-      price,
       ...(columns.description !== undefined && normalizeCell(rowValues[columns.description])
         ? { description: normalizeCell(rowValues[columns.description]) }
         : {}),
+      ...(price !== undefined ? { price } : {}),
+      ...(currency ? { currency } : {}),
+      ...(columns.variantLabel !== undefined && normalizeCell(rowValues[columns.variantLabel])
+        ? { variantLabel: normalizeCell(rowValues[columns.variantLabel]) }
+        : {}),
+      ...(variantPrice !== undefined ? { variantPrice } : {}),
     };
 
     groups.set(productNo, [...(groups.get(productNo) ?? []), parsedRow]);
   });
-
-  for (const group of groups.values()) {
-    const firstRow = group[0];
-    if (!firstRow) {
-      continue;
-    }
-
-    const categoryRows = new Map<string, number[]>();
-    const nameRows = new Map<string, number[]>();
-    const unitRows = new Map<string, number[]>();
-
-    for (const row of group) {
-      categoryRows.set(row.categoryName, [...(categoryRows.get(row.categoryName) ?? []), row.row]);
-      nameRows.set(row.productName, [...(nameRows.get(row.productName) ?? []), row.row]);
-      unitRows.set(row.unitLabel, [...(unitRows.get(row.unitLabel) ?? []), row.row]);
-    }
-
-    if (categoryRows.size > 1) {
-      blockingErrors.push({
-        productNo: firstRow.productNo,
-        message: `رقم المنتج ${firstRow.productNo} موجود تحت أكثر من قسم: ${[...categoryRows.keys()].join(', ')}`,
-        row: firstRow.row,
-      });
-    }
-
-    if (nameRows.size > 1) {
-      blockingErrors.push({
-        productNo: firstRow.productNo,
-        message: `رقم المنتج ${firstRow.productNo} له أكثر من اسم صنف: ${[...nameRows.keys()].join(', ')}`,
-        row: firstRow.row,
-      });
-    }
-
-    for (const [unitLabel, rows] of unitRows) {
-      if (rows.length > 1) {
-        blockingErrors.push({
-          productNo: firstRow.productNo,
-          message: `رقم المنتج ${firstRow.productNo} يحتوي وحدة مكررة "${unitLabel}" في الصفوف ${rows.join(', ')}`,
-          row: rows[0],
-        });
-      }
-    }
-  }
 
   return {
     file: fileMetadata(file),

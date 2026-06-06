@@ -42,8 +42,8 @@ const normalizeOptionalString = (value: string | null | undefined): string | und
   return normalized.length > 0 ? normalized : undefined;
 };
 
-const sortSellableUnits = <T extends ProductEmbeddingVariantState>(units: T[]): T[] =>
-  units.sort((left, right) =>
+const sortVariants = <T extends ProductEmbeddingVariantState>(variants: T[]): T[] =>
+  variants.sort((left, right) =>
     (left.labelEn ?? left.labelAr ?? "").localeCompare(right.labelEn ?? right.labelAr ?? "") || left.id.localeCompare(right.id),
   );
 
@@ -56,7 +56,7 @@ const getVariantLabel = (
     : normalizeOptionalString(variant.labelAr) ?? normalizeOptionalString(variant.labelEn);
 
 const serializeVariants = (variants: ProductEmbeddingVariantState[], language: "en" | "ar"): string =>
-  sortSellableUnits([...variants])
+  sortVariants([...variants])
     .map((variant) =>
       [
         getVariantLabel(variant, language) ? `label:${getVariantLabel(variant, language)}` : undefined,
@@ -108,7 +108,7 @@ const buildLanguageEmbeddingText = (
     description ? `description:${description}` : undefined,
     product.price !== undefined ? `price:${product.price}` : undefined,
     product.currency ? `currency:${product.currency}` : undefined,
-    variants.length > 0 ? `units:\n${serializeVariants(variants, language)}` : undefined,
+    variants.length > 0 ? `variants:\n${serializeVariants(variants, language)}` : undefined,
   ]
     .filter((value): value is string => Boolean(value))
     .join("\n");

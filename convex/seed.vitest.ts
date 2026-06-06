@@ -12,7 +12,7 @@ import {
   seedCurrencyRate,
   seedOffers,
   seedProducts,
-  seedUnits,
+  seedVariants,
 } from './seedData';
 
 const modules =
@@ -76,10 +76,8 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
   t.run(async (ctx) => {
     const companies = await ctx.db.query("companies").collect();
     const categories = await ctx.db.query("categories").collect();
-    const companySettings = await ctx.db.query("companySettings").collect();
     const products = await ctx.db.query("products").collect();
     const productVariants = await ctx.db.query("productVariants").collect();
-    const productUnits = await ctx.db.query("productUnits").collect();
     const offers = await ctx.db.query("offers").collect();
     const currencyRates = await ctx.db.query("currencyRates").collect();
     const conversations = await ctx.db.query("conversations").collect();
@@ -90,12 +88,10 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
     return {
       analyticsEvents,
       companies,
-      companySettings,
       categories,
       conversations,
       products,
       productVariants,
-      productUnits,
       offers,
       currencyRates,
       embeddings,
@@ -188,8 +184,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(counts.companies).toHaveLength(1);
     expect(counts.categories).toHaveLength(seedCategories.length);
     expect(counts.products).toHaveLength(seedProducts.length);
-    expect(counts.productVariants).toHaveLength(0);
-    expect(counts.productUnits).toHaveLength(seedUnits.length);
+    expect(counts.productVariants).toHaveLength(seedVariants.length);
     expect(counts.offers).toHaveLength(seedOffers.length);
     expect(counts.currencyRates).toHaveLength(1);
     expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
@@ -206,17 +201,12 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     });
 
     expect(counts.categories.every((category) => category.nameAr && category.descriptionAr)).toBe(true);
-    expect(counts.companySettings[0]).toMatchObject({
-      companyId: counts.companies[0]?._id,
-      missingPricePolicy: "reply_unavailable",
-      operatingCurrency: "SAR",
-    });
-    expect(counts.products.every((product) => product.nameAr && product.descriptionAr && product.currency === undefined)).toBe(true);
+    expect(counts.products.every((product) => product.nameAr && product.descriptionAr && product.currency === "SAR")).toBe(true);
     expect(counts.offers.every((offer) => offer.active && offer.contentAr)).toBe(true);
     expect(counts.currencyRates[0]).toMatchObject(seedCurrencyRate);
 
     const productIds = new Set(counts.products.map((product) => product._id));
-    expect(counts.productUnits.every((unit) => productIds.has(unit.productId))).toBe(true);
+    expect(counts.productVariants.every((variant) => productIds.has(variant.productId))).toBe(true);
     expect(counts.embeddings.every((embedding) => counts.companies[0]?._id === embedding.companyId)).toBe(true);
     expect(new Set(counts.embeddings.map((embedding) => embedding.language))).toEqual(new Set(["ar", "en"]));
     expect(
@@ -246,8 +236,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(counts.companies).toHaveLength(1);
     expect(counts.categories).toHaveLength(seedCategories.length);
     expect(counts.products).toHaveLength(seedProducts.length);
-    expect(counts.productVariants).toHaveLength(0);
-    expect(counts.productUnits).toHaveLength(seedUnits.length);
+    expect(counts.productVariants).toHaveLength(seedVariants.length);
     expect(counts.offers).toHaveLength(seedOffers.length);
     expect(counts.currencyRates).toHaveLength(1);
     expect(counts.embeddings).toHaveLength(seedProducts.length * 2);
@@ -535,8 +524,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(counts.companies).toHaveLength(1);
     expect(counts.categories).toHaveLength(seedCategories.length);
     expect(counts.products).toHaveLength(seedProducts.length);
-    expect(counts.productVariants).toHaveLength(0);
-    expect(counts.productUnits).toHaveLength(seedUnits.length);
+    expect(counts.productVariants).toHaveLength(seedVariants.length);
     expect(counts.offers).toHaveLength(seedOffers.length);
     expect(counts.currencyRates).toHaveLength(1);
     expect(counts.conversations).toHaveLength(0);

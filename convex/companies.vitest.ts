@@ -22,7 +22,6 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
     const botRuntimeSessions = await ctx.db.query("botRuntimeSessions").collect();
     const botRuntimePairingArtifacts = await ctx.db.query("botRuntimePairingArtifacts").collect();
     const productVariants = await ctx.db.query("productVariants").collect();
-    const productUnits = await ctx.db.query("productUnits").collect();
     const offers = await ctx.db.query("offers").collect();
     const currencyRates = await ctx.db.query("currencyRates").collect();
     const conversations = await ctx.db.query("conversations").collect();
@@ -46,7 +45,6 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
       offers,
       products,
       productImageUploads,
-      productUnits,
       productVariants,
       mediaCleanupJobs,
     };
@@ -400,7 +398,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
         products: 1,
         productImageUploads: 1,
         productVariants: 2,
-        productUnits: 0,
         embeddings: 4,
         conversations: 1,
         conversationStateEvents: 1,
@@ -419,7 +416,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     expect(counts.products).toHaveLength(0);
     expect(counts.productImageUploads).toHaveLength(0);
     expect(counts.productVariants).toHaveLength(0);
-    expect(counts.productUnits).toHaveLength(0);
     expect(counts.embeddings).toHaveLength(0);
     expect(counts.conversations).toHaveLength(0);
     expect(counts.conversationStateEvents).toHaveLength(0);
@@ -456,7 +452,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       products: 3,
       productImageUploads: 1,
       productVariants: oversizedBatchCount,
-      productUnits: 0,
       embeddings: oversizedBatchCount,
       conversations: 3,
       conversationStateEvents: 1,

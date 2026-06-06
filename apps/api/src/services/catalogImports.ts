@@ -25,7 +25,7 @@ export interface CatalogImportGroupSummary {
   categoryName: string;
   productName: string;
   rowCount: number;
-  unitCount: number;
+  variantCount: number;
   rows: number[];
 }
 
@@ -35,7 +35,7 @@ export interface CatalogImportPreviewResult {
   groups: CatalogImportGroupSummary[];
   categoryCount: number;
   productGroupCount: number;
-  unitCount: number;
+  variantCount: number;
   blockingErrors: CatalogImportValidationError[];
   translationWarnings: CatalogImportTranslationWarning[];
 }
@@ -47,7 +47,7 @@ export interface CatalogImportApplyResult {
   };
   createdOrUpdatedCategoryCount: number;
   replacedProductGroupCount: number;
-  replacedUnitCount: number;
+  replacedVariantCount: number;
   translatedFieldCount: number;
   notTranslatedFallbackCount: number;
 }

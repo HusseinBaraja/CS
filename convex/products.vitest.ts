@@ -185,7 +185,6 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       categoryId,
       nameEn: "Burger Box",
       currency: "SAR",
-      units: [],
       variants: [
         {
           companyId,

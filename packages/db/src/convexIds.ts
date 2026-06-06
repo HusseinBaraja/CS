@@ -32,7 +32,6 @@ interface IdTableMap {
   conversations: Id<"conversations">;
   messages: Id<"messages">;
   products: Id<"products">;
-  productUnits: Id<"productUnits">;
   productVariants: Id<"productVariants">;
 }
 
@@ -50,9 +49,6 @@ export const toMessageId = (messageId: string): Id<"messages"> =>
 
 export const toProductId = (productId: string): Id<"products"> =>
   toConvexId("products", productId);
-
-export const toUnitId = (unitId: string): Id<"productUnits"> =>
-  toConvexId("productUnits", unitId);
 
 export const toVariantId = (variantId: string): Id<"productVariants"> =>
   toConvexId("productVariants", variantId);

@@ -6,7 +6,6 @@ import {
   toCategoryId,
   toCompanyId,
   toProductId,
-  toUnitId,
   toVariantId,
 } from '@cs/db';
 import { ERROR_CODES } from '@cs/shared';
@@ -116,13 +115,6 @@ export const createConvexProductsService = (
           productId: toProductId(productId),
         })
       ),
-    listUnits: (companyId, productId) =>
-      withClient((client) =>
-        client.query(convexInternal.products.listUnits, {
-          companyId: toCompanyId(companyId),
-          productId: toProductId(productId),
-        })
-      ),
     create: (companyId, input) =>
       withClient(async (client) => {
         const {
@@ -156,31 +148,6 @@ export const createConvexProductsService = (
           companyId: toCompanyId(companyId),
           productId: toProductId(productId),
           ...input,
-        })
-      ),
-    createUnit: (companyId, productId, input) =>
-      withClient((client) =>
-        client.mutation(convexInternal.products.insertUnit, {
-          companyId: toCompanyId(companyId),
-          productId: toProductId(productId),
-          ...input,
-        })
-      ),
-    updateUnit: (companyId, productId, unitId, patch) =>
-      withClient((client) =>
-        client.mutation(convexInternal.products.patchUnit, {
-          companyId: toCompanyId(companyId),
-          productId: toProductId(productId),
-          unitId: toUnitId(unitId),
-          ...patch,
-        })
-      ),
-    deleteUnit: (companyId, productId, unitId) =>
-      withClient((client) =>
-        client.mutation(convexInternal.products.removeUnit, {
-          companyId: toCompanyId(companyId),
-          productId: toProductId(productId),
-          unitId: toUnitId(unitId),
         })
       ),
     updateVariant: (companyId, productId, variantId, patch) =>

@@ -9,7 +9,6 @@ export type CompanySettingsDto = {
   companyId: string;
   missingPricePolicy: MissingPricePolicy;
   maxAutomatedMessageChars: number;
-  operatingCurrency?: string;
 };
 
 const MAX_AUTOMATED_MESSAGE_CHARS = 10_000;
@@ -22,15 +21,6 @@ const sanitizeMaxAutomatedMessageChars = (value: unknown): number =>
   value <= MAX_AUTOMATED_MESSAGE_CHARS
     ? value
     : DEFAULT_COMPANY_SETTINGS.maxAutomatedMessageChars;
-
-const sanitizeOperatingCurrency = (value: unknown): string | undefined => {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const normalized = value.trim().toUpperCase();
-  return /^[A-Z]{3}$/.test(normalized) ? normalized : undefined;
-};
 
 const getCompanySettingsLockKey = (companyId: Id<'companies'>): string =>
   `companySettings:${companyId}`;
@@ -60,18 +50,13 @@ const collapseSettingsRows = async (
   settingsRows: Awaited<ReturnType<typeof listSettingsForCompany>>,
   missingPricePolicy: MissingPricePolicy,
   maxAutomatedMessageChars: number,
-  operatingCurrency: string | undefined,
 ) => {
   const canonical = chooseCanonicalSettings(settingsRows);
   if (!canonical) {
     return null;
   }
 
-  await ctx.db.patch(canonical._id, {
-    missingPricePolicy,
-    maxAutomatedMessageChars,
-    operatingCurrency,
-  });
+  await ctx.db.patch(canonical._id, { missingPricePolicy, maxAutomatedMessageChars });
   await Promise.all(
     settingsRows
       .filter((settings) => settings._id !== canonical._id)
@@ -157,9 +142,6 @@ export const getSettingsForCompany = async (
       companyId,
       missingPricePolicy: DEFAULT_COMPANY_SETTINGS.missingPricePolicy,
       maxAutomatedMessageChars: DEFAULT_COMPANY_SETTINGS.maxAutomatedMessageChars,
-      ...(DEFAULT_COMPANY_SETTINGS.operatingCurrency ? {
-        operatingCurrency: DEFAULT_COMPANY_SETTINGS.operatingCurrency,
-      } : {}),
     };
   }
 
@@ -170,9 +152,6 @@ export const getSettingsForCompany = async (
     maxAutomatedMessageChars: sanitizeMaxAutomatedMessageChars(
       settings.maxAutomatedMessageChars,
     ),
-    ...(sanitizeOperatingCurrency(settings.operatingCurrency) ? {
-      operatingCurrency: sanitizeOperatingCurrency(settings.operatingCurrency),
-    } : {}),
   };
 };
 
@@ -189,7 +168,6 @@ export const upsert = internalMutation({
     companyId: v.id('companies'),
     missingPricePolicy: missingPricePolicyValidator,
     maxAutomatedMessageChars: v.optional(v.number()),
-    operatingCurrency: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<CompanySettingsDto | null> => {
     const ownerToken = crypto.randomUUID();
@@ -206,24 +184,14 @@ export const upsert = internalMutation({
       const maxAutomatedMessageChars = sanitizeMaxAutomatedMessageChars(
         args.maxAutomatedMessageChars ?? existing?.maxAutomatedMessageChars,
       );
-      const operatingCurrency = sanitizeOperatingCurrency(
-        args.operatingCurrency ?? existing?.operatingCurrency,
-      );
 
       if (existing) {
-        await collapseSettingsRows(
-          ctx,
-          settingsRows,
-          args.missingPricePolicy,
-          maxAutomatedMessageChars,
-          operatingCurrency,
-        );
+        await collapseSettingsRows(ctx, settingsRows, args.missingPricePolicy, maxAutomatedMessageChars);
         return {
           id: existing._id,
           companyId: existing.companyId,
           missingPricePolicy: args.missingPricePolicy,
           maxAutomatedMessageChars,
-          ...(operatingCurrency ? { operatingCurrency } : {}),
         };
       }
 
@@ -231,7 +199,6 @@ export const upsert = internalMutation({
         companyId: args.companyId,
         missingPricePolicy: args.missingPricePolicy,
         maxAutomatedMessageChars,
-        ...(operatingCurrency ? { operatingCurrency } : {}),
       });
 
       const canonical = await collapseSettingsRows(
@@ -239,7 +206,6 @@ export const upsert = internalMutation({
         await listSettingsForCompany(ctx, args.companyId),
         args.missingPricePolicy,
         maxAutomatedMessageChars,
-        operatingCurrency,
       );
 
       return {
@@ -247,7 +213,6 @@ export const upsert = internalMutation({
         companyId: args.companyId,
         missingPricePolicy: args.missingPricePolicy,
         maxAutomatedMessageChars,
-        ...(operatingCurrency ? { operatingCurrency } : {}),
       };
     } finally {
       await releaseCompanySettingsLock(ctx, lockKey, ownerToken);

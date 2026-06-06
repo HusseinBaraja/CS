@@ -106,7 +106,6 @@ export const createConvexCompaniesService = (
           companyId: companyId as never,
           missingPricePolicy: input.missingPricePolicy,
           maxAutomatedMessageChars: input.maxAutomatedMessageChars,
-          ...(input.operatingCurrency ? { operatingCurrency: input.operatingCurrency } : {}),
         })
       ),
   };

@@ -12,12 +12,9 @@ import {
 } from './products/actionDefinitions';
 import {
   insertProductWithEmbeddingsDefinition,
-  insertUnitDefinition,
   insertVariantWithEmbeddingsDefinition,
   patchProductWithEmbeddingsDefinition,
-  patchUnitDefinition,
   patchVariantWithEmbeddingsDefinition,
-  removeUnitDefinition,
   removeDefinition,
   removeVariantWithEmbeddingsDefinition,
 } from './products/mutationDefinitions';
@@ -30,7 +27,6 @@ import {
   getVariantCreateSnapshotDefinition,
   getVariantUpdateSnapshotDefinition,
   listDefinition,
-  listUnitsDefinition,
   listVariantsDefinition,
 } from './products/queryDefinitions';
 
@@ -38,7 +34,6 @@ export const list = internalQuery(listDefinition);
 export const get = internalQuery(getDefinition);
 export const getManyForRag = internalQuery(getManyForRagDefinition);
 export const listVariants = internalQuery(listVariantsDefinition);
-export const listUnits = internalQuery(listUnitsDefinition);
 export const getCreateContext = internalQuery(getCreateContextDefinition);
 export const getUpdateSnapshot = internalQuery(getUpdateSnapshotDefinition);
 export const getVariantCreateSnapshot = internalQuery(getVariantCreateSnapshotDefinition);
@@ -49,9 +44,6 @@ export const patchProductWithEmbeddings = internalMutation(patchProductWithEmbed
 export const insertVariantWithEmbeddings = internalMutation(insertVariantWithEmbeddingsDefinition);
 export const patchVariantWithEmbeddings = internalMutation(patchVariantWithEmbeddingsDefinition);
 export const removeVariantWithEmbeddings = internalMutation(removeVariantWithEmbeddingsDefinition);
-export const insertUnit = internalMutation(insertUnitDefinition);
-export const patchUnit = internalMutation(patchUnitDefinition);
-export const removeUnit = internalMutation(removeUnitDefinition);
 export const create = internalAction(createDefinition);
 export const update = internalAction(updateDefinition);
 export const createVariant = internalAction(createVariantDefinition);

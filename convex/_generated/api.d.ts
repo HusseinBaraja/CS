@@ -9,10 +9,6 @@
  */
 
 import type * as analytics from "../analytics.js";
-import type * as analytics_handoffAggregation from "../analytics/handoffAggregation.js";
-import type * as analytics_productAggregation from "../analytics/productAggregation.js";
-import type * as analytics_productReaders from "../analytics/productReaders.js";
-import type * as analytics_windowing from "../analytics/windowing.js";
 import type * as catalogImports from "../catalogImports.js";
 import type * as catalogLanguageHints from "../catalogLanguageHints.js";
 import type * as catalogRestructureCleanup from "../catalogRestructureCleanup.js";
@@ -57,7 +53,6 @@ import type * as products_errors from "../products/errors.js";
 import type * as products_mapping from "../products/mapping.js";
 import type * as products_mutationDefinitions from "../products/mutationDefinitions.js";
 import type * as products_mutationDefinitions_productMutationDefinitions from "../products/mutationDefinitions/productMutationDefinitions.js";
-import type * as products_mutationDefinitions_unitMutationDefinitions from "../products/mutationDefinitions/unitMutationDefinitions.js";
 import type * as products_mutationDefinitions_variantEmbeddingMutations from "../products/mutationDefinitions/variantEmbeddingMutations.js";
 import type * as products_mutationDefinitions_variantMutationDefinitions from "../products/mutationDefinitions/variantMutationDefinitions.js";
 import type * as products_normalization from "../products/normalization.js";
@@ -82,10 +77,6 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
-  "analytics/handoffAggregation": typeof analytics_handoffAggregation;
-  "analytics/productAggregation": typeof analytics_productAggregation;
-  "analytics/productReaders": typeof analytics_productReaders;
-  "analytics/windowing": typeof analytics_windowing;
   catalogImports: typeof catalogImports;
   catalogLanguageHints: typeof catalogLanguageHints;
   catalogRestructureCleanup: typeof catalogRestructureCleanup;
@@ -130,7 +121,6 @@ declare const fullApi: ApiFromModules<{
   "products/mapping": typeof products_mapping;
   "products/mutationDefinitions": typeof products_mutationDefinitions;
   "products/mutationDefinitions/productMutationDefinitions": typeof products_mutationDefinitions_productMutationDefinitions;
-  "products/mutationDefinitions/unitMutationDefinitions": typeof products_mutationDefinitions_unitMutationDefinitions;
   "products/mutationDefinitions/variantEmbeddingMutations": typeof products_mutationDefinitions_variantEmbeddingMutations;
   "products/mutationDefinitions/variantMutationDefinitions": typeof products_mutationDefinitions_variantMutationDefinitions;
   "products/normalization": typeof products_normalization;

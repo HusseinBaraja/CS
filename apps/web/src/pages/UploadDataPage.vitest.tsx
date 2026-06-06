@@ -46,12 +46,12 @@ describe('UploadDataPage', () => {
               categoryName: 'أكواب',
               productName: 'كوب ورقي',
               rowCount: 2,
-              unitCount: 2,
+              variantCount: 2,
               rows: [2, 3],
             }],
             categoryCount: 1,
             productGroupCount: 1,
-            unitCount: 2,
+            variantCount: 2,
             blockingErrors: [],
             translationWarnings: [],
           },
@@ -65,7 +65,7 @@ describe('UploadDataPage', () => {
             company: { id: 'company-1', name: 'YAS_Trading' },
             createdOrUpdatedCategoryCount: 1,
             replacedProductGroupCount: 1,
-            replacedUnitCount: 2,
+            replacedVariantCount: 2,
             translatedFieldCount: 4,
             notTranslatedFallbackCount: 0,
           },
@@ -102,10 +102,24 @@ describe('UploadDataPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
 
     expect(screen.getByRole('group', { name: 'اختيار العملة' })).toBeDefined();
+    expect(screen.getByRole('group', { name: 'تضمين السعر' })).toBeDefined();
     expect(screen.getByRole('group', { name: 'اختيار اللغة' })).toBeDefined();
+    expect(screen.getByRole('group', { name: 'تضمين الصورة الرئيسية' })).toBeDefined();
     expect(screen.getByRole('group', { name: 'تضمين الوصف' })).toBeDefined();
+    expect(screen.getByRole('group', { name: 'تضمين المتغيرات' })).toBeDefined();
     expect(screen.getByRole('button', { name: /تحميل ملف Excel/ })).toBeDefined();
     expect(downloadCatalogTemplate).not.toHaveBeenCalled();
+  });
+
+  it('shows price before currency in template options', () => {
+    render(<UploadDataPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
+
+    const priceGroup = screen.getByRole('group', { name: 'تضمين السعر' });
+    const currencyGroup = screen.getByRole('group', { name: 'اختيار العملة' });
+
+    expect(priceGroup.compareDocumentPosition(currencyGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('passes selected template options to the download action', async () => {
@@ -114,16 +128,34 @@ describe('UploadDataPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
     fireEvent.click(screen.getByRole('radio', { name: 'YER' }));
     fireEvent.click(screen.getByRole('radio', { name: 'English' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'تضمين الصورة الرئيسية' })).getByRole('radio', { name: 'لا' }));
     fireEvent.click(within(screen.getByRole('group', { name: 'تضمين الوصف' })).getByRole('radio', { name: 'لا' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'تضمين المتغيرات' })).getByRole('radio', { name: 'لا' }));
     fireEvent.click(screen.getByRole('button', { name: /تحميل ملف Excel/ }));
 
     await waitFor(() => {
       expect(downloadCatalogTemplate).toHaveBeenCalledWith({
         currency: 'YER',
+        includePrice: true,
         language: 'en',
         includeDescription: false,
+        includePrimaryImage: false,
+        includeVariants: false,
       });
     });
+  });
+
+  it('disables currency selection when price is off', () => {
+    render(<UploadDataPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'تضمين السعر' }))
+        .getByRole('radio', { name: 'لا' }),
+    );
+
+    expect(screen.getByRole('radio', { name: 'SAR' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('radio', { name: 'YER' }).hasAttribute('disabled')).toBe(true);
   });
 
   it('previews and applies the selected file', async () => {
@@ -142,7 +174,7 @@ describe('UploadDataPage', () => {
     await waitFor(() => expect(screen.getByText('P-1')).toBeDefined());
     fireEvent.click(screen.getByRole('button', { name: /تطبيق الاستيراد/ }));
 
-    await waitFor(() => expect(screen.getByText(/تم تطبيق 1 منتجات و 2 وحدات/)).toBeDefined());
+    await waitFor(() => expect(screen.getByText(/تم تطبيق 1 منتجات و 2 متغيرات/)).toBeDefined());
     const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls.some(([url]) => String(url).includes('/preview'))).toBe(true);
     expect(calls.some(([url]) => String(url).includes('/apply'))).toBe(true);

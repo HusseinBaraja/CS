@@ -11,7 +11,9 @@ export interface TranslatedImportGroup {
   category: { en: string; ar: string };
   productName: { en: string; ar: string };
   description?: { en: string; ar: string };
-  units: Array<{ labelEn: string; labelAr: string; price: number; sortOrder?: number }>;
+  price?: number;
+  currency?: string;
+  variants: Array<{ labelEn: string; labelAr: string; price?: number }>;
 }
 
 export interface TranslationResult {
@@ -29,17 +31,6 @@ export type TranslateText = (
     field: string;
     productNo: string;
   },
-) => Promise<string>;
-
-export type CleanProductName = (
-  sourceName: string,
-  sourceLanguage: CatalogImportSourceLanguage,
-) => Promise<string>;
-
-export type GenerateProductDescription = (
-  sourceName: string,
-  cleanedName: string,
-  sourceLanguage: CatalogImportSourceLanguage,
 ) => Promise<string>;
 
 export interface CatalogImportTranslator {
@@ -126,63 +117,6 @@ const createChatTranslateText = (manager: ChatProviderManager): TranslateText =>
     return translated;
   };
 
-const createChatCleanProductName = (manager: ChatProviderManager): CleanProductName =>
-  async (sourceName, sourceLanguage) => {
-    const response = await manager.chat({
-      temperature: 0,
-      maxOutputTokens: 120,
-      messages: [
-        {
-          role: 'system',
-          content: [
-            'Clean a catalog product name without inventing facts.',
-            'Keep the same language. Do not add prices, availability, dimensions, materials, brands, or claims absent from the source.',
-            'Return only the cleaned product name.',
-          ].join('\n'),
-        },
-        {
-          role: 'user',
-          content: `Source language: ${sourceLanguage}\nProduct name:\n${sourceName}`,
-        },
-      ],
-    }, {
-      logContext: { feature: 'catalog_import_name_cleanup' },
-    });
-
-    const cleaned = response.text.trim();
-    if (!cleaned) {
-      throw new Error('Name cleanup returned empty text');
-    }
-
-    return cleaned;
-  };
-
-const createChatGenerateProductDescription = (manager: ChatProviderManager): GenerateProductDescription =>
-  async (sourceName, cleanedName, sourceLanguage) => {
-    const response = await manager.chat({
-      temperature: 0,
-      maxOutputTokens: 220,
-      messages: [
-        {
-          role: 'system',
-          content: [
-            'Write a concise catalog description only from the provided product name.',
-            'Do not invent prices, availability, dimensions, materials, brands, or business claims.',
-            'Return only the description in the source language.',
-          ].join('\n'),
-        },
-        {
-          role: 'user',
-          content: `Source language: ${sourceLanguage}\nOriginal name:\n${sourceName}\nCleaned name:\n${cleanedName}`,
-        },
-      ],
-    }, {
-      logContext: { feature: 'catalog_import_description_generation' },
-    });
-
-    return response.text.trim();
-  };
-
 export const createDefaultCatalogImportTranslator = (): CatalogImportTranslator => {
   const baseConfig = createChatRuntimeConfig();
   const manager = createChatProviderManager({
@@ -199,19 +133,11 @@ export const createDefaultCatalogImportTranslator = (): CatalogImportTranslator 
     },
   });
 
-  return createCatalogImportTranslator({
-    translateText: createChatTranslateText(manager),
-    cleanProductName: createChatCleanProductName(manager),
-    generateProductDescription: createChatGenerateProductDescription(manager),
-  });
+  return createCatalogImportTranslator({ translateText: createChatTranslateText(manager) });
 };
 
 export const createCatalogImportTranslator = (
-  options: {
-    translateText: TranslateText;
-    cleanProductName?: CleanProductName;
-    generateProductDescription?: GenerateProductDescription;
-  },
+  options: { translateText: TranslateText },
 ): CatalogImportTranslator => ({
   async translateGroups(groups, sourceLanguage) {
     let translatedFieldCount = 0;
@@ -241,78 +167,38 @@ export const createCatalogImportTranslator = (
       }
     };
 
-    const cleanProductName = async (sourceName: string, productNo: string): Promise<string> => {
-      if (!options.cleanProductName) {
-        return sourceName;
-      }
-
-      try {
-        return await options.cleanProductName(sourceName, sourceLanguage);
-      } catch {
-        warnings.push({
-          productNo,
-          field: 'productName',
-          message: 'Name cleanup failed; stored source name',
-        });
-        return sourceName;
-      }
-    };
-
-    const generateDescription = async (
-      sourceName: string,
-      cleanedName: string,
-      productNo: string,
-    ): Promise<string | undefined> => {
-      if (!options.generateProductDescription) {
-        return undefined;
-      }
-
-      try {
-        const generated = await options.generateProductDescription(sourceName, cleanedName, sourceLanguage);
-        return generated.trim() || undefined;
-      } catch {
-        warnings.push({
-          productNo,
-          field: 'description',
-          message: 'Description generation failed; stored empty description',
-        });
-        return undefined;
-      }
-    };
-
     const translatedGroups = await Promise.all(groups.map((group) => limitGroup(async (): Promise<TranslatedImportGroup> => {
       const firstRow = group.rows[0];
       if (!firstRow) {
         throw new Error(`Empty product group: ${group.productNo}`);
       }
-      const limitUnit = createAsyncLimiter(8);
-      const cleanedProductName = await cleanProductName(firstRow.productName, group.productNo);
-      const sourceDescription = firstRow.description
-        ?? await generateDescription(firstRow.productName, cleanedProductName, group.productNo);
+      const limitVariant = createAsyncLimiter(8);
 
       const [category, productName, description] = await Promise.all([
         translate(firstRow.categoryName, 'categoryName', group.productNo),
-        translate(cleanedProductName, 'productName', group.productNo),
-        sourceDescription ? translate(sourceDescription, 'description', group.productNo) : undefined,
+        translate(firstRow.productName, 'productName', group.productNo),
+        firstRow.description ? translate(firstRow.description, 'description', group.productNo) : undefined,
       ]);
 
-      const units = await Promise.all(group.rows.map((row, index) => limitUnit(async () => {
-        const translatedLabel = await translate(row.unitLabel, 'unitLabel', group.productNo);
+      const variants = await Promise.all(group.rows.map((row) => limitVariant(async () => {
+        const label = row.variantLabel ?? row.productName;
+        const translatedLabel = await translate(label, 'variantLabel', group.productNo);
         return {
           ...(sourceLanguage === 'en'
-            ? { labelEn: row.unitLabel, labelAr: translatedLabel }
-            : { labelEn: translatedLabel, labelAr: row.unitLabel }),
-          price: row.price,
-          sortOrder: index,
+            ? { labelEn: label, labelAr: translatedLabel }
+            : { labelEn: translatedLabel, labelAr: label }),
+          ...(row.variantPrice !== undefined ? { price: row.variantPrice } : {}),
         };
       })));
 
       return {
         productNo: group.productNo,
         category: sourceTarget(firstRow.categoryName, category, sourceLanguage),
-        productName: sourceTarget(cleanedProductName, productName, sourceLanguage),
-        ...(sourceDescription && description ? { description: sourceTarget(sourceDescription, description, sourceLanguage) } : {}),
-        units,
+        productName: sourceTarget(firstRow.productName, productName, sourceLanguage),
+        ...(firstRow.description && description ? { description: sourceTarget(firstRow.description, description, sourceLanguage) } : {}),
+        ...(firstRow.price !== undefined ? { price: firstRow.price } : {}),
+        ...(firstRow.currency ? { currency: firstRow.currency } : {}),
+        variants,
       };
     })));
 

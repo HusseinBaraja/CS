@@ -2,7 +2,6 @@ export {
   getDefinition,
   getManyForRagDefinition,
   listDefinition,
-  listUnitsDefinition,
   listVariantsDefinition,
 } from './queryDefinitions/productQueryDefinitions';
 

@@ -7,18 +7,18 @@ import { normalizeNameKey } from './categoriesShared';
 import { buildProductEmbeddingPayload } from './productEmbeddingRuntime';
 
 const NOT_FOUND_PREFIX = 'NOT_FOUND';
-const UNIT_DELETE_BATCH_SIZE = 50;
+const VALIDATION_PREFIX = 'VALIDATION_FAILED';
+const VARIANT_DELETE_BATCH_SIZE = 50;
 
 const bilingualTextValidator = {
   en: v.string(),
   ar: v.string(),
 } as const;
 
-const unitValidator = v.object({
+const variantValidator = v.object({
   labelEn: v.string(),
   labelAr: v.string(),
-  price: v.number(),
-  sortOrder: v.optional(v.number()),
+  price: v.optional(v.number()),
 });
 
 const groupValidator = v.object({
@@ -26,7 +26,9 @@ const groupValidator = v.object({
   category: v.object(bilingualTextValidator),
   productName: v.object(bilingualTextValidator),
   description: v.optional(v.object(bilingualTextValidator)),
-  units: v.array(unitValidator),
+  price: v.optional(v.number()),
+  currency: v.optional(v.string()),
+  variants: v.array(variantValidator),
 });
 
 type ImportGroup = {
@@ -34,7 +36,9 @@ type ImportGroup = {
   category: { en: string; ar: string };
   productName: { en: string; ar: string };
   description?: { en: string; ar: string };
-  units: Array<{ labelEn: string; labelAr: string; price: number; sortOrder?: number }>;
+  price?: number;
+  currency?: string;
+  variants: Array<{ labelEn: string; labelAr: string; price?: number }>;
 };
 
 const createTaggedError = (prefix: string, message: string): Error =>
@@ -93,7 +97,7 @@ export const applyTranslatedGroup = internalMutation({
     englishText: v.string(),
     arabicText: v.string(),
   },
-  handler: async (ctx, args): Promise<{ productId: string; unitCount: number; categoryCreated: boolean }> => {
+  handler: async (ctx, args): Promise<{ productId: string; variantCount: number; categoryCreated: boolean }> => {
     const company = await ctx.db.get(args.companyId);
     if (!company) {
       throw createTaggedError(NOT_FOUND_PREFIX, 'Company not found');
@@ -106,14 +110,14 @@ export const applyTranslatedGroup = internalMutation({
     const existingProduct = await getProductByProductNo(ctx, args.companyId, args.group.productNo);
 
     if (existingProduct) {
-      const existingUnits = await ctx.db
-        .query('productUnits')
+      const existingVariants = await ctx.db
+        .query('productVariants')
         .withIndex('by_product', (q) => q.eq('productId', existingProduct._id))
         .collect();
-      const existingUnitIds = existingUnits.map((unit) => unit._id);
-      for (let index = 0; index < existingUnitIds.length; index += UNIT_DELETE_BATCH_SIZE) {
-        const batch = existingUnitIds.slice(index, index + UNIT_DELETE_BATCH_SIZE);
-        await Promise.all(batch.map((unitId) => ctx.db.delete(unitId)));
+      const existingVariantIds = existingVariants.map((variant) => variant._id);
+      for (let index = 0; index < existingVariantIds.length; index += VARIANT_DELETE_BATCH_SIZE) {
+        const batch = existingVariantIds.slice(index, index + VARIANT_DELETE_BATCH_SIZE);
+        await Promise.all(batch.map((variantId) => ctx.db.delete(variantId)));
       }
 
       await ctx.db.patch(existingProduct._id, {
@@ -123,8 +127,8 @@ export const applyTranslatedGroup = internalMutation({
         nameAr: args.group.productName.ar,
         descriptionEn: args.group.description?.en,
         descriptionAr: args.group.description?.ar,
-        price: undefined,
-        currency: undefined,
+        price: args.group.price,
+        currency: args.group.currency,
         version: (existingProduct.version ?? 0) + 1,
       });
     }
@@ -139,17 +143,18 @@ export const applyTranslatedGroup = internalMutation({
         descriptionEn: args.group.description.en,
         descriptionAr: args.group.description.ar,
       } : {}),
+      ...(args.group.price !== undefined ? { price: args.group.price } : {}),
+      ...(args.group.currency ? { currency: args.group.currency } : {}),
       version: 1,
     });
 
-    for (const unit of args.group.units) {
-      await ctx.db.insert('productUnits', {
+    for (const variant of args.group.variants) {
+      await ctx.db.insert('productVariants', {
         companyId: args.companyId,
         productId,
-        labelEn: unit.labelEn,
-        labelAr: unit.labelAr,
-        price: unit.price,
-        ...(unit.sortOrder !== undefined ? { sortOrder: unit.sortOrder } : {}),
+        labelEn: variant.labelEn,
+        labelAr: variant.labelAr,
+        ...(variant.price !== undefined ? { price: variant.price } : {}),
       });
     }
 
@@ -177,7 +182,7 @@ export const applyTranslatedGroup = internalMutation({
     });
 
     await refreshCompanyCatalogLanguageHintsInMutation(ctx, args.companyId);
-    return { productId, unitCount: args.group.units.length, categoryCreated: category.created };
+    return { productId, variantCount: args.group.variants.length, categoryCreated: category.created };
   },
 });
 
@@ -188,13 +193,17 @@ export const apply = internalAction({
   },
   handler: async (ctx, args): Promise<{
     replacedProductGroupCount: number;
-    replacedUnitCount: number;
+    replacedVariantCount: number;
     createdOrUpdatedCategoryCount: number;
   }> => {
-    let replacedUnitCount = 0;
+    let replacedVariantCount = 0;
     let createdOrUpdatedCategoryCount = 0;
 
     for (const group of args.groups as ImportGroup[]) {
+      if (group.price !== undefined && !group.currency) {
+        throw createTaggedError(VALIDATION_PREFIX, 'currency is required when a price is set');
+      }
+
       const embeddings = await buildProductEmbeddingPayload({
         companyId: args.companyId,
         categoryId: 'placeholder' as Id<'categories'>,
@@ -202,12 +211,14 @@ export const apply = internalAction({
         nameEn: group.productName.en,
         nameAr: group.productName.ar,
         ...(group.description ? { descriptionEn: group.description.en, descriptionAr: group.description.ar } : {}),
-      }, group.units.map((unit, index) => ({
-        id: `import-unit-${index}`,
+        ...(group.price !== undefined ? { price: group.price } : {}),
+        ...(group.currency ? { currency: group.currency } : {}),
+      }, group.variants.map((variant, index) => ({
+        id: `import-variant-${index}`,
         productId: 'placeholder' as Id<'products'>,
-        labelEn: unit.labelEn,
-        labelAr: unit.labelAr,
-        price: unit.price,
+        labelEn: variant.labelEn,
+        labelAr: variant.labelAr,
+        ...(variant.price !== undefined ? { price: variant.price } : {}),
       })));
 
       const result = await ctx.runMutation(internal.catalogImports.applyTranslatedGroup, {
@@ -215,13 +226,13 @@ export const apply = internalAction({
         group,
         ...embeddings,
       });
-      replacedUnitCount += result.unitCount;
+      replacedVariantCount += result.variantCount;
       createdOrUpdatedCategoryCount += result.categoryCreated ? 1 : 0;
     }
 
     return {
       replacedProductGroupCount: args.groups.length,
-      replacedUnitCount,
+      replacedVariantCount,
       createdOrUpdatedCategoryCount,
     };
   },

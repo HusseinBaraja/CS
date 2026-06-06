@@ -10,9 +10,7 @@ const groups: ParsedCatalogImportGroup[] = [
       productNo: 'P-1',
       categoryName: 'Cups',
       productName: 'Paper Cup',
-      unitLabel: 'Small',
-      currency: 'SAR',
-      price: 9,
+      variantLabel: 'Small',
     }],
   },
   {
@@ -22,9 +20,7 @@ const groups: ParsedCatalogImportGroup[] = [
       productNo: 'P-2',
       categoryName: 'Plates',
       productName: 'Plate',
-      unitLabel: 'White',
-      currency: 'SAR',
-      price: 8,
+      variantLabel: 'White',
     }],
   },
 ];
@@ -37,9 +33,7 @@ const makeGroups = (count: number, rowsPerGroup = 1): ParsedCatalogImportGroup[]
       productNo: `P-${groupIndex + 1}`,
       categoryName: `Category ${groupIndex + 1}`,
       productName: `Product ${groupIndex + 1}`,
-      unitLabel: `Unit ${rowIndex + 1}`,
-      currency: 'SAR',
-      price: rowIndex + 1,
+      variantLabel: `Variant ${rowIndex + 1}`,
     })),
   }));
 
@@ -78,25 +72,25 @@ describe('catalog import translation', () => {
     expect(maxActiveGroups).toBeLessThanOrEqual(4);
   });
 
-  test('limits concurrently translated units per group', async () => {
-    let activeUnits = 0;
-    let maxActiveUnits = 0;
+  test('limits concurrently translated variants per group', async () => {
+    let activeVariants = 0;
+    let maxActiveVariants = 0;
     const translateText: TranslateText = async (text, input) => {
-      if (input.field !== 'unitLabel') {
+      if (input.field !== 'variantLabel') {
         return `${text} ar`;
       }
 
-      activeUnits += 1;
-      maxActiveUnits = Math.max(maxActiveUnits, activeUnits);
+      activeVariants += 1;
+      maxActiveVariants = Math.max(maxActiveVariants, activeVariants);
       await new Promise((resolve) => setTimeout(resolve, 5));
-      activeUnits -= 1;
+      activeVariants -= 1;
       return `${text} ar`;
     };
 
     await createCatalogImportTranslator({ translateText }).translateGroups(makeGroups(1, 10), 'en');
 
-    expect(maxActiveUnits).toBeLessThanOrEqual(8);
-    expect(maxActiveUnits).toBeGreaterThan(1);
+    expect(maxActiveVariants).toBeLessThanOrEqual(8);
+    expect(maxActiveVariants).toBeGreaterThan(1);
   });
 
   test('stores not_translated when translation fails', async () => {

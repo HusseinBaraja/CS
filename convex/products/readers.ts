@@ -1,7 +1,6 @@
 import type { Doc, Id } from '../_generated/dataModel';
 import type {
   ProductReader,
-  ProductUnitDoc,
   ProductVariantCreateSnapshot,
   ProductVariantDoc,
 } from './types';
@@ -50,20 +49,6 @@ export const getScopedVariant = async (
   return variant;
 };
 
-export const getScopedUnit = async (
-  ctx: ProductReader,
-  companyId: Id<'companies'>,
-  productId: Id<'products'>,
-  unitId: Id<'productUnits'>,
-): Promise<Doc<'productUnits'> | null> => {
-  const unit = await ctx.db.get(unitId);
-  if (!unit || unit.productId !== productId || unit.companyId !== companyId) {
-    return null;
-  }
-
-  return unit;
-};
-
 export const getProductVariants = async (
   ctx: ProductReader,
   companyId: Id<'companies'>,
@@ -72,19 +57,6 @@ export const getProductVariants = async (
   sortVariantDocs(
     await ctx.db
       .query('productVariants')
-      .withIndex('by_product', (q) => q.eq('productId', productId))
-      .filter((q) => q.eq(q.field('companyId'), companyId))
-      .collect(),
-  );
-
-export const getProductUnits = async (
-  ctx: ProductReader,
-  companyId: Id<'companies'>,
-  productId: Id<'products'>,
-): Promise<ProductUnitDoc[]> =>
-  sortVariantDocs(
-    await ctx.db
-      .query('productUnits')
       .withIndex('by_product', (q) => q.eq('productId', productId))
       .filter((q) => q.eq(q.field('companyId'), companyId))
       .collect(),

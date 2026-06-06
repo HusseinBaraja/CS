@@ -9,16 +9,6 @@ export interface ProductVariantDto {
   price?: number;
 }
 
-export interface ProductUnitDto {
-  id: string;
-  companyId: string;
-  productId: string;
-  labelEn?: string;
-  labelAr?: string;
-  price: number;
-  sortOrder?: number;
-}
-
 export interface ProductListItemDto {
   id: string;
   companyId: string;
@@ -34,7 +24,6 @@ export interface ProductListItemDto {
 }
 
 export interface ProductDetailDto extends ProductListItemDto {
-  units: ProductUnitDto[];
   variants: ProductVariantDto[];
 }
 
@@ -83,20 +72,6 @@ export interface UpdateProductVariantInput {
   price?: number | null;
 }
 
-export interface CreateProductUnitInput {
-  labelEn?: string;
-  labelAr?: string;
-  price: number;
-  sortOrder?: number;
-}
-
-export interface UpdateProductUnitInput {
-  labelEn?: string | null;
-  labelAr?: string | null;
-  price?: number | null;
-  sortOrder?: number | null;
-}
-
 export interface DeleteProductVariantResult {
   productId: string;
   variantId: string;
@@ -109,23 +84,6 @@ export interface ProductsService {
   update(companyId: string, productId: string, patch: UpdateProductInput): Promise<ProductDetailDto | null>;
   delete(companyId: string, productId: string): Promise<DeleteProductResult | null>;
   listVariants(companyId: string, productId: string): Promise<ProductVariantDto[] | null>;
-  listUnits(companyId: string, productId: string): Promise<ProductUnitDto[] | null>;
-  createUnit(
-    companyId: string,
-    productId: string,
-    input: CreateProductUnitInput,
-  ): Promise<ProductUnitDto | null>;
-  updateUnit(
-    companyId: string,
-    productId: string,
-    unitId: string,
-    patch: UpdateProductUnitInput,
-  ): Promise<ProductUnitDto | null>;
-  deleteUnit(
-    companyId: string,
-    productId: string,
-    unitId: string,
-  ): Promise<DeleteProductUnitResult | null>;
   /**
    * Returns null when the parent product does not exist for the company scope.
    */
@@ -153,11 +111,6 @@ export interface ProductsService {
     productId: string,
     variantId: string,
   ): Promise<DeleteProductVariantResult | null>;
-}
-
-export interface DeleteProductUnitResult {
-  productId: string;
-  unitId: string;
 }
 
 export class ProductsServiceError extends Error {
