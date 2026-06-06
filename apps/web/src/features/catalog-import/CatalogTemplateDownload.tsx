@@ -7,7 +7,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../compo
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import {
   defaultCatalogTemplateOptions,
-  type CatalogTemplateCurrency,
   type CatalogTemplateLanguage,
   type CatalogTemplateOptions,
 } from './catalogTemplate';
@@ -34,27 +33,6 @@ export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }
       </CollapsibleTrigger>
       <CollapsibleContent className="order-last flex basis-full justify-center pt-4">
         <div className="flex w-68 flex-col gap-4 rounded-lg border border-[#dfe6e2] bg-white p-4 text-start shadow-[0_8px_24px_rgba(22,35,29,0.08)]">
-          <TemplateOption label="العملة">
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              value={options.currency}
-              aria-label="اختيار العملة"
-              onValueChange={(value) => {
-                if (value) {
-                  updateOptions({ currency: value as CatalogTemplateCurrency });
-                }
-              }}
-            >
-              <ToggleGroupItem value="SAR" aria-label="SAR">
-                SAR
-              </ToggleGroupItem>
-              <ToggleGroupItem value="YER" aria-label="YER">
-                YER
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </TemplateOption>
-
           <TemplateOption label="اللغة">
             <ToggleGroup
               type="single"

@@ -12,6 +12,7 @@ import { ContactPage } from './pages/ContactPage';
 import { TrialPage } from './pages/TrialPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { UploadDataPage } from './pages/UploadDataPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -23,6 +24,7 @@ router.add('GET', '/contact', ContactPage);
 router.add('GET', '/trial', TrialPage);
 router.add('GET', '/dashboard', DashboardPage);
 router.add('GET', '/dashboard/upload', UploadDataPage);
+router.add('GET', '/dashboard/settings', SettingsPage);
 
 /**
  * App wires the marketing-site layout to the lightweight client router.

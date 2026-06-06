@@ -45,6 +45,7 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex catalog imports'
         productNo: 'P-1',
         category: { en: 'Cups', ar: 'أكواب' },
         productName: { en: 'Paper Cup', ar: 'كوب ورقي' },
+        currency: 'SAR',
         units: [
           { labelEn: 'Small', labelAr: 'صغير', price: 9 },
           { labelEn: 'Large', labelAr: 'كبير', price: 12 },
@@ -58,6 +59,7 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex catalog imports'
         productNo: 'P-1',
         category: { en: 'Cups', ar: 'أكواب' },
         productName: { en: 'Paper Cup Updated', ar: 'كوب ورقي محدث' },
+        currency: 'YER',
         units: [{ labelEn: 'Medium', labelAr: 'وسط', price: 10 }],
       }],
     });
@@ -73,6 +75,7 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex catalog imports'
     expect(secondResult.replacedUnitCount).toBe(1);
     expect(state.products).toHaveLength(1);
     expect(state.products[0]?.nameEn).toBe('Paper Cup Updated');
+    expect(state.products[0]?.currency).toBe('YER');
     expect(state.units.map((unit) => unit.labelEn)).toEqual(['Medium']);
     expect(state.embeddings).toHaveLength(2);
     expect(state.embeddings.map((embedding) => embedding.textContent).join('\n')).toContain('label:Medium');

@@ -26,6 +26,7 @@ const groupValidator = v.object({
   category: v.object(bilingualTextValidator),
   productName: v.object(bilingualTextValidator),
   description: v.optional(v.object(bilingualTextValidator)),
+  currency: v.string(),
   units: v.array(unitValidator),
 });
 
@@ -34,6 +35,7 @@ type ImportGroup = {
   category: { en: string; ar: string };
   productName: { en: string; ar: string };
   description?: { en: string; ar: string };
+  currency: string;
   units: Array<{ labelEn: string; labelAr: string; price: number; sortOrder?: number }>;
 };
 
@@ -124,7 +126,7 @@ export const applyTranslatedGroup = internalMutation({
         descriptionEn: args.group.description?.en,
         descriptionAr: args.group.description?.ar,
         price: undefined,
-        currency: undefined,
+        currency: args.group.currency,
         version: (existingProduct.version ?? 0) + 1,
       });
     }
@@ -139,6 +141,7 @@ export const applyTranslatedGroup = internalMutation({
         descriptionEn: args.group.description.en,
         descriptionAr: args.group.description.ar,
       } : {}),
+      currency: args.group.currency,
       version: 1,
     });
 
@@ -202,6 +205,7 @@ export const apply = internalAction({
         nameEn: group.productName.en,
         nameAr: group.productName.ar,
         ...(group.description ? { descriptionEn: group.description.en, descriptionAr: group.description.ar } : {}),
+        currency: group.currency,
       }, group.units.map((unit, index) => ({
         id: `import-unit-${index}`,
         productId: 'placeholder' as Id<'products'>,

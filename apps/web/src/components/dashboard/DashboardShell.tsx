@@ -42,7 +42,7 @@ const navItems = [
   { label: 'التحليلات', icon: BarChart3, href: '#' },
   { label: 'الفريق', icon: UsersRound, href: '#' },
   { label: 'الفواتير', icon: ReceiptText, href: '#' },
-  { label: 'الإعدادات', icon: Settings, href: '#' },
+  { label: 'الإعدادات', icon: Settings, href: '/dashboard/settings' },
 ];
 
 function DashboardSidebar({ activePath }: { activePath: string }) {

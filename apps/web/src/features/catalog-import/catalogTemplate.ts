@@ -1,15 +1,11 @@
-export type CatalogTemplateCurrency = 'SAR' | 'YER';
-
 export type CatalogTemplateLanguage = 'ar' | 'en';
 
 export type CatalogTemplateOptions = {
-  currency?: CatalogTemplateCurrency;
   language: CatalogTemplateLanguage;
   includeDescription: boolean;
 };
 
 export const defaultCatalogTemplateOptions: CatalogTemplateOptions = {
-  currency: 'SAR',
   language: 'ar',
   includeDescription: true,
 };
@@ -24,7 +20,6 @@ const labels = {
     descriptionEn: 'وصف المنتج بالإنجليزية',
     unit: 'الوحدة',
     price: 'السعر',
-    currency: 'العملة',
   },
   en: {
     categoryName: 'Section Name',
@@ -35,7 +30,6 @@ const labels = {
     descriptionEn: 'English Product Description',
     unit: 'Unit',
     price: 'Price',
-    currency: 'Currency',
   },
 } satisfies Record<CatalogTemplateLanguage, Record<string, string>>;
 
@@ -53,7 +47,7 @@ export function buildCatalogTemplateHeaders(options: CatalogTemplateOptions): st
     headers.push(selectedLabels.descriptionAr, selectedLabels.descriptionEn);
   }
 
-  headers.push(selectedLabels.unit, selectedLabels.currency, selectedLabels.price);
+  headers.push(selectedLabels.unit, selectedLabels.price);
 
   return headers;
 }

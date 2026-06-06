@@ -12,7 +12,6 @@ export interface ParsedCatalogImportRow {
   productName: string;
   description?: string;
   unitLabel: string;
-  currency: string;
   price: number;
 }
 
@@ -35,7 +34,6 @@ const headerAliases = {
   descriptionEn: ['english product description', 'وصف المنتج بالإنجليزية'],
   descriptionAr: ['arabic product description', 'وصف المنتج بالعربية'],
   unitLabel: ['unit', 'unit label', 'الوحدة', 'اسم الوحدة'],
-  currency: ['currency', 'العملة'],
   price: ['price', 'unit price', 'السعر', 'سعر الوحدة'],
 } as const;
 
@@ -135,7 +133,6 @@ export const parseCatalogImportWorkbook = async (
       sourceLanguage === 'en' ? headerAliases.descriptionEn : headerAliases.descriptionAr,
     ),
     price: resolveHeader(headerMap, headerAliases.price),
-    currency: resolveHeader(headerMap, headerAliases.currency),
     unitLabel: resolveHeader(headerMap, headerAliases.unitLabel),
   };
 
@@ -144,7 +141,6 @@ export const parseCatalogImportWorkbook = async (
     productNo: columns.productNo,
     productName: columns.productName,
     unitLabel: columns.unitLabel,
-    currency: columns.currency,
     price: columns.price,
   })) {
     if (columnIndex === undefined) {
@@ -167,9 +163,8 @@ export const parseCatalogImportWorkbook = async (
     const categoryName = readRequired(rowValues, columns.categoryName, 'categoryName', rowNumber, blockingErrors);
     const productName = readRequired(rowValues, columns.productName, 'productName', rowNumber, blockingErrors);
     const unitLabel = readRequired(rowValues, columns.unitLabel, 'unit', rowNumber, blockingErrors);
-    const currency = readRequired(rowValues, columns.currency, 'currency', rowNumber, blockingErrors).toUpperCase();
     const price = parseNumberCell(rowValues[columns.price ?? -1], 'price', rowNumber, blockingErrors);
-    if (!productNo || !categoryName || !productName || !unitLabel || !currency || price === undefined) {
+    if (!productNo || !categoryName || !productName || !unitLabel || price === undefined) {
       return;
     }
 
@@ -179,7 +174,6 @@ export const parseCatalogImportWorkbook = async (
       categoryName,
       productName,
       unitLabel,
-      currency,
       price,
       ...(columns.description !== undefined && normalizeCell(rowValues[columns.description])
         ? { description: normalizeCell(rowValues[columns.description]) }

@@ -101,7 +101,7 @@ describe('UploadDataPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
 
-    expect(screen.getByRole('group', { name: 'اختيار العملة' })).toBeDefined();
+    expect(screen.queryByRole('group', { name: 'اختيار العملة' })).toBeNull();
     expect(screen.getByRole('group', { name: 'اختيار اللغة' })).toBeDefined();
     expect(screen.getByRole('group', { name: 'تضمين الوصف' })).toBeDefined();
     expect(screen.getByRole('button', { name: /تحميل ملف Excel/ })).toBeDefined();
@@ -112,14 +112,12 @@ describe('UploadDataPage', () => {
     render(<UploadDataPage />);
 
     fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
-    fireEvent.click(screen.getByRole('radio', { name: 'YER' }));
     fireEvent.click(screen.getByRole('radio', { name: 'English' }));
     fireEvent.click(within(screen.getByRole('group', { name: 'تضمين الوصف' })).getByRole('radio', { name: 'لا' }));
     fireEvent.click(screen.getByRole('button', { name: /تحميل ملف Excel/ }));
 
     await waitFor(() => {
       expect(downloadCatalogTemplate).toHaveBeenCalledWith({
-        currency: 'YER',
         language: 'en',
         includeDescription: false,
       });
@@ -199,6 +197,15 @@ describe('UploadDataPage', () => {
 
     expect(uploadLink.getAttribute('href')).toBe('/dashboard/upload');
     expect(navButton?.getAttribute('data-active')).toBe('true');
+  });
+
+  it('does not list currency as a required upload column', () => {
+    render(<UploadDataPage />);
+
+    const requiredColumns = screen.getByText('الأعمدة المطلوبة').closest('[data-slot="card"]');
+
+    expect(requiredColumns?.textContent).not.toContain('العملة');
+    expect(requiredColumns?.textContent).not.toContain('Currency');
   });
 
 });

@@ -11,7 +11,6 @@ const groups: ParsedCatalogImportGroup[] = [
       categoryName: 'Cups',
       productName: 'Paper Cup',
       unitLabel: 'Small',
-      currency: 'SAR',
       price: 9,
     }],
   },
@@ -23,7 +22,6 @@ const groups: ParsedCatalogImportGroup[] = [
       categoryName: 'Plates',
       productName: 'Plate',
       unitLabel: 'White',
-      currency: 'SAR',
       price: 8,
     }],
   },
@@ -38,7 +36,6 @@ const makeGroups = (count: number, rowsPerGroup = 1): ParsedCatalogImportGroup[]
       categoryName: `Category ${groupIndex + 1}`,
       productName: `Product ${groupIndex + 1}`,
       unitLabel: `Unit ${rowIndex + 1}`,
-      currency: 'SAR',
       price: rowIndex + 1,
     })),
   }));

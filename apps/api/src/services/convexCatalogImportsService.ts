@@ -100,26 +100,13 @@ const normalizeCurrency = (currency: string | undefined): string | undefined => 
 
 const validateCompanyCurrency = (
   operatingCurrency: string | undefined,
-  groups: ParsedCatalogImportGroup[],
-) => {
+): string => {
   const normalizedCompanyCurrency = normalizeCurrency(operatingCurrency);
   if (!normalizedCompanyCurrency) {
-    return [createCatalogImportValidationError('Company operating currency must be configured before catalog import')];
+    throw createCatalogImportValidationError('Company operating currency must be configured before catalog import');
   }
 
-  const errors = [];
-  for (const group of groups) {
-    for (const row of group.rows) {
-      const rowCurrency = normalizeCurrency(row.currency);
-      if (rowCurrency !== normalizedCompanyCurrency) {
-        errors.push(createCatalogImportValidationError(
-          `رقم المنتج ${row.productNo} في الصف ${row.row} يستخدم العملة ${row.currency}; عملة الشركة هي ${normalizedCompanyCurrency}`,
-        ));
-      }
-    }
-  }
-
-  return errors;
+  return normalizedCompanyCurrency;
 };
 
 export const createConvexCatalogImportsService = (
@@ -151,13 +138,22 @@ export const createConvexCatalogImportsService = (
         const settings = await client.query(convexInternal.companySettings.get, {
           companyId: toCompanyId(companyId),
         });
-        const currencyErrors = validateCompanyCurrency(settings?.operatingCurrency, parsed.groups);
+        let currencyError: CatalogImportsServiceError | null = null;
+        try {
+          validateCompanyCurrency(settings?.operatingCurrency);
+        } catch (error) {
+          if (error instanceof CatalogImportsServiceError) {
+            currencyError = error;
+          } else {
+            throw error;
+          }
+        }
         const blockingErrors = [
           ...parsed.blockingErrors,
-          ...currencyErrors.map((error) => ({ message: error.message })),
+          ...(currencyError ? [{ message: currencyError.message }] : []),
         ];
         const translation = parsed.blockingErrors.length === 0
-          && currencyErrors.length === 0
+          && !currencyError
           ? await translator.translateGroups(parsed.groups, input.sourceLanguage)
           : { warnings: [] };
 
@@ -191,15 +187,16 @@ export const createConvexCatalogImportsService = (
         const settings = await client.query(convexInternal.companySettings.get, {
           companyId: toCompanyId(companyId),
         });
-        const currencyErrors = validateCompanyCurrency(settings?.operatingCurrency, parsed.groups);
-        if (currencyErrors.length > 0) {
-          throw currencyErrors[0];
-        }
+        const operatingCurrency = validateCompanyCurrency(settings?.operatingCurrency);
 
         const translation = await translator.translateGroups(parsed.groups, input.sourceLanguage);
+        const groups = translation.groups.map((group) => ({
+          ...group,
+          currency: operatingCurrency,
+        }));
         const result = await client.action(convexInternal.catalogImports.apply, {
           companyId: toCompanyId(companyId),
-          groups: translation.groups,
+          groups,
         });
 
         return {

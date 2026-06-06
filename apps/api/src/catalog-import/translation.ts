@@ -11,6 +11,7 @@ export interface TranslatedImportGroup {
   category: { en: string; ar: string };
   productName: { en: string; ar: string };
   description?: { en: string; ar: string };
+  currency?: string;
   units: Array<{ labelEn: string; labelAr: string; price: number; sortOrder?: number }>;
 }
 

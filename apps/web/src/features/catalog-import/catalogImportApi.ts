@@ -39,7 +39,7 @@ export interface CatalogImportApplyResult {
   notTranslatedFallbackCount: number;
 }
 
-const parseJsonResponse = async <T>(response: Response): Promise<T> => {
+export const parseJsonResponse = async <T>(response: Response): Promise<T> => {
   const rawText = await response.text();
   let payload: T | { error?: { message?: string }; message?: string } | string | undefined;
   if (rawText.length > 0) {
