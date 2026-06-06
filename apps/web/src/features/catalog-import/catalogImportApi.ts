@@ -3,6 +3,10 @@ export type SourceLanguage = 'ar' | 'en';
 export interface CompanyDto {
   id: string;
   name: string;
+  ownerPhone?: string;
+  config?: {
+    botEnabled?: boolean;
+  };
 }
 
 export interface CatalogImportPreview {
@@ -76,12 +80,25 @@ export const resolveYasTradingCompany = (companies: CompanyDto[]): {
   const normalizeCompanyName = (name: string) =>
     name.trim().replace(/_/g, ' ').replace(/\s+/g, ' ').toLocaleLowerCase();
   const exactMatches = companies.filter((company) => company.name === 'YAS_Trading');
+  const aliasMatches = companies.filter((company) => normalizedTargetNames.has(normalizeCompanyName(company.name)));
   const matches = exactMatches.length > 0
     ? exactMatches
-    : companies.filter((company) => normalizedTargetNames.has(normalizeCompanyName(company.name)));
+    : aliasMatches;
 
   if (matches.length === 0) {
     return { error: 'شركة YAS_Trading غير موجودة.' };
+  }
+
+  if (exactMatches.length === 0 && matches.length > 1) {
+    const activeAliasMatches = matches.filter((company) => company.config?.botEnabled === true);
+    if (activeAliasMatches.length === 1) {
+      return { company: activeAliasMatches[0] };
+    }
+
+    const nonSampleOwnerMatches = matches.filter((company) => company.ownerPhone !== '967700000001');
+    if (nonSampleOwnerMatches.length === 1) {
+      return { company: nonSampleOwnerMatches[0] };
+    }
   }
 
   if (matches.length > 1) {

@@ -74,4 +74,28 @@ describe('catalogImportApi', () => {
       company: { id: 'yas-trading', name: 'YAS_Trading' },
     });
   });
+
+  it('resolves the active seeded demo company when duplicate aliases exist', () => {
+    expect(resolveYasTradingCompany([
+      {
+        id: 'sample-seed',
+        name: 'YAS Packaging Co',
+        ownerPhone: '967700000001',
+        config: { botEnabled: false },
+      },
+      {
+        id: 'active-seed',
+        name: 'YAS Packaging Co',
+        ownerPhone: '967771408660',
+        config: { botEnabled: true },
+      },
+    ])).toEqual({
+      company: {
+        id: 'active-seed',
+        name: 'YAS Packaging Co',
+        ownerPhone: '967771408660',
+        config: { botEnabled: true },
+      },
+    });
+  });
 });
