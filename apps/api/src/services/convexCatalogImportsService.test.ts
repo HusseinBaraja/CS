@@ -202,4 +202,42 @@ describe('createConvexCatalogImportsService', () => {
       }],
     });
   });
+
+  test('disables description translation when applying imports', async () => {
+    let translatorOptions: unknown;
+    const service = createConvexCatalogImportsService({
+      createClient: () => ({
+        query: async () => ({ id: 'company-1', name: 'YAS_Trading', operatingCurrency: 'YER' }),
+        action: async () => ({
+          createdOrUpdatedCategoryCount: 1,
+          replacedProductGroupCount: 1,
+          replacedUnitCount: 1,
+        }),
+      }) as never,
+      translator: {
+        translateGroups: async (_groups, _sourceLanguage, options) => {
+          translatorOptions = options;
+          return {
+            groups: [{
+              productNo: 'P-1',
+              category: { en: 'Cups', ar: 'أكواب' },
+              productName: { en: 'Paper Cup', ar: 'كوب ورقي' },
+              description: { en: 'Paper cup description', ar: 'not_translated' },
+              units: [{ labelEn: 'Small', labelAr: 'صغير', price: 9 }],
+            }],
+            translatedFieldCount: 0,
+            notTranslatedFallbackCount: 0,
+            warnings: [],
+          };
+        },
+      },
+    });
+
+    await service.apply('company-1', {
+      file: await createValidWorkbookFile(),
+      sourceLanguage: 'en',
+    });
+
+    expect(translatorOptions).toMatchObject({ translateDescriptions: false });
+  });
 });

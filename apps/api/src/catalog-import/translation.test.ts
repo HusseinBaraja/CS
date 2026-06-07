@@ -124,6 +124,25 @@ describe('catalog import translation', () => {
     expect(result.translatedFieldCount).toBe(3);
   });
 
+  test('keeps source description and stores target description as not_translated when description translation is disabled', async () => {
+    const result = await createCatalogImportTranslator({
+      translateText: async (text) => `${text} ar`,
+      cleanProductName: async (sourceName) => sourceName,
+    }).translateGroups([{
+      productNo: 'P-1',
+      rows: [{
+        ...groups[0]!.rows[0]!,
+        description: 'Paper cup for hot drinks',
+      }],
+    }], 'en', { translateDescriptions: false });
+
+    expect(result.groups[0]?.description).toEqual({
+      en: 'Paper cup for hot drinks',
+      ar: 'not_translated',
+    });
+    expect(result.translatedFieldCount).toBe(3);
+  });
+
   test('generates missing descriptions by default', async () => {
     const result = await createCatalogImportTranslator({
       translateText: async (text) => `${text} ar`,

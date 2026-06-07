@@ -15,6 +15,7 @@ import type * as analytics_productReaders from "../analytics/productReaders.js";
 import type * as analytics_windowing from "../analytics/windowing.js";
 import type * as catalogImports from "../catalogImports.js";
 import type * as catalogLanguageHints from "../catalogLanguageHints.js";
+import type * as catalogMaintenance from "../catalogMaintenance.js";
 import type * as catalogRestructureCleanup from "../catalogRestructureCleanup.js";
 import type * as catalogRestructureCleanupProcessors from "../catalogRestructureCleanupProcessors.js";
 import type * as catalogRestructureCleanupProducts from "../catalogRestructureCleanupProducts.js";
@@ -88,6 +89,7 @@ declare const fullApi: ApiFromModules<{
   "analytics/windowing": typeof analytics_windowing;
   catalogImports: typeof catalogImports;
   catalogLanguageHints: typeof catalogLanguageHints;
+  catalogMaintenance: typeof catalogMaintenance;
   catalogRestructureCleanup: typeof catalogRestructureCleanup;
   catalogRestructureCleanupProcessors: typeof catalogRestructureCleanupProcessors;
   catalogRestructureCleanupProducts: typeof catalogRestructureCleanupProducts;

@@ -156,6 +156,7 @@ export const createConvexCatalogImportsService = (
           && !currencyError
           ? await translator.translateGroups(parsed.groups, input.sourceLanguage, {
             generateDescriptions: input.generateDescriptions,
+            translateDescriptions: false,
           })
           : { warnings: [] };
 
@@ -193,6 +194,7 @@ export const createConvexCatalogImportsService = (
 
         const translation = await translator.translateGroups(parsed.groups, input.sourceLanguage, {
           generateDescriptions: input.generateDescriptions,
+          translateDescriptions: false,
         });
         const groups = translation.groups.map((group) => ({
           ...group,

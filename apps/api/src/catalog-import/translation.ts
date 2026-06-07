@@ -47,7 +47,7 @@ export interface CatalogImportTranslator {
   translateGroups(
     groups: ParsedCatalogImportGroup[],
     sourceLanguage: CatalogImportSourceLanguage,
-    options?: { generateDescriptions?: boolean },
+    options?: { generateDescriptions?: boolean; translateDescriptions?: boolean },
   ): Promise<TranslationResult>;
 }
 
@@ -225,6 +225,7 @@ export const createCatalogImportTranslator = (
     const targetLanguage = oppositeLanguage(sourceLanguage);
     const limitGroup = createAsyncLimiter(4);
     const shouldGenerateDescriptions = translatorOptions.generateDescriptions !== false;
+    const shouldTranslateDescriptions = translatorOptions.translateDescriptions !== false;
 
     const translate = async (text: string, field: string, productNo: string): Promise<string> => {
       try {
@@ -298,11 +299,16 @@ export const createCatalogImportTranslator = (
           ? await generateDescription(firstRow.productName, cleanedProductName, group.productNo)
           : undefined);
 
-      const [category, productName, description] = await Promise.all([
+      const [category, productName, translatedDescription] = await Promise.all([
         translate(firstRow.categoryName, 'categoryName', group.productNo),
         translate(cleanedProductName, 'productName', group.productNo),
-        sourceDescription ? translate(sourceDescription, 'description', group.productNo) : undefined,
+        sourceDescription && shouldTranslateDescriptions
+          ? translate(sourceDescription, 'description', group.productNo)
+          : undefined,
       ]);
+      const description = sourceDescription
+        ? sourceTarget(sourceDescription, translatedDescription ?? 'not_translated', sourceLanguage)
+        : undefined;
 
       const units = await Promise.all(group.rows.map((row, index) => limitUnit(async () => {
         const translatedLabel = await translate(row.unitLabel, 'unitLabel', group.productNo);
@@ -319,7 +325,7 @@ export const createCatalogImportTranslator = (
         productNo: group.productNo,
         category: sourceTarget(firstRow.categoryName, category, sourceLanguage),
         productName: sourceTarget(cleanedProductName, productName, sourceLanguage),
-        ...(sourceDescription && description ? { description: sourceTarget(sourceDescription, description, sourceLanguage) } : {}),
+        ...(description ? { description } : {}),
         units,
       };
     })));
