@@ -108,10 +108,15 @@ export const resolveYasTradingCompany = (companies: CompanyDto[]): {
   return { company: matches[0] };
 };
 
-const catalogImportFormData = (file: File, sourceLanguage: SourceLanguage): FormData => {
+const catalogImportFormData = (
+  file: File,
+  sourceLanguage: SourceLanguage,
+  generateDescriptions: boolean,
+): FormData => {
   const formData = new FormData();
   formData.set('file', file);
   formData.set('sourceLanguage', sourceLanguage);
+  formData.set('generateDescriptions', String(generateDescriptions));
   return formData;
 };
 
@@ -119,12 +124,13 @@ export const previewCatalogImport = async (
   companyId: string,
   file: File,
   sourceLanguage: SourceLanguage,
+  generateDescriptions = true,
 ): Promise<CatalogImportPreview> => {
   const encodedCompanyId = encodeURIComponent(companyId);
   const payload = await parseJsonResponse<{ ok: true; preview: CatalogImportPreview }>(
     await fetch(`/api/companies/${encodedCompanyId}/catalog-imports/preview`, {
       method: 'POST',
-      body: catalogImportFormData(file, sourceLanguage),
+      body: catalogImportFormData(file, sourceLanguage, generateDescriptions),
     }),
   );
   return payload.preview;
@@ -134,12 +140,13 @@ export const applyCatalogImport = async (
   companyId: string,
   file: File,
   sourceLanguage: SourceLanguage,
+  generateDescriptions = true,
 ): Promise<CatalogImportApplyResult> => {
   const encodedCompanyId = encodeURIComponent(companyId);
   const payload = await parseJsonResponse<{ ok: true; result: CatalogImportApplyResult }>(
     await fetch(`/api/companies/${encodedCompanyId}/catalog-imports/apply`, {
       method: 'POST',
-      body: catalogImportFormData(file, sourceLanguage),
+      body: catalogImportFormData(file, sourceLanguage, generateDescriptions),
     }),
   );
   return payload.result;

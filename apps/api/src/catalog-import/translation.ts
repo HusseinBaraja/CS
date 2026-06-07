@@ -44,7 +44,11 @@ export type GenerateProductDescription = (
 ) => Promise<string>;
 
 export interface CatalogImportTranslator {
-  translateGroups(groups: ParsedCatalogImportGroup[], sourceLanguage: CatalogImportSourceLanguage): Promise<TranslationResult>;
+  translateGroups(
+    groups: ParsedCatalogImportGroup[],
+    sourceLanguage: CatalogImportSourceLanguage,
+    options?: { generateDescriptions?: boolean },
+  ): Promise<TranslationResult>;
 }
 
 const createAsyncLimiter = (maxConcurrency: number): (<T>(task: () => Promise<T>) => Promise<T>) => {
@@ -214,12 +218,13 @@ export const createCatalogImportTranslator = (
     generateProductDescription?: GenerateProductDescription;
   },
 ): CatalogImportTranslator => ({
-  async translateGroups(groups, sourceLanguage) {
+  async translateGroups(groups, sourceLanguage, translatorOptions = {}) {
     let translatedFieldCount = 0;
     let notTranslatedFallbackCount = 0;
     const warnings: CatalogImportTranslationWarning[] = [];
     const targetLanguage = oppositeLanguage(sourceLanguage);
     const limitGroup = createAsyncLimiter(4);
+    const shouldGenerateDescriptions = translatorOptions.generateDescriptions !== false;
 
     const translate = async (text: string, field: string, productNo: string): Promise<string> => {
       try {
@@ -289,7 +294,9 @@ export const createCatalogImportTranslator = (
       const limitUnit = createAsyncLimiter(8);
       const cleanedProductName = await cleanProductName(firstRow.productName, group.productNo);
       const sourceDescription = firstRow.description
-        ?? await generateDescription(firstRow.productName, cleanedProductName, group.productNo);
+        ?? (shouldGenerateDescriptions
+          ? await generateDescription(firstRow.productName, cleanedProductName, group.productNo)
+          : undefined);
 
       const [category, productName, description] = await Promise.all([
         translate(firstRow.categoryName, 'categoryName', group.productNo),

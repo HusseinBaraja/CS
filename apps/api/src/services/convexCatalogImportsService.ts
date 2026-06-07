@@ -154,7 +154,9 @@ export const createConvexCatalogImportsService = (
         ];
         const translation = parsed.blockingErrors.length === 0
           && !currencyError
-          ? await translator.translateGroups(parsed.groups, input.sourceLanguage)
+          ? await translator.translateGroups(parsed.groups, input.sourceLanguage, {
+            generateDescriptions: input.generateDescriptions,
+          })
           : { warnings: [] };
 
         return {
@@ -189,7 +191,9 @@ export const createConvexCatalogImportsService = (
         });
         const operatingCurrency = validateCompanyCurrency(settings?.operatingCurrency);
 
-        const translation = await translator.translateGroups(parsed.groups, input.sourceLanguage);
+        const translation = await translator.translateGroups(parsed.groups, input.sourceLanguage, {
+          generateDescriptions: input.generateDescriptions,
+        });
         const groups = translation.groups.map((group) => ({
           ...group,
           currency: operatingCurrency,

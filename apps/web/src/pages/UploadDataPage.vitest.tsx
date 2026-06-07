@@ -90,6 +90,8 @@ describe('UploadDataPage', () => {
     expect(screen.getByRole('button', { name: /تنزيل القالب/ })).toBeDefined();
     expect(screen.getByRole('button', { name: /معاينة/ })).toBeDefined();
     expect(screen.getByLabelText('ملف الكتالوج')).toBeDefined();
+    expect(screen.getByRole('group', { name: 'إنشاء وصف المنتج بالذكاء الاصطناعي' })).toBeDefined();
+    expect(screen.getByRole('radio', { name: 'نعم' }).getAttribute('data-state')).toBe('on');
     expect(screen.getByText('لم تتم معاينة أي ملف بعد.')).toBeDefined();
     await waitFor(() => expect(screen.getByText('YAS_Trading')).toBeDefined());
     expect(screen.queryByText('reda-catalog-template.xlsx')).toBeNull();
@@ -135,6 +137,7 @@ describe('UploadDataPage', () => {
     fireEvent.change(screen.getByLabelText('لغة مصدر الملف'), {
       target: { value: 'en' },
     });
+    fireEvent.click(screen.getByRole('radio', { name: 'لا' }));
     fireEvent.click(screen.getByRole('button', { name: /معاينة/ }));
 
     await waitFor(() => expect(screen.getByText('P-1')).toBeDefined());
@@ -144,6 +147,10 @@ describe('UploadDataPage', () => {
     const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls.some(([url]) => String(url).includes('/preview'))).toBe(true);
     expect(calls.some(([url]) => String(url).includes('/apply'))).toBe(true);
+    const previewBody = calls.find(([url]) => String(url).includes('/preview'))?.[1]?.body as FormData;
+    const applyBody = calls.find(([url]) => String(url).includes('/apply'))?.[1]?.body as FormData;
+    expect(previewBody.get('generateDescriptions')).toBe('false');
+    expect(applyBody.get('generateDescriptions')).toBe('false');
   });
 
   it('clears the generated preview when source language changes', async () => {

@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
+import { ToggleGroup, ToggleGroupItem } from '../components/ui/toggle-group';
 import { CatalogTemplateDownload } from '../features/catalog-import/CatalogTemplateDownload';
 import { buildCatalogTemplateHeaders, defaultCatalogTemplateOptions } from '../features/catalog-import/catalogTemplate';
 import {
@@ -23,6 +24,7 @@ const requiredColumns = buildCatalogTemplateHeaders(defaultCatalogTemplateOption
 export function UploadDataPage() {
   const [file, setFile] = useState<File | null>(null);
   const [sourceLanguage, setSourceLanguage] = useState<SourceLanguage>('ar');
+  const [generateDescriptions, setGenerateDescriptions] = useState(true);
   const [companyState, setCompanyState] = useState<ReturnType<typeof resolveYasTradingCompany> | null>(null);
   const [preview, setPreview] = useState<CatalogImportPreview | null>(null);
   const [result, setResult] = useState<CatalogImportApplyResult | null>(null);
@@ -76,7 +78,7 @@ export function UploadDataPage() {
     setError(null);
     setResult(null);
     try {
-      setPreview(await previewCatalogImport(companyState.company.id, file, sourceLanguage));
+      setPreview(await previewCatalogImport(companyState.company.id, file, sourceLanguage, generateDescriptions));
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'فشلت المعاينة.');
     } finally {
@@ -92,7 +94,7 @@ export function UploadDataPage() {
     setIsApplying(true);
     setError(null);
     try {
-      setResult(await applyCatalogImport(companyState.company.id, file, sourceLanguage));
+      setResult(await applyCatalogImport(companyState.company.id, file, sourceLanguage, generateDescriptions));
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'فشل تطبيق الاستيراد.');
     } finally {
@@ -166,6 +168,35 @@ export function UploadDataPage() {
                       <option value="ar">العربية</option>
                       <option value="en">English</option>
                     </select>
+                  </div>
+                  <div className="flex w-full flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dfe6e2] bg-white p-3 text-start">
+                    <div className="flex flex-col gap-1">
+                      <p className="text-sm font-bold text-[#1d2522]">إنشاء وصف المنتج بالذكاء الاصطناعي</p>
+                      <p className="text-xs leading-5 text-[#66706c]">
+                        عند الإيقاف يتم تنظيف اسم المنتج وترجمته فقط، ولا ينشئ النظام وصفا جديدا قبل الحفظ.
+                      </p>
+                    </div>
+                    <ToggleGroup
+                      aria-label="إنشاء وصف المنتج بالذكاء الاصطناعي"
+                      className="rounded-lg border border-[#cdd8d2] bg-[#f8fbf9]"
+                      type="single"
+                      value={generateDescriptions ? 'yes' : 'no'}
+                      onValueChange={(value) => {
+                        if (!value) {
+                          return;
+                        }
+                        setGenerateDescriptions(value === 'yes');
+                        setPreview(null);
+                        setResult(null);
+                      }}
+                    >
+                      <ToggleGroupItem value="yes" aria-label="نعم" className="data-[state=on]:bg-[#0d7c47] data-[state=on]:text-white">
+                        نعم
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="no" aria-label="لا" className="data-[state=on]:bg-[#0d7c47] data-[state=on]:text-white">
+                        لا
+                      </ToggleGroupItem>
+                    </ToggleGroup>
                   </div>
                   <div className="flex w-full flex-wrap items-center justify-center gap-3">
                     <CatalogTemplateDownload />

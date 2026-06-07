@@ -55,6 +55,7 @@ export interface CatalogImportApplyResult {
 export interface CatalogImportUploadInput {
   file?: File;
   sourceLanguage: CatalogImportSourceLanguage;
+  generateDescriptions?: boolean;
 }
 
 export interface CatalogImportsService {

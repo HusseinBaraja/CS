@@ -13,6 +13,7 @@ const authHeaders = { 'x-api-key': API_KEY };
 const createFormData = (file = new File(['fake'], 'catalog.xlsx')) => {
   const body = new FormData();
   body.set('sourceLanguage', 'ar');
+  body.set('generateDescriptions', 'false');
   body.set('file', file);
   return body;
 };
@@ -99,6 +100,7 @@ describe('catalog import routes', () => {
     expect(response.status).toBe(200);
     expect(receivedCompanyId).toBe('company-1');
     expect(receivedInput?.sourceLanguage).toBe('ar');
+    expect(receivedInput?.generateDescriptions).toBe(false);
     expect(receivedInput?.file?.name).toBe('catalog.xlsx');
     expect(await response.json()).toEqual({
       ok: true,

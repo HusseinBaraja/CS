@@ -107,4 +107,33 @@ describe('catalog import translation', () => {
     expect(result.warnings).toHaveLength(3);
     expect(result.groups[0]?.productName).toEqual({ en: 'Paper Cup', ar: 'not_translated' });
   });
+
+  test('skips generated descriptions when disabled', async () => {
+    let generatedDescriptionCount = 0;
+    const result = await createCatalogImportTranslator({
+      translateText: async (text) => `${text} ar`,
+      cleanProductName: async (sourceName) => sourceName,
+      generateProductDescription: async () => {
+        generatedDescriptionCount += 1;
+        return 'Generated description';
+      },
+    }).translateGroups([groups[0]!], 'en', { generateDescriptions: false });
+
+    expect(generatedDescriptionCount).toBe(0);
+    expect(result.groups[0]?.description).toBeUndefined();
+    expect(result.translatedFieldCount).toBe(3);
+  });
+
+  test('generates missing descriptions by default', async () => {
+    const result = await createCatalogImportTranslator({
+      translateText: async (text) => `${text} ar`,
+      cleanProductName: async (sourceName) => sourceName,
+      generateProductDescription: async () => 'Generated description',
+    }).translateGroups([groups[0]!], 'en');
+
+    expect(result.groups[0]?.description).toEqual({
+      en: 'Generated description',
+      ar: 'Generated description ar',
+    });
+  });
 });
