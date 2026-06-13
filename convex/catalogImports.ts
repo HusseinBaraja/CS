@@ -3,11 +3,10 @@ import type { Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { internalAction, internalMutation, type MutationCtx } from './_generated/server';
 import { refreshCompanyCatalogLanguageHintsInMutation } from './catalogLanguageHints';
-import { normalizeNameKey } from './categoriesShared';
+import { normalizeNameKey, VALIDATION_PREFIX } from './categoriesShared';
 import { buildProductEmbeddingPayload } from './productEmbeddingRuntime';
 
 const NOT_FOUND_PREFIX = 'NOT_FOUND';
-const VALIDATION_PREFIX = 'VALIDATION_FAILED';
 const UNIT_DELETE_BATCH_SIZE = 50;
 
 const bilingualTextValidator = {
