@@ -57,5 +57,13 @@ export const createChatGenerateProductDescription = (
       logContext: { feature: 'catalog_import_description_generation' },
     });
 
-    return response.text.trim();
+    const text = response.text.trim();
+    if (!text) {
+      const snippet = response.text.slice(0, 120);
+      throw new Error(
+        `Empty model output for chat enrichment (provider=${response.provider}, model=${response.model ?? 'unknown'}, finishReason=${response.finishReason}, responseId=${response.responseId ?? 'unknown'}, snippet=${JSON.stringify(snippet)})`,
+      );
+    }
+
+    return text;
   };
