@@ -1,4 +1,8 @@
 export const createAsyncLimiter = (maxConcurrency: number): (<T>(task: () => Promise<T>) => Promise<T>) => {
+  if (!Number.isFinite(maxConcurrency) || !Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
+    throw new RangeError('maxConcurrency must be a finite integer greater than or equal to 1');
+  }
+
   let active = 0;
   const queue: Array<() => void> = [];
 
