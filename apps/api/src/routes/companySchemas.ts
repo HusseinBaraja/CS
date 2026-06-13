@@ -1,5 +1,5 @@
-import { normalizeCurrencyCode } from '@cs/shared';
 import type { CompanyConfig, CreateCompanyInput, UpdateCompanyInput, UpdateCompanySettingsInput } from '../services/companies';
+import { parseCurrencyCode } from './currencyParsers';
 import {
   isRecord,
   parseObject,
@@ -7,6 +7,7 @@ import {
   parseRequiredString,
   type ParseResult,
 } from './parserUtils';
+import { parseMissingPricePolicy, parsePositiveInteger } from './settingsParsers';
 
 const isConfigValue = (value: unknown): value is string | number | boolean =>
   typeof value === "string" || typeof value === "number" || typeof value === "boolean";
@@ -189,51 +190,6 @@ export const parseUpdateCompanyBody = (value: unknown): ParseResult<UpdateCompan
     ok: true,
     value: updates,
   };
-};
-
-const parseMissingPricePolicy = (value: unknown): ParseResult<UpdateCompanySettingsInput["missingPricePolicy"]> => {
-  if (value === "reply_unavailable" || value === "handoff") {
-    return { ok: true, value };
-  }
-
-  return {
-    ok: false,
-    message: "missingPricePolicy must be reply_unavailable or handoff",
-  };
-};
-
-const parsePositiveInteger = (value: unknown, fieldName: string): ParseResult<number> => {
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-    return {
-      ok: false,
-      message: `${fieldName} must be a positive integer`,
-    };
-  }
-
-  return { ok: true, value };
-};
-
-const parseCurrencyCode = (value: unknown): ParseResult<string | undefined> => {
-  if (value === undefined) {
-    return { ok: true, value: undefined };
-  }
-
-  if (typeof value !== "string") {
-    return {
-      ok: false,
-      message: "operatingCurrency must be a 3-letter currency code",
-    };
-  }
-
-  const normalized = normalizeCurrencyCode(value);
-  if (!normalized) {
-    return {
-      ok: false,
-      message: "operatingCurrency must be a 3-letter currency code",
-    };
-  }
-
-  return { ok: true, value: normalized };
 };
 
 export const parseUpdateCompanySettingsBody = (value: unknown): ParseResult<UpdateCompanySettingsInput> => {

@@ -26,6 +26,7 @@ import type * as companies from "../companies.js";
 import type * as companyCleanup from "../companyCleanup.js";
 import type * as companyRuntime from "../companyRuntime.js";
 import type * as companySettings from "../companySettings.js";
+import type * as companySettingsHelpers from "../companySettingsHelpers.js";
 import type * as conversations from "../conversations.js";
 import type * as conversations_constants from "../conversations/constants.js";
 import type * as conversations_conversation_readers from "../conversations/conversation_readers.js";
@@ -72,6 +73,10 @@ import type * as products_types from "../products/types.js";
 import type * as products_validation from "../products/validation.js";
 import type * as seed from "../seed.js";
 import type * as seedData from "../seedData.js";
+import type * as seedDataAccess from "../seedDataAccess.js";
+import type * as seedLock from "../seedLock.js";
+import type * as seedOrchestration from "../seedOrchestration.js";
+import type * as seedTypes from "../seedTypes.js";
 import type * as testFixtures from "../testFixtures.js";
 import type * as vectorSearch from "../vectorSearch.js";
 
@@ -100,6 +105,7 @@ declare const fullApi: ApiFromModules<{
   companyCleanup: typeof companyCleanup;
   companyRuntime: typeof companyRuntime;
   companySettings: typeof companySettings;
+  companySettingsHelpers: typeof companySettingsHelpers;
   conversations: typeof conversations;
   "conversations/constants": typeof conversations_constants;
   "conversations/conversation_readers": typeof conversations_conversation_readers;
@@ -146,6 +152,10 @@ declare const fullApi: ApiFromModules<{
   "products/validation": typeof products_validation;
   seed: typeof seed;
   seedData: typeof seedData;
+  seedDataAccess: typeof seedDataAccess;
+  seedLock: typeof seedLock;
+  seedOrchestration: typeof seedOrchestration;
+  seedTypes: typeof seedTypes;
   testFixtures: typeof testFixtures;
   vectorSearch: typeof vectorSearch;
 }>;

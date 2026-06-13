@@ -55,7 +55,7 @@ const normalizeServiceError = (error: unknown): ProductsServiceError => {
 
   if (error instanceof Error) {
     if (error instanceof ConvexIdValidationError) {
-      return createValidationServiceError("Invalid product, company, category, or variant identifier");
+      return createValidationServiceError("Invalid product, company, category, variant, or unit identifier");
     }
 
     const taggedError = parseTaggedError(error.message);
@@ -69,7 +69,7 @@ const normalizeServiceError = (error: unknown): ProductsServiceError => {
       error.message.includes("Invalid argument") ||
       error.message.includes("Unable to decode")
     ) {
-      return createValidationServiceError("Invalid product, company, category, or variant identifier");
+      return createValidationServiceError("Invalid product, company, category, variant, or unit identifier");
     }
   }
 
