@@ -11,7 +11,13 @@ import {
   type ParseResult,
 } from './parserUtils';
 
-export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProductVariantInput> => {
+type LabeledPriceCreateInput = CreateProductVariantInput | CreateProductUnitInput;
+type LabeledPriceUpdateInput = UpdateProductVariantInput | UpdateProductUnitInput;
+
+const parseLabeledPriceCreate = <T extends LabeledPriceCreateInput>(
+  value: unknown,
+  options: { priceRequired?: boolean; includeSortOrder?: boolean } = {},
+): ParseResult<T> => {
   const parsedObject = parseObject(value);
   if (!parsedObject.ok) {
     return parsedObject;
@@ -32,10 +38,24 @@ export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProduc
     return price;
   }
 
+  const sortOrder = options.includeSortOrder
+    ? parseOptionalNumber(parsedObject.value.sortOrder, 'sortOrder')
+    : { ok: true, value: undefined } as const;
+  if (!sortOrder.ok) {
+    return sortOrder;
+  }
+
   if (!labelEn.value && !labelAr.value) {
     return {
       ok: false,
       message: 'at least one of labelEn or labelAr is required',
+    };
+  }
+
+  if (options.priceRequired && (price.value === undefined || price.value === null)) {
+    return {
+      ok: false,
+      message: 'price is required',
     };
   }
 
@@ -45,11 +65,15 @@ export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProduc
       ...(labelEn.value !== undefined && labelEn.value !== null ? { labelEn: labelEn.value } : {}),
       ...(labelAr.value !== undefined && labelAr.value !== null ? { labelAr: labelAr.value } : {}),
       ...(price.value !== undefined && price.value !== null ? { price: price.value } : {}),
-    },
+      ...(sortOrder.value !== undefined && sortOrder.value !== null ? { sortOrder: sortOrder.value } : {}),
+    } as T,
   };
 };
 
-export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProductVariantInput> => {
+const parseLabeledPriceUpdate = <T extends LabeledPriceUpdateInput>(
+  value: unknown,
+  options: { allowPriceNull?: boolean; includeSortOrder?: boolean } = {},
+): ParseResult<T> => {
   const parsedObject = parseObject(value);
   if (!parsedObject.ok) {
     return parsedObject;
@@ -62,7 +86,7 @@ export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProduc
     };
   }
 
-  const updates: UpdateProductVariantInput = {};
+  const updates: Record<string, string | number | null | undefined> = {};
 
   if ('labelEn' in parsedObject.value) {
     const labelEn = parseOptionalString(parsedObject.value.labelEn, 'labelEn', { allowNull: true });
@@ -84,7 +108,7 @@ export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProduc
 
   if ('price' in parsedObject.value) {
     const price = parseOptionalNumber(parsedObject.value.price, 'price', {
-      allowNull: true,
+      allowNull: options.allowPriceNull,
     });
     if (!price.ok) {
       return price;
@@ -93,113 +117,7 @@ export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProduc
     updates.price = price.value;
   }
 
-  if (Object.keys(updates).length === 0) {
-    return {
-      ok: false,
-      message: 'Request body must include at least one updatable field',
-    };
-  }
-
-  return {
-    ok: true,
-    value: updates,
-  };
-};
-
-export const parseCreateUnitBody = (value: unknown): ParseResult<CreateProductUnitInput> => {
-  const parsedObject = parseObject(value);
-  if (!parsedObject.ok) {
-    return parsedObject;
-  }
-
-  const labelEn = parseOptionalString(parsedObject.value.labelEn, 'labelEn');
-  if (!labelEn.ok) {
-    return labelEn;
-  }
-
-  const labelAr = parseOptionalString(parsedObject.value.labelAr, 'labelAr');
-  if (!labelAr.ok) {
-    return labelAr;
-  }
-
-  const price = parseOptionalNumber(parsedObject.value.price, 'price');
-  if (!price.ok) {
-    return price;
-  }
-
-  const sortOrder = parseOptionalNumber(parsedObject.value.sortOrder, 'sortOrder');
-  if (!sortOrder.ok) {
-    return sortOrder;
-  }
-
-  if (!labelEn.value && !labelAr.value) {
-    return {
-      ok: false,
-      message: 'at least one of labelEn or labelAr is required',
-    };
-  }
-
-  if (price.value === undefined || price.value === null) {
-    return {
-      ok: false,
-      message: 'price is required',
-    };
-  }
-
-  return {
-    ok: true,
-    value: {
-      ...(labelEn.value !== undefined && labelEn.value !== null ? { labelEn: labelEn.value } : {}),
-      ...(labelAr.value !== undefined && labelAr.value !== null ? { labelAr: labelAr.value } : {}),
-      price: price.value,
-      ...(sortOrder.value !== undefined && sortOrder.value !== null ? { sortOrder: sortOrder.value } : {}),
-    },
-  };
-};
-
-export const parseUpdateUnitBody = (value: unknown): ParseResult<UpdateProductUnitInput> => {
-  const parsedObject = parseObject(value);
-  if (!parsedObject.ok) {
-    return parsedObject;
-  }
-
-  if (Object.keys(parsedObject.value).length === 0) {
-    return {
-      ok: false,
-      message: 'Request body must include at least one updatable field',
-    };
-  }
-
-  const updates: UpdateProductUnitInput = {};
-
-  if ('labelEn' in parsedObject.value) {
-    const labelEn = parseOptionalString(parsedObject.value.labelEn, 'labelEn', { allowNull: true });
-    if (!labelEn.ok) {
-      return labelEn;
-    }
-
-    updates.labelEn = labelEn.value;
-  }
-
-  if ('labelAr' in parsedObject.value) {
-    const labelAr = parseOptionalString(parsedObject.value.labelAr, 'labelAr', { allowNull: true });
-    if (!labelAr.ok) {
-      return labelAr;
-    }
-
-    updates.labelAr = labelAr.value;
-  }
-
-  if ('price' in parsedObject.value) {
-    const price = parseOptionalNumber(parsedObject.value.price, 'price', { allowNull: true });
-    if (!price.ok) {
-      return price;
-    }
-
-    updates.price = price.value;
-  }
-
-  if ('sortOrder' in parsedObject.value) {
+  if (options.includeSortOrder && 'sortOrder' in parsedObject.value) {
     const sortOrder = parseOptionalNumber(parsedObject.value.sortOrder, 'sortOrder', { allowNull: true });
     if (!sortOrder.ok) {
       return sortOrder;
@@ -217,6 +135,21 @@ export const parseUpdateUnitBody = (value: unknown): ParseResult<UpdateProductUn
 
   return {
     ok: true,
-    value: updates,
+    value: updates as unknown as T,
   };
 };
+
+export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProductVariantInput> =>
+  parseLabeledPriceCreate<CreateProductVariantInput>(value);
+
+export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProductVariantInput> =>
+  parseLabeledPriceUpdate<UpdateProductVariantInput>(value, { allowPriceNull: true });
+
+export const parseCreateUnitBody = (value: unknown): ParseResult<CreateProductUnitInput> =>
+  parseLabeledPriceCreate<CreateProductUnitInput>(value, {
+    includeSortOrder: true,
+    priceRequired: true,
+  });
+
+export const parseUpdateUnitBody = (value: unknown): ParseResult<UpdateProductUnitInput> =>
+  parseLabeledPriceUpdate<UpdateProductUnitInput>(value, { includeSortOrder: true });

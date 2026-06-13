@@ -151,6 +151,40 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(screen.getByText('تم حفظ العملة.')).toBeDefined());
   });
 
+  it('shows unsupported stored currency until a supported currency is chosen', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === '/api/companies') {
+        return new Response(JSON.stringify({
+          ok: true,
+          companies: [{ id: 'company-1', name: 'YAS_Trading' }],
+        }));
+      }
+
+      if (url === '/api/companies/company-1/settings' && init?.method === 'PUT') {
+        return new Response(JSON.stringify({
+          ok: true,
+          settings: { ...settings, operatingCurrency: 'YER' },
+        }));
+      }
+
+      return new Response(JSON.stringify({
+        ok: true,
+        settings: { ...settings, operatingCurrency: 'USD' },
+      }));
+    }));
+
+    render(<SettingsPage />);
+    await waitFor(() => expect(screen.getByText('القيمة المحفوظة: USD')).toBeDefined());
+    expect(screen.getByText('العملة المحفوظة غير مدعومة حاليا: USD')).toBeDefined();
+
+    const saveButton = screen.getByRole('button', { name: /حفظ/ });
+    expect(saveButton.hasAttribute('disabled')).toBe(true);
+
+    fireEvent.click(screen.getByRole('radio', { name: 'YER' }));
+    expect(saveButton.hasAttribute('disabled')).toBe(false);
+  });
+
   it('blocks saving when YAS_Trading is missing', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, companies: [] }))));
 

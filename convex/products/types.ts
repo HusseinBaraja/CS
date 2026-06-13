@@ -113,7 +113,7 @@ export type ProductUnitUpdateArgs = {
   unitId: Id<'productUnits'>;
   labelEn?: string | null;
   labelAr?: string | null;
-  price?: number | null;
+  price?: number;
   sortOrder?: number | null;
 };
 

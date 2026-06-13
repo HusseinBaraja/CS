@@ -1,3 +1,4 @@
+import { normalizeCurrencyCode } from '@cs/shared';
 import type { CompanyConfig, CreateCompanyInput, UpdateCompanyInput, UpdateCompanySettingsInput } from '../services/companies';
 import {
   isRecord,
@@ -224,8 +225,8 @@ const parseCurrencyCode = (value: unknown): ParseResult<string | undefined> => {
     };
   }
 
-  const normalized = value.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(normalized)) {
+  const normalized = normalizeCurrencyCode(value);
+  if (!normalized) {
     return {
       ok: false,
       message: "operatingCurrency must be a 3-letter currency code",

@@ -89,18 +89,6 @@ export const resolveYasTradingCompany = (companies: CompanyDto[]): {
     return { error: 'شركة YAS_Trading غير موجودة.' };
   }
 
-  if (exactMatches.length === 0 && matches.length > 1) {
-    const activeAliasMatches = matches.filter((company) => company.config?.botEnabled === true);
-    if (activeAliasMatches.length === 1) {
-      return { company: activeAliasMatches[0] };
-    }
-
-    const nonSampleOwnerMatches = matches.filter((company) => company.ownerPhone !== '967700000001');
-    if (nonSampleOwnerMatches.length === 1) {
-      return { company: nonSampleOwnerMatches[0] };
-    }
-  }
-
   if (matches.length > 1) {
     return { error: 'يوجد أكثر من شركة باسم YAS_Trading.' };
   }

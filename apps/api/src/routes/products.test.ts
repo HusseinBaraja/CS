@@ -561,6 +561,13 @@ describe('product routes', () => {
         sortOrder: null,
       }),
     });
+    const nullPriceResponse = await app.request('/api/companies/company-1/products/product-1/units/unit-1', {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify({
+        price: null,
+      }),
+    });
     const deleteResponse = await app.request('/api/companies/company-1/products/product-1/units/unit-1', {
       method: 'DELETE',
       headers: authHeaders,
@@ -569,6 +576,7 @@ describe('product routes', () => {
     expect(listResponse.status).toBe(200);
     expect(createResponse.status).toBe(201);
     expect(updateResponse.status).toBe(200);
+    expect(nullPriceResponse.status).toBe(400);
     expect(deleteResponse.status).toBe(200);
     expect(createInput).toEqual({
       labelEn: 'Box',
@@ -579,6 +587,13 @@ describe('product routes', () => {
       labelEn: 'Carton',
       price: 1.5,
       sortOrder: null,
+    });
+    expect(await nullPriceResponse.json()).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: 'price must be a number',
+      },
     });
   });
 

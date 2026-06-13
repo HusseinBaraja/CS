@@ -7,6 +7,7 @@ export interface CompanySettings {
   companyId: string;
   missingPricePolicy: MissingPricePolicy;
   maxAutomatedMessageChars: number;
+  /** Normalized 3-letter code. The settings UI currently offers a supported subset. */
   operatingCurrency?: string;
 }
 

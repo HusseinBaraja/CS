@@ -24,7 +24,7 @@ const isCurrencyChoice = (value: string | undefined): value is CurrencyChoice =>
 export function SettingsPage() {
   const [companyState, setCompanyState] = useState<ReturnType<typeof resolveYasTradingCompany> | null>(null);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
-  const [selectedCurrency, setSelectedCurrency] = useState<CurrencyChoice | ''>('');
+  const [selectedCurrency, setSelectedCurrency] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,9 +52,7 @@ export function SettingsPage() {
         }
 
         setSettings(loadedSettings);
-        setSelectedCurrency(isCurrencyChoice(loadedSettings.operatingCurrency)
-          ? loadedSettings.operatingCurrency
-          : '');
+        setSelectedCurrency(loadedSettings.operatingCurrency ?? '');
       } catch (caughtError) {
         if (isMounted) {
           setError(caughtError instanceof Error ? caughtError.message : 'تعذر تحميل الإعدادات.');
@@ -82,16 +80,19 @@ export function SettingsPage() {
       return 'تعذر تحميل إعدادات الشركة.';
     }
 
-    if (!selectedCurrency) {
+    if (!isCurrencyChoice(selectedCurrency)) {
       return 'اختر عملة تشغيل صحيحة.';
     }
 
     return null;
   }, [companyState, selectedCurrency, settings]);
-  const canSave = Boolean(companyState?.company && settings && selectedCurrency);
+  const canSave = Boolean(companyState?.company && settings && isCurrencyChoice(selectedCurrency));
+  const unsupportedCurrency = selectedCurrency && !isCurrencyChoice(selectedCurrency)
+    ? selectedCurrency
+    : null;
 
   const saveSettings = async () => {
-    if (!companyState?.company || !settings || !selectedCurrency) {
+    if (!companyState?.company || !settings || !isCurrencyChoice(selectedCurrency)) {
       return;
     }
 
@@ -105,9 +106,7 @@ export function SettingsPage() {
         operatingCurrency: selectedCurrency,
       });
       setSettings(updatedSettings);
-      setSelectedCurrency(isCurrencyChoice(updatedSettings.operatingCurrency)
-        ? updatedSettings.operatingCurrency
-        : selectedCurrency);
+      setSelectedCurrency(updatedSettings.operatingCurrency ?? '');
       setSavedMessage('تم حفظ العملة.');
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'فشل حفظ الإعدادات.');
@@ -173,6 +172,12 @@ export function SettingsPage() {
                       </ToggleGroup>
                     </div>
 
+                    {unsupportedCurrency ? (
+                      <StatusMessage
+                        kind="error"
+                        message={`العملة المحفوظة غير مدعومة حاليا: ${unsupportedCurrency}`}
+                      />
+                    ) : null}
                     {validationError && !companyState?.error ? <StatusMessage kind="error" message={validationError} /> : null}
                     {error ? <StatusMessage kind="error" message={error} /> : null}
                     {savedMessage ? <StatusMessage kind="success" message={savedMessage} /> : null}

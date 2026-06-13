@@ -5,7 +5,7 @@ import type {
   ProductVariantCreateSnapshot,
   ProductVariantDoc,
 } from './types';
-import { mapVariant, sortVariantDocs, toWriteState } from './mapping';
+import { mapVariant, sortUnitDocs, sortVariantDocs, toWriteState } from './mapping';
 
 export const getCompany = async (ctx: ProductReader, companyId: Id<'companies'>) =>
   ctx.db.get(companyId);
@@ -82,7 +82,7 @@ export const getProductUnits = async (
   companyId: Id<'companies'>,
   productId: Id<'products'>,
 ): Promise<ProductUnitDoc[]> =>
-  sortVariantDocs(
+  sortUnitDocs(
     await ctx.db
       .query('productUnits')
       .withIndex('by_product', (q) => q.eq('productId', productId))

@@ -93,7 +93,7 @@ export interface CreateProductUnitInput {
 export interface UpdateProductUnitInput {
   labelEn?: string | null;
   labelAr?: string | null;
-  price?: number | null;
+  price?: number;
   sortOrder?: number | null;
 }
 

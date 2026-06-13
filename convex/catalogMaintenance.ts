@@ -5,7 +5,7 @@ import { refreshCompanyCatalogLanguageHintsInMutation } from './catalogLanguageH
 import type { Id, TableNames } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 
-const BATCH_SIZE = 64;
+export const BATCH_SIZE = 64;
 
 const catalogTables = [
   'embeddings',

@@ -99,6 +99,19 @@ const sourceTarget = (
     ? { en: sourceValue, ar: translatedValue }
     : { en: translatedValue, ar: sourceValue };
 
+const getSourceDescription = (group: ParsedCatalogImportGroup): string | undefined => {
+  const descriptions = group.rows
+    .map((row) => row.description?.trim())
+    .filter((description): description is string => Boolean(description));
+  const uniqueDescriptions = new Set(descriptions);
+
+  if (uniqueDescriptions.size > 1) {
+    throw new Error(`VALIDATION_FAILED: Conflicting descriptions for product ${group.productNo}`);
+  }
+
+  return descriptions[0];
+};
+
 const createChatTranslateText = (manager: ChatProviderManager): TranslateText =>
   async (text, input) => {
     const response = await manager.chat({
@@ -294,7 +307,7 @@ export const createCatalogImportTranslator = (
       }
       const limitUnit = createAsyncLimiter(8);
       const cleanedProductName = await cleanProductName(firstRow.productName, group.productNo);
-      const sourceDescription = firstRow.description
+      const sourceDescription = getSourceDescription(group)
         ?? (shouldGenerateDescriptions
           ? await generateDescription(firstRow.productName, cleanedProductName, group.productNo)
           : undefined);

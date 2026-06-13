@@ -13,7 +13,7 @@ import type {
 const assertUnitInput = (args: {
   labelEn?: string | null;
   labelAr?: string | null;
-  price?: number | null;
+  price?: number;
 }) => {
   if (!args.labelEn?.trim() && !args.labelAr?.trim()) {
     throw createTaggedError(VALIDATION_PREFIX, 'UNIT_MISSING_LABEL: Unit must have at least one label');
@@ -77,7 +77,7 @@ export const patchUnitDefinition = {
     unitId: v.id('productUnits'),
     labelEn: v.optional(v.union(v.string(), v.null())),
     labelAr: v.optional(v.union(v.string(), v.null())),
-    price: v.optional(v.union(v.number(), v.null())),
+    price: v.optional(v.number()),
     sortOrder: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (
@@ -88,7 +88,7 @@ export const patchUnitDefinition = {
       unitId: Id<'productUnits'>;
       labelEn?: string | null;
       labelAr?: string | null;
-      price?: number | null;
+      price?: number;
       sortOrder?: number | null;
     },
   ): Promise<ProductUnitDto | null> => {
@@ -106,9 +106,6 @@ export const patchUnitDefinition = {
     const nextLabelAr = args.labelAr === undefined ? existingUnit.labelAr : args.labelAr ?? undefined;
     const nextPrice = args.price === undefined ? existingUnit.price : args.price;
     assertUnitInput({ labelEn: nextLabelEn, labelAr: nextLabelAr, price: nextPrice });
-    if (nextPrice === null) {
-      throw createTaggedError(VALIDATION_PREFIX, 'UNIT_INVALID_PRICE: Unit price is required');
-    }
 
     await ctx.db.patch(args.unitId, {
       labelEn: nextLabelEn?.trim(),

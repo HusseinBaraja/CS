@@ -187,6 +187,33 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex companySettings'
     );
   });
 
+  it('rejects invalid operating currency without clearing the stored value', async () => {
+    const t = convexTest(schema, modules);
+    const companyId = await t.run(async (ctx) =>
+      createCompany(ctx).then(({ companyId }) => companyId),
+    );
+    const settingsId = await t.run(async (ctx) =>
+      ctx.db.insert('companySettings', {
+        companyId,
+        missingPricePolicy: 'reply_unavailable',
+        maxAutomatedMessageChars: 2_500,
+        operatingCurrency: 'SAR',
+      }),
+    );
+
+    await expect(t.mutation(internal.companySettings.upsert, {
+      companyId,
+      missingPricePolicy: 'handoff',
+      operatingCurrency: 'not-valid',
+    })).rejects.toThrow('VALIDATION_FAILED: operatingCurrency must be a 3-letter currency code');
+
+    const storedSettings = await t.run(async (ctx) => ctx.db.get(settingsId));
+    expect(storedSettings).toMatchObject({
+      missingPricePolicy: 'reply_unavailable',
+      operatingCurrency: 'SAR',
+    });
+  });
+
   it('inserts settings when a company has no settings row during upsert', async () => {
     const t = convexTest(schema, modules);
     const companyId = await t.run(async (ctx) =>

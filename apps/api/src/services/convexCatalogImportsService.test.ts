@@ -203,7 +203,7 @@ describe('createConvexCatalogImportsService', () => {
     });
   });
 
-  test('disables description translation when applying imports', async () => {
+  test('keeps description translation enabled when applying imports', async () => {
     let translatorOptions: unknown;
     const service = createConvexCatalogImportsService({
       createClient: () => ({
@@ -238,6 +238,7 @@ describe('createConvexCatalogImportsService', () => {
       sourceLanguage: 'en',
     });
 
-    expect(translatorOptions).toMatchObject({ translateDescriptions: false });
+    expect(translatorOptions).toEqual({ generateDescriptions: undefined });
+    expect(translatorOptions).not.toHaveProperty('translateDescriptions');
   });
 });

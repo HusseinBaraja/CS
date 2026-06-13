@@ -143,6 +143,45 @@ describe('catalog import translation', () => {
     expect(result.translatedFieldCount).toBe(3);
   });
 
+  test('uses the first non-empty group description and rejects conflicting descriptions', async () => {
+    const group: ParsedCatalogImportGroup = {
+      productNo: 'P-1',
+      rows: [
+        {
+          ...groups[0]!.rows[0]!,
+          description: undefined,
+        },
+        {
+          ...groups[0]!.rows[0]!,
+          row: 3,
+          unitLabel: 'Large',
+          description: 'Paper cup for hot drinks',
+        },
+      ],
+    };
+
+    const result = await createCatalogImportTranslator({
+      translateText: async (text) => `${text} ar`,
+      cleanProductName: async (sourceName) => sourceName,
+    }).translateGroups([group], 'en');
+
+    expect(result.groups[0]?.description).toEqual({
+      en: 'Paper cup for hot drinks',
+      ar: 'Paper cup for hot drinks ar',
+    });
+
+    await expect(createCatalogImportTranslator({
+      translateText: async (text) => `${text} ar`,
+      cleanProductName: async (sourceName) => sourceName,
+    }).translateGroups([{
+      ...group,
+      rows: [
+        { ...group.rows[0]!, description: 'First description' },
+        { ...group.rows[1]!, description: 'Second description' },
+      ],
+    }], 'en')).rejects.toThrow('VALIDATION_FAILED: Conflicting descriptions for product P-1');
+  });
+
   test('generates missing descriptions by default', async () => {
     const result = await createCatalogImportTranslator({
       translateText: async (text) => `${text} ar`,

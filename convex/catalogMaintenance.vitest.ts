@@ -2,6 +2,7 @@
 import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 import { internal } from './_generated/api';
+import { BATCH_SIZE } from './catalogMaintenance';
 import schema from './schema';
 
 const modules =
@@ -31,12 +32,14 @@ describe.skipIf(typeof import.meta.glob !== 'function')('catalog maintenance', (
         categoryId,
         nameEn: 'Paper Cup',
       });
-      await ctx.db.insert('productUnits', {
-        companyId: insertedCompanyId,
-        productId,
-        labelEn: 'Carton',
-        price: 100,
-      });
+      for (let index = 0; index < BATCH_SIZE + 1; index += 1) {
+        await ctx.db.insert('productUnits', {
+          companyId: insertedCompanyId,
+          productId,
+          labelEn: `Carton ${index}`,
+          price: 100 + index,
+        });
+      }
       await ctx.db.insert('productVariants', {
         companyId: insertedCompanyId,
         productId,
@@ -115,7 +118,7 @@ describe.skipIf(typeof import.meta.glob !== 'function')('catalog maintenance', (
       offers: 1,
       productImageUploads: 1,
       products: 1,
-      productUnits: 1,
+      productUnits: BATCH_SIZE + 1,
       productVariants: 1,
     });
     expect(remaining.companySettings).toHaveLength(1);

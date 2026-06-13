@@ -5,7 +5,7 @@ import {
   createConvexAdminClient,
   toCompanyId,
 } from '@cs/db';
-import { ERROR_CODES } from '@cs/shared';
+import { ERROR_CODES, normalizeCurrencyCode } from '@cs/shared';
 import { parseCatalogImportWorkbook, type ParsedCatalogImportGroup } from '../catalog-import/workbookParser';
 import {
   createCatalogImportDatabaseError,
@@ -93,15 +93,10 @@ const ensureFile = (input: CatalogImportUploadInput): File => {
   return input.file;
 };
 
-const normalizeCurrency = (currency: string | undefined): string | undefined => {
-  const normalized = currency?.trim().toUpperCase();
-  return normalized && /^[A-Z]{3}$/.test(normalized) ? normalized : undefined;
-};
-
 const validateCompanyCurrency = (
   operatingCurrency: string | undefined,
 ): string => {
-  const normalizedCompanyCurrency = normalizeCurrency(operatingCurrency);
+  const normalizedCompanyCurrency = normalizeCurrencyCode(operatingCurrency);
   if (!normalizedCompanyCurrency) {
     throw createCatalogImportValidationError('Company operating currency must be configured before catalog import');
   }
@@ -194,7 +189,6 @@ export const createConvexCatalogImportsService = (
 
         const translation = await translator.translateGroups(parsed.groups, input.sourceLanguage, {
           generateDescriptions: input.generateDescriptions,
-          translateDescriptions: false,
         });
         const groups = translation.groups.map((group) => ({
           ...group,

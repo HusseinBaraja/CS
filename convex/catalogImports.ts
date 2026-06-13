@@ -7,6 +7,7 @@ import { normalizeNameKey } from './categoriesShared';
 import { buildProductEmbeddingPayload } from './productEmbeddingRuntime';
 
 const NOT_FOUND_PREFIX = 'NOT_FOUND';
+const VALIDATION_PREFIX = 'VALIDATION_FAILED';
 const UNIT_DELETE_BATCH_SIZE = 50;
 
 const bilingualTextValidator = {
@@ -41,6 +42,15 @@ type ImportGroup = {
 
 const createTaggedError = (prefix: string, message: string): Error =>
   new Error(`${prefix}: ${message}`);
+
+const assertNonNegativeUnitPrices = (group: ImportGroup): void => {
+  if (group.units.some((unit) => unit.price < 0)) {
+    throw createTaggedError(
+      VALIDATION_PREFIX,
+      `Unit price must be a non-negative number for product ${group.productNo}`,
+    );
+  }
+};
 
 const getProductByProductNo = async (
   ctx: MutationCtx,
@@ -96,6 +106,8 @@ export const applyTranslatedGroup = internalMutation({
     arabicText: v.string(),
   },
   handler: async (ctx, args): Promise<{ productId: string; unitCount: number; categoryCreated: boolean }> => {
+    assertNonNegativeUnitPrices(args.group);
+
     const company = await ctx.db.get(args.companyId);
     if (!company) {
       throw createTaggedError(NOT_FOUND_PREFIX, 'Company not found');
@@ -198,6 +210,8 @@ export const apply = internalAction({
     let createdOrUpdatedCategoryCount = 0;
 
     for (const group of args.groups as ImportGroup[]) {
+      assertNonNegativeUnitPrices(group);
+
       const embeddings = await buildProductEmbeddingPayload({
         companyId: args.companyId,
         categoryId: 'placeholder' as Id<'categories'>,

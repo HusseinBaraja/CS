@@ -81,4 +81,31 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex catalog imports'
     expect(state.embeddings.map((embedding) => embedding.textContent).join('\n')).toContain('label:Medium');
     expect(state.embeddings.map((embedding) => embedding.textContent).join('\n')).not.toContain('label:Small');
   });
+
+  it('rejects negative unit prices before writing catalog data', async () => {
+    installGeminiStub();
+    const t = convexTest(schema, modules);
+    const companyId = await t.run((ctx) => ctx.db.insert('companies', {
+      name: 'YAS_Trading',
+      ownerPhone: '967700000001',
+    }));
+
+    await expect(t.action(internal.catalogImports.apply, {
+      companyId,
+      groups: [{
+        productNo: 'P-1',
+        category: { en: 'Cups', ar: 'أكواب' },
+        productName: { en: 'Paper Cup', ar: 'كوب ورقي' },
+        currency: 'SAR',
+        units: [{ labelEn: 'Small', labelAr: 'صغير', price: -1 }],
+      }],
+    })).rejects.toThrow('VALIDATION_FAILED: Unit price must be a non-negative number for product P-1');
+
+    const state = await t.run(async (ctx) => ({
+      products: await ctx.db.query('products').collect(),
+      productUnits: await ctx.db.query('productUnits').collect(),
+    }));
+    expect(state.products).toHaveLength(0);
+    expect(state.productUnits).toHaveLength(0);
+  });
 });

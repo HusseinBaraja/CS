@@ -75,7 +75,7 @@ describe('catalogImportApi', () => {
     });
   });
 
-  it('resolves the active seeded demo company when duplicate aliases exist', () => {
+  it('treats duplicate aliases as ambiguous', () => {
     expect(resolveYasTradingCompany([
       {
         id: 'sample-seed',
@@ -90,12 +90,7 @@ describe('catalogImportApi', () => {
         config: { botEnabled: true },
       },
     ])).toEqual({
-      company: {
-        id: 'active-seed',
-        name: 'YAS Packaging Co',
-        ownerPhone: '967771408660',
-        config: { botEnabled: true },
-      },
+      error: 'يوجد أكثر من شركة باسم YAS_Trading.',
     });
   });
 });

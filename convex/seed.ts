@@ -208,6 +208,7 @@ export const listSeedProductsForEmbedding = internalQuery({
           .collect();
 
         const sortedUnits = [...units].sort((left, right) =>
+          (left.sortOrder ?? Number.MAX_SAFE_INTEGER) - (right.sortOrder ?? Number.MAX_SAFE_INTEGER) ||
           (left.labelEn ?? left.labelAr ?? '').localeCompare(right.labelEn ?? right.labelAr ?? '') ||
           left._id.localeCompare(right._id),
         );
@@ -377,7 +378,7 @@ export const insertSeedSampleData = internalMutation({
     await ctx.db.insert("companySettings", {
       companyId: args.companyId,
       missingPricePolicy: "reply_unavailable",
-      operatingCurrency: "SAR",
+      operatingCurrency: seedCurrencyRate.fromCurrency,
     });
 
     const now = Date.now();

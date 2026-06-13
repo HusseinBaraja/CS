@@ -206,10 +206,11 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     });
 
     expect(counts.categories.every((category) => category.nameAr && category.descriptionAr)).toBe(true);
+    expect(counts.companySettings).toHaveLength(1);
     expect(counts.companySettings[0]).toMatchObject({
       companyId: counts.companies[0]?._id,
       missingPricePolicy: "reply_unavailable",
-      operatingCurrency: "SAR",
+      operatingCurrency: seedCurrencyRate.fromCurrency,
     });
     expect(counts.products.every((product) => product.nameAr && product.descriptionAr && product.currency === undefined)).toBe(true);
     expect(counts.offers.every((offer) => offer.active && offer.contentAr)).toBe(true);
@@ -244,6 +245,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("seedSampleData", () => 
     expect(secondRun.clearedCompanies).toBe(1);
     expect(secondSeededCompany._id).toBe(firstSeededCompany._id);
     expect(counts.companies).toHaveLength(1);
+    expect(counts.companySettings).toHaveLength(1);
     expect(counts.categories).toHaveLength(seedCategories.length);
     expect(counts.products).toHaveLength(seedProducts.length);
     expect(counts.productVariants).toHaveLength(0);

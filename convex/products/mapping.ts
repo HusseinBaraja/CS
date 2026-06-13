@@ -79,6 +79,15 @@ export const sortVariantDocs = <T extends { labelEn?: string; labelAr?: string; 
     getVariantSortLabel(left).localeCompare(getVariantSortLabel(right)) || left._id.localeCompare(right._id)
   );
 
+export const sortUnitDocs = <T extends { labelEn?: string; labelAr?: string; sortOrder?: number; _id: string }>(
+  units: T[],
+): T[] =>
+  units.sort((left, right) =>
+    (left.sortOrder ?? Number.MAX_SAFE_INTEGER) - (right.sortOrder ?? Number.MAX_SAFE_INTEGER) ||
+    getVariantSortLabel(left).localeCompare(getVariantSortLabel(right)) ||
+    left._id.localeCompare(right._id)
+  );
+
 export const sortVariants = <T extends ProductVariantWriteState | ProductVariantDto>(variants: T[]): T[] =>
   variants.sort((left, right) =>
     getVariantSortLabel(left).localeCompare(getVariantSortLabel(right)) || left.id.localeCompare(right.id)
