@@ -7,7 +7,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../compo
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import {
   defaultCatalogTemplateOptions,
-  type CatalogTemplateCurrency,
   type CatalogTemplateLanguage,
   type CatalogTemplateOptions,
 } from './catalogTemplate';
@@ -16,12 +15,6 @@ import { downloadCatalogTemplate } from './downloadCatalogTemplate';
 type CatalogTemplateDownloadProps = {
   onDownload?: (options: CatalogTemplateOptions) => void | Promise<void>;
 };
-
-type BooleanOption = 'yes' | 'no';
-
-const toBooleanOption = (value: boolean): BooleanOption => (value ? 'yes' : 'no');
-
-const fromBooleanOption = (value: string): boolean => value === 'yes';
 
 export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }: CatalogTemplateDownloadProps) {
   const [options, setOptions] = useState<CatalogTemplateOptions>(defaultCatalogTemplateOptions);
@@ -40,41 +33,6 @@ export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }
       </CollapsibleTrigger>
       <CollapsibleContent className="order-last flex basis-full justify-center pt-4">
         <div className="flex w-68 flex-col gap-4 rounded-lg border border-[#dfe6e2] bg-white p-4 text-start shadow-[0_8px_24px_rgba(22,35,29,0.08)]">
-          <TemplateOption label="السعر">
-            <BooleanToggle
-              ariaLabel="تضمين السعر"
-              value={options.includePrice}
-              onChange={(includePrice) =>
-                updateOptions({
-                  includePrice,
-                  currency: includePrice ? options.currency ?? defaultCatalogTemplateOptions.currency : undefined,
-                })
-              }
-            />
-          </TemplateOption>
-
-          <TemplateOption label="العملة">
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              value={options.currency}
-              disabled={!options.includePrice}
-              aria-label="اختيار العملة"
-              onValueChange={(value) => {
-                if (value) {
-                  updateOptions({ currency: value as CatalogTemplateCurrency });
-                }
-              }}
-            >
-              <ToggleGroupItem value="SAR" aria-label="SAR">
-                SAR
-              </ToggleGroupItem>
-              <ToggleGroupItem value="YER" aria-label="YER">
-                YER
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </TemplateOption>
-
           <TemplateOption label="اللغة">
             <ToggleGroup
               type="single"
@@ -96,28 +54,25 @@ export function CatalogTemplateDownload({ onDownload = downloadCatalogTemplate }
             </ToggleGroup>
           </TemplateOption>
 
-          <TemplateOption label="الصورة الرئيسية">
-            <BooleanToggle
-              ariaLabel="تضمين الصورة الرئيسية"
-              value={options.includePrimaryImage}
-              onChange={(includePrimaryImage) => updateOptions({ includePrimaryImage })}
-            />
-          </TemplateOption>
-
           <TemplateOption label="الوصف">
-            <BooleanToggle
-              ariaLabel="تضمين الوصف"
-              value={options.includeDescription}
-              onChange={(includeDescription) => updateOptions({ includeDescription })}
-            />
-          </TemplateOption>
-
-          <TemplateOption label="المتغيرات">
-            <BooleanToggle
-              ariaLabel="تضمين المتغيرات"
-              value={options.includeVariants}
-              onChange={(includeVariants) => updateOptions({ includeVariants })}
-            />
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              value={options.includeDescription ? 'yes' : 'no'}
+              aria-label="تضمين الوصف"
+              onValueChange={(value) => {
+                if (value) {
+                  updateOptions({ includeDescription: value === 'yes' });
+                }
+              }}
+            >
+              <ToggleGroupItem value="yes" aria-label="نعم">
+                نعم
+              </ToggleGroupItem>
+              <ToggleGroupItem value="no" aria-label="لا">
+                لا
+              </ToggleGroupItem>
+            </ToggleGroup>
           </TemplateOption>
 
           <Button onClick={() => {
@@ -141,36 +96,5 @@ function TemplateOption({ label, children }: { label: string; children: ReactNod
       <span className="text-sm font-bold text-[#2f3935]">{label}</span>
       {children}
     </div>
-  );
-}
-
-function BooleanToggle({
-  ariaLabel,
-  value,
-  onChange,
-}: {
-  ariaLabel: string;
-  value: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <ToggleGroup
-      type="single"
-      variant="outline"
-      value={toBooleanOption(value)}
-      aria-label={ariaLabel}
-      onValueChange={(nextValue) => {
-        if (nextValue) {
-          onChange(fromBooleanOption(nextValue));
-        }
-      }}
-    >
-      <ToggleGroupItem value="yes" aria-label="نعم">
-        نعم
-      </ToggleGroupItem>
-      <ToggleGroupItem value="no" aria-label="لا">
-        لا
-      </ToggleGroupItem>
-    </ToggleGroup>
   );
 }

@@ -5,14 +5,16 @@ import {
   buildSearchText,
   mapProduct,
   mapProductDetail,
+  mapUnit,
   mapVariant,
   sortProducts,
 } from '../mapping';
 import { normalizeOptionalString } from '../normalization';
-import { getCompany, getProductVariants, getScopedProduct } from '../readers';
+import { getCompany, getProductUnits, getProductVariants, getScopedProduct } from '../readers';
 import type {
   ProductDetailDto,
   ProductListItemDto,
+  ProductUnitDto,
   ProductVariantDto,
 } from '../types';
 
@@ -71,8 +73,11 @@ export const getDefinition = {
       return null;
     }
 
-    const variants = await getProductVariants(ctx, args.companyId, args.productId);
-    return mapProductDetail(product, variants);
+    const [variants, units] = await Promise.all([
+      getProductVariants(ctx, args.companyId, args.productId),
+      getProductUnits(ctx, args.companyId, args.productId),
+    ]);
+    return mapProductDetail(product, variants, units);
   },
 };
 
@@ -100,15 +105,16 @@ export const getManyForRagDefinition = {
 
     const results = await Promise.all(
       uniqueProductIds.map(async (productId): Promise<ProductDetailDto | null> => {
-        const [product, variants] = await Promise.all([
+        const [product, variants, units] = await Promise.all([
           getScopedProduct(ctx, args.companyId, productId),
           getProductVariants(ctx, args.companyId, productId),
+          getProductUnits(ctx, args.companyId, productId),
         ]);
         if (!product) {
           return null;
         }
 
-        return mapProductDetail(product, variants);
+        return mapProductDetail(product, variants, units);
       }),
     );
 
@@ -135,5 +141,27 @@ export const listVariantsDefinition = {
 
     const variants = await getProductVariants(ctx, args.companyId, args.productId);
     return variants.map(mapVariant);
+  },
+};
+
+export const listUnitsDefinition = {
+  args: {
+    companyId: v.id('companies'),
+    productId: v.id('products'),
+  },
+  handler: async (
+    ctx: QueryCtx,
+    args: {
+      companyId: Id<'companies'>;
+      productId: Id<'products'>;
+    },
+  ): Promise<ProductUnitDto[] | null> => {
+    const product = await getScopedProduct(ctx, args.companyId, args.productId);
+    if (!product) {
+      return null;
+    }
+
+    const units = await getProductUnits(ctx, args.companyId, args.productId);
+    return units.map(mapUnit);
   },
 };

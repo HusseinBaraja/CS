@@ -3,14 +3,17 @@ import { ERROR_CODES } from '@cs/shared';
 import { createApp } from '../app';
 import {
   type CreateProductInput,
+  type CreateProductUnitInput,
   type CreateProductVariantInput,
   type ListProductsFilters,
   type ProductDetailDto,
   type ProductListItemDto,
+  type ProductUnitDto,
   type ProductsService,
   ProductsServiceError,
   type ProductVariantDto,
   type UpdateProductInput,
+  type UpdateProductUnitInput,
   type UpdateProductVariantInput,
 } from '../services/products';
 import {
@@ -43,8 +46,17 @@ const baseVariant: ProductVariantDto = {
   price: 1.5,
 };
 
+const baseUnit: ProductUnitDto = {
+  id: 'unit-1',
+  companyId: 'company-1',
+  productId: 'product-1',
+  labelEn: 'Box',
+  price: 1.25,
+};
+
 const baseProductDetail: ProductDetailDto = {
   ...baseProduct,
+  units: [baseUnit],
   variants: [baseVariant],
 };
 
@@ -56,6 +68,12 @@ const otherCompanyProduct: ProductDetailDto = {
   variants: [{
     ...baseVariant,
     id: 'variant-2',
+    companyId: 'company-2',
+    productId: 'product-2',
+  }],
+  units: [{
+    ...baseUnit,
+    id: 'unit-2',
     companyId: 'company-2',
     productId: 'product-2',
   }],
@@ -75,6 +93,7 @@ const createStubProductsService = (
     id: 'product-created',
     companyId: 'company-1',
     ...input,
+    units: [],
     variants: [],
   }),
   update: async (_companyId: string, _productId: string, patch: UpdateProductInput) => ({
@@ -98,6 +117,24 @@ const createStubProductsService = (
     productId: 'product-1',
   }),
   listVariants: async () => [baseVariant],
+  listUnits: async () => [baseUnit],
+  createUnit: async (_companyId, productId, input) => ({
+    id: 'unit-created',
+    companyId: 'company-1',
+    productId,
+    ...input,
+  }),
+  updateUnit: async (_companyId, productId, unitId, patch) => ({
+    ...baseUnit,
+    id: unitId,
+    productId,
+    labelEn: patch.labelEn ?? baseUnit.labelEn,
+    price: patch.price ?? baseUnit.price,
+  }),
+  deleteUnit: async (_companyId, productId, unitId) => ({
+    productId,
+    unitId,
+  }),
   createVariant: async (_companyId: string, productId: string, input: CreateProductVariantInput) => ({
     id: 'variant-created',
     companyId: 'company-1',
@@ -194,6 +231,7 @@ describe('product routes', () => {
           id: 'product-created',
           companyId: 'company-1',
           ...input,
+          units: [],
           variants: [],
         };
       },
@@ -232,6 +270,7 @@ describe('product routes', () => {
           id: 'product-created',
           companyId: 'company-1',
           ...input,
+          units: [],
           variants: [],
         };
       },
@@ -472,6 +511,89 @@ describe('product routes', () => {
     expect(updatePatch).toEqual({
       labelEn: 'Small',
       price: null,
+    });
+  });
+
+  test('unit routes use label, price, and sort order', async () => {
+    let createInput: CreateProductUnitInput | undefined;
+    let updatePatch: UpdateProductUnitInput | undefined;
+    const app = createTestApp(createStubProductsService({
+      createUnit: async (_companyId, productId, input) => {
+        createInput = input;
+        return {
+          id: 'unit-created',
+          companyId: 'company-1',
+          productId,
+          ...input,
+        };
+      },
+      updateUnit: async (_companyId, productId, unitId, patch) => {
+        updatePatch = patch;
+        return {
+          id: unitId,
+          companyId: 'company-1',
+          productId,
+          labelEn: patch.labelEn ?? 'Box',
+          price: patch.price ?? 1.25,
+          ...(patch.sortOrder !== undefined && patch.sortOrder !== null ? { sortOrder: patch.sortOrder } : {}),
+        };
+      },
+    }));
+
+    const listResponse = await app.request('/api/companies/company-1/products/product-1/units', {
+      headers: authHeaders,
+    });
+    const createResponse = await app.request('/api/companies/company-1/products/product-1/units', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        labelEn: ' Box ',
+        price: 1.25,
+        sortOrder: 2,
+      }),
+    });
+    const updateResponse = await app.request('/api/companies/company-1/products/product-1/units/unit-1', {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify({
+        labelEn: ' Carton ',
+        price: 1.5,
+        sortOrder: null,
+      }),
+    });
+    const nullPriceResponse = await app.request('/api/companies/company-1/products/product-1/units/unit-1', {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify({
+        price: null,
+      }),
+    });
+    const deleteResponse = await app.request('/api/companies/company-1/products/product-1/units/unit-1', {
+      method: 'DELETE',
+      headers: authHeaders,
+    });
+
+    expect(listResponse.status).toBe(200);
+    expect(createResponse.status).toBe(201);
+    expect(updateResponse.status).toBe(200);
+    expect(nullPriceResponse.status).toBe(400);
+    expect(deleteResponse.status).toBe(200);
+    expect(createInput).toEqual({
+      labelEn: 'Box',
+      price: 1.25,
+      sortOrder: 2,
+    });
+    expect(updatePatch).toEqual({
+      labelEn: 'Carton',
+      price: 1.5,
+      sortOrder: null,
+    });
+    expect(await nullPriceResponse.json()).toEqual({
+      ok: false,
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: 'price must be a number',
+      },
     });
   });
 

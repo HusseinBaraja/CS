@@ -13,6 +13,7 @@ const authHeaders = { 'x-api-key': API_KEY };
 const createFormData = (file = new File(['fake'], 'catalog.xlsx')) => {
   const body = new FormData();
   body.set('sourceLanguage', 'ar');
+  body.set('generateDescriptions', 'false');
   body.set('file', file);
   return body;
 };
@@ -31,12 +32,12 @@ const createStubCatalogImportsService = (
       categoryName: 'أكواب',
       productName: 'كوب ورقي',
       rowCount: 2,
-      variantCount: 2,
+      unitCount: 2,
       rows: [2, 3],
     }],
     categoryCount: 1,
     productGroupCount: 1,
-    variantCount: 2,
+    unitCount: 2,
     blockingErrors: [],
     translationWarnings: [],
   }),
@@ -44,7 +45,7 @@ const createStubCatalogImportsService = (
     company: { id: 'company-1', name: 'YAS_Trading' },
     createdOrUpdatedCategoryCount: 1,
     replacedProductGroupCount: 1,
-    replacedVariantCount: 2,
+    replacedUnitCount: 2,
     translatedFieldCount: 4,
     notTranslatedFallbackCount: 0,
   }),
@@ -99,6 +100,7 @@ describe('catalog import routes', () => {
     expect(response.status).toBe(200);
     expect(receivedCompanyId).toBe('company-1');
     expect(receivedInput?.sourceLanguage).toBe('ar');
+    expect(receivedInput?.generateDescriptions).toBe(false);
     expect(receivedInput?.file?.name).toBe('catalog.xlsx');
     expect(await response.json()).toEqual({
       ok: true,
@@ -110,12 +112,12 @@ describe('catalog import routes', () => {
           categoryName: 'أكواب',
           productName: 'كوب ورقي',
           rowCount: 2,
-          variantCount: 2,
+          unitCount: 2,
           rows: [2, 3],
         }],
         categoryCount: 1,
         productGroupCount: 1,
-        variantCount: 2,
+        unitCount: 2,
         blockingErrors: [],
         translationWarnings: [],
       },

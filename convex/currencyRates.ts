@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { normalizeCurrencyCode } from '@cs/shared';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, internalQuery, type MutationCtx } from './_generated/server';
 
@@ -19,14 +20,13 @@ type CurrencyRateReader = {
 };
 
 const VALIDATION_PREFIX = "VALIDATION_FAILED";
-const CURRENCY_CODE_PATTERN = /^[A-Z]{3}$/u;
 
 const createTaggedError = (prefix: string, message: string): Error =>
   new Error(`${prefix}: ${message}`);
 
-const normalizeCurrencyCode = (value: string, fieldName: string): string => {
-  const normalized = value.trim().toUpperCase();
-  if (!CURRENCY_CODE_PATTERN.test(normalized)) {
+const parseCurrencyCode = (value: string, fieldName: string): string => {
+  const normalized = normalizeCurrencyCode(value);
+  if (!normalized) {
     throw createTaggedError(VALIDATION_PREFIX, `${fieldName} must be a 3-letter alphabetic code`);
   }
 
@@ -98,8 +98,8 @@ export const upsert = internalMutation({
       return null;
     }
 
-    const fromCurrency = normalizeCurrencyCode(args.fromCurrency, "fromCurrency");
-    const toCurrency = normalizeCurrencyCode(args.toCurrency, "toCurrency");
+    const fromCurrency = parseCurrencyCode(args.fromCurrency, "fromCurrency");
+    const toCurrency = parseCurrencyCode(args.toCurrency, "toCurrency");
     if (fromCurrency === toCurrency) {
       throw createTaggedError(
         VALIDATION_PREFIX,

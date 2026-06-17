@@ -10,7 +10,8 @@ const groups: ParsedCatalogImportGroup[] = [
       productNo: 'P-1',
       categoryName: 'Cups',
       productName: 'Paper Cup',
-      variantLabel: 'Small',
+      unitLabel: 'Small',
+      price: 9,
     }],
   },
   {
@@ -20,7 +21,8 @@ const groups: ParsedCatalogImportGroup[] = [
       productNo: 'P-2',
       categoryName: 'Plates',
       productName: 'Plate',
-      variantLabel: 'White',
+      unitLabel: 'White',
+      price: 8,
     }],
   },
 ];
@@ -33,7 +35,8 @@ const makeGroups = (count: number, rowsPerGroup = 1): ParsedCatalogImportGroup[]
       productNo: `P-${groupIndex + 1}`,
       categoryName: `Category ${groupIndex + 1}`,
       productName: `Product ${groupIndex + 1}`,
-      variantLabel: `Variant ${rowIndex + 1}`,
+      unitLabel: `Unit ${rowIndex + 1}`,
+      price: rowIndex + 1,
     })),
   }));
 
@@ -72,25 +75,25 @@ describe('catalog import translation', () => {
     expect(maxActiveGroups).toBeLessThanOrEqual(4);
   });
 
-  test('limits concurrently translated variants per group', async () => {
-    let activeVariants = 0;
-    let maxActiveVariants = 0;
+  test('limits concurrently translated units per group', async () => {
+    let activeUnits = 0;
+    let maxActiveUnits = 0;
     const translateText: TranslateText = async (text, input) => {
-      if (input.field !== 'variantLabel') {
+      if (input.field !== 'unitLabel') {
         return `${text} ar`;
       }
 
-      activeVariants += 1;
-      maxActiveVariants = Math.max(maxActiveVariants, activeVariants);
+      activeUnits += 1;
+      maxActiveUnits = Math.max(maxActiveUnits, activeUnits);
       await new Promise((resolve) => setTimeout(resolve, 5));
-      activeVariants -= 1;
+      activeUnits -= 1;
       return `${text} ar`;
     };
 
     await createCatalogImportTranslator({ translateText }).translateGroups(makeGroups(1, 10), 'en');
 
-    expect(maxActiveVariants).toBeLessThanOrEqual(8);
-    expect(maxActiveVariants).toBeGreaterThan(1);
+    expect(maxActiveUnits).toBeLessThanOrEqual(8);
+    expect(maxActiveUnits).toBeGreaterThan(1);
   });
 
   test('stores not_translated when translation fails', async () => {
@@ -103,5 +106,92 @@ describe('catalog import translation', () => {
     expect(result.notTranslatedFallbackCount).toBe(3);
     expect(result.warnings).toHaveLength(3);
     expect(result.groups[0]?.productName).toEqual({ en: 'Paper Cup', ar: 'not_translated' });
+  });
+
+  test('skips generated descriptions when disabled', async () => {
+    let generatedDescriptionCount = 0;
+    const result = await createCatalogImportTranslator({
+      translateText: async (text) => `${text} ar`,
+      cleanProductName: async (sourceName) => sourceName,
+      generateProductDescription: async () => {
+        generatedDescriptionCount += 1;
+        return 'Generated description';
+      },
+    }).translateGroups([groups[0]!], 'en', { generateDescriptions: false });
+
+    expect(generatedDescriptionCount).toBe(0);
+    expect(result.groups[0]?.description).toBeUndefined();
+    expect(result.translatedFieldCount).toBe(3);
+  });
+
+  test('keeps source description and stores target description as not_translated when description translation is disabled', async () => {
+    const result = await createCatalogImportTranslator({
+      translateText: async (text) => `${text} ar`,
+      cleanProductName: async (sourceName) => sourceName,
+    }).translateGroups([{
+      productNo: 'P-1',
+      rows: [{
+        ...groups[0]!.rows[0]!,
+        description: 'Paper cup for hot drinks',
+      }],
+    }], 'en', { translateDescriptions: false });
+
+    expect(result.groups[0]?.description).toEqual({
+      en: 'Paper cup for hot drinks',
+      ar: 'not_translated',
+    });
+    expect(result.translatedFieldCount).toBe(3);
+  });
+
+  test('uses the first non-empty group description and rejects conflicting descriptions', async () => {
+    const group: ParsedCatalogImportGroup = {
+      productNo: 'P-1',
+      rows: [
+        {
+          ...groups[0]!.rows[0]!,
+          description: undefined,
+        },
+        {
+          ...groups[0]!.rows[0]!,
+          row: 3,
+          unitLabel: 'Large',
+          description: 'Paper cup for hot drinks',
+        },
+      ],
+    };
+
+    const result = await createCatalogImportTranslator({
+      translateText: async (text) => `${text} ar`,
+      cleanProductName: async (sourceName) => sourceName,
+    }).translateGroups([group], 'en');
+
+    expect(result.groups[0]?.description).toEqual({
+      en: 'Paper cup for hot drinks',
+      ar: 'Paper cup for hot drinks ar',
+    });
+
+    await expect(createCatalogImportTranslator({
+      translateText: async (text) => `${text} ar`,
+      cleanProductName: async (sourceName) => sourceName,
+    }).translateGroups([{
+      ...group,
+      rows: [
+        { ...group.rows[0]!, description: 'First description' },
+        { ...group.rows[1]!, description: 'Second description' },
+      ],
+    }], 'en')).rejects.toThrow('VALIDATION_FAILED: Conflicting descriptions for product P-1');
+  });
+
+  test('generates missing descriptions by default', async () => {
+    const result = await createCatalogImportTranslator({
+      translateText: async (text) => `${text} ar`,
+      cleanProductName: async (sourceName) => sourceName,
+      generateProductDescription: async () => 'Generated description',
+    }).translateGroups([groups[0]!], 'en');
+
+    expect(result.groups[0]?.description).toEqual({
+      en: 'Generated description',
+      ar: 'Generated description ar',
+    });
   });
 });

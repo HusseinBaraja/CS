@@ -32,6 +32,7 @@ export interface DeleteCompanyCounts {
   products: number;
   productImageUploads: number;
   productVariants: number;
+  productUnits: number;
   embeddings: number;
   conversations: number;
   messages: number;
@@ -53,11 +54,13 @@ export interface CompanySettingsDto {
   companyId: string;
   missingPricePolicy: MissingPricePolicy;
   maxAutomatedMessageChars: number;
+  operatingCurrency?: string;
 }
 
 export interface UpdateCompanySettingsInput {
   missingPricePolicy: MissingPricePolicy;
   maxAutomatedMessageChars: number;
+  operatingCurrency?: string;
 }
 
 export interface CompaniesService {

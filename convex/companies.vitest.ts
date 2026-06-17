@@ -22,6 +22,7 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
     const botRuntimeSessions = await ctx.db.query("botRuntimeSessions").collect();
     const botRuntimePairingArtifacts = await ctx.db.query("botRuntimePairingArtifacts").collect();
     const productVariants = await ctx.db.query("productVariants").collect();
+    const productUnits = await ctx.db.query("productUnits").collect();
     const offers = await ctx.db.query("offers").collect();
     const currencyRates = await ctx.db.query("currencyRates").collect();
     const conversations = await ctx.db.query("conversations").collect();
@@ -45,6 +46,7 @@ const collectCounts = async (t: ReturnType<typeof convexTest>) =>
       offers,
       products,
       productImageUploads,
+      productUnits,
       productVariants,
       mediaCleanupJobs,
     };
@@ -57,6 +59,7 @@ const createTenantFixture = async (
     analyticsEventCount?: number;
     embeddingCount?: number;
     variantCount?: number;
+    unitCount?: number;
     productCount?: number;
     conversationCount?: number;
   } = {},
@@ -66,6 +69,7 @@ const createTenantFixture = async (
     const analyticsEventCount = options.analyticsEventCount ?? 1;
     const embeddingCount = options.embeddingCount ?? 1;
     const variantCount = options.variantCount ?? 1;
+    const unitCount = options.unitCount ?? 0;
     const productCount = options.productCount ?? 1;
     const conversationCount = options.conversationCount ?? 1;
 
@@ -105,6 +109,15 @@ const createTenantFixture = async (
           productId: productIds[index % productIds.length]!,
         labelEn: `Variant ${index}`,
         });
+    }
+
+    for (let index = 0; index < unitCount; index += 1) {
+      await ctx.db.insert("productUnits", {
+        companyId,
+        productId: productIds[index % productIds.length]!,
+        labelEn: `Unit ${index}`,
+        price: 10 + index,
+      });
     }
 
     const conversationIds: Array<Id<"conversations">> = [];
@@ -380,6 +393,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       analyticsEventCount: 3,
       embeddingCount: 4,
       variantCount: 2,
+      unitCount: 2,
     });
 
     const result = await t.action(internal.companies.remove, {
@@ -398,6 +412,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
         products: 1,
         productImageUploads: 1,
         productVariants: 2,
+        productUnits: 2,
         embeddings: 4,
         conversations: 1,
         conversationStateEvents: 1,
@@ -416,6 +431,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     expect(counts.products).toHaveLength(0);
     expect(counts.productImageUploads).toHaveLength(0);
     expect(counts.productVariants).toHaveLength(0);
+    expect(counts.productUnits).toHaveLength(0);
     expect(counts.embeddings).toHaveLength(0);
     expect(counts.conversations).toHaveLength(0);
     expect(counts.conversationStateEvents).toHaveLength(0);
@@ -434,6 +450,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       analyticsEventCount: oversizedBatchCount,
       embeddingCount: oversizedBatchCount,
       variantCount: oversizedBatchCount,
+      unitCount: oversizedBatchCount,
       productCount: 3,
       conversationCount: 3,
     });
@@ -452,6 +469,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
       products: 3,
       productImageUploads: 1,
       productVariants: oversizedBatchCount,
+      productUnits: oversizedBatchCount,
       embeddings: oversizedBatchCount,
       conversations: 3,
       conversationStateEvents: 1,
@@ -469,6 +487,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex companies", () =
     expect(counts.products).toHaveLength(0);
     expect(counts.productImageUploads).toHaveLength(0);
     expect(counts.productVariants).toHaveLength(0);
+    expect(counts.productUnits).toHaveLength(0);
     expect(counts.embeddings).toHaveLength(0);
     expect(counts.conversations).toHaveLength(0);
     expect(counts.conversationStateEvents).toHaveLength(0);

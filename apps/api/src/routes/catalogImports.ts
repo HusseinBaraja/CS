@@ -20,6 +20,8 @@ const parseSourceLanguage = (value: FormDataEntryValue | null): CatalogImportSou
   return null;
 };
 
+const parseGenerateDescriptions = (value: FormDataEntryValue | null): boolean => value !== 'false';
+
 const parseMultipartInput = async (request: Request) => {
   const formData = await request.formData();
   const sourceLanguage = parseSourceLanguage(formData.get('sourceLanguage'));
@@ -40,7 +42,11 @@ const parseMultipartInput = async (request: Request) => {
 
   return {
     ok: true as const,
-    value: { file, sourceLanguage },
+    value: {
+      file,
+      sourceLanguage,
+      generateDescriptions: parseGenerateDescriptions(formData.get('generateDescriptions')),
+    },
   };
 };
 

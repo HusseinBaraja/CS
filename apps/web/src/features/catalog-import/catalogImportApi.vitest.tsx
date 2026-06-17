@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { applyCatalogImport, previewCatalogImport } from './catalogImportApi';
+import { applyCatalogImport, previewCatalogImport, resolveYasTradingCompany } from './catalogImportApi';
 
 const okJsonResponse = (payload: unknown): Response => new Response(JSON.stringify(payload), {
   headers: { 'Content-Type': 'application/json' },
@@ -23,7 +23,7 @@ describe('catalogImportApi', () => {
         groups: [],
         categoryCount: 0,
         productGroupCount: 0,
-        variantCount: 0,
+        unitCount: 0,
         blockingErrors: [],
         translationWarnings: [],
       },
@@ -44,7 +44,7 @@ describe('catalogImportApi', () => {
         company: { id: 'company/id with spaces', name: 'YAS_Trading' },
         createdOrUpdatedCategoryCount: 0,
         replacedProductGroupCount: 0,
-        replacedVariantCount: 0,
+        replacedUnitCount: 0,
         translatedFieldCount: 0,
         notTranslatedFallbackCount: 0,
       },
@@ -55,6 +55,42 @@ describe('catalogImportApi', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/companies/company%2Fid%20with%20spaces/catalog-imports/apply', {
       method: 'POST',
       body: expect.any(FormData),
+    });
+  });
+
+  it('resolves the current seeded demo company when YAS_Trading is absent', () => {
+    expect(resolveYasTradingCompany([
+      { id: 'seed-company', name: 'YAS Packaging Co' },
+    ])).toEqual({
+      company: { id: 'seed-company', name: 'YAS Packaging Co' },
+    });
+  });
+
+  it('prefers the exact YAS_Trading company when both aliases exist', () => {
+    expect(resolveYasTradingCompany([
+      { id: 'seed-company', name: 'YAS Packaging Co' },
+      { id: 'yas-trading', name: 'YAS_Trading' },
+    ])).toEqual({
+      company: { id: 'yas-trading', name: 'YAS_Trading' },
+    });
+  });
+
+  it('treats duplicate aliases as ambiguous', () => {
+    expect(resolveYasTradingCompany([
+      {
+        id: 'sample-seed',
+        name: 'YAS Packaging Co',
+        ownerPhone: '967700000001',
+        config: { botEnabled: false },
+      },
+      {
+        id: 'active-seed',
+        name: 'YAS Packaging Co',
+        ownerPhone: '967771408660',
+        config: { botEnabled: true },
+      },
+    ])).toEqual({
+      error: 'يوجد أكثر من شركة باسم YAS_Trading.',
     });
   });
 });

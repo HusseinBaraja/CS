@@ -33,6 +33,7 @@ const baseDeleteResult: DeleteCompanyResult = {
     products: 3,
     productImageUploads: 1,
     productVariants: 4,
+    productUnits: 4,
     embeddings: 5,
     conversations: 6,
     messages: 7,

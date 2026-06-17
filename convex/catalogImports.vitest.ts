@@ -45,7 +45,8 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex catalog imports'
         productNo: 'P-1',
         category: { en: 'Cups', ar: 'أكواب' },
         productName: { en: 'Paper Cup', ar: 'كوب ورقي' },
-        variants: [
+        currency: 'SAR',
+        units: [
           { labelEn: 'Small', labelAr: 'صغير', price: 9 },
           { labelEn: 'Large', labelAr: 'كبير', price: 12 },
         ],
@@ -58,24 +59,53 @@ describe.skipIf(typeof import.meta.glob !== 'function')('convex catalog imports'
         productNo: 'P-1',
         category: { en: 'Cups', ar: 'أكواب' },
         productName: { en: 'Paper Cup Updated', ar: 'كوب ورقي محدث' },
-        variants: [{ labelEn: 'Medium', labelAr: 'وسط', price: 10 }],
+        currency: 'YER',
+        units: [{ labelEn: 'Medium', labelAr: 'وسط', price: 10 }],
       }],
     });
 
     const state = await t.run(async (ctx) => {
       const products = await ctx.db.query('products').collect();
-      const variants = await ctx.db.query('productVariants').collect();
+      const units = await ctx.db.query('productUnits').collect();
       const embeddings = await ctx.db.query('embeddings').collect();
-      return { products, variants, embeddings };
+      return { products, units, embeddings };
     });
 
     expect(secondResult.replacedProductGroupCount).toBe(1);
-    expect(secondResult.replacedVariantCount).toBe(1);
+    expect(secondResult.replacedUnitCount).toBe(1);
     expect(state.products).toHaveLength(1);
     expect(state.products[0]?.nameEn).toBe('Paper Cup Updated');
-    expect(state.variants.map((variant) => variant.labelEn)).toEqual(['Medium']);
+    expect(state.products[0]?.currency).toBe('YER');
+    expect(state.units.map((unit) => unit.labelEn)).toEqual(['Medium']);
     expect(state.embeddings).toHaveLength(2);
     expect(state.embeddings.map((embedding) => embedding.textContent).join('\n')).toContain('label:Medium');
     expect(state.embeddings.map((embedding) => embedding.textContent).join('\n')).not.toContain('label:Small');
+  });
+
+  it('rejects negative unit prices before writing catalog data', async () => {
+    installGeminiStub();
+    const t = convexTest(schema, modules);
+    const companyId = await t.run((ctx) => ctx.db.insert('companies', {
+      name: 'YAS_Trading',
+      ownerPhone: '967700000001',
+    }));
+
+    await expect(t.action(internal.catalogImports.apply, {
+      companyId,
+      groups: [{
+        productNo: 'P-1',
+        category: { en: 'Cups', ar: 'أكواب' },
+        productName: { en: 'Paper Cup', ar: 'كوب ورقي' },
+        currency: 'SAR',
+        units: [{ labelEn: 'Small', labelAr: 'صغير', price: -1 }],
+      }],
+    })).rejects.toThrow('VALIDATION_FAILED: Unit price must be a non-negative number for product P-1');
+
+    const state = await t.run(async (ctx) => ({
+      products: await ctx.db.query('products').collect(),
+      productUnits: await ctx.db.query('productUnits').collect(),
+    }));
+    expect(state.products).toHaveLength(0);
+    expect(state.productUnits).toHaveLength(0);
   });
 });

@@ -185,6 +185,7 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       categoryId,
       nameEn: "Burger Box",
       currency: "SAR",
+      units: [],
       variants: [
         {
           companyId,
@@ -265,6 +266,77 @@ describe.skipIf(typeof import.meta.glob !== "function")("convex products", () =>
       otherVariantId,
     );
     expect(hiddenVariants).toBeNull();
+  });
+
+  it("lists scoped units by sort order before label", async () => {
+    const t = convexTest(schema, modules);
+
+    const { companyId, otherCompanyId, productId, otherUnitId } = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", {
+        name: "Tenant One",
+        ownerPhone: "966500000632",
+      });
+      const otherCompanyId = await ctx.db.insert("companies", {
+        name: "Tenant Two",
+        ownerPhone: "966500000633",
+      });
+      const categoryId = await ctx.db.insert("categories", {
+        companyId,
+        nameEn: "Containers",
+      });
+      const productId = await ctx.db.insert("products", {
+        companyId,
+        categoryId,
+        nameEn: "Burger Box",
+      });
+
+      await ctx.db.insert("productUnits", {
+        companyId,
+        productId,
+        labelEn: "Carton",
+        price: 100,
+        sortOrder: 2,
+      });
+      await ctx.db.insert("productUnits", {
+        companyId,
+        productId,
+        labelEn: "Pack",
+        price: 10,
+        sortOrder: 1,
+      });
+      await ctx.db.insert("productUnits", {
+        companyId,
+        productId,
+        labelEn: "Each",
+        price: 1,
+      });
+      const otherUnitId = await ctx.db.insert("productUnits", {
+        companyId: otherCompanyId,
+        productId,
+        labelEn: "Other Tenant",
+        price: 999,
+      });
+
+      return {
+        companyId,
+        otherCompanyId,
+        productId,
+        otherUnitId,
+      };
+    });
+
+    const units = await t.query(internal.products.listUnits, {
+      companyId,
+      productId,
+    });
+    const hiddenUnits = await t.query(internal.products.listUnits, {
+      companyId: otherCompanyId,
+      productId,
+    });
+
+    expect(units?.map((unit) => unit.labelEn)).toEqual(["Pack", "Carton", "Each"]);
+    expect(units?.map((unit: { id: string }) => unit.id)).not.toContain(otherUnitId);
+    expect(hiddenUnits).toBeNull();
   });
 
   it("creates a product and stores exactly two embeddings", async () => {

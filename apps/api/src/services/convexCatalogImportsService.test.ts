@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { ConvexIdValidationError } from '@cs/db';
 import { ERROR_CODES } from '@cs/shared';
+import ExcelJS from 'exceljs';
 import { createConvexCatalogImportsService } from './convexCatalogImportsService';
 import {
   createCatalogImportDatabaseError,
@@ -21,6 +22,21 @@ const createWorkbookFile = () =>
   new File(['productNo,categoryName,productName\nP-1,Food,Burger\n'], 'catalog.csv', {
     type: 'text/csv',
   });
+
+const createValidWorkbookFile = async (includeCurrency = false) => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Catalog');
+  sheet.addRow(includeCurrency
+    ? ['Section Name', 'Product Number', 'English Product Name', 'Currency', 'Unit', 'Price']
+    : ['Section Name', 'Product Number', 'English Product Name', 'Unit', 'Price']);
+  sheet.addRow(includeCurrency
+    ? ['Cups', 'P-1', 'Paper Cup', 'USD', 'Small', 9]
+    : ['Cups', 'P-1', 'Paper Cup', 'Small', 9]);
+  const buffer = await workbook.xlsx.writeBuffer();
+  return new File([buffer], 'catalog.xlsx', {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+};
 
 describe('createConvexCatalogImportsService', () => {
   test('normalizes precise Convex validation errors', async () => {
@@ -116,5 +132,113 @@ describe('createConvexCatalogImportsService', () => {
       message: 'Spreadsheet row is invalid',
       status: 400,
     });
+  });
+
+  test('blocks preview when company operating currency is missing', async () => {
+    let queryCount = 0;
+    const service = createService({
+      query: async () => {
+        queryCount += 1;
+        return queryCount === 1 ? { id: 'company-1', name: 'YAS_Trading' } : {};
+      },
+      action: async () => {
+        throw new Error('action should not be called');
+      },
+    });
+
+    const preview = await service.preview('company-1', {
+      file: await createValidWorkbookFile(),
+      sourceLanguage: 'en',
+    });
+
+    expect(preview.blockingErrors).toContainEqual({
+      message: 'Company operating currency must be configured before catalog import',
+    });
+  });
+
+  test('applies import with company operating currency and ignores spreadsheet currency', async () => {
+    let queryCount = 0;
+    let actionArgs: unknown;
+    const service = createConvexCatalogImportsService({
+      createClient: () => ({
+        query: async () => {
+          queryCount += 1;
+          return queryCount === 1
+            ? { id: 'company-1', name: 'YAS_Trading' }
+            : { operatingCurrency: 'YER' };
+        },
+        action: async (_reference: unknown, args: unknown) => {
+          actionArgs = args;
+          return {
+            createdOrUpdatedCategoryCount: 1,
+            replacedProductGroupCount: 1,
+            replacedUnitCount: 1,
+          };
+        },
+      }) as never,
+      translator: {
+        translateGroups: async () => ({
+          groups: [{
+            productNo: 'P-1',
+            category: { en: 'Cups', ar: 'أكواب' },
+            productName: { en: 'Paper Cup', ar: 'كوب ورقي' },
+            units: [{ labelEn: 'Small', labelAr: 'صغير', price: 9 }],
+          }],
+          translatedFieldCount: 0,
+          notTranslatedFallbackCount: 0,
+          warnings: [],
+        }),
+      },
+    });
+
+    await service.apply('company-1', {
+      file: await createValidWorkbookFile(true),
+      sourceLanguage: 'en',
+    });
+
+    expect(actionArgs).toMatchObject({
+      groups: [{
+        currency: 'YER',
+      }],
+    });
+  });
+
+  test('keeps description translation enabled when applying imports', async () => {
+    let translatorOptions: unknown;
+    const service = createConvexCatalogImportsService({
+      createClient: () => ({
+        query: async () => ({ id: 'company-1', name: 'YAS_Trading', operatingCurrency: 'YER' }),
+        action: async () => ({
+          createdOrUpdatedCategoryCount: 1,
+          replacedProductGroupCount: 1,
+          replacedUnitCount: 1,
+        }),
+      }) as never,
+      translator: {
+        translateGroups: async (_groups, _sourceLanguage, options) => {
+          translatorOptions = options;
+          return {
+            groups: [{
+              productNo: 'P-1',
+              category: { en: 'Cups', ar: 'أكواب' },
+              productName: { en: 'Paper Cup', ar: 'كوب ورقي' },
+              description: { en: 'Paper cup description', ar: 'not_translated' },
+              units: [{ labelEn: 'Small', labelAr: 'صغير', price: 9 }],
+            }],
+            translatedFieldCount: 0,
+            notTranslatedFallbackCount: 0,
+            warnings: [],
+          };
+        },
+      },
+    });
+
+    await service.apply('company-1', {
+      file: await createValidWorkbookFile(),
+      sourceLanguage: 'en',
+    });
+
+    expect(translatorOptions).toEqual({ generateDescriptions: undefined });
+    expect(translatorOptions).not.toHaveProperty('translateDescriptions');
   });
 });

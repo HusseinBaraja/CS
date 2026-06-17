@@ -46,6 +46,10 @@ vi.mock('./pages/UploadDataPage', () => ({
   UploadDataPage: () => <div>upload-data-page</div>,
 }));
 
+vi.mock('./pages/SettingsPage', () => ({
+  SettingsPage: () => <div>settings-page</div>,
+}));
+
 describe('App shell layout behavior', () => {
   afterEach(() => {
     window.history.replaceState({}, '', '/');
@@ -78,6 +82,18 @@ describe('App shell layout behavior', () => {
     expect(directionProvider.getAttribute('data-dir')).toBe('rtl');
     expect(directionProvider.getAttribute('data-direction')).toBe('rtl');
     screen.getByText('upload-data-page');
+  });
+
+  it('routes dashboard settings through the dashboard shell', async () => {
+    setupGsapMocks();
+    window.history.replaceState({}, '', '/dashboard/settings');
+    const { default: App } = await import('./App');
+
+    render(<App />);
+
+    expect(screen.queryByTestId('marketing-layout')).toBeNull();
+    screen.getByTestId('dashboard-direction-provider');
+    screen.getByText('settings-page');
   });
 
   it('does not wrap the dashboard root in marketing layout', async () => {

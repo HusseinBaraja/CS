@@ -1,5 +1,7 @@
 import type {
   CreateProductVariantInput,
+  CreateProductUnitInput,
+  UpdateProductUnitInput,
   UpdateProductVariantInput,
 } from '../services/products';
 import {
@@ -9,7 +11,13 @@ import {
   type ParseResult,
 } from './parserUtils';
 
-export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProductVariantInput> => {
+type LabeledPriceCreateInput = CreateProductVariantInput | CreateProductUnitInput;
+type LabeledPriceUpdateInput = UpdateProductVariantInput | UpdateProductUnitInput;
+
+const parseLabeledPriceCreate = <T extends LabeledPriceCreateInput>(
+  value: unknown,
+  options: { priceRequired?: boolean; includeSortOrder?: boolean } = {},
+): ParseResult<T> => {
   const parsedObject = parseObject(value);
   if (!parsedObject.ok) {
     return parsedObject;
@@ -30,10 +38,24 @@ export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProduc
     return price;
   }
 
+  const sortOrder = options.includeSortOrder
+    ? parseOptionalNumber(parsedObject.value.sortOrder, 'sortOrder')
+    : { ok: true, value: undefined } as const;
+  if (!sortOrder.ok) {
+    return sortOrder;
+  }
+
   if (!labelEn.value && !labelAr.value) {
     return {
       ok: false,
       message: 'at least one of labelEn or labelAr is required',
+    };
+  }
+
+  if (options.priceRequired && (price.value === undefined || price.value === null)) {
+    return {
+      ok: false,
+      message: 'price is required',
     };
   }
 
@@ -43,11 +65,15 @@ export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProduc
       ...(labelEn.value !== undefined && labelEn.value !== null ? { labelEn: labelEn.value } : {}),
       ...(labelAr.value !== undefined && labelAr.value !== null ? { labelAr: labelAr.value } : {}),
       ...(price.value !== undefined && price.value !== null ? { price: price.value } : {}),
-    },
+      ...(sortOrder.value !== undefined && sortOrder.value !== null ? { sortOrder: sortOrder.value } : {}),
+    } as T,
   };
 };
 
-export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProductVariantInput> => {
+const parseLabeledPriceUpdate = <T extends LabeledPriceUpdateInput>(
+  value: unknown,
+  options: { allowPriceNull?: boolean; includeSortOrder?: boolean } = {},
+): ParseResult<T> => {
   const parsedObject = parseObject(value);
   if (!parsedObject.ok) {
     return parsedObject;
@@ -60,7 +86,7 @@ export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProduc
     };
   }
 
-  const updates: UpdateProductVariantInput = {};
+  const updates: Record<string, string | number | null | undefined> = {};
 
   if ('labelEn' in parsedObject.value) {
     const labelEn = parseOptionalString(parsedObject.value.labelEn, 'labelEn', { allowNull: true });
@@ -82,13 +108,22 @@ export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProduc
 
   if ('price' in parsedObject.value) {
     const price = parseOptionalNumber(parsedObject.value.price, 'price', {
-      allowNull: true,
+      allowNull: options.allowPriceNull,
     });
     if (!price.ok) {
       return price;
     }
 
     updates.price = price.value;
+  }
+
+  if (options.includeSortOrder && 'sortOrder' in parsedObject.value) {
+    const sortOrder = parseOptionalNumber(parsedObject.value.sortOrder, 'sortOrder', { allowNull: true });
+    if (!sortOrder.ok) {
+      return sortOrder;
+    }
+
+    updates.sortOrder = sortOrder.value;
   }
 
   if (Object.keys(updates).length === 0) {
@@ -100,6 +135,21 @@ export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProduc
 
   return {
     ok: true,
-    value: updates,
+    value: updates as unknown as T,
   };
 };
+
+export const parseCreateVariantBody = (value: unknown): ParseResult<CreateProductVariantInput> =>
+  parseLabeledPriceCreate<CreateProductVariantInput>(value);
+
+export const parseUpdateVariantBody = (value: unknown): ParseResult<UpdateProductVariantInput> =>
+  parseLabeledPriceUpdate<UpdateProductVariantInput>(value, { allowPriceNull: true });
+
+export const parseCreateUnitBody = (value: unknown): ParseResult<CreateProductUnitInput> =>
+  parseLabeledPriceCreate<CreateProductUnitInput>(value, {
+    includeSortOrder: true,
+    priceRequired: true,
+  });
+
+export const parseUpdateUnitBody = (value: unknown): ParseResult<UpdateProductUnitInput> =>
+  parseLabeledPriceUpdate<UpdateProductUnitInput>(value, { includeSortOrder: true });

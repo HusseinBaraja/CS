@@ -3,16 +3,13 @@ import { ERROR_CODES } from '@cs/shared';
 import { createErrorResponse } from '../responses';
 import {
   parseCreateProductBody,
-  parseCreateProductImageUploadBody,
   parseListProductsQuery,
   parseUpdateProductBody,
 } from './productSchemas';
-import {
-  parseCreateVariantBody,
-  parseUpdateVariantBody,
-} from './productVariantParsers';
+import { createProductsMediaRoutes } from './productsMediaRoutes';
+import { createProductsUnitsRoutes } from './productsUnitsRoutes';
+import { createProductsVariantsRoutes } from './productsVariantsRoutes';
 import type { ProductMediaService } from '../services/productMedia';
-import { ProductMediaServiceError } from '../services/productMedia';
 import type { ProductsService } from '../services/products';
 import { ProductsServiceError } from '../services/products';
 import { parseJsonBody } from './parserUtils';
@@ -25,9 +22,6 @@ interface ProductsRoutesOptions {
 
 const isServiceError = (error: unknown): error is ProductsServiceError =>
   error instanceof ProductsServiceError;
-
-const isProductMediaServiceError = (error: unknown): error is ProductMediaServiceError =>
-  error instanceof ProductMediaServiceError;
 
 export const createProductsRoutes = (
   options: ProductsRoutesOptions,
@@ -172,202 +166,9 @@ export const createProductsRoutes = (
     }
   });
 
-  app.post("/:id/images/uploads", async (c) => {
-    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
-    const productId = requireRouteParam(c.req.param("id"), "id");
-    const parsedJson = await parseJsonBody(c.req.raw);
-    if (!parsedJson.ok) {
-      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
-    }
-
-    const parsedBody = parseCreateProductImageUploadBody(parsedJson.value);
-    if (!parsedBody.ok) {
-      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);
-    }
-
-    try {
-      const upload = await options.productMediaService.createUpload(companyId, productId, parsedBody.value);
-      if (!upload) {
-        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
-      }
-
-      return c.json({
-        ok: true,
-        upload,
-      }, 201);
-    } catch (error) {
-      if (isProductMediaServiceError(error)) {
-        return c.json(createErrorResponse(error.code, error.message), error.status);
-      }
-
-      throw error;
-    }
-  });
-
-  app.post("/:id/images/uploads/:uploadId/complete", async (c) => {
-    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
-    const productId = requireRouteParam(c.req.param("id"), "id");
-    const uploadId = requireRouteParam(c.req.param("uploadId"), "uploadId");
-
-    try {
-      const image = await options.productMediaService.completeUpload(companyId, productId, uploadId);
-      if (!image) {
-        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Upload session not found"), 404);
-      }
-
-      return c.json({
-        ok: true,
-        image,
-      });
-    } catch (error) {
-      if (isProductMediaServiceError(error)) {
-        return c.json(createErrorResponse(error.code, error.message), error.status);
-      }
-
-      throw error;
-    }
-  });
-
-  app.delete("/:id/images/:imageId", async (c) => {
-    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
-    const productId = requireRouteParam(c.req.param("id"), "id");
-    const imageId = requireRouteParam(c.req.param("imageId"), "imageId");
-
-    try {
-      const deleted = await options.productMediaService.deleteImage(companyId, productId, imageId);
-      if (!deleted) {
-        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
-      }
-
-      return c.json({
-        ok: true,
-        deleted,
-      });
-    } catch (error) {
-      if (isProductMediaServiceError(error)) {
-        return c.json(createErrorResponse(error.code, error.message), error.status);
-      }
-
-      throw error;
-    }
-  });
-
-  app.get("/:id/variants", async (c) => {
-    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
-    const productId = requireRouteParam(c.req.param("id"), "id");
-
-    try {
-      const variants = await options.productsService.listVariants(companyId, productId);
-      if (!variants) {
-        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
-      }
-
-      return c.json({
-        ok: true,
-        variants,
-      });
-    } catch (error) {
-      if (isServiceError(error)) {
-        return c.json(createErrorResponse(error.code, error.message), error.status);
-      }
-
-      throw error;
-    }
-  });
-
-  app.post("/:id/variants", async (c) => {
-    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
-    const productId = requireRouteParam(c.req.param("id"), "id");
-    const parsedJson = await parseJsonBody(c.req.raw);
-    if (!parsedJson.ok) {
-      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
-    }
-
-    const parsedBody = parseCreateVariantBody(parsedJson.value);
-    if (!parsedBody.ok) {
-      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);
-    }
-
-    try {
-      const variant = await options.productsService.createVariant(companyId, productId, parsedBody.value);
-      if (!variant) {
-        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
-      }
-
-      return c.json({
-        ok: true,
-        variant,
-      }, 201);
-    } catch (error) {
-      if (isServiceError(error)) {
-        return c.json(createErrorResponse(error.code, error.message), error.status);
-      }
-
-      throw error;
-    }
-  });
-
-  app.put("/:id/variants/:variantId", async (c) => {
-    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
-    const productId = requireRouteParam(c.req.param("id"), "id");
-    const variantId = requireRouteParam(c.req.param("variantId"), "variantId");
-    const parsedJson = await parseJsonBody(c.req.raw);
-    if (!parsedJson.ok) {
-      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedJson.message), 400);
-    }
-
-    const parsedBody = parseUpdateVariantBody(parsedJson.value);
-    if (!parsedBody.ok) {
-      return c.json(createErrorResponse(ERROR_CODES.VALIDATION_FAILED, parsedBody.message), 400);
-    }
-
-    try {
-      const variant = await options.productsService.updateVariant(
-        companyId,
-        productId,
-        variantId,
-        parsedBody.value,
-      );
-      if (!variant) {
-        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
-      }
-
-      return c.json({
-        ok: true,
-        variant,
-      });
-    } catch (error) {
-      if (isServiceError(error)) {
-        return c.json(createErrorResponse(error.code, error.message), error.status);
-      }
-
-      throw error;
-    }
-  });
-
-  app.delete("/:id/variants/:variantId", async (c) => {
-    const companyId = requireRouteParam(c.req.param("companyId"), "companyId");
-    const productId = requireRouteParam(c.req.param("id"), "id");
-    const variantId = requireRouteParam(c.req.param("variantId"), "variantId");
-
-    try {
-      const deleted = await options.productsService.deleteVariant(companyId, productId, variantId);
-      if (!deleted) {
-        return c.json(createErrorResponse(ERROR_CODES.NOT_FOUND, "Product not found"), 404);
-      }
-
-      return c.json({
-        ok: true,
-        deleted,
-      });
-    } catch (error) {
-      if (isServiceError(error)) {
-        return c.json(createErrorResponse(error.code, error.message), error.status);
-      }
-
-      throw error;
-    }
-  });
+  app.route("/:id/images", createProductsMediaRoutes({ productMediaService: options.productMediaService }));
+  app.route("/:id/units", createProductsUnitsRoutes({ productsService: options.productsService }));
+  app.route("/:id/variants", createProductsVariantsRoutes({ productsService: options.productsService }));
 
   return app;
 };

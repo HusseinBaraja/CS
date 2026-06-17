@@ -5,7 +5,7 @@ import {
   createConvexAdminClient,
   toCompanyId,
 } from '@cs/db';
-import { ERROR_CODES } from '@cs/shared';
+import { ERROR_CODES, normalizeCurrencyCode } from '@cs/shared';
 import { parseCatalogImportWorkbook, type ParsedCatalogImportGroup } from '../catalog-import/workbookParser';
 import {
   createCatalogImportDatabaseError,
@@ -81,7 +81,7 @@ const summarizeGroups = (groups: ParsedCatalogImportGroup[]) =>
     categoryName: group.rows[0]?.categoryName ?? '',
     productName: group.rows[0]?.productName ?? '',
     rowCount: group.rows.length,
-    variantCount: group.rows.length,
+    unitCount: group.rows.length,
     rows: group.rows.map((row) => row.row),
   }));
 
@@ -91,6 +91,17 @@ const ensureFile = (input: CatalogImportUploadInput): File => {
   }
 
   return input.file;
+};
+
+const validateCompanyCurrency = (
+  operatingCurrency: string | undefined,
+): string => {
+  const normalizedCompanyCurrency = normalizeCurrencyCode(operatingCurrency);
+  if (!normalizedCompanyCurrency) {
+    throw createCatalogImportValidationError('Company operating currency must be configured before catalog import');
+  }
+
+  return normalizedCompanyCurrency;
 };
 
 export const createConvexCatalogImportsService = (
@@ -119,8 +130,29 @@ export const createConvexCatalogImportsService = (
         }
 
         const parsed = await parseCatalogImportWorkbook(file, input.sourceLanguage);
+        const settings = await client.query(convexInternal.companySettings.get, {
+          companyId: toCompanyId(companyId),
+        });
+        let currencyError: CatalogImportsServiceError | null = null;
+        try {
+          validateCompanyCurrency(settings?.operatingCurrency);
+        } catch (error) {
+          if (error instanceof CatalogImportsServiceError) {
+            currencyError = error;
+          } else {
+            throw error;
+          }
+        }
+        const blockingErrors = [
+          ...parsed.blockingErrors,
+          ...(currencyError ? [{ message: currencyError.message }] : []),
+        ];
         const translation = parsed.blockingErrors.length === 0
-          ? await translator.translateGroups(parsed.groups, input.sourceLanguage)
+          && !currencyError
+          ? await translator.translateGroups(parsed.groups, input.sourceLanguage, {
+            generateDescriptions: input.generateDescriptions,
+            translateDescriptions: false,
+          })
           : { warnings: [] };
 
         return {
@@ -129,8 +161,8 @@ export const createConvexCatalogImportsService = (
           groups: summarizeGroups(parsed.groups),
           categoryCount: new Set(parsed.groups.map((group) => group.rows[0]?.categoryName).filter(Boolean)).size,
           productGroupCount: parsed.groups.length,
-          variantCount: parsed.groups.reduce((count, group) => count + group.rows.length, 0),
-          blockingErrors: parsed.blockingErrors,
+          unitCount: parsed.groups.reduce((count, group) => count + group.rows.length, 0),
+          blockingErrors,
           translationWarnings: translation.warnings,
         };
       });
@@ -150,11 +182,21 @@ export const createConvexCatalogImportsService = (
         if (parsed.blockingErrors.length > 0) {
           throw createCatalogImportValidationError(parsed.blockingErrors[0]?.message ?? 'Invalid spreadsheet');
         }
+        const settings = await client.query(convexInternal.companySettings.get, {
+          companyId: toCompanyId(companyId),
+        });
+        const operatingCurrency = validateCompanyCurrency(settings?.operatingCurrency);
 
-        const translation = await translator.translateGroups(parsed.groups, input.sourceLanguage);
+        const translation = await translator.translateGroups(parsed.groups, input.sourceLanguage, {
+          generateDescriptions: input.generateDescriptions,
+        });
+        const groups = translation.groups.map((group) => ({
+          ...group,
+          currency: operatingCurrency,
+        }));
         const result = await client.action(convexInternal.catalogImports.apply, {
           companyId: toCompanyId(companyId),
-          groups: translation.groups,
+          groups,
         });
 
         return {
@@ -164,7 +206,7 @@ export const createConvexCatalogImportsService = (
           },
           createdOrUpdatedCategoryCount: result.createdOrUpdatedCategoryCount,
           replacedProductGroupCount: result.replacedProductGroupCount,
-          replacedVariantCount: result.replacedVariantCount,
+          replacedUnitCount: result.replacedUnitCount,
           translatedFieldCount: translation.translatedFieldCount,
           notTranslatedFallbackCount: translation.notTranslatedFallbackCount,
         };

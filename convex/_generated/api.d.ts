@@ -9,8 +9,13 @@
  */
 
 import type * as analytics from "../analytics.js";
+import type * as analytics_handoffAggregation from "../analytics/handoffAggregation.js";
+import type * as analytics_productAggregation from "../analytics/productAggregation.js";
+import type * as analytics_productReaders from "../analytics/productReaders.js";
+import type * as analytics_windowing from "../analytics/windowing.js";
 import type * as catalogImports from "../catalogImports.js";
 import type * as catalogLanguageHints from "../catalogLanguageHints.js";
+import type * as catalogMaintenance from "../catalogMaintenance.js";
 import type * as catalogRestructureCleanup from "../catalogRestructureCleanup.js";
 import type * as catalogRestructureCleanupProcessors from "../catalogRestructureCleanupProcessors.js";
 import type * as catalogRestructureCleanupProducts from "../catalogRestructureCleanupProducts.js";
@@ -21,6 +26,7 @@ import type * as companies from "../companies.js";
 import type * as companyCleanup from "../companyCleanup.js";
 import type * as companyRuntime from "../companyRuntime.js";
 import type * as companySettings from "../companySettings.js";
+import type * as companySettingsHelpers from "../companySettingsHelpers.js";
 import type * as conversations from "../conversations.js";
 import type * as conversations_constants from "../conversations/constants.js";
 import type * as conversations_conversation_readers from "../conversations/conversation_readers.js";
@@ -53,6 +59,7 @@ import type * as products_errors from "../products/errors.js";
 import type * as products_mapping from "../products/mapping.js";
 import type * as products_mutationDefinitions from "../products/mutationDefinitions.js";
 import type * as products_mutationDefinitions_productMutationDefinitions from "../products/mutationDefinitions/productMutationDefinitions.js";
+import type * as products_mutationDefinitions_unitMutationDefinitions from "../products/mutationDefinitions/unitMutationDefinitions.js";
 import type * as products_mutationDefinitions_variantEmbeddingMutations from "../products/mutationDefinitions/variantEmbeddingMutations.js";
 import type * as products_mutationDefinitions_variantMutationDefinitions from "../products/mutationDefinitions/variantMutationDefinitions.js";
 import type * as products_normalization from "../products/normalization.js";
@@ -66,6 +73,10 @@ import type * as products_types from "../products/types.js";
 import type * as products_validation from "../products/validation.js";
 import type * as seed from "../seed.js";
 import type * as seedData from "../seedData.js";
+import type * as seedDataAccess from "../seedDataAccess.js";
+import type * as seedLock from "../seedLock.js";
+import type * as seedOrchestration from "../seedOrchestration.js";
+import type * as seedTypes from "../seedTypes.js";
 import type * as testFixtures from "../testFixtures.js";
 import type * as vectorSearch from "../vectorSearch.js";
 
@@ -77,8 +88,13 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
+  "analytics/handoffAggregation": typeof analytics_handoffAggregation;
+  "analytics/productAggregation": typeof analytics_productAggregation;
+  "analytics/productReaders": typeof analytics_productReaders;
+  "analytics/windowing": typeof analytics_windowing;
   catalogImports: typeof catalogImports;
   catalogLanguageHints: typeof catalogLanguageHints;
+  catalogMaintenance: typeof catalogMaintenance;
   catalogRestructureCleanup: typeof catalogRestructureCleanup;
   catalogRestructureCleanupProcessors: typeof catalogRestructureCleanupProcessors;
   catalogRestructureCleanupProducts: typeof catalogRestructureCleanupProducts;
@@ -89,6 +105,7 @@ declare const fullApi: ApiFromModules<{
   companyCleanup: typeof companyCleanup;
   companyRuntime: typeof companyRuntime;
   companySettings: typeof companySettings;
+  companySettingsHelpers: typeof companySettingsHelpers;
   conversations: typeof conversations;
   "conversations/constants": typeof conversations_constants;
   "conversations/conversation_readers": typeof conversations_conversation_readers;
@@ -121,6 +138,7 @@ declare const fullApi: ApiFromModules<{
   "products/mapping": typeof products_mapping;
   "products/mutationDefinitions": typeof products_mutationDefinitions;
   "products/mutationDefinitions/productMutationDefinitions": typeof products_mutationDefinitions_productMutationDefinitions;
+  "products/mutationDefinitions/unitMutationDefinitions": typeof products_mutationDefinitions_unitMutationDefinitions;
   "products/mutationDefinitions/variantEmbeddingMutations": typeof products_mutationDefinitions_variantEmbeddingMutations;
   "products/mutationDefinitions/variantMutationDefinitions": typeof products_mutationDefinitions_variantMutationDefinitions;
   "products/normalization": typeof products_normalization;
@@ -134,6 +152,10 @@ declare const fullApi: ApiFromModules<{
   "products/validation": typeof products_validation;
   seed: typeof seed;
   seedData: typeof seedData;
+  seedDataAccess: typeof seedDataAccess;
+  seedLock: typeof seedLock;
+  seedOrchestration: typeof seedOrchestration;
+  seedTypes: typeof seedTypes;
   testFixtures: typeof testFixtures;
   vectorSearch: typeof vectorSearch;
 }>;

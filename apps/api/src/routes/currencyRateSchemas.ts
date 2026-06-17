@@ -1,11 +1,10 @@
+import { normalizeCurrencyCode } from '@cs/shared';
 import type { UpsertCurrencyRateInput } from '../services/currencyRates';
 import { parseObject, type ParseResult } from './parserUtils';
 
-const CURRENCY_CODE_PATTERN = /^[A-Z]{3}$/u;
-
 const parseCurrencyCode = (value: string, fieldName: string): ParseResult<string> => {
-  const normalized = value.trim().toUpperCase();
-  if (!CURRENCY_CODE_PATTERN.test(normalized)) {
+  const normalized = normalizeCurrencyCode(value);
+  if (!normalized) {
     return {
       ok: false,
       message: `${fieldName} must be a 3-letter alphabetic code`,

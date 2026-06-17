@@ -20,5 +20,6 @@ export const hasPriceIntent = (message: string): boolean => PRICE_INTENT_PATTERN
 export const retrievalHasAnyPrice = (retrieval: RetrieveCatalogContextResult): boolean =>
   retrieval.candidates.some((candidate) =>
     candidate.product.price !== undefined ||
+    (candidate.product.units ?? []).some((unit) => unit.price !== undefined) ||
     candidate.product.variants.some((variant) => variant.price !== undefined)
   );

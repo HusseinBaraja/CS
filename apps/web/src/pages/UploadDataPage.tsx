@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
+import { ToggleGroup, ToggleGroupItem } from '../components/ui/toggle-group';
 import { CatalogTemplateDownload } from '../features/catalog-import/CatalogTemplateDownload';
 import { buildCatalogTemplateHeaders, defaultCatalogTemplateOptions } from '../features/catalog-import/catalogTemplate';
 import {
@@ -23,6 +24,7 @@ const requiredColumns = buildCatalogTemplateHeaders(defaultCatalogTemplateOption
 export function UploadDataPage() {
   const [file, setFile] = useState<File | null>(null);
   const [sourceLanguage, setSourceLanguage] = useState<SourceLanguage>('ar');
+  const [generateDescriptions, setGenerateDescriptions] = useState(true);
   const [companyState, setCompanyState] = useState<ReturnType<typeof resolveYasTradingCompany> | null>(null);
   const [preview, setPreview] = useState<CatalogImportPreview | null>(null);
   const [result, setResult] = useState<CatalogImportApplyResult | null>(null);
@@ -76,7 +78,7 @@ export function UploadDataPage() {
     setError(null);
     setResult(null);
     try {
-      setPreview(await previewCatalogImport(companyState.company.id, file, sourceLanguage));
+      setPreview(await previewCatalogImport(companyState.company.id, file, sourceLanguage, generateDescriptions));
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'فشلت المعاينة.');
     } finally {
@@ -92,7 +94,7 @@ export function UploadDataPage() {
     setIsApplying(true);
     setError(null);
     try {
-      setResult(await applyCatalogImport(companyState.company.id, file, sourceLanguage));
+      setResult(await applyCatalogImport(companyState.company.id, file, sourceLanguage, generateDescriptions));
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'فشل تطبيق الاستيراد.');
     } finally {
@@ -167,6 +169,35 @@ export function UploadDataPage() {
                       <option value="en">English</option>
                     </select>
                   </div>
+                  <div className="flex w-full flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dfe6e2] bg-white p-3 text-start">
+                    <div className="flex flex-col gap-1">
+                      <p className="text-sm font-bold text-[#1d2522]">إنشاء وصف المنتج بالذكاء الاصطناعي</p>
+                      <p className="text-xs leading-5 text-[#66706c]">
+                        عند الإيقاف يتم تنظيف اسم المنتج وترجمته فقط، ولا ينشئ النظام وصفا جديدا قبل الحفظ.
+                      </p>
+                    </div>
+                    <ToggleGroup
+                      aria-label="إنشاء وصف المنتج بالذكاء الاصطناعي"
+                      className="rounded-lg border border-[#cdd8d2] bg-[#f8fbf9]"
+                      type="single"
+                      value={generateDescriptions ? 'yes' : 'no'}
+                      onValueChange={(value) => {
+                        if (!value) {
+                          return;
+                        }
+                        setGenerateDescriptions(value === 'yes');
+                        setPreview(null);
+                        setResult(null);
+                      }}
+                    >
+                      <ToggleGroupItem value="yes" aria-label="نعم" className="data-[state=on]:bg-[#0d7c47] data-[state=on]:text-white">
+                        نعم
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="no" aria-label="لا" className="data-[state=on]:bg-[#0d7c47] data-[state=on]:text-white">
+                        لا
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
                   <div className="flex w-full flex-wrap items-center justify-center gap-3">
                     <CatalogTemplateDownload />
                     <Button disabled={Boolean(blockingError) || isPreviewing} onClick={runPreview}>
@@ -195,7 +226,7 @@ export function UploadDataPage() {
                     <div className="grid gap-3 sm:grid-cols-3">
                       <Badge variant="secondary">{preview.productGroupCount} منتجات</Badge>
                       <Badge variant="secondary">{preview.categoryCount} أقسام</Badge>
-                      <Badge variant="secondary">{preview.variantCount} متغيرات</Badge>
+                      <Badge variant="secondary">{preview.unitCount} وحدات</Badge>
                     </div>
                     {preview.blockingErrors.map((item) => (
                       <p key={`${item.row ?? 'file'}-${item.message}`} className="text-sm font-semibold text-[#9f2f2f]">
@@ -207,7 +238,7 @@ export function UploadDataPage() {
                         <div key={group.productNo} className="rounded-lg border border-[#dfe6e2] bg-white p-4">
                           <div className="flex flex-wrap justify-between gap-2">
                             <p className="font-bold text-[#1c2521]">{group.productNo}</p>
-                            <span className="text-sm text-[#66706c]">{group.variantCount} متغيرات</span>
+                            <span className="text-sm text-[#66706c]">{group.unitCount} وحدات</span>
                           </div>
                           <p className="text-sm text-[#4d5753]">{group.categoryName} / {group.productName}</p>
                         </div>
@@ -221,7 +252,7 @@ export function UploadDataPage() {
                 )}
                 {result ? (
                   <div className="rounded-lg border border-[#b7d7c2] bg-[#f3f8f5] p-4 text-sm text-[#244234]">
-                    تم تطبيق {result.replacedProductGroupCount} منتجات و {result.replacedVariantCount} متغيرات على {result.company.name}.
+                    تم تطبيق {result.replacedProductGroupCount} منتجات و {result.replacedUnitCount} وحدات على {result.company.name}.
                   </div>
                 ) : null}
               </CardContent>
@@ -244,7 +275,7 @@ export function UploadDataPage() {
                 <Separator className="my-1" />
                 <div className="flex gap-3 rounded-lg bg-[#f3f8f5] p-4 text-sm leading-6 text-[#44504b]">
                   <Info className="mt-1 shrink-0 text-[#0d7c47]" />
-                  <p>كل ملف يستخدم لغة مصدر واحدة، ويترجم النظام أسماء الأقسام والمنتجات والمتغيرات قبل تحديث كتالوج الواتساب.</p>
+                  <p>كل ملف يستخدم لغة مصدر واحدة، ويترجم النظام أسماء الأقسام والمنتجات والوحدات قبل تحديث كتالوج الواتساب.</p>
                 </div>
               </CardContent>
             </Card>

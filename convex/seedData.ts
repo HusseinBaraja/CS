@@ -25,11 +25,11 @@ export interface SeedProduct {
   currency: "SAR";
 }
 
-export interface SeedVariant {
+export interface SeedUnit {
   productKey: string;
   labelEn?: string;
   labelAr?: string;
-  price?: number;
+  price: number;
 }
 
 export interface SeedOffer {
@@ -83,7 +83,7 @@ export const seedProducts: SeedProduct[] = [
   { key: "cutlery-set", categoryKey: "cutlery", nameEn: "Wrapped Cutlery Set", nameAr: "طقم أدوات مائدة مغلف", descriptionEn: "Wrapped set with fork, knife, spoon, and tissue for delivery orders.", descriptionAr: "طقم مغلف يحتوي على شوكة وسكين وملعقة ومنديل لطلبات التوصيل.", price: 0.28, currency: "SAR" },
 ];
 
-export const seedVariants: SeedVariant[] = [
+export const seedUnits: SeedUnit[] = [
   { productKey: "meal-container-750", labelEn: "500ml Black Base", price: 0.58 },
   { productKey: "meal-container-750", labelEn: "750ml Black Base", price: 0.72 },
   { productKey: "meal-container-750", labelEn: "1000ml Black Base", price: 0.84 },
