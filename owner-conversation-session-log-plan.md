@@ -346,7 +346,7 @@ Checkpoint:
 - `pnpm lint`
 - `pnpm check:root`
 
-Run `pnpm dev` after implementation to verify the dev-session artifact manually.
+Use the existing always-on `pnpm dev` session after implementation to verify the dev-session artifact manually.
 
 ## Acceptance Criteria
 

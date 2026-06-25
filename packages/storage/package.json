@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --config ../../.oxlintrc.json --ignore-path ../../.oxlintignore .",
     "check": "pnpm typecheck && pnpm lint",
-    "test": "pnpm --dir ../.. exec vitest run packages/storage/src --project node --passWithNoTests"
+    "test": "pnpm --dir ../.. exec vitest run packages/storage/src --project node"
   },
   "dependencies": {
     "@cs/config": "workspace:*",
