@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   createR2Storage,
+  isExplicitObjectNotFoundError,
   PRODUCT_IMAGE_DOWNLOAD_EXPIRY_SECONDS,
   PRODUCT_IMAGE_UPLOAD_EXPIRY_SECONDS,
   type AllowedProductImageMimeType,
@@ -133,6 +134,35 @@ describe("@cs/storage", () => {
     });
 
     await expect(storage.statObject("missing")).resolves.toBeNull();
+  });
+
+  test("identifies explicit object-not-found S3 errors", () => {
+    expect(
+      isExplicitObjectNotFoundError({
+        name: "NoSuchKey",
+        $metadata: { httpStatusCode: 404 },
+      }),
+    ).toBe(true);
+    expect(
+      isExplicitObjectNotFoundError({
+        Code: "NotFound",
+        $metadata: { httpStatusCode: 404 },
+      }),
+    ).toBe(true);
+  });
+
+  test("does not treat generic 404 storage errors as missing objects", () => {
+    expect(
+      isExplicitObjectNotFoundError({
+        name: "NoSuchBucket",
+        $metadata: { httpStatusCode: 404 },
+      }),
+    ).toBe(false);
+    expect(
+      isExplicitObjectNotFoundError({
+        $metadata: { httpStatusCode: 404 },
+      }),
+    ).toBe(false);
   });
 
   test("creates the R2 client once and reuses it for later operations", async () => {

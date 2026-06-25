@@ -78,6 +78,25 @@ export class StorageError extends AppError {
 
 const toIsoExpiry = (now: number, expiresIn: number) => new Date(now + expiresIn * 1000).toISOString();
 
+const OBJECT_NOT_FOUND_ERROR_NAMES = new Set(["NoSuchKey", "NotFound"]);
+
+export const isExplicitObjectNotFoundError = (error: unknown): boolean => {
+  if (typeof error !== "object" || error === null || !("$metadata" in error)) {
+    return false;
+  }
+
+  const metadata = error.$metadata as { httpStatusCode?: number };
+  if (metadata.httpStatusCode !== 404) {
+    return false;
+  }
+
+  const candidate = error as { Code?: unknown; code?: unknown; name?: unknown };
+
+  return [candidate.Code, candidate.code, candidate.name].some(
+    (value) => typeof value === "string" && OBJECT_NOT_FOUND_ERROR_NAMES.has(value),
+  );
+};
+
 const createDefaultStorageClient: NonNullable<R2StorageOptions["createClient"]> = (options) => {
   const clientConfig: S3ClientConfig = {
     endpoint: options.endpoint,
@@ -126,12 +145,7 @@ const createDefaultStorageClient: NonNullable<R2StorageOptions["createClient"]> 
           lastModified: result.LastModified,
         };
       } catch (error) {
-        if (
-          typeof error === "object" &&
-          error !== null &&
-          "$metadata" in error &&
-          (error.$metadata as { httpStatusCode?: number }).httpStatusCode === 404
-        ) {
+        if (isExplicitObjectNotFoundError(error)) {
           return null;
         }
 
