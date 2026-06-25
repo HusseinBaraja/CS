@@ -165,11 +165,12 @@ describe("buildMermaidCliEnv", () => {
 });
 
 describe("buildMermaidCliCommand", () => {
-  test("uses high-resolution render defaults for readable PNG output", () => {
+  test("uses pnpm and high-resolution render defaults for readable PNG output", () => {
     expect(
       buildMermaidCliCommand(
         "C:\\repo\\agent-issues\\flow.mmd",
         "C:\\repo\\agent-issues\\IMG\\flow.png",
+        "linux",
       ),
     ).toEqual([
       "pnpm",
@@ -186,5 +187,15 @@ describe("buildMermaidCliCommand", () => {
       "--scale",
       "2",
     ]);
+  });
+
+  test("uses the pnpm command shim on Windows", () => {
+    expect(
+      buildMermaidCliCommand(
+        "C:\\repo\\agent-issues\\flow.mmd",
+        "C:\\repo\\agent-issues\\IMG\\flow.png",
+        "win32",
+      )[0],
+    ).toBe("pnpm.cmd");
   });
 });

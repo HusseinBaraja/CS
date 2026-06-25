@@ -107,8 +107,15 @@ export const resolveIssuePngPath = (
   return resolve(outputDirectory, outputFile);
 };
 
-export const buildMermaidCliCommand = (inputPath: string, outputPath: string): string[] => [
-  "pnpm",
+const resolvePnpmExecutable = (platform: NodeJS.Platform): "pnpm" | "pnpm.cmd" =>
+  platform === "win32" ? "pnpm.cmd" : "pnpm";
+
+export const buildMermaidCliCommand = (
+  inputPath: string,
+  outputPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string[] => [
+  resolvePnpmExecutable(platform),
   "dlx",
   "@mermaid-js/mermaid-cli",
   "--input",
