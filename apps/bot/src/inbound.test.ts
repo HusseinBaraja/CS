@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import type { BaileysEventMap, WAMessage } from './baileys';
 import type { CompanyRuntimeProfile } from '@cs/shared';
 import { normalizeInboundMessages } from './inbound';

@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { ERROR_CODES, type ConversationStateDto } from '@cs/shared';
 import { createApp } from '../app';
 import {

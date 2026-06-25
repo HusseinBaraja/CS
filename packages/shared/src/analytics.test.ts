@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { ANALYTICS_HANDOFF_SOURCES, getAnalyticsIdempotencyKey, isValidHandoffSource } from "./analytics";
 
 describe("getAnalyticsIdempotencyKey", () => {

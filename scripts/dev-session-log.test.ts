@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { EventEmitter } from "node:events";
 import { join, resolve } from "node:path";
 import {
@@ -35,8 +35,10 @@ describe("createDevSessionLogSpawnConfig", () => {
     });
 
     expect(config.args).toEqual([
-      "x",
-      "turbo",
+      "--env-file-if-exists=.env",
+      "--import",
+      "tsx",
+      "node_modules/turbo/bin/turbo",
       "run",
       "dev",
       "--concurrency=20",
@@ -56,8 +58,10 @@ describe("createDevSessionLogSpawnConfig", () => {
 
     expect(config.command).toBe(process.execPath);
     expect(config.args).toEqual([
-      "x",
-      "turbo",
+      "--env-file-if-exists=.env",
+      "--import",
+      "tsx",
+      "node_modules/turbo/bin/turbo",
       "run",
       "dev",
       "--concurrency=20",
@@ -75,8 +79,10 @@ describe("createDevSessionLogSpawnConfig", () => {
     });
 
     expect(config.args).toEqual([
-      "x",
-      "turbo",
+      "--env-file-if-exists=.env",
+      "--import",
+      "tsx",
+      "node_modules/turbo/bin/turbo",
       "run",
       "dev",
       "--concurrency=20",

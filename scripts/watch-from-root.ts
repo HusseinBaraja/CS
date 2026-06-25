@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -5,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const entryPath = process.argv[2];
 
 if (!entryPath) {
-  console.error("Usage: bun scripts/watch-from-root.ts <entry-path>");
+  console.error("Usage: pnpm exec tsx scripts/watch-from-root.ts <entry-path>");
   process.exit(1);
 }
 
@@ -19,17 +20,20 @@ if (!existsSync(resolvedEntry)) {
 }
 
 const envFile = resolve(repoRoot, ".env");
-const child = Bun.spawn([
-  "bun",
-  "--cwd",
-  repoRoot,
-  `--env-file=${envFile}`,
+const child = spawn(process.execPath, [
   "--watch",
+  "--env-file-if-exists",
+  envFile,
+  "--import",
+  "tsx",
   resolvedEntry,
 ], {
+  cwd: repoRoot,
   stdin: "inherit",
   stdout: "inherit",
   stderr: "inherit",
 });
 
-process.exit(await child.exited);
+child.on("exit", (code) => {
+  process.exit(code ?? 1);
+});

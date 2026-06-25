@@ -8,11 +8,11 @@
     "build": "tsc -b && vite build --config vite.config.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run lint",
+    "check": "pnpm typecheck && pnpm lint",
     "preview": "vite preview --config vite.config.ts",
     "lint:ox": "oxlint --config ../../.oxlintrc.json --ignore-path ../../.oxlintignore .",
     "lint:eslint": "eslint . --max-warnings=0",
-    "lint": "bun run lint:ox && bun run lint:eslint"
+    "lint": "pnpm lint:ox && pnpm lint:eslint"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

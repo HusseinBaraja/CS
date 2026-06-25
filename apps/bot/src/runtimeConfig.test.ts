@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { join, resolve } from 'node:path';
 import { BOT_SESSION_KEY, createBotRuntimeConfig, getBotRepoRoot } from './runtimeConfig';
 

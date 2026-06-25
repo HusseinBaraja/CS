@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import type { ConversationSessionLogWriter } from '@cs/core';
 import { createPendingAssistantReconciliationProcessor } from './pendingAssistantReconciliation';
 

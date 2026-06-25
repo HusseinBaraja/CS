@@ -1,3 +1,4 @@
+import { pathToFileURL } from 'node:url';
 import {
   createConversationSessionLogFromEnv,
   logError,
@@ -43,6 +44,10 @@ export const startBotApp = async (
   }
 };
 
-if (import.meta.main) {
+const isMainModule = process.argv[1]
+  ? import.meta.url === pathToFileURL(process.argv[1]).href
+  : false;
+
+if (isMainModule) {
   void startBotApp();
 }

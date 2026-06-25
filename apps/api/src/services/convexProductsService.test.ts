@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { convexInternal } from '@cs/db';
 import { ERROR_CODES } from '@cs/shared';
 import { getFunctionName } from 'convex/server';
@@ -241,7 +241,7 @@ describe('createConvexProductsService', () => {
       },
     });
     await expect(validationService.list('company-1', {})).rejects.toEqual(
-      createValidationServiceError('Invalid product, company, category, or variant identifier'),
+      createValidationServiceError('Invalid product, company, category, variant, or unit identifier'),
     );
 
     const unknownService = createService({

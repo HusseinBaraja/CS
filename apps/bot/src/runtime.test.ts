@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import type { AuthenticationState, BaileysEventMap, UserFacingSocketConfig } from './baileys';
 import { type BotConnectionUpdate, type BotPairingStatus, type BotSocket, startBot as startRuntimeBot } from './runtime';
 import { createBotRuntimeConfig } from './runtimeConfig';

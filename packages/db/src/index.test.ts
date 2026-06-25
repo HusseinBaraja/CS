@@ -1,5 +1,5 @@
 import { version as convexVersion } from "convex";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { ERROR_CODES } from "@cs/shared";
 import {
   checkDbConnection,

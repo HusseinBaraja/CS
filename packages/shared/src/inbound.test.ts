@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { canonicalizePhoneNumber, isSamePhoneNumber } from './inbound';
 
 describe("canonicalizePhoneNumber", () => {

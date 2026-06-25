@@ -1,5 +1,5 @@
 import { DisconnectReason } from './baileys';
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import {
   isReplacedConnectionDisconnectCode,
   shouldReconnectForDisconnectCode,

@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { describe, expect, test, vi } from 'vitest';
 import { buildSeedArgs, runSeed } from './seed';
 
 describe("seed command", () => {
@@ -21,9 +21,9 @@ describe("seed command", () => {
   });
 
   test("runs convex from the workspace root and passes the owner phone payload", async () => {
-    const getOwnerPhone = mock(() => "967771408660");
-    const getWorkspaceRoot = mock(() => "C:/repo");
-    const runConvex = mock(async () => undefined);
+    const getOwnerPhone = vi.fn(() => "967771408660");
+    const getWorkspaceRoot = vi.fn(() => "C:/repo");
+    const runConvex = vi.fn(async () => undefined);
 
     await runSeed([], {
       getOwnerPhone,

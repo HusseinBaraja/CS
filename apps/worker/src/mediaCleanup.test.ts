@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { ConfigError } from '@cs/shared';
 import { StorageError } from '@cs/storage';
 import { createMediaCleanupProcessor } from './mediaCleanup';

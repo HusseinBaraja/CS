@@ -1,3 +1,4 @@
+import { pathToFileURL } from 'node:url';
 import {
   createConversationSessionLogFromEnv,
   isTransientConvexTransportError,
@@ -161,7 +162,11 @@ export const startWorker = async (options: StartWorkerOptions = {}): Promise<voi
   }
 };
 
-if (import.meta.main) {
+const isMainModule = process.argv[1]
+  ? import.meta.url === pathToFileURL(process.argv[1]).href
+  : false;
+
+if (isMainModule) {
   startWorker().catch((error) => {
     logEvent(
       withWorkerRuntimeLogger(logger, "lifecycle"),

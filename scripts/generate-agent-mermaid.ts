@@ -1,11 +1,13 @@
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, extname, isAbsolute, relative, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 export const AGENT_ISSUES_DIRECTORY = "agent-issues";
 export const AGENT_ISSUES_IMAGE_DIRECTORY = "IMG";
 
 const USAGE_MESSAGE =
-  "Expected usage: bun run issue:diagram -- <agent-issues/*.mmd> [output-name]";
+  "Expected usage: pnpm issue:diagram -- <agent-issues/*.mmd> [output-name]";
 
 const WINDOWS_BROWSER_PATH_CANDIDATES = [
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
@@ -106,8 +108,8 @@ export const resolveIssuePngPath = (
 };
 
 export const buildMermaidCliCommand = (inputPath: string, outputPath: string): string[] => [
-  process.execPath,
-  "x",
+  "pnpm",
+  "dlx",
   "@mermaid-js/mermaid-cli",
   "--input",
   inputPath,
@@ -152,26 +154,36 @@ export const buildMermaidCliEnv = (
 
 const main = async (): Promise<void> => {
   try {
-    const { inputFile, outputName } = parseCliArgs(Bun.argv.slice(2));
+    const { inputFile, outputName } = parseCliArgs(process.argv.slice(2));
     const inputPath = resolveIssueMermaidPath(inputFile);
     const outputPath = resolveIssuePngPath(inputPath, outputName);
     const browserExecutablePath = resolvePuppeteerExecutablePath();
 
     mkdirSync(dirname(outputPath), { recursive: true });
 
-const RENDER_TIMEOUT_MS = 60_000; // 60 seconds
+    const RENDER_TIMEOUT_MS = 60_000;
 
-    const processResult = Bun.spawn({
-      cmd: buildMermaidCliCommand(inputPath, outputPath),
+    const [command, ...args] = buildMermaidCliCommand(inputPath, outputPath);
+    const processResult = spawn(command, args, {
       env: buildMermaidCliEnv(process.env, browserExecutablePath),
-      stdout: "inherit",
-      stderr: "inherit",
+      stdio: "inherit",
     });
 
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Render timed out")), RENDER_TIMEOUT_MS),
-    );
-    const exitCode = await Promise.race([processResult.exited, timeoutPromise]);
+    const exitCode = await new Promise<number>((resolveProcess, rejectProcess) => {
+      const timeoutId = setTimeout(() => {
+        processResult.kill();
+        rejectProcess(new Error("Render timed out"));
+      }, RENDER_TIMEOUT_MS);
+
+      processResult.once("exit", (code) => {
+        clearTimeout(timeoutId);
+        resolveProcess(code ?? 1);
+      });
+      processResult.once("error", (error) => {
+        clearTimeout(timeoutId);
+        rejectProcess(error);
+      });
+    });
     if (exitCode !== 0) {
       process.exitCode = exitCode;
       return;
@@ -184,6 +196,10 @@ const RENDER_TIMEOUT_MS = 60_000; // 60 seconds
   }
 };
 
-if (import.meta.main) {
+const isMainModule = process.argv[1]
+  ? import.meta.url === pathToFileURL(process.argv[1]).href
+  : false;
+
+if (isMainModule) {
   await main();
 }

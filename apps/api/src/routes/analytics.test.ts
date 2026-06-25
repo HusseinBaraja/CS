@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { ANALYTICS_PERIODS, type AnalyticsSummaryDto, ERROR_CODES } from '@cs/shared';
 import { createApp } from '../app';
 import { type AnalyticsPeriod, type AnalyticsService, createDatabaseServiceError } from '../services/analytics';

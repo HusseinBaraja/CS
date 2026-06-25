@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   createConversationSessionLogSessionId,
   createConversationSessionLogSessionPath,
@@ -93,7 +94,16 @@ export const createDevSessionLogSpawnConfig = (input: {
 
   return {
     command: process.execPath,
-    args: ["x", "turbo", "run", "dev", "--concurrency=20", ...devScope],
+    args: [
+      "--env-file-if-exists=.env",
+      "--import",
+      "tsx",
+      "node_modules/turbo/bin/turbo",
+      "run",
+      "dev",
+      "--concurrency=20",
+      ...devScope,
+    ],
     options: {
       cwd: input.repoRoot,
       env: {
@@ -109,7 +119,7 @@ export const createDevSessionLogSpawnConfig = (input: {
 };
 
 const run = async () => {
-  const repoRoot = resolve(import.meta.dir, "..");
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const config = createDevSessionLogSpawnConfig({
     repoRoot,
     extraArgs: process.argv.slice(2),
@@ -119,7 +129,11 @@ const run = async () => {
   await waitForChildExit({ child });
 };
 
-if (import.meta.main) {
+const isMainModule = process.argv[1]
+  ? import.meta.url === pathToFileURL(process.argv[1]).href
+  : false;
+
+if (isMainModule) {
   void run().catch((error) => {
     console.error("[dev-session-log] failed to run:", error);
     process.exitCode = 1;

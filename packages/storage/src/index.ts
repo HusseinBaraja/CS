@@ -1,3 +1,12 @@
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+  type S3ClientConfig,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createConfig, requireConfigValue } from '@cs/config';
 import { AppError, ERROR_CODES } from '@cs/shared';
 
@@ -31,31 +40,6 @@ export interface StoredObjectStat {
   lastModified?: Date;
 }
 
-interface R2StorageFile {
-  presign(options: Record<string, unknown>): string;
-  exists(): Promise<boolean>;
-  stat(): Promise<{
-    etag?: string;
-    size: number;
-    type?: string;
-    lastModified?: Date;
-  }>;
-  delete(): Promise<void>;
-}
-
-interface R2StorageClient {
-  file(key: string): R2StorageFile;
-}
-
-interface BunGlobalLike {
-  S3Client: new (options: {
-    bucket: string;
-    endpoint: string;
-    accessKeyId: string;
-    secretAccessKey: string;
-  }) => R2StorageClient;
-}
-
 export interface ObjectStorage {
   createPresignedUpload(request: PresignedUploadRequest): Promise<{ url: string; expiresAt: string }>;
   createPresignedDownload(
@@ -75,6 +59,17 @@ export interface R2StorageOptions {
   now?: () => number;
 }
 
+interface R2StorageClient {
+  createPresignedUpload(input: {
+    key: string;
+    contentType: AllowedProductImageMimeType;
+    expiresIn: number;
+  }): Promise<string>;
+  createPresignedDownload(input: { key: string; expiresIn: number }): Promise<string>;
+  statObject(key: string): Promise<StoredObjectStat | null>;
+  deleteObject(key: string): Promise<void>;
+}
+
 export class StorageError extends AppError {
   constructor(message: string, options: { cause?: unknown; context?: Record<string, unknown> } = {}) {
     super(ERROR_CODES.STORAGE_FAILED, message, options);
@@ -84,13 +79,74 @@ export class StorageError extends AppError {
 const toIsoExpiry = (now: number, expiresIn: number) => new Date(now + expiresIn * 1000).toISOString();
 
 const createDefaultStorageClient: NonNullable<R2StorageOptions["createClient"]> = (options) => {
-  const bunGlobal = (globalThis as typeof globalThis & { Bun?: BunGlobalLike }).Bun;
-  const S3Client = bunGlobal?.S3Client;
-  if (!S3Client) {
-    throw new Error("Bun S3Client is unavailable in this runtime");
-  }
+  const clientConfig: S3ClientConfig = {
+    endpoint: options.endpoint,
+    region: "auto",
+    forcePathStyle: true,
+    credentials: {
+      accessKeyId: options.accessKeyId,
+      secretAccessKey: options.secretAccessKey,
+    },
+  };
+  const client = new S3Client(clientConfig);
 
-  return new S3Client(options);
+  return {
+    createPresignedUpload: ({ key, contentType, expiresIn }) =>
+      getSignedUrl(
+        client,
+        new PutObjectCommand({
+          Bucket: options.bucket,
+          Key: key,
+          ContentType: contentType,
+        }),
+        { expiresIn },
+      ),
+    createPresignedDownload: ({ key, expiresIn }) =>
+      getSignedUrl(
+        client,
+        new GetObjectCommand({
+          Bucket: options.bucket,
+          Key: key,
+        }),
+        { expiresIn },
+      ),
+    async statObject(key) {
+      try {
+        const result = await client.send(
+          new HeadObjectCommand({
+            Bucket: options.bucket,
+            Key: key,
+          }),
+        );
+
+        return {
+          etag: result.ETag,
+          size: result.ContentLength ?? 0,
+          contentType: result.ContentType,
+          lastModified: result.LastModified,
+        };
+      } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "$metadata" in error &&
+          (error.$metadata as { httpStatusCode?: number }).httpStatusCode === 404
+        ) {
+          return null;
+        }
+
+        throw error;
+      }
+    },
+    deleteObject: async (key) => {
+      await client.send(
+        new DeleteObjectCommand({
+          Bucket: options.bucket,
+          Key: key,
+        }),
+      );
+    },
+  };
 };
 
 const createStorageClient = (
@@ -130,11 +186,7 @@ export const createR2Storage = (options: R2StorageOptions = {}): ObjectStorage =
   return {
     async createPresignedUpload(request): Promise<{ url: string; expiresAt: string }> {
       try {
-        const url = getClient().file(request.key).presign({
-          method: "PUT",
-          type: request.contentType,
-          expiresIn: request.expiresIn,
-        });
+        const url = await getClient().createPresignedUpload(request);
 
         return {
           url,
@@ -146,10 +198,7 @@ export const createR2Storage = (options: R2StorageOptions = {}): ObjectStorage =
     },
     async createPresignedDownload(request): Promise<{ url: string; expiresAt: string }> {
       try {
-        const url = getClient().file(request.key).presign({
-          method: "GET",
-          expiresIn: request.expiresIn,
-        });
+        const url = await getClient().createPresignedDownload(request);
 
         return {
           url,
@@ -161,26 +210,14 @@ export const createR2Storage = (options: R2StorageOptions = {}): ObjectStorage =
     },
     async statObject(key): Promise<StoredObjectStat | null> {
       try {
-        const file = getClient().file(key);
-        const exists = await file.exists();
-        if (!exists) {
-          return null;
-        }
-
-        const stat = await file.stat();
-        return {
-          etag: stat.etag,
-          size: stat.size,
-          contentType: stat.type,
-          lastModified: stat.lastModified,
-        };
+        return await getClient().statObject(key);
       } catch (error) {
         return normalizeStorageFailure("Failed to stat object", error, { key });
       }
     },
     async deleteObject(key) {
       try {
-        await getClient().file(key).delete();
+        await getClient().deleteObject(key);
       } catch (error) {
         return normalizeStorageFailure("Failed to delete object", error, { key });
       }

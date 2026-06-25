@@ -1,4 +1,5 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { pathToFileURL } from 'node:url';
 import { env } from '@cs/config';
 import {
   logEvent,
@@ -115,7 +116,11 @@ export const runCli = async (options: RunCliOptions = {}): Promise<void> => {
   }
 };
 
-if (import.meta.main) {
+const isMainModule = process.argv[1]
+  ? import.meta.url === pathToFileURL(process.argv[1]).href
+  : false;
+
+if (isMainModule) {
   try {
     await runCli();
   } catch {

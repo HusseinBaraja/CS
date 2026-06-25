@@ -62,7 +62,7 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "off",
       "import/no-default-export": "off",
       "import/no-duplicates": "error",
-      "import/no-unresolved": "error",
+      "import/no-unresolved": ["error", { ignore: ["^@/"] }],
       "import/named": "error",
       "import/default": "error",
       "import/namespace": "error",

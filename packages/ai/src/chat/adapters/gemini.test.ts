@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'vitest';
 import { setGeminiClientFactoryForTests } from '../../gemini/clientFactory';
 import type { GeminiClient } from '../../gemini/types';
 import { geminiChatProviderAdapter } from './gemini';

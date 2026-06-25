@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import type { CatalogChatOrchestrator } from '@cs/rag';
 import type { NormalizedInboundMessage } from '@cs/shared';
 import type { OutboundMessenger } from './outbound';

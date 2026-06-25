@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -36,7 +36,7 @@ describe("parseCliArgs", () => {
   test("throws on missing input file", () => {
     expect(() => parseCliArgs([])).toThrow(
       new AgentMermaidArgumentError(
-        "Expected usage: bun run issue:diagram -- <agent-issues/*.mmd> [output-name]",
+        "Expected usage: pnpm issue:diagram -- <agent-issues/*.mmd> [output-name]",
       ),
     );
   });
@@ -44,7 +44,7 @@ describe("parseCliArgs", () => {
   test("throws when too many arguments are provided", () => {
     expect(() => parseCliArgs(["a.mmd", "b", "c"])).toThrow(
       new AgentMermaidArgumentError(
-        "Expected usage: bun run issue:diagram -- <agent-issues/*.mmd> [output-name]",
+        "Expected usage: pnpm issue:diagram -- <agent-issues/*.mmd> [output-name]",
       ),
     );
   });
@@ -172,8 +172,8 @@ describe("buildMermaidCliCommand", () => {
         "C:\\repo\\agent-issues\\IMG\\flow.png",
       ),
     ).toEqual([
-      process.execPath,
-      "x",
+      "pnpm",
+      "dlx",
       "@mermaid-js/mermaid-cli",
       "--input",
       "C:\\repo\\agent-issues\\flow.mmd",

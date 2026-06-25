@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { ERROR_CODES } from '@cs/shared';
 import { createChatProviderError } from './errors';
 

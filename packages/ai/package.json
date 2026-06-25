@@ -10,16 +10,16 @@
     "./embeddings": "./src/embeddings/index.ts"
   },
   "scripts": {
-    "dev": "bun ../../scripts/watch-from-root.ts src/index.ts",
-    "build": "bun build src/index.ts --outdir dist",
+    "dev": "tsx ../../scripts/watch-from-root.ts src/index.ts",
+    "build": "tsup src/index.ts --out-dir dist --format esm --target node22",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run lint",
-    "test": "bun test --pass-with-no-tests",
+    "check": "pnpm typecheck && pnpm lint",
+    "test": "pnpm --dir ../.. exec vitest run packages/ai/src --project node --passWithNoTests",
     "lint": "oxlint --config ../../.oxlintrc.json --ignore-path ../../.oxlintignore ."
   },
   "dependencies": {
-    "@cs/config": "*",
-    "@cs/shared": "*",
+    "@cs/config": "workspace:*",
+    "@cs/shared": "workspace:*",
     "@google/genai": "1.43.0",
     "groq-sdk": "0.37.0",
     "openai": "6.25.0"

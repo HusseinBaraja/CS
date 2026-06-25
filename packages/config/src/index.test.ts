@@ -1,7 +1,25 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import type { StandardSchemaV1 } from '@t3-oss/env-core';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
 import { createConfig, inferConfigErrorCode, requireConfigValue } from './index';
+
+const expectConfigError = (
+  action: () => unknown,
+  message: string,
+  code: typeof ERROR_CODES.CONFIG_INVALID | typeof ERROR_CODES.CONFIG_MISSING,
+) => {
+  let thrown: unknown;
+
+  try {
+    action();
+  } catch (error) {
+    thrown = error;
+  }
+
+  expect(thrown).toBeInstanceOf(ConfigError);
+  expect((thrown as ConfigError).message).toBe(message);
+  expect((thrown as ConfigError).code).toBe(code);
+};
 
 describe("config", () => {
   test("applies defaults for optional setup values", () => {
@@ -137,15 +155,13 @@ describe("config", () => {
   });
 
   test("throws ConfigError for invalid values", () => {
-    expect(() =>
+    expectConfigError(() =>
       createConfig({
         API_PORT: "not-a-port",
         CONVEX_URL: "https://example.convex.cloud"
-      })
-    ).toThrow(
-      new ConfigError("API_PORT: Invalid input: expected number, received NaN", {
-        code: ERROR_CODES.CONFIG_INVALID
-      })
+      }),
+      "API_PORT: Invalid input: expected number, received NaN",
+      ERROR_CODES.CONFIG_INVALID,
     );
   });
 
@@ -159,54 +175,46 @@ describe("config", () => {
   });
 
   test("rejects non-positive API rate limits", () => {
-    expect(() =>
+    expectConfigError(() =>
       createConfig({
         API_RATE_LIMIT_MAX: 0,
         CONVEX_URL: "https://example.convex.cloud"
-      })
-    ).toThrow(
-      new ConfigError("API_RATE_LIMIT_MAX: Too small: expected number to be >0", {
-        code: ERROR_CODES.CONFIG_INVALID
-      })
+      }),
+      "API_RATE_LIMIT_MAX: Too small: expected number to be >0",
+      ERROR_CODES.CONFIG_INVALID,
     );
   });
 
   test("rejects non-positive API rate-limit store capacity", () => {
-    expect(() =>
+    expectConfigError(() =>
       createConfig({
         API_RATE_LIMIT_MAX_ENTRIES: 0,
         CONVEX_URL: "https://example.convex.cloud"
-      })
-    ).toThrow(
-      new ConfigError("API_RATE_LIMIT_MAX_ENTRIES: Too small: expected number to be >0", {
-        code: ERROR_CODES.CONFIG_INVALID
-      })
+      }),
+      "API_RATE_LIMIT_MAX_ENTRIES: Too small: expected number to be >0",
+      ERROR_CODES.CONFIG_INVALID,
     );
   });
 
   test("rejects non-positive conversation history window sizes", () => {
-    expect(() =>
+    expectConfigError(() =>
       createConfig({
         CONVERSATION_HISTORY_WINDOW_MESSAGES: 0,
         CONVEX_URL: "https://example.convex.cloud"
-      })
-    ).toThrow(
-      new ConfigError("CONVERSATION_HISTORY_WINDOW_MESSAGES: Too small: expected number to be >0", {
-        code: ERROR_CODES.CONFIG_INVALID
-      })
+      }),
+      "CONVERSATION_HISTORY_WINDOW_MESSAGES: Too small: expected number to be >0",
+      ERROR_CODES.CONFIG_INVALID,
     );
   });
 
   test("rejects negative trusted proxy hop counts", () => {
-    expect(() =>
+    expectConfigError(() =>
       createConfig({
         API_TRUST_PROXY_HOPS: -1,
         CONVEX_URL: "https://example.convex.cloud"
-      })
-    ).toThrow(
-      new ConfigError("API_TRUST_PROXY_HOPS: Too small: expected number to be >=0", {
-        code: ERROR_CODES.CONFIG_INVALID
-      })
+      }),
+      "API_TRUST_PROXY_HOPS: Too small: expected number to be >=0",
+      ERROR_CODES.CONFIG_INVALID,
     );
   });
 
@@ -264,10 +272,10 @@ describe("config", () => {
   test("throws CONFIG_MISSING when a required runtime value is absent", () => {
     const config = createConfig({});
 
-    expect(() => requireConfigValue(config, "CONVEX_URL")).toThrow(
-      new ConfigError("Missing required environment variable: CONVEX_URL", {
-        code: ERROR_CODES.CONFIG_MISSING
-      })
+    expectConfigError(
+      () => requireConfigValue(config, "CONVEX_URL"),
+      "Missing required environment variable: CONVEX_URL",
+      ERROR_CODES.CONFIG_MISSING,
     );
   });
 

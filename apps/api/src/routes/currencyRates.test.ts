@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { Hono } from 'hono';
 import { ERROR_CODES, ValidationError } from '@cs/shared';
 import { createApiKeyAuthMiddleware } from '../auth';

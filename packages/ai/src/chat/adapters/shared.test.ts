@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { createChatProviderError } from '../errors';
 import { runWithRetries } from './shared';
 

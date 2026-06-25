@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { parseCreateOfferBody, parseListOffersQuery, parseUpdateOfferBody } from './offerSchemas';
 
 describe("offer schema parsers", () => {
