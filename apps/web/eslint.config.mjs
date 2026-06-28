@@ -42,8 +42,24 @@ export default tseslint.config(
         version: "detect",
       },
       "import/resolver": {
+        alias: {
+          map: [
+            ["@", "./src"],
+            ["@cs/config", "../../packages/config/src/index.ts"],
+            ["@cs/shared", "../../packages/shared/src/index.ts"],
+            ["@cs/convex-api", "../../packages/convex-api/src/index.ts"],
+            ["@cs/convex", "../../convex"],
+            ["@cs/core", "../../packages/core/src/index.ts"],
+            ["@cs/db", "../../packages/db/src/index.ts"],
+            ["@cs/ai/embeddings", "../../packages/ai/src/embeddings/index.ts"],
+            ["@cs/ai", "../../packages/ai/src/index.ts"],
+            ["@cs/storage", "../../packages/storage/src/index.ts"],
+            ["@cs/rag", "../../packages/rag/src/index.ts"],
+          ],
+          extensions: [".js", ".jsx", ".ts", ".tsx"],
+        },
         typescript: {
-          project: ["./tsconfig.json"],
+          project: ["./tsconfig.json", "../../tsconfig.base.json"],
         },
         node: {
           extensions: [".js", ".jsx", ".ts", ".tsx"],

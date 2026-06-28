@@ -1,10 +1,11 @@
-import { describe, expect, test } from 'bun:test';
-import { resolve } from 'node:path';
+import { describe, expect, test } from 'vitest';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getCliWorkspaceRoot, runInheritedCommand } from './process';
 
 describe("getCliWorkspaceRoot", () => {
   test("resolves the monorepo root from the CLI package", () => {
-    expect(getCliWorkspaceRoot()).toBe(resolve(import.meta.dir, "../../../.."));
+    expect(getCliWorkspaceRoot()).toBe(resolve(dirname(fileURLToPath(import.meta.url)), "../../../.."));
   });
 });
 
@@ -32,7 +33,7 @@ describe("runInheritedCommand", () => {
       }
     });
 
-    expect(capturedArgs).toEqual(["bunx", "convex", "export", "--prod"]);
+    expect(capturedArgs).toEqual(["pnpm", "exec", "convex", "export", "--prod"]);
     expect(capturedOptions).toEqual({
       cwd: "C:/repo",
       stdin: "inherit",
@@ -48,7 +49,7 @@ describe("runInheritedCommand", () => {
           exited: Promise.resolve(1)
         })
       })
-    ).rejects.toThrow("Command failed with exit code 1: bunx convex export");
+    ).rejects.toThrow("Command failed with exit code 1: pnpm exec convex export");
   });
 
   test("kills the spawned command and throws a timeout error when it exceeds timeoutMs", async () => {

@@ -4,7 +4,7 @@ This plan rewrites the dev-only owner conversation session log so the file shape
 
 ## Mission
 
-Make each `bun dev` session produce at most one markdown log file for the owner-number conversation only, with:
+Make each `pnpm dev` session produce at most one markdown log file for the owner-number conversation only, with:
 
 - Root-level filename format: `DD-MM-HH-mm.md`
 - Local human-readable timestamps like `2026-04-21 11:22:03 AM`
@@ -137,7 +137,7 @@ This belongs in `packages/core`, not bot-only code, because both bot and worker 
 
 ### 2. Separate session identity from file creation
 
-Keep a dev-session identity that is decided once at `bun dev` startup, but stop binding that identity to eager file creation. The writer should hold session metadata in memory and materialize the file only on first append.
+Keep a dev-session identity that is decided once at `pnpm dev` startup, but stop binding that identity to eager file creation. The writer should hold session metadata in memory and materialize the file only on first append.
 
 ### 3. Capture AI payloads at the true boundaries
 
@@ -327,30 +327,30 @@ Checkpoint:
 
 ### Core
 
-- `bun test packages/core/src/conversationSessionLog.test.ts`
-- `bun test scripts/dev-session-log.test.ts`
+- `pnpm test packages/core/src/conversationSessionLog.test.ts`
+- `pnpm test scripts/dev-session-log.test.ts`
 
 ### RAG / AI logging
 
-- `bun test packages/rag/src/retrievalRewrite.test.ts`
-- `bun test packages/rag/src/catalogChat.test.ts`
-- `bun test apps/bot/src/customerConversationRouter.test.ts`
+- `pnpm test packages/rag/src/retrievalRewrite.test.ts`
+- `pnpm test packages/rag/src/catalogChat.test.ts`
+- `pnpm test apps/bot/src/customerConversationRouter.test.ts`
 
 ### Worker compatibility
 
-- `bun test apps/worker/src/pendingAssistantReconciliation.test.ts`
+- `pnpm test apps/worker/src/pendingAssistantReconciliation.test.ts`
 
 ### Repo checks after implementation
 
-- `bun check`
-- `bun lint`
-- `bun run check:root`
+- `pnpm check`
+- `pnpm lint`
+- `pnpm check:root`
 
-Run `bun dev` after implementation to verify the dev-session artifact manually.
+Use the existing always-on `pnpm dev` session after implementation to verify the dev-session artifact manually.
 
 ## Acceptance Criteria
 
-- Starting `bun dev` without an owner conversation leaves no markdown file behind.
+- Starting `pnpm dev` without an owner conversation leaves no markdown file behind.
 - First owner conversation append creates exactly one root-level file named `DD-MM-HH-mm.md`.
 - Header contains exactly `Session ID`, `Company ID`, `Conversation ID`, and `Started At`.
 - All timestamps are local and human-readable.

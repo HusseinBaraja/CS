@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { type ChatProviderHealth, type ChatProviderName, type ChatRuntimeConfig } from '@cs/ai';
 import {
   type AdapterResolver,

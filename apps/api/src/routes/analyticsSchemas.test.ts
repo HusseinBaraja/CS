@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { ANALYTICS_PERIODS } from '@cs/shared';
 import { parseAnalyticsPeriodQuery } from './analyticsSchemas';
 

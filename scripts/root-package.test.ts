@@ -1,22 +1,39 @@
-import { describe, expect, test } from 'bun:test';
-import packageJson from '../package.json';
-import turboJson from '../turbo.json';
-import apiPackageJson from '../apps/api/package.json';
-import botPackageJson from '../apps/bot/package.json';
-import cliPackageJson from '../apps/cli/package.json';
-import workerPackageJson from '../apps/worker/package.json';
+import { describe, expect, test } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import ts from 'typescript';
 import webViteConfig from '../apps/web/vite.config';
-import webTsconfig from '../apps/web/tsconfig.json';
-import webPackageJson from '../apps/web/package.json';
-import convexPackageJson from '../convex/package.json';
-import aiPackageJson from '../packages/ai/package.json';
-import configPackageJson from '../packages/config/package.json';
-import convexApiPackageJson from '../packages/convex-api/package.json';
-import corePackageJson from '../packages/core/package.json';
-import dbPackageJson from '../packages/db/package.json';
-import ragPackageJson from '../packages/rag/package.json';
-import sharedPackageJson from '../packages/shared/package.json';
-import storagePackageJson from '../packages/storage/package.json';
+
+const readJson = <T>(path: string): T =>
+  JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8")) as T;
+
+const readJsonc = <T>(path: string): T => {
+  const fileUrl = new URL(path, import.meta.url);
+  const parsed = ts.parseConfigFileTextToJson(fileUrl.pathname, readFileSync(fileUrl, "utf8"));
+  if (parsed.error) {
+    throw new Error(ts.flattenDiagnosticMessageText(parsed.error.messageText, "\n"));
+  }
+
+  return parsed.config as T;
+};
+
+const packageJson = readJson<Record<string, unknown>>("../package.json");
+const turboJson = readJson<Record<string, unknown>>("../turbo.json");
+const apiPackageJson = readJson<Record<string, unknown>>("../apps/api/package.json");
+const botPackageJson = readJson<Record<string, unknown>>("../apps/bot/package.json");
+const cliPackageJson = readJson<Record<string, unknown>>("../apps/cli/package.json");
+const workerPackageJson = readJson<Record<string, unknown>>("../apps/worker/package.json");
+const webTsconfig = readJsonc<{ compilerOptions: { types: string[] } }>("../apps/web/tsconfig.json");
+const webPackageJson = readJson<Record<string, unknown>>("../apps/web/package.json");
+const convexPackageJson = readJson<Record<string, unknown>>("../convex/package.json");
+const aiPackageJson = readJson<Record<string, unknown>>("../packages/ai/package.json");
+const configPackageJson = readJson<Record<string, unknown>>("../packages/config/package.json");
+const convexApiPackageJson = readJson<Record<string, unknown>>("../packages/convex-api/package.json");
+const corePackageJson = readJson<Record<string, unknown>>("../packages/core/package.json");
+const dbPackageJson = readJson<Record<string, unknown>>("../packages/db/package.json");
+const ragPackageJson = readJson<Record<string, unknown>>("../packages/rag/package.json");
+const sharedPackageJson = readJson<Record<string, unknown>>("../packages/shared/package.json");
+const storagePackageJson = readJson<Record<string, unknown>>("../packages/storage/package.json");
 
 type PackageScripts = Record<string, string>;
 
@@ -45,24 +62,24 @@ const OXLINT_ONE_LEVEL_WORKSPACE =
 
 describe("root package scripts", () => {
   test("exposes app-runtime commands from the repository root", () => {
-    expect(scripts.dev).toBe("bun scripts/dev-session-log.ts");
-    expect(scripts.web).toBe("bun run dev:web");
-    expect(scripts["dev:api"]).toBe("bun scripts/dev-session-log.ts --filter=api");
-    expect(scripts["dev:bot"]).toBe("bun scripts/dev-session-log.ts --filter=api --filter=bot");
+    expect(scripts.dev).toBe("tsx scripts/dev-session-log.ts");
+    expect(scripts.web).toBe("pnpm dev:web");
+    expect(scripts["dev:api"]).toBe("tsx scripts/dev-session-log.ts --filter=api");
+    expect(scripts["dev:bot"]).toBe("tsx scripts/dev-session-log.ts --filter=api --filter=bot");
     expect(scripts["dev:web"]).toBe("turbo run dev --filter=web");
-    expect(scripts["dev:worker"]).toBe("bun scripts/dev-session-log.ts --filter=worker");
+    expect(scripts["dev:worker"]).toBe("tsx scripts/dev-session-log.ts --filter=worker");
     expect(scripts["build:web"]).toBe("turbo run build --filter=web");
-    expect(scripts["check:root"]).toBe("bun run test:root");
+    expect(scripts["check:root"]).toBe("pnpm test:root");
     expect(scripts["lint:root"]).toBe(
       "oxlint --config .oxlintrc.json --ignore-path .oxlintignore scripts",
     );
-    expect(scripts.lint).toBe("bun run lint:root && turbo run lint");
-    expect(scripts.check).toBe("bun run check:root && turbo run check");
-    expect(scripts["preview:web"]).toBe("bun --cwd apps/web run preview");
-    expect(scripts.seed).toBe("bun run --cwd apps/cli seed");
-    expect(scripts.backup).toBe("bun run --cwd apps/cli backup");
-    expect(scripts["issue:diagram"]).toBe("bun scripts/generate-agent-mermaid.ts");
-    expect(scripts.ci).toBe("bun run check:root && turbo run ci");
+    expect(scripts.lint).toBe("pnpm lint:root && turbo run lint");
+    expect(scripts.check).toBe("pnpm check:root && turbo run check");
+    expect(scripts["preview:web"]).toBe("pnpm --dir apps/web preview");
+    expect(scripts.seed).toBe("pnpm --dir apps/cli seed");
+    expect(scripts.backup).toBe("pnpm --dir apps/cli backup");
+    expect(scripts["issue:diagram"]).toBe("tsx scripts/generate-agent-mermaid.ts");
+    expect(scripts.ci).toBe("pnpm check:root && turbo run ci");
   });
 
   test("keeps cli out of the root long-running dev fanout", () => {
@@ -91,10 +108,9 @@ describe("bot package scripts", () => {
   test("run the Baileys bot on Node while keeping the root command stable", () => {
     expect(botScripts.dev).toBe("node --watch --env-file-if-exists=../../.env --import tsx src/main.ts");
     expect(botScripts.start).toBe("node --env-file-if-exists=../../.env --import tsx src/main.ts");
-    expect(botScripts["dev:bun-experimental"]).toBe("bun --env-file=../../.env --watch src/main.ts");
-    expect(botScripts.build).toBe("bun --env-file=../../.env build src/main.ts --outdir dist --target node");
+    expect(botScripts.build).toBe("tsup src/main.ts --out-dir dist --format esm --target node22");
     expect(botScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
-    expect(botScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(botScripts.check).toBe("pnpm typecheck && pnpm lint");
   });
 });
 
@@ -103,8 +119,8 @@ describe("web package scripts", () => {
     expect(webScripts.typecheck).toBe("tsc --noEmit");
     expect(webScripts["lint:ox"]).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
     expect(webScripts["lint:eslint"]).toBe("eslint . --max-warnings=0");
-    expect(webScripts.lint).toBe("bun run lint:ox && bun run lint:eslint");
-    expect(webScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(webScripts.lint).toBe("pnpm lint:ox && pnpm lint:eslint");
+    expect(webScripts.check).toBe("pnpm typecheck && pnpm lint");
   });
 });
 
@@ -120,7 +136,7 @@ describe("web TypeScript config", () => {
 
 describe("command validation conventions", () => {
   test("validate the PowerShell watcher entry path before resolving it", async () => {
-    const script = await Bun.file(new URL("../scripts/watch-from-root.ps1", import.meta.url)).text();
+    const script = await readFile(new URL("../scripts/watch-from-root.ps1", import.meta.url), "utf8");
     const testPathIndex = script.indexOf("Test-Path $EntryPath");
     const resolvePathIndex = script.indexOf("(Resolve-Path $EntryPath).Path");
 
@@ -130,52 +146,52 @@ describe("command validation conventions", () => {
   });
 
   test("enforce lint script coverage and broad check scripts across workspaces", () => {
-    expect(apiScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(apiScripts.dev).toBe("tsx ../../scripts/watch-from-root.ts src/index.ts");
     expect(apiScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
-    expect(apiScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(apiScripts.check).toBe("pnpm typecheck && pnpm lint");
 
-    expect(cliScripts.seed).toBe("bun --env-file=../../.env src/index.ts seed");
-    expect(cliScripts.backup).toBe("bun --env-file=../../.env src/index.ts backup");
+    expect(cliScripts.seed).toBe("node --env-file-if-exists=../../.env --import tsx src/index.ts seed");
+    expect(cliScripts.backup).toBe("node --env-file-if-exists=../../.env --import tsx src/index.ts backup");
     expect(cliScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
-    expect(cliScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(cliScripts.check).toBe("pnpm typecheck && pnpm lint");
 
-    expect(workerScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(workerScripts.dev).toBe("tsx ../../scripts/watch-from-root.ts src/index.ts");
     expect(workerScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
-    expect(workerScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(workerScripts.check).toBe("pnpm typecheck && pnpm lint");
 
-    expect(aiScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(aiScripts.dev).toBe("tsx ../../scripts/watch-from-root.ts src/index.ts");
     expect(aiScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
-    expect(aiScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(aiScripts.check).toBe("pnpm typecheck && pnpm lint");
 
-    expect(configScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(configScripts.dev).toBe("tsx ../../scripts/watch-from-root.ts src/index.ts");
     expect(configScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
-    expect(configScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(configScripts.check).toBe("pnpm typecheck && pnpm lint");
 
-    expect(convexApiScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(convexApiScripts.dev).toBe("tsx ../../scripts/watch-from-root.ts src/index.ts");
     expect(convexApiScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
-    expect(convexApiScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(convexApiScripts.check).toBe("pnpm typecheck && pnpm lint");
 
-    expect(coreScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(coreScripts.dev).toBe("tsx ../../scripts/watch-from-root.ts src/index.ts");
     expect(coreScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
-    expect(coreScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(coreScripts.check).toBe("pnpm typecheck && pnpm lint");
 
-    expect(dbScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(dbScripts.dev).toBe("tsx ../../scripts/watch-from-root.ts src/index.ts");
     expect(dbScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
-    expect(dbScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(dbScripts.check).toBe("pnpm typecheck && pnpm lint");
 
-    expect(ragScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(ragScripts.dev).toBe("tsx ../../scripts/watch-from-root.ts src/index.ts");
     expect(ragScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
-    expect(ragScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(ragScripts.check).toBe("pnpm typecheck && pnpm lint");
 
-    expect(sharedScripts.dev).toBe("bun ../../scripts/watch-from-root.ts src/index.ts");
+    expect(sharedScripts.dev).toBe("tsx ../../scripts/watch-from-root.ts src/index.ts");
     expect(sharedScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
-    expect(sharedScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(sharedScripts.check).toBe("pnpm typecheck && pnpm lint");
 
     expect(convexScripts.lint).toBe(OXLINT_ONE_LEVEL_WORKSPACE);
-    expect(convexScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(convexScripts.check).toBe("pnpm typecheck && pnpm lint");
 
     expect(storageScripts.lint).toBe(OXLINT_TWO_LEVEL_WORKSPACE);
-    expect(storageScripts.check).toBe("bun run typecheck && bun run lint");
+    expect(storageScripts.check).toBe("pnpm typecheck && pnpm lint");
   });
 
   test("generates a shared markdown conversation session file for root bot and worker dev runs", () => {

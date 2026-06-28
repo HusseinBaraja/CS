@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import type { GroundingContextBlock } from '@cs/ai';
 import type { ConvexAdminClient, Id } from '@cs/db';
 import { buildRetrievalQueryText, createProductRetrievalService, generateRetrievalQueryEmbedding } from './catalogRetrieval';

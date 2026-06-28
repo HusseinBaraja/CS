@@ -33,7 +33,7 @@ export const normalizeCompanyRuntimeStoreError = (error: unknown): unknown => {
     MISSING_FUNCTION_PATTERNS.some((pattern) => error.message.includes(pattern))
   ) {
     return new Error(
-      "Configured Convex deployment is missing bot runtime backend functions. Sync the backend with `bunx convex dev --once` for the active CONVEX_DEPLOYMENT.",
+      "Configured Convex deployment is missing bot runtime backend functions. Sync the backend with `pnpm exec convex dev --once` for the active CONVEX_DEPLOYMENT.",
       { cause: error },
     );
   }

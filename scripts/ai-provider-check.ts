@@ -1,3 +1,4 @@
+import { pathToFileURL } from "node:url";
 import {
   type ChatProviderAdapterResolver,
   type ChatProviderHealth,
@@ -90,7 +91,7 @@ export const formatProviderHealth = (result: ChatProviderHealth): string => {
 const main = async (): Promise<void> => {
   try {
     const runtimeConfig = createChatRuntimeConfig();
-    const requestedProviders = resolveRequestedProviders(Bun.argv.slice(2), runtimeConfig.providerOrder);
+    const requestedProviders = resolveRequestedProviders(process.argv.slice(2), runtimeConfig.providerOrder);
     const results = await runProviderHealthChecks(requestedProviders, runtimeConfig);
 
     for (const result of results) {
@@ -106,6 +107,10 @@ const main = async (): Promise<void> => {
   }
 };
 
-if (import.meta.main) {
+const isMainModule = process.argv[1]
+  ? import.meta.url === pathToFileURL(process.argv[1]).href
+  : false;
+
+if (isMainModule) {
   await main();
 }

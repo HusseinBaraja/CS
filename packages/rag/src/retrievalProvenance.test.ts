@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { summarizePromptRetrievalProvenance } from './retrievalProvenance';
 
 describe("summarizePromptRetrievalProvenance", () => {

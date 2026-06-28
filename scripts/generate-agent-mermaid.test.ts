@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -36,7 +36,7 @@ describe("parseCliArgs", () => {
   test("throws on missing input file", () => {
     expect(() => parseCliArgs([])).toThrow(
       new AgentMermaidArgumentError(
-        "Expected usage: bun run issue:diagram -- <agent-issues/*.mmd> [output-name]",
+        "Expected usage: pnpm issue:diagram -- <agent-issues/*.mmd> [output-name]",
       ),
     );
   });
@@ -44,7 +44,7 @@ describe("parseCliArgs", () => {
   test("throws when too many arguments are provided", () => {
     expect(() => parseCliArgs(["a.mmd", "b", "c"])).toThrow(
       new AgentMermaidArgumentError(
-        "Expected usage: bun run issue:diagram -- <agent-issues/*.mmd> [output-name]",
+        "Expected usage: pnpm issue:diagram -- <agent-issues/*.mmd> [output-name]",
       ),
     );
   });
@@ -165,15 +165,16 @@ describe("buildMermaidCliEnv", () => {
 });
 
 describe("buildMermaidCliCommand", () => {
-  test("uses high-resolution render defaults for readable PNG output", () => {
+  test("uses pnpm and high-resolution render defaults for readable PNG output", () => {
     expect(
       buildMermaidCliCommand(
         "C:\\repo\\agent-issues\\flow.mmd",
         "C:\\repo\\agent-issues\\IMG\\flow.png",
+        "linux",
       ),
     ).toEqual([
-      process.execPath,
-      "x",
+      "pnpm",
+      "dlx",
       "@mermaid-js/mermaid-cli",
       "--input",
       "C:\\repo\\agent-issues\\flow.mmd",
@@ -186,5 +187,15 @@ describe("buildMermaidCliCommand", () => {
       "--scale",
       "2",
     ]);
+  });
+
+  test("uses the pnpm command shim on Windows", () => {
+    expect(
+      buildMermaidCliCommand(
+        "C:\\repo\\agent-issues\\flow.mmd",
+        "C:\\repo\\agent-issues\\IMG\\flow.png",
+        "win32",
+      )[0],
+    ).toBe("pnpm.cmd");
   });
 });

@@ -27,17 +27,17 @@ Reda (رضا) is a multi-tenant WhatsApp customer service platform for small and
 
 ## Command Rules
 
-- Run all repo scripts from the repository root with `bun`.
-- Do not run `bun dev`; it is always running.
-- Use `bun test` or the nearest focused script for the specific aspect modified, e.g. `bun test:convex` for Convex changes.
-- Run `bun generate` after any Convex schema change.
+- Run all repo scripts from the repository root with `pnpm`.
+- Do not run `pnpm dev`; it is always running.
+- Use `pnpm test` or the nearest focused script for the specific aspect modified, e.g. `pnpm test:convex` for Convex changes.
+- Run `pnpm generate` after any Convex schema change.
 
 ## Completion Gates
 
 - Documentation-only changes: no repo check is required unless generated docs, scripts, or typed examples changed.
-- General code tasks: targeted tests, `bun lint`, and `bun check` must pass before completion.
-- Convex schema changes: run `bun generate`, `bun test:convex`, `bun lint`, and `bun check`.
-- Root script or policy changes: run the relevant focused test plus `bun run check:root`.
+- General code tasks: targeted tests, `pnpm lint`, and `pnpm check` must pass before completion.
+- Convex schema changes: run `pnpm generate`, `pnpm test:convex`, `pnpm lint`, and `pnpm check`.
+- Root script or policy changes: run the relevant focused test plus `pnpm check:root`.
 - If a required check fails, fix it or report the exact failure and why it remains.
 
 ## Testing Discipline
@@ -63,7 +63,7 @@ Reda (رضا) is a multi-tenant WhatsApp customer service platform for small and
 - Split large tasks into logical steps and commit regularly.
 - On large plan implementations, do not begin the next logical step until the current step has:
   1. its code changes finished,
-  2. the required repo-root `bun` commands run,
+  2. the required repo-root `pnpm` commands run,
   3. failures fixed or explicitly reported,
   4. a commit created for that step.
 - Do not batch multiple logical steps into one uncommitted work block.

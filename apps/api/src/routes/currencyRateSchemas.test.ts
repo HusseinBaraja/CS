@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { parseCurrencyRatePath, parseUpsertCurrencyRateBody } from './currencyRateSchemas';
 
 describe("currency rate schema parsers", () => {

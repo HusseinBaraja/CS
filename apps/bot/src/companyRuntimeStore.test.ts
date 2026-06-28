@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { createConvexCompanyRuntimeStore, normalizeCompanyRuntimeStoreError } from './companyRuntimeStore';
 
 type StubConvexAdminClient = {
@@ -92,7 +92,7 @@ describe("createConvexCompanyRuntimeStore", () => {
     });
 
     await expect(store.listEnabledCompanies()).rejects.toThrow(
-      "Configured Convex deployment is missing bot runtime backend functions. Sync the backend with `bunx convex dev --once` for the active CONVEX_DEPLOYMENT.",
+      "Configured Convex deployment is missing bot runtime backend functions. Sync the backend with `pnpm exec convex dev --once` for the active CONVEX_DEPLOYMENT.",
     );
   });
 

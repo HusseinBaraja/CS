@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import type { StructuredLogger } from '@cs/core';
 import { convexInternal } from '@cs/db';
 import { ConfigError, ERROR_CODES } from '@cs/shared';

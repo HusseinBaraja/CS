@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { convexInternal } from '@cs/db';
 import { getFunctionName } from 'convex/server';
 import { createConvexBotRuntimeService } from './convexBotRuntimeService';

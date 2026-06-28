@@ -13,5 +13,11 @@ if (-not (Test-Path $EntryPath)) {
 $resolvedEntry = (Resolve-Path $EntryPath).Path
 $envFile = Join-Path $repoRoot '.env'
 
-& bun --cwd $repoRoot --env-file=$envFile --watch $resolvedEntry
+Push-Location $repoRoot
+try {
+  & node --watch --env-file-if-exists $envFile --import tsx $resolvedEntry
+}
+finally {
+  Pop-Location
+}
 exit $LASTEXITCODE

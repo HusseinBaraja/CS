@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { createCatalogImportTranslator, type TranslateText } from './translation';
 import type { ParsedCatalogImportGroup } from './workbookParser';
 

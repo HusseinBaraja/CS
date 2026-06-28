@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'vitest';
 import { GEMINI_EMBEDDING_DIMENSIONS, generateGeminiEmbedding, generateGeminiEmbeddings } from '@cs/ai';
 import * as geminiClientFactoryModule from './geminiClientFactory';
 import * as embeddingsTestUtilsModule from './testUtils';

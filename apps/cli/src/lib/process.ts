@@ -1,4 +1,6 @@
-import { resolve } from 'node:path';
+import { spawn as nodeSpawn } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 interface InheritedSpawnOptions {
   cwd: string;
@@ -20,7 +22,7 @@ interface InheritedCommandOptions {
   timeoutMs?: number;
 }
 
-const CLI_WORKSPACE_ROOT = resolve(import.meta.dir, "../../../..");
+const CLI_WORKSPACE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 export const getCliWorkspaceRoot = (): string => CLI_WORKSPACE_ROOT;
 
@@ -28,8 +30,22 @@ export const runInheritedCommand = async (
   args: string[],
   options: InheritedCommandOptions = {}
 ): Promise<void> => {
-  const spawn = options.spawn ?? Bun.spawn;
-  const commandArgs = ["bunx", ...args];
+  const spawn = options.spawn ?? ((commandWithArgs, spawnOptions) => {
+    const [command, ...commandArgs] = commandWithArgs;
+    const child = nodeSpawn(command, commandArgs, {
+      cwd: spawnOptions.cwd,
+      stdio: "inherit",
+    });
+
+    return {
+      exited: new Promise<number>((resolveExit, rejectExit) => {
+        child.once("exit", (code) => resolveExit(code ?? 1));
+        child.once("error", rejectExit);
+      }),
+      kill: () => child.kill(),
+    };
+  });
+  const commandArgs = ["pnpm", "exec", ...args];
   const child = spawn(commandArgs, {
     cwd: options.cwd ?? process.cwd(),
     stdin: "inherit",
@@ -63,6 +79,6 @@ export const runInheritedCommand = async (
       });
 
   if (exitCode !== 0) {
-    throw new Error(`Command failed with exit code ${exitCode}: bunx ${args.join(" ")}`);
+    throw new Error(`Command failed with exit code ${exitCode}: pnpm exec ${args.join(" ")}`);
   }
 };

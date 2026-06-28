@@ -90,7 +90,7 @@ describe('UploadDataPage', () => {
     expect(screen.getByRole('button', { name: /تنزيل القالب/ })).toBeDefined();
     expect(screen.getByRole('button', { name: /معاينة/ })).toBeDefined();
     expect(screen.getByLabelText('ملف الكتالوج')).toBeDefined();
-    expect(screen.getByRole('group', { name: 'إنشاء وصف المنتج بالذكاء الاصطناعي' })).toBeDefined();
+    expect(screen.getByLabelText('إنشاء وصف المنتج بالذكاء الاصطناعي')).toBeDefined();
     expect(screen.getByRole('radio', { name: 'نعم' }).getAttribute('data-state')).toBe('on');
     expect(screen.getByText('لم تتم معاينة أي ملف بعد.')).toBeDefined();
     await waitFor(() => expect(screen.getByText('YAS_Trading')).toBeDefined());
@@ -104,8 +104,8 @@ describe('UploadDataPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
 
     expect(screen.queryByRole('group', { name: 'اختيار العملة' })).toBeNull();
-    expect(screen.getByRole('group', { name: 'اختيار اللغة' })).toBeDefined();
-    expect(screen.getByRole('group', { name: 'تضمين الوصف' })).toBeDefined();
+    expect(screen.getByLabelText('اختيار اللغة')).toBeDefined();
+    expect(screen.getByLabelText('تضمين الوصف')).toBeDefined();
     expect(screen.getByRole('button', { name: /تحميل ملف Excel/ })).toBeDefined();
     expect(downloadCatalogTemplate).not.toHaveBeenCalled();
   });
@@ -115,7 +115,7 @@ describe('UploadDataPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /تنزيل القالب/ }));
     fireEvent.click(screen.getByRole('radio', { name: 'English' }));
-    fireEvent.click(within(screen.getByRole('group', { name: 'تضمين الوصف' })).getByRole('radio', { name: 'لا' }));
+    fireEvent.click(within(screen.getByLabelText('تضمين الوصف')).getByRole('radio', { name: 'لا' }));
     fireEvent.click(screen.getByRole('button', { name: /تحميل ملف Excel/ }));
 
     await waitFor(() => {

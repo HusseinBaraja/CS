@@ -6,17 +6,17 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "dev": "bun ../../scripts/watch-from-root.ts src/index.ts",
-    "build": "bun build src/index.ts --outdir dist",
+    "dev": "tsx ../../scripts/watch-from-root.ts src/index.ts",
+    "build": "tsup src/index.ts --out-dir dist --format esm --target node22",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run lint",
-    "test": "bun test --pass-with-no-tests",
+    "check": "pnpm typecheck && pnpm lint",
+    "test": "pnpm --dir ../.. exec vitest run packages/db/src --project node --passWithNoTests",
     "lint": "oxlint --config ../../.oxlintrc.json --ignore-path ../../.oxlintignore ."
   },
   "dependencies": {
-    "@cs/config": "*",
-    "@cs/convex-api": "*",
-    "@cs/shared": "*",
+    "@cs/config": "workspace:*",
+    "@cs/convex-api": "workspace:*",
+    "@cs/shared": "workspace:*",
     "convex": "1.32.0"
   }
 }

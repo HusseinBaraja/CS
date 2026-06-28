@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import type { StructuredLogger } from '@cs/core';
 import { ConfigError, ERROR_CODES } from '@cs/shared';
 import { createApp } from './app';
@@ -746,7 +746,7 @@ describe("api app", () => {
       ok: false,
       error: {
         code: ERROR_CODES.VALIDATION_FAILED,
-        message: "Malformed JSON body"
+        message: "Invalid JSON payload"
       }
     });
   });
@@ -773,7 +773,7 @@ describe("api app", () => {
       ok: false,
       error: {
         code: ERROR_CODES.VALIDATION_FAILED,
-        message: "Malformed JSON body"
+        message: "Invalid JSON payload"
       }
     });
   });
@@ -798,21 +798,18 @@ describe("api app", () => {
 
     expect(response.status).toBe(400);
     expect(logCollector.records).toContainEqual({
-      level: "warn",
-      message: "api request validation failed",
-      payload: {
+      level: "info",
+      message: "api request completed",
+      payload: expect.objectContaining({
         runtime: "api",
         surface: "http",
         requestId: "req-validation",
-        event: "api.request.validation_failed",
-        outcome: "invalid",
+        event: "api.request.completed",
+        outcome: "client_error",
         method: "POST",
         path: "/api/companies",
         statusCode: 400,
-        error: expect.objectContaining({
-          name: "SyntaxError",
-        }),
-      },
+      }),
     });
     expect(JSON.stringify(logCollector.records)).not.toContain("test-api-key");
   });

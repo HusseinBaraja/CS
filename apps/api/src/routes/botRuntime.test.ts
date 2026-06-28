@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import type { BotRuntimeOperatorSnapshot } from '@cs/shared';
 import { createApp } from '../app';
 import type { BotRuntimeService } from '../services/botRuntime';

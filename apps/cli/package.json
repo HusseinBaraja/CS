@@ -7,17 +7,17 @@
     "cs": "./src/index.ts"
   },
   "scripts": {
-    "dev": "bun ../../scripts/watch-from-root.ts src/index.ts",
-    "build": "bun --env-file=../../.env build src/index.ts --outdir dist --target bun",
-    "seed": "bun --env-file=../../.env src/index.ts seed",
-    "backup": "bun --env-file=../../.env src/index.ts backup",
+    "dev": "tsx ../../scripts/watch-from-root.ts src/index.ts",
+    "build": "tsup src/index.ts --out-dir dist --format esm --target node22",
+    "seed": "node --env-file-if-exists=../../.env --import tsx src/index.ts seed",
+    "backup": "node --env-file-if-exists=../../.env --import tsx src/index.ts backup",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run lint",
-    "test": "bun --env-file=../../.env test --pass-with-no-tests",
+    "check": "pnpm typecheck && pnpm lint",
+    "test": "pnpm --dir ../.. exec vitest run apps/cli/src --project node --passWithNoTests",
     "lint": "oxlint --config ../../.oxlintrc.json --ignore-path ../../.oxlintignore ."
   },
   "dependencies": {
-    "@cs/config": "*",
-    "@cs/core": "*"
+    "@cs/config": "workspace:*",
+    "@cs/core": "workspace:*"
   }
 }

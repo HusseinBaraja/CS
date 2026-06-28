@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'vitest';
 import { PassThrough } from 'node:stream';
 import { createLogger } from '@cs/core';
 import { startBotApp } from './index';

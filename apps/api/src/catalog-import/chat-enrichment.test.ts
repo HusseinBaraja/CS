@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import type { ChatProviderManager } from '@cs/ai';
 import { createChatGenerateProductDescription } from './chat-enrichment';
 

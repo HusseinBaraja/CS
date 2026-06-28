@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { createConvexAdminClient } from "./client";
 
 describe("@cs/db client helpers", () => {
