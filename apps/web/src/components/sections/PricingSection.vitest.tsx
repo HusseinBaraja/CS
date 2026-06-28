@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { PricingSection } from './PricingSection';
 
@@ -20,7 +21,7 @@ vi.mock('gsap/ScrollTrigger', () => ({
 }));
 
 vi.mock('../router/HonoRouter', () => ({
-  Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => (
+  Link: ({ href, children, className }: { href: string; children: ReactNode; className?: string }) => (
     <a href={href} className={className}>
       {children}
     </a>

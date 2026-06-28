@@ -2,6 +2,7 @@ import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { TrieRouter } from 'hono/router/trie-router';
+import type { FC } from 'react';
 
 import { Layout } from './components/layout/Layout';
 import { RouterProvider, RouteView, useLocation } from './components/router/HonoRouter';
@@ -16,7 +17,7 @@ import { SettingsPage } from './pages/SettingsPage';
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
-const router = new TrieRouter<React.FC<any>>();
+const router = new TrieRouter<FC<any>>();
 
 // Define routes
 router.add('GET', '/', LandingPage);

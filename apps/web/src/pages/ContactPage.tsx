@@ -1,3 +1,4 @@
+import type { FormEvent } from 'react';
 import { useRef, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -37,7 +38,7 @@ export function ContactPage() {
     );
   }, { scope: container });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     alert('شكراً لتواصلك معنا. هذه نسخة تجريبية، وتم استلام طلبك بنجاح.');
     setFormData({ name: '', phone: '', company: '', message: '' });

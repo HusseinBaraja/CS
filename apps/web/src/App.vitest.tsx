@@ -1,13 +1,14 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setupGsapMocks } from './test/setupGsapMocks';
 
 vi.mock('./components/layout/Layout', () => ({
-  Layout: ({ children }: { children: React.ReactNode }) => <div data-testid="marketing-layout">{children}</div>,
+  Layout: ({ children }: { children: ReactNode }) => <div data-testid="marketing-layout">{children}</div>,
 }));
 
 vi.mock('./components/ui/tooltip', () => ({
-  TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('./components/ui/direction', () => ({
@@ -16,7 +17,7 @@ vi.mock('./components/ui/direction', () => ({
     dir,
     direction,
   }: {
-    children: React.ReactNode;
+    children: ReactNode;
     dir?: string;
     direction?: string;
   }) => (
