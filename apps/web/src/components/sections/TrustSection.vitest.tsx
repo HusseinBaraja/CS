@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { setupGsapMocks } from '../../test/setupGsapMocks';
+import { setupGsapMocks } from '@/test/setupGsapMocks.ts';
 
 describe('TrustSection', () => {
   const matchMediaMock = vi.fn<(query: string) => MediaQueryList>();
@@ -11,12 +11,10 @@ describe('TrustSection', () => {
       matches,
       media: '(prefers-reduced-motion: reduce)',
       onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
-    }) as MediaQueryList;
+    }) as unknown as MediaQueryList;
 
   beforeEach(() => {
     matchMediaMock.mockReset();

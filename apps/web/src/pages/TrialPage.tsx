@@ -1,3 +1,4 @@
+import type { FormEvent } from 'react';
 import { useRef, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -43,7 +44,7 @@ export function TrialPage() {
     }, '-=0.4');
   }, { scope: container });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     alert('تم تسجيل طلبك. بيتواصل معك فريقنا قريباً لترتيب التجربة المجانية.');
   };

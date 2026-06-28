@@ -5,9 +5,9 @@ import type {
   ChatResponse,
   NormalizedChatMessage,
   NormalizedChatRequest,
-} from '../contracts';
+} from '@cs/ai';
 import { ChatProviderError, createChatProviderError } from '../errors';
-import type { ChatProviderRuntimeConfig } from '../runtimeConfig';
+import type { ChatProviderRuntimeConfig } from '@cs/ai';
 import type { GeminiGenerateContentResponse } from '../../gemini/types';
 
 export const DEFAULT_CHAT_REQUEST_TIMEOUT_MS = 15_000;
