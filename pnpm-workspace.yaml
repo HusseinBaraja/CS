@@ -2,3 +2,8 @@ packages:
   - apps/*
   - packages/*
   - convex
+allowBuilds:
+  baileys: true
+  esbuild: true
+  protobufjs: true
+  unrs-resolver: true

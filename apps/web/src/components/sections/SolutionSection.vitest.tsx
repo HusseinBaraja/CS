@@ -39,12 +39,10 @@ describe('SolutionSection', () => {
       matches: true,
       media: '(prefers-reduced-motion: reduce)',
       onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
-    });
+    } as unknown as MediaQueryList);
 
     const { gsapSet, gsapTo, gsapFrom, gsapFromTo } = setupGsapMocks();
     const { SolutionSection } = await import('./SolutionSection');
@@ -76,12 +74,10 @@ describe('SolutionSection', () => {
       matches: false,
       media: '(prefers-reduced-motion: reduce)',
       onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
-    });
+    } as unknown as MediaQueryList);
     Object.defineProperty(window, 'innerWidth', {
       writable: true,
       configurable: true,
@@ -138,12 +134,10 @@ describe('SolutionSection', () => {
       matches: false,
       media: '(prefers-reduced-motion: reduce)',
       onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
-    });
+    } as unknown as MediaQueryList);
     Object.defineProperty(window, 'innerWidth', {
       writable: true,
       configurable: true,
