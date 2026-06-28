@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { setupGsapMocks } from '../../test/setupGsapMocks';
+import { setupGsapMocks } from '@/test/setupGsapMocks.ts';
 
 describe('TrustSection', () => {
   const matchMediaMock = vi.fn<(query: string) => MediaQueryList>();

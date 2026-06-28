@@ -1,6 +1,6 @@
-import type { ChatRequest } from './contracts';
+import type { ChatRequest } from '@cs/ai';
 import { createChatProviderError } from './errors';
-import type { ChatRuntimeConfig } from './runtimeConfig';
+import type { ChatRuntimeConfig } from '@cs/ai';
 import { getChatResponseFormatCapability } from './structuredOutputCapabilities';
 
 export const getChatProviderOrderForRequest = (

@@ -4,7 +4,7 @@ import type {
   ChatTextPart,
   NormalizedChatMessage,
   NormalizedChatRequest,
-} from './contracts';
+} from '@cs/ai';
 
 const isBlankText = (value: string): boolean => value.trim().length === 0;
 

@@ -1,4 +1,4 @@
-import type { ChatCallOptions, ChatProviderAdapter, ChatResponse, NormalizedChatRequest } from '../contracts';
+import type { ChatCallOptions, ChatProviderAdapter, ChatResponse, NormalizedChatRequest } from '@cs/ai';
 import type { ResolvedProviderConfig } from './shared';
 import { createGroqClient } from './clients/groqClientFactory';
 import { createChatProviderError } from '../errors';

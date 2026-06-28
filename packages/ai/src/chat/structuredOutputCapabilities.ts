@@ -1,7 +1,7 @@
 import type {
   ChatProviderName,
   ChatResponseFormat,
-} from './contracts';
+} from '@cs/ai';
 
 type ChatResponseFormatCapability =
   | "native_json_schema"
