@@ -2,12 +2,7 @@
   "$schema": "./package.schema.json",
   "name": "cs",
   "private": true,
-  "packageManager": "pnpm@10.25.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*",
-    "convex"
-  ],
+  "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev": "tsx scripts/dev-session-log.ts",
     "web": "pnpm dev:web",

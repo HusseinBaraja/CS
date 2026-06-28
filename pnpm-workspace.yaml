@@ -2,8 +2,10 @@ packages:
   - apps/*
   - packages/*
   - convex
+fetchWarnTimeoutMs: 30000
 allowBuilds:
   baileys: true
   esbuild: true
   protobufjs: true
   unrs-resolver: true
+  whatsapp-rust-bridge: false
